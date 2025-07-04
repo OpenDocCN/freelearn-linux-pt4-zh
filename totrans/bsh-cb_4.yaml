@@ -1,449 +1,659 @@
 - en: Making a Script Behave Like a Daemon
+  id: totrans-0
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 让脚本像守护进程一样运行
 - en: 'In this chapter, we will introduce the following topics:'
+  id: totrans-1
   prefs: []
   type: TYPE_NORMAL
+  zh: 在本章中，我们将介绍以下主题：
 - en: Running a program continuously (forever) using looping constructs or recursion
+  id: totrans-2
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 使用循环结构或递归使程序持续运行（永远）
 - en: Keeping programs/scripts running after logoff
+  id: totrans-3
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 在注销后保持程序/脚本运行
 - en: Invoking commands when they require permissions
+  id: totrans-4
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 在需要权限时调用命令
 - en: Sanitizing user input and for repeatable results
+  id: totrans-5
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 清理用户输入并确保结果可重复
 - en: Making a simple multi-level user menu using select
+  id: totrans-6
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 使用select创建一个简单的多级用户菜单
 - en: Generating and trapping signals for cleanup
+  id: totrans-7
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 生成和捕获信号以进行清理
 - en: Using temporary files and lock files in your program
+  id: totrans-8
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 在程序中使用临时文件和锁文件
 - en: Leveraging timeout when waiting for command completion
+  id: totrans-9
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 利用超时等待命令完成
 - en: Creating a file-in-file-out program and running processes in parallel
+  id: totrans-10
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 创建文件输入-文件输出程序并并行运行进程
 - en: Executing your script on startup
+  id: totrans-11
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 在启动时执行脚本
 - en: Introduction
+  id: totrans-12
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 介绍
 - en: 'This chapter is about creating components that mimic application functionality
     such as menus or a daemon. For that to happen, let''s step back for a second and
     determine: what defines an application or daemon? Is it menus? Is it the ability
     to run *forever?* Or the ability to run *headless* in the background? All of this
     defines behaviors that an application may exhibit, but nothing prevents a script
     from also having these behaviors as well!'
+  id: totrans-13
   prefs: []
   type: TYPE_NORMAL
+  zh: 本章内容是创建模拟应用程序功能的组件，例如菜单或守护进程。为了实现这一点，我们先停下来思考一下：什么定义了一个应用程序或守护进程？是菜单吗？是能够*永远*运行吗？还是能够在后台*无头*运行？所有这些都定义了一个应用程序可能表现出的行为，但没有什么能阻止脚本也具备这些行为！
 - en: For example, if a bash script did not have an extension (for example, `.sh`)
     and was not ran explicitly with the Bash interpreter, how would you know on the
     first inspection that it was a script and not a binary? While there are a number
     of ways such as opening, or using the `file` command, on the surface, a script
     can appear the same as a program!
+  id: totrans-14
   prefs: []
   type: TYPE_NORMAL
+  zh: 例如，如果一个bash脚本没有扩展名（例如，`.sh`），并且没有显式通过Bash解释器运行，你怎么知道第一次检查时它是一个脚本而不是一个二进制文件？虽然有很多方法可以确定，比如打开文件或使用`file`命令，但表面上看，脚本和程序可能是一样的！
 - en: Running a program continuously (forever) using looping constructs or recursion
+  id: totrans-15
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 使用循环结构或递归使程序持续运行（永远）
 - en: So far, this cookbook has mostly shown scripts that serve a single purpose and
     exit upon task completion. This is great for single use scripts, but what about
     if we wanted to have scripts execute multiple scripts through a menu, or perform
     tasks in the background automatically forever without being executed each time
     by scheduling processes (like cron)? This recipe introduces a few ways for a script
     to run forever until it is killed or exits.
+  id: totrans-16
   prefs: []
   type: TYPE_NORMAL
+  zh: 到目前为止，本食谱大多展示了只执行单一任务并在任务完成后退出的脚本。这非常适合一次性脚本，但如果我们希望通过菜单执行多个脚本，或者在后台自动执行任务而无需每次通过调度进程（如cron）执行，应该怎么做呢？本食谱介绍了几种方法，使脚本能够永远运行，直到被杀死或退出。
 - en: Getting ready
+  id: totrans-17
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 准备工作
 - en: 'Besides having a terminal open, we need to remember a few concepts:'
+  id: totrans-18
   prefs: []
   type: TYPE_NORMAL
+  zh: 除了保持终端开启，我们还需要记住几个概念：
 - en: Recursive functions combined with a prompt (for example, the `read` command)
     can result in a script that loops based on user input
+  id: totrans-19
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 递归函数与提示符结合（例如，`read`命令）可以产生一个根据用户输入循环的脚本。
 - en: Looping constructs such as `for`, `while`, and `until` can be executed in such
     a way that a condition is never met and cannot exit
+  id: totrans-20
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 循环结构如`for`、`while`和`until`可以以一种方式执行，使得条件永远无法满足，从而无法退出
 - en: Therefore, a loop or something that causes a loop will force a program to run
     for an indefinite period of time until an exit event occurs.
+  id: totrans-21
   prefs: []
   type: TYPE_NORMAL
+  zh: 因此，循环或某些会引发循环的东西会强制程序运行一个不确定的时间，直到发生退出事件。
 - en: In many programming languages, a program will be executed through the concept
     of a main function. Within this `main` function, often programmers create what's
     called a run loop, which allows the program to run forever (even if it is doing
     nothing).
+  id: totrans-22
   prefs: []
   type: TYPE_NORMAL
+  zh: 在许多编程语言中，程序将通过主函数的概念来执行。在这个`main`函数中，程序员通常会创建所谓的运行循环，这使得程序能够永远运行（即使它什么也不做）。
 - en: 'Using the recursive method, the operation may look like this:'
+  id: totrans-23
   prefs: []
   type: TYPE_NORMAL
+  zh: 使用递归方法时，操作可能如下所示：
 - en: The script or program enters a recursive function
+  id: totrans-24
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 脚本或程序进入递归函数
 - en: The recursive function can continue calling itself indefinitely, or, wait for
     a blocking input (for example, the `read`command)
+  id: totrans-25
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 递归函数可以继续无限次调用自身，或者等待一个阻塞输入（例如，`read`命令）
 - en: Based on the input provided by the `read` command, you could call the same function
     again
+  id: totrans-26
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 基于 `read` 命令提供的输入，您可以再次调用相同的函数。
 - en: Go back to step 1 until exit
+  id: totrans-27
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 回到步骤 1，直到退出
 - en: Alternatively, the looping mechanism is similar except functions are not necessarily
     executed. A loop with an effectively unreachable condition will continuously run
     unless something interrupts the execution (for example, `sleep`).
+  id: totrans-28
   prefs: []
   type: TYPE_NORMAL
+  zh: 另外，循环机制相似，不同的是函数不一定会执行。一个有效不可达的条件下的循环将持续运行，除非某些东西中断了执行（例如，`sleep`）。
 - en: A loop running continuously without pause will use CPU resources that could
     be used elsewhere or waste CPU cycles. If you are running on a battery or a resource
     constrained platform, extra CPU activity is best to be avoided where possible.
+  id: totrans-29
   prefs: []
   type: TYPE_NORMAL
+  zh: 一个持续运行的循环将消耗 CPU 资源，这些资源本可以用于其他地方，或浪费 CPU 周期。如果你在电池供电或资源受限的平台上运行，最好避免不必要的额外
+    CPU 活动。
 - en: Using the `sleep` command is an excellent way to limit CPU usage when using
     loops in simple scripts. However, time adds up if you are running a long script!
+  id: totrans-30
   prefs: []
   type: TYPE_NORMAL
+  zh: 使用 `sleep` 命令是在简单脚本中使用循环时限制 CPU 使用率的绝佳方式。然而，如果你运行一个长时间的脚本，时间会累积！
 - en: How to do it...
+  id: totrans-31
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 如何操作...
 - en: 'Let''s start our activity as follows:'
+  id: totrans-32
   prefs: []
   type: TYPE_NORMAL
+  zh: 让我们按以下步骤开始我们的活动：
 - en: 'Open a terminal and create the `recursive_read_input.sh` script:'
+  id: totrans-33
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 打开终端并创建 `recursive_read_input.sh` 脚本：
 - en: '[PRE0]'
+  id: totrans-34
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE0]'
 - en: Execute the `$ bash recursive_read_input.sh`script—press *Enter* at the prompt
     and wait for another prompt.
+  id: totrans-35
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 执行 `$ bash recursive_read_input.sh` 脚本——在提示符下按 *Enter* 并等待下一个提示符。
 - en: Exit the program with *Ctrl* + C.
+  id: totrans-36
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 使用 *Ctrl* + C 退出程序。
 - en: 'Open a terminal and create the `loop_for_input.sh` script:'
+  id: totrans-37
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 打开终端并创建 `loop_for_input.sh` 脚本：
 - en: '[PRE1]'
+  id: totrans-38
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE1]'
 - en: Execute the `$ bash loop_for_input.sh`script—press *Enter* at the prompt and
     wait for another prompt.
+  id: totrans-39
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 执行 `$ bash loop_for_input.sh` 脚本——在提示符下按 *Enter* 并等待下一个提示符。
 - en: Exit the program with *Ctrl* + *C.*
+  id: totrans-40
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 使用 *Ctrl* + *C* 退出程序。
 - en: 'Open a terminal and create the `loop_while_input.sh` script:'
+  id: totrans-41
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 打开终端并创建 `loop_while_input.sh` 脚本：
 - en: '[PRE2]'
+  id: totrans-42
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE2]'
 - en: Execute the `$ bash loop_while_input.sh` script—press *Enter* at the prompt
     and wait for another prompt.
+  id: totrans-43
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 执行 `$ bash loop_while_input.sh` 脚本——在提示符下按 *Enter* 并等待下一个提示符。
 - en: Exit the program with *Ctrl* + *C.*
+  id: totrans-44
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 使用 *Ctrl* + *C* 退出程序。
 - en: 'Open a terminal and create the `loop_until_input.sh` script:'
+  id: totrans-45
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 打开终端并创建 `loop_until_input.sh` 脚本：
 - en: '[PRE3]'
+  id: totrans-46
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE3]'
 - en: Execute the `$ bash loop_until_input.sh` script—press *Enter* at the prompt
     and wait for another prompt.
+  id: totrans-47
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 执行 `$ bash loop_until_input.sh` 脚本——在提示符下按 *Enter* 并等待下一个提示符。
 - en: Exit the program with *Ctrl* + *C.*
+  id: totrans-48
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 使用 *Ctrl* + *C* 退出程序。
 - en: How it works...
+  id: totrans-49
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 它是如何工作的...
 - en: 'Let''s understand our script in detail:'
+  id: totrans-50
   prefs: []
   type: TYPE_NORMAL
+  zh: 让我们详细了解一下我们的脚本：
 - en: Creating the `recursive_read_input.sh` script is a simple process. We can see
     that the `read` command expects input (and will store it in the `$input` variable),
     then the script calls `recursive_func()` again for *each* time a read exits.
+  id: totrans-51
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 创建 `recursive_read_input.sh` 脚本是一个简单的过程。我们可以看到，`read` 命令期待输入（并将其存储在 `$input`
+    变量中），然后脚本会在每次 `read` 执行完后再次调用 `recursive_func()`，并且对 *每次* 输入都会如此。
 - en: Executing the script with `$ bash recursive_read_input.sh`runs the script indefinitely.
     No matter the input, *Ctrl + C* or killing the script will exit it.
+  id: totrans-52
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 执行 `$ bash recursive_read_input.sh` 脚本将使脚本无限运行。无论输入什么，*Ctrl + C* 或终止脚本都会退出。
 - en: 'Creating the `loop_for_input.sh` script is relatively trivial as well. We can
     notice two things: the for loop has no parameters, except for `(( ; ; ))` and
     the `sleep` command. This will make it run forever, but upon each execution of
     the loop, it will echo `Shall run for ever` to the console and sleep one second
     before continuing to the next loop.'
+  id: totrans-53
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 创建 `loop_for_input.sh` 脚本相对来说也比较简单。我们可以注意到两点：for 循环没有参数，除了 `(( ; ; ))` 和 `sleep`
+    命令。这将使它永远运行，但在每次执行循环时，它会向控制台输出 `Shall run for ever`，然后休眠一秒钟再继续下一次循环。
 - en: Executing the `$ bash loop_for_input.sh` scriptwill cause the script to loop
     forever.
+  id: totrans-54
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 执行 `$ bash loop_for_input.sh` 脚本将导致脚本永远循环。
 - en: '*Ctrl* + *C* will cause the script to exit.'
+  id: totrans-55
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: '*Ctrl* + *C* 将导致脚本退出。'
 - en: 'Use the `loop_while_input.sh` script by using a `while` loop with the `: noop`
     command. However, there is a small difference of an if statement (which will never
     evaluate to true), but it can still be used in another script to set a condition
     which causes the script to break the `while` loop and exit.'
+  id: totrans-56
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: '使用 `loop_while_input.sh` 脚本时，通过使用带有 `: noop` 命令的 `while` 循环。然而，存在一个小差异，即一个
+    `if` 语句（该语句永远不会为真），但它仍然可以在其他脚本中使用，以设置条件，使得脚本中断 `while` 循环并退出。'
 - en: Executing the `$ bash loop_while_input.sh` script will cause the script to loop
     forever.
+  id: totrans-57
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 执行 `$ bash loop_while_input.sh` 脚本将导致脚本永远循环。
 - en: '*Ctrl* + *C* will cause the script to exit.'
+  id: totrans-58
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: '*Ctrl* + *C* 将导致脚本退出。'
 - en: The `loop_until_input.sh` script is similar to the `while` loop forever example,
     but it is different because you can also embed a condition, which will never evaluate
     to `true.` This causes the script to loop forever unless the `$EXIT_PLEASE` variable
     is set to `1`.
+  id: totrans-59
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: '`loop_until_input.sh`脚本类似于`while`循环永远运行的示例，但它有所不同，因为你也可以嵌入一个条件，该条件永远不会评估为`true`。这将导致脚本永远循环，除非`$EXIT_PLEASE`变量被设置为`1`。'
 - en: Executing the `$ bash loop_until_input.sh` script will cause the script to loop
     forever.
+  id: totrans-60
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 执行`$ bash loop_until_input.sh`脚本将使脚本永远循环。
 - en: '*Ctrl* + *C* will cause the script to exit.'
+  id: totrans-61
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: '*Ctrl* + *C*将使脚本退出。'
 - en: Keeping programs/scripts running after logoff
+  id: totrans-62
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 在退出登录后保持程序/脚本运行
 - en: Leading up to getting our scripts to run as daemons, we need to know how to
     keep commands running after a user logs off (or better yet, have them started
     by the system itself (we will look at this in more detail later). When a user
     logs in, a session for that user is created, but when they log off—unless the
     system owns it, processes and scripts typically get killed or closed.
+  id: totrans-63
   prefs: []
   type: TYPE_NORMAL
+  zh: 在让我们的脚本作为守护进程运行之前，我们需要了解如何在用户退出登录后保持命令运行（或者更好的是，让系统自己启动它们——我们稍后会更详细地讨论）。当用户登录时，会为该用户创建一个会话，但当他们退出登录时——除非系统拥有它——进程和脚本通常会被杀死或关闭。
 - en: This recipe is about keeping your scripts and activities running in the background
     after you log off.
+  id: totrans-64
   prefs: []
   type: TYPE_NORMAL
+  zh: 这个方法是关于在你退出登录后，如何让你的脚本和活动在后台继续运行。
 - en: Getting ready
+  id: totrans-65
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 准备工作
 - en: 'Besides having a terminal open, we need to remember a few concepts:'
+  id: totrans-66
   prefs: []
   type: TYPE_NORMAL
+  zh: 除了打开一个终端，我们还需要记住一些概念：
 - en: When a user logs off, any apps or processes owned by the current user will exit
     (the shell will send a signal)
+  id: totrans-67
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 当用户退出登录时，当前用户拥有的所有应用程序或进程将退出（shell会发送信号）。
 - en: The shell is configurable to not send a shutdown signal to processes
+  id: totrans-68
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: Shell可以配置为不向进程发送关机信号。
 - en: Applications and scripts use stdin and stdout for the usual operations
+  id: totrans-69
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 应用程序和脚本使用stdin和stdout进行常规操作。
 - en: Applications or scripts in the background can be referred to as **jobs**
+  id: totrans-70
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 后台运行的应用程序或脚本可以被称为**作业**。
 - en: 'The purpose of this chapter is to not show you process management, but how
     we can manipulate the shell to keep our programs running. One neat way is by using `&`,which
     is used this way: `$ bash runforver.sh &`. Unfortunately, using only this technique,
     we are back at square one—our binary still dies when we exit. Therefore, we need
     to use programs such as **screen**, **disown**, and **sighup**.'
+  id: totrans-71
   prefs: []
   type: TYPE_NORMAL
+  zh: 本章的目的是不仅展示进程管理，还要教你如何操作shell来保持程序运行。一个巧妙的方法是使用`&`，它的使用方式是：`$ bash runforver.sh
+    &`。不幸的是，仅使用这种技术，我们回到了原点——当我们退出时，二进制文件仍然会停止运行。因此，我们需要使用诸如**screen**、**disown**和**sighup**之类的程序。
 - en: The screen command is not available on all systems. It is recommended that we
     use another command in case **screen** is absent (it is still useful to know!).
+  id: totrans-72
   prefs: []
   type: TYPE_NORMAL
+  zh: 并非所有系统都支持screen命令。建议我们使用其他命令，以防**screen**缺失（但它仍然很有用！）。
 - en: How to do it...
+  id: totrans-73
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 如何操作...
 - en: 'Let''s start our activity as follows:'
+  id: totrans-74
   prefs: []
   type: TYPE_NORMAL
+  zh: 我们按以下步骤开始活动：
 - en: 'Open a terminal and create the `loop_and_print.sh` script:'
+  id: totrans-75
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 打开一个终端并创建`loop_and_print.sh`脚本：
 - en: '[PRE4]'
+  id: totrans-76
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE4]'
 - en: 'Open a terminal and run the following commands:'
+  id: totrans-77
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 打开一个终端并运行以下命令：
 - en: '[PRE5]'
+  id: totrans-78
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE5]'
 - en: 'Next, log off, then log in and run the following command in a new terminal:'
+  id: totrans-79
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 接下来，退出登录，然后在新的终端中登录并运行以下命令：
 - en: '[PRE6]'
+  id: totrans-80
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE6]'
 - en: 'Can you find the process running? Next, run the following command:'
+  id: totrans-81
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 你能找到正在运行的进程吗？接下来，运行以下命令：
 - en: '[PRE7]'
+  id: totrans-82
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE7]'
 - en: 'Next, log off, then log in and run the following command in a new terminal:'
+  id: totrans-83
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 接下来，退出登录，然后在新的终端中登录并运行以下命令：
 - en: '[PRE8]'
+  id: totrans-84
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE8]'
 - en: 'Next, run the following command:'
+  id: totrans-85
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 接下来，运行以下命令：
 - en: '[PRE9]'
+  id: totrans-86
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE9]'
 - en: 'Next, log off, then log in and run the following command in a new terminal:'
+  id: totrans-87
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 接下来，退出登录，然后在新的终端中登录并运行以下命令：
 - en: '[PRE10]'
+  id: totrans-88
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE10]'
 - en: How it works...
+  id: totrans-89
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 它的工作原理...
 - en: In step 1, we opened a terminal and created the `loop_and_print.sh`script. This
     script merely loops forever, printing as it does.
+  id: totrans-90
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 在第1步中，我们打开了一个终端并创建了`loop_and_print.sh`脚本。这个脚本只是简单地永远循环，并在循环过程中打印内容。
 - en: 'The following commands will use the `loop_and_print.sh` script and run in the
     background as a **job**. The `ps` command outputs process information and is piped
     through grep to simplify the output. In the command, we can see the process ID
     (PID) next to the username column. Keep note of PIDs so that you can kill zombie
     processes or stop unnecessary applications:'
+  id: totrans-91
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 以下命令将使用`loop_and_print.sh`脚本并在后台作为**作业**运行。`ps`命令输出进程信息，并通过grep简化输出。在命令中，我们可以看到用户名列旁边的进程ID（PID）。记下PID，以便你可以杀死僵尸进程或停止不必要的应用程序：
 - en: '[PRE11]'
+  id: totrans-92
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE11]'
 - en: Logging back on and running the `ps` command will produce *zero* results. This
     is because the script we put into the background using `&` has been sent a signal
     to shutdown or die.
+  id: totrans-93
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 重新登录并运行 `ps` 命令将产生*零*结果。这是因为我们用 `&` 将脚本放到后台后，已经收到关闭或终止的信号。
 - en: Again, we run the `loop_and_print.sh` script; command puts it into the *background*,
     and disown removes the the background process(es) from the known list of jobs.
     This *disconnects* the script and *all* output from any terminal.
+  id: totrans-94
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 再次运行 `loop_and_print.sh` 脚本；该命令将其放入*后台*，而 `disown` 将后台进程从已知的作业列表中移除。这*断开*了脚本和*所有*输出与终端的连接。
 - en: 'Upon logging back in and using the `ps` command, you shall see the PID of the
     command:'
+  id: totrans-95
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 重新登录并使用 `ps` 命令时，你将看到命令的 PID：
 - en: '[PRE12]'
+  id: totrans-96
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE12]'
 - en: 'The `nohup` command is similar to the `disown` command, except that it explicitly
     *disconnects* the script from the current shell. It is *also* different from disown
     because `nohup` allows you still retain output from the script, which is accessible
     by other applications after the fact in the `nohup.out` file:'
+  id: totrans-97
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: '`nohup` 命令类似于 `disown` 命令，不同之处在于它明确*断开*了脚本与当前 shell 的连接。它与 `disown` 的不同之处在于，`nohup`
+    允许你在脚本执行后仍保留输出，并且可以通过其他应用程序访问位于 `nohup.out` 文件中的输出：'
 - en: '[PRE13]'
+  id: totrans-98
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE13]'
 - en: 'Upon logging back in and using the `ps` command, you shall see the PIDs of
     the *two* scripts that survived the logoff:'
+  id: totrans-99
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 重新登录并使用 `ps` 命令时，你将看到*两个*存活下来的脚本的 PID：
 - en: '[PRE14]'
+  id: totrans-100
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE14]'
 - en: Invoking commands when they require permissions
+  id: totrans-101
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 执行需要权限的命令时
 - en: Running as root is dangerous, although sometimes convenient—especially when
     you are new to Linux and password prompts seem to be a hassle. So far, as a Linux
     user, you may have seen the `sudo` command or the `su`command. These commands
@@ -451,52 +661,79 @@
     momentarily with higher permissions (if the user has `sudo` permissions). `Sudo`,
     or **substitute user do, **enables a regular user to escalate (raise) their user
     permissions to a more privileged level for a SINGLE command.
+  id: totrans-102
   prefs: []
   type: TYPE_NORMAL
+  zh: 以 root 身份运行是危险的，尽管有时很方便——尤其是当你刚接触 Linux，且密码提示看起来很麻烦时。到目前为止，作为一个 Linux 用户，你可能已经见过
+    `sudo` 命令或 `su` 命令。这些命令可以让用户在控制台上切换用户或临时执行具有更高权限的命令（如果用户有 `sudo` 权限的话）。`Sudo`，或**替代用户执行**，使普通用户能够将其用户权限提升到更高的特权级别，仅针对某一条命令。
 - en: Alternatively, the substitute user command, or `su`, allows you to also run
     commands that are privileged and to even change shells (for example, to become
     a root user). `Sudo` doesn't activate a root shell or allow you access to other
     user accounts, which is unlike the `su` command.
+  id: totrans-103
   prefs: []
   type: TYPE_NORMAL
+  zh: 或者，替代用户命令 `su` 也允许你运行特权命令，甚至切换 shell（例如，成为 root 用户）。与 `su` 命令不同，`sudo` 不会激活
+    root shell，也不允许访问其他用户账户。
 - en: 'Here are some example uses of the two commands:'
+  id: totrans-104
   prefs: []
   type: TYPE_NORMAL
+  zh: 这里是这两个命令的一些示例用法：
 - en: '[PRE15]'
+  id: totrans-105
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE15]'
 - en: 'While both commands require knowledge of a root password, `sudo` also requires
     that the user executing the `sudo` command is listed in the `/etc/sudoers` file:'
+  id: totrans-106
   prefs: []
   type: TYPE_NORMAL
+  zh: 尽管这两个命令都需要知道 root 密码，但 `sudo` 还要求执行 `sudo` 命令的用户在 `/etc/sudoers` 文件中列出：
 - en: '[PRE16]'
+  id: totrans-107
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE16]'
 - en: 'In the preceding standard Ubuntu sudoers file, we can see that the admin group
     of users can use the `sudo` command (and likely the reason you are able to do
     so as well without tinkering). We can also see that there can be specific user
     privilege execution:'
+  id: totrans-108
   prefs: []
   type: TYPE_NORMAL
+  zh: 在前面的标准 Ubuntu sudoers 文件中，我们可以看到管理员组的用户可以使用 `sudo` 命令（这也是你能够使用的原因，且无需调整）。我们还可以看到可以为特定用户配置权限执行：
 - en: '[PRE17]'
+  id: totrans-109
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE17]'
 - en: This indicates that the root user can run all the commands available on the
     system. In fact, we could add a line for a user named `rbrash`, such as `rbrash
     ALL=(ALL) ALL`.
+  id: totrans-110
   prefs: []
   type: TYPE_NORMAL
+  zh: 这表示 root 用户可以运行系统上所有可用的命令。实际上，我们可以为名为 `rbrash` 的用户添加一行，比如 `rbrash ALL=(ALL)
+    ALL`。
 - en: '`/etc/sudoers` can be edited by a user with root permissions using the `visudo`
     command:'
+  id: totrans-111
   prefs: []
   type: TYPE_NORMAL
+  zh: '`/etc/sudoers` 可以通过具有 root 权限的用户使用 `visudo` 命令进行编辑：'
 - en: '[PRE18]'
+  id: totrans-112
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE18]'
 - en: Be careful when adding permissions or alterations to users. It could become
     a security risk if the account is not secure!
+  id: totrans-113
   prefs: []
   type: TYPE_NORMAL
+  zh: 在为用户添加权限或进行修改时要小心。如果账户不安全，这可能会成为一个安全隐患！
 - en: At the end of the day, you might wonder why this is so important for a Bash
     script (besides being able to escalate permissions). Well, imagine that you might
     have a system in place that performs Continuous Integration or a process that
@@ -504,299 +741,435 @@
     to have a build running various commands without your input, hence the use of
     giving a user access to specific commands (especially if they are **sandboxed **or
     within a **virtual machine**).
+  id: totrans-114
   prefs: []
   type: TYPE_NORMAL
+  zh: 最终，你可能会想知道为什么这对Bash脚本如此重要（除了能够提升权限之外）。嗯，想象一下你可能有一个系统，它执行持续集成或持续构建软件的过程（例如，Jenkins）——可能希望在没有你输入的情况下运行各种命令，因此需要授予用户访问特定命令的权限（特别是当它们是**沙箱**或位于**虚拟机**中时）。
 - en: Getting ready
+  id: totrans-115
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 准备工作
 - en: 'Besides having a terminal open, we need to remember a few concepts:'
+  id: totrans-116
   prefs: []
   type: TYPE_NORMAL
+  zh: 除了保持终端打开，我们还需要记住一些概念：
 - en: '`sudo` requires a password (unless specified)'
+  id: totrans-117
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '`sudo`需要密码（除非特别指定）'
 - en: '`sudo` can also be limited to specific commands, users, or hosts'
+  id: totrans-118
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '`sudo`还可以限制特定的命令、用户或主机'
 - en: '`sudo` commands are also logged in either `/var/log/secure` or `/var/log/auth.log`:'
+  id: totrans-119
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '`sudo`命令也会记录在`/var/log/secure`或`/var/log/auth.log`中：'
 - en: '[PRE19]'
+  id: totrans-120
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE19]'
 - en: 'Additionally, we can create a new user for this recipe:'
+  id: totrans-121
   prefs: []
   type: TYPE_NORMAL
+  zh: 此外，我们还可以为此步骤创建一个新用户：
 - en: '[PRE20]'
+  id: totrans-122
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE20]'
 - en: How to do it...
+  id: totrans-123
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 如何实现...
 - en: 'Let''s start our activity as follows:'
+  id: totrans-124
   prefs: []
   type: TYPE_NORMAL
+  zh: 我们的活动开始如下：
 - en: 'Run the command in a new terminal, *not* as `root`, and without any previous
     `sudo` authorization:'
+  id: totrans-125
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 在新的终端中运行命令，*不要*以`root`身份运行，也不要使用任何先前的`sudo`授权：
 - en: '[PRE21]'
+  id: totrans-126
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE21]'
 - en: 'Now, execute the **`$ sudo visudo`** command and edit the script to include
     the following lines:'
+  id: totrans-127
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 现在，执行**`$ sudo visudo`**命令，并编辑脚本以包含以下行：
 - en: '[PRE22]'
+  id: totrans-128
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE22]'
 - en: 'Run the command in a new terminal, *not* as `root` and without any previous
     `sudo` authorization:'
+  id: totrans-129
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 在新的终端中运行命令，*不要*以`root`身份运行，也不要使用任何先前的`sudo`授权：
 - en: '[PRE23]'
+  id: totrans-130
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE23]'
 - en: Notice anything different? Now, make sure to cancel the shutdown using the previous
     command:` $ shutdown -c`.
+  id: totrans-131
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 注意到有什么不同吗？现在，确保使用之前的命令取消关机：`$ shutdown -c`。
 - en: How it works...
+  id: totrans-132
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 它是如何工作的...
 - en: 'The preceding recipe is pretty slim, but there is a fair bit of assumption
     and knowledge that you need to know about in regards to `sudo`. First, be careful.
     Second, be more careful. And finally, take care to keep your account secure with
     adequate password policies:'
+  id: totrans-133
   prefs: []
   type: TYPE_NORMAL
+  zh: 上述步骤虽然简洁，但需要一些关于`sudo`的假设和知识。首先，要小心。其次，更小心。最后，要确保通过适当的密码策略保护你的账户安全：
 - en: In step one, we tried to run two commands that require user permissions. Normally,
     rebooting or halting a system requires privilege escalation (unless done through
     the GUI). The `shutdown -c` command cancels a shutdown. If you used `shutdown
     -h` now, the system would shut down immediately. This cannot be stopped.
+  id: totrans-134
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 在第一步中，我们尝试运行两个需要用户权限的命令。通常，重新启动或关闭系统需要权限提升（除非通过GUI完成）。`shutdown -c`命令取消关机。如果现在使用`shutdown
+    -h`，系统将立即关闭，且无法停止。
 - en: In the second step, we use the new `visudo` command to make edits to the `/etc/sudoers`
     file. In bold, `Cmnd_Alias` allows you define a group of commands, however, you
     have to use the full path of binaries. The user Bob is assigned to this Alias
     as well. `NOPASSWD:` is used to specify that the password is not required for
     these commands
+  id: totrans-135
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 在第二步中，我们使用新的`visudo`命令对`/etc/sudoers`文件进行编辑。加粗部分`Cmnd_Alias`允许你定义一组命令，但你必须使用二进制文件的完整路径。用户Bob也被分配到这个别名中。`NOPASSWD:`用于指定这些命令不需要密码。
 - en: In the third step, shutdown commands can be run without a password prompt.
+  id: totrans-136
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 在第三步中，可以运行关机命令而无需输入密码。
 - en: The final step is to guarantee an accidental shutdown is cancelled.
+  id: totrans-137
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 最后一步是确保意外关机被取消。
 - en: Sanitizing user input and for repeatable results
+  id: totrans-138
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 清理用户输入并确保结果可重复
 - en: One of the best practices for scripts (or programs, for that matter) is controlling
     user input, not only for security, but for controlling functionality in a way
     that input provides predictable results. For example, imagine a user who enters
     a number instead of a string. Did you check it? Will it cause your script to exit
     prematurely? Or will an unforeseen event occur such as the user entering `rm -rf
     /*` instead of a valid user name?
+  id: totrans-139
   prefs: []
   type: TYPE_NORMAL
+  zh: 脚本（或程序）的最佳实践之一是控制用户输入，这不仅仅是出于安全考虑，更是为了控制功能，使输入产生可预测的结果。例如，假设一个用户输入了一个数字而不是一个字符串。你检查过吗？会导致脚本提前退出吗？或者会发生一些意外事件，例如用户输入了`rm
+    -rf /*`而不是有效的用户名？
 - en: In any case, limiting program user input is also useful to you as the author
     because it can limit paths users take and reduce undefined behavior or bugs. Therefore,
     if quality assurance is important, test cases and input/output validation can
     be reduced.
+  id: totrans-140
   prefs: []
   type: TYPE_NORMAL
+  zh: 无论如何，限制程序用户输入对你作为作者也是有益的，因为它可以限制用户的操作路径，并减少未定义行为或程序错误。因此，如果质量保证很重要，测试用例和输入/输出验证可以减少。
 - en: Getting ready
+  id: totrans-141
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 准备工作
 - en: 'This recipe might be introducing some readers to a concept they would like
     to avoid: software engineering. It''s true, you are probably writing scripts to
     quickly get a task completed, but if your script is to be used by other people
     (or for a long time), its great to catch errors early when they occur and prevent
     program misbehaviour.'
+  id: totrans-142
   prefs: []
   type: TYPE_NORMAL
+  zh: 这个过程可能会让一些读者接触到他们想避免的概念：软件工程。确实，你可能是在编写脚本以快速完成任务，但如果脚本需要由其他人使用（或者长期使用），最好在错误发生时及早捕获并防止程序出现异常行为。
 - en: Even without formal computer science or engineering training, the idea of use
     cases is based on having any particular piece of functionality, with X input,
     and seeing whether Y does as expected. Sometimes, limits or ranges can be imposed,
     an action may complete or fail, and any results compared can conclude whether
     the "use case" passes or fails.
+  id: totrans-143
   prefs: []
   type: TYPE_NORMAL
+  zh: 即使没有正式的计算机科学或工程训练，使用案例的概念也是基于有一个特定的功能片段，通过X输入，查看Y是否按预期工作。有时可以施加限制或范围，某个操作可能完成或失败，并且任何比较的结果可以得出“用例”是否通过的结论。
 - en: 'Let''s look at a step by step example using a program that should `echo` the
     username of the user who executed the script via a prompt:'
+  id: totrans-144
   prefs: []
   type: TYPE_NORMAL
+  zh: 让我们通过一个逐步示例来看一下，使用一个程序，通过提示来`echo`执行脚本的用户的用户名：
 - en: The script expects input to be read into a variable using the read command (for
     example).
+  id: totrans-145
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 脚本期望通过`read`命令将输入读取到一个变量中（例如）。
 - en: The variable is assumed to be a string, but it could be the user's name, a number,
     a post address in a foreign country, an email, or even a malicious command.
+  id: totrans-146
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 该变量假定为字符串，但它也可以是用户的姓名、数字、外国地址、电子邮件，甚至是恶意命令。
 - en: The script reads the variable and runs the `echo` command.
+  id: totrans-147
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 脚本读取变量并运行`echo`命令。
 - en: The results returned could be garbage, but could also be executed by another
     script—what could go wrong?
+  id: totrans-148
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 返回的结果可能是垃圾数据，但也可能被其他脚本执行——这会出什么问题呢？
 - en: For example, usernames, by default, should contain alphabetic characters and
     numbers, but no special characters except underscores, periods, dashes, and a
     dollar sign (`$`) at the *end* of a name.
+  id: totrans-149
   prefs: []
   type: TYPE_NORMAL
+  zh: 例如，默认情况下，用户名应该包含字母和数字，但除了下划线、点、破折号和名字结尾的美元符号(`$`)外，不应包含其他特殊字符。
 - en: In all efforts, if security is not important, then the robustness of an application
     could be!
+  id: totrans-150
   prefs: []
   type: TYPE_NORMAL
+  zh: 如果安全性不重要，那么应用程序的健壮性可能就显得不那么重要了！
 - en: How to do it...
+  id: totrans-151
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 如何操作...
 - en: 'Let''s start our activity as follows:'
+  id: totrans-152
   prefs: []
   type: TYPE_NORMAL
+  zh: 让我们开始我们的活动，步骤如下：
 - en: 'Begin by opening a terminal and a new shell script called `bad_input.sh` with
     the following contents:'
+  id: totrans-153
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 首先，打开终端并创建一个名为`bad_input.sh`的新shell脚本，内容如下：
 - en: '[PRE24]'
+  id: totrans-154
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE24]'
 - en: 'Now, run the following commands:'
+  id: totrans-155
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 现在，运行以下命令：
 - en: '[PRE25]'
+  id: totrans-156
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE25]'
 - en: 'Create a second script called `better_input.sh`:'
+  id: totrans-157
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 创建一个名为`better_input.sh`的第二个脚本：
 - en: '[PRE26]'
+  id: totrans-158
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE26]'
 - en: 'Next, run the script using these commands and not the output:'
+  id: totrans-159
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 接下来，使用以下命令运行脚本，而不是输出结果：
 - en: '[PRE27]'
+  id: totrans-160
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE27]'
 - en: 'Next, create a new script called `validate_email.sh` to validate email addresses
     (similarly to how one would validate DNS names):'
+  id: totrans-161
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 接下来，创建一个名为`validate_email.sh`的新脚本，用于验证电子邮件地址（类似于验证DNS名称的方式）：
 - en: '[PRE28]'
+  id: totrans-162
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE28]'
 - en: 'Again, we can test the output:'
+  id: totrans-163
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 同样，我们可以测试输出：
 - en: '[PRE29]'
+  id: totrans-164
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE29]'
 - en: 'Another common task would be to validate IP addresses. Create another script
     called `validate_ip.sh` with the following contents:'
+  id: totrans-165
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 另一个常见的任务是验证IP地址。创建另一个名为`validate_ip.sh`的脚本，内容如下：
 - en: '[PRE30]'
+  id: totrans-166
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE30]'
 - en: 'Try running the following commands:'
+  id: totrans-167
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 尝试运行以下命令：
 - en: '[PRE31]'
+  id: totrans-168
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE31]'
 - en: How it works...
+  id: totrans-169
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 它是如何工作的...
 - en: 'Let''s understand our script in detail:'
+  id: totrans-170
   prefs: []
   type: TYPE_NORMAL
+  zh: 让我们详细了解我们的脚本：
 - en: First, we begin by creating the `bad_input.sh` script—it takes `$1` (or argument
     1) and runs the list or `ls` command.
+  id: totrans-171
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 首先，我们从创建`bad_input.sh`脚本开始——它接受`$1`（或参数1），并运行列表或`ls`命令。
 - en: 'Running the following commands, we can either list everything in the directory,
     subdirectory, or even traverse directories backwards! This is clearly not good
     and security vulnerabilities have even allowed malicious hackers to traverse through
     a web server—the idea is to contain the input for predictable results and to control
     input instead of allowing everything:'
+  id: totrans-172
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 运行以下命令时，我们可以列出目录、子目录中的所有内容，甚至可以向后遍历目录！这显然是不好的，安全漏洞甚至允许恶意黑客穿透Web服务器——其思路是将输入限制在可预测的结果内，并控制输入，而不是允许任何输入：
 - en: '[PRE32]'
+  id: totrans-173
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE32]'
 - en: 'In the second script, `better_input.sh`, the input is sanitized by the following
     steps. Additionally, one could also check whether the file being listed is in
     fact there as well:'
+  id: totrans-174
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 在第二个脚本`better_input.sh`中，输入通过以下步骤进行了清理。此外，还可以检查列出的文件是否确实存在：
 - en: Remove any underscores (necessary).
+  id: totrans-175
   prefs:
   - PREF_IND
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 删除任何下划线（必要）。
 - en: Remove any sets of double spaces.
+  id: totrans-176
   prefs:
   - PREF_IND
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 删除任何一对双空格。
 - en: Replace spaces with underscores.
+  id: totrans-177
   prefs:
   - PREF_IND
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 将空格替换为下划线。
 - en: Remove any non-alphanumeric values or anything else that is not an underscore.
+  id: totrans-178
   prefs:
   - PREF_IND
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 删除任何非字母数字字符或其他不是下划线的内容。
 - en: Then, run the `ls` command.
+  id: totrans-179
   prefs:
   - PREF_IND
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 然后，运行`ls`命令。
 - en: Next, running `better_input.sh` will allow us to view the current working directory
     or any file contained within it. Wildcards have been removed and now we cannot
     traverse directories.
+  id: totrans-180
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 接下来，运行`better_input.sh`将允许我们查看当前工作目录或其中包含的任何文件。通配符已经被移除，现在我们无法遍历目录。
 - en: To validate the form of an email, we use the `grep` command combined with a
     regex. We are merely looking for the form of an email account name, an `@` symbol,
     and a domain name in the form of acme.x. It is important to note that we are not
@@ -804,14 +1177,18 @@
     destination, but merely whether it fits what an email should look like. Additional
     tests such as testing the domain's MX or DNS mail records could extend this functionality
     to improve the likelihood of a user entering a valid email.
+  id: totrans-181
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 要验证电子邮件的格式，我们使用`grep`命令结合正则表达式。我们只是检查电子邮件账户名的格式、一个`@`符号，以及一个域名，格式如acme.x。需要注意的是，我们并不是要验证电子邮件是否真正有效，或者是否能到达预期的目的地，而只是检查它是否符合电子邮件的格式。通过测试域名的MX或DNS邮件记录等额外测试，可以扩展此功能，以提高用户输入有效电子邮件的可能性。
 - en: In the next step, we test two domain names—one without the `@` symbol (invalid)
     and one with the `@` symbol (valid). Feel free to try several combinations.
+  id: totrans-182
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 在下一步中，我们测试两个域名——一个没有`@`符号（无效），一个有`@`符号（有效）。可以尝试多个组合。
 - en: Validating an IP address is always something that could be done with a regex,
     but for the purpose of easy-to-use tools that get the job done, **read** and simple
     tests using **test** (and evaluations) will work just fine. In its basic form,
@@ -819,124 +1196,177 @@
     by a period). Without exploring what a truly valid IP address is, normally a valid
     octet is between `0` and `255` (never more and never less). IP addresses can have
     various categories and classes called **subnets**.
+  id: totrans-183
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 验证IP地址通常可以通过正则表达式来完成，但为了方便使用的工具来完成任务，**读取**和简单的测试使用**test**（和评估）就可以了。IP地址的基本形式由四个八位字节（或通俗来说，四个由句点分隔的值）组成。在不深入探讨什么是一个真正有效的IP地址的情况下，通常一个有效的八位字节值在`0`到`255`之间（既不大于也不小于）。IP地址可以有不同的类别和子类，称为**子网**。
 - en: In our examples, we know that an IP address containing alphabetic characters
     is not a valid IP address (excluding the periods), and that the values range between
     `0` and `255` per octet. `192.168.0.x` (or `192.168.1.x`) is an IP subnet many
     people see on their home routers.
+  id: totrans-184
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 在我们的示例中，我们知道包含字母字符的IP地址不是有效的IP地址（排除句点），并且每个八位字节的值范围在`0`到`255`之间。`192.168.0.x`（或`192.168.1.x`）是许多人在家用路由器上看到的IP子网。
 - en: Making a simple multi-level user menu using select
+  id: totrans-185
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 使用select制作一个简单的多级用户菜单
 - en: 'Earlier in this book, we saw that you can make a script that uses recursive
     functions and conditional logic to create a simple menu. It worked, but another
     tool that can be used is `select`. Select works using a provided list (for example,
     it can be a wildcard selection for files) and will give you a list, such as:'
+  id: totrans-186
   prefs: []
   type: TYPE_NORMAL
+  zh: 在本书的前面部分，我们看到你可以创建一个使用递归函数和条件逻辑的脚本来制作一个简单的菜单。它有效，但另一个可以使用的工具是`select`。Select通过提供的列表工作（例如，可以是文件的通配符选择），并将为你提供一个列表，如下所示：
 - en: '[PRE33]'
+  id: totrans-187
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE33]'
 - en: Clearly, a menu such as about is very trivial; it can be useful for utility
     functions and for repeatable subtasks like deleting users or modifying files/archives.
+  id: totrans-188
   prefs: []
   type: TYPE_NORMAL
+  zh: 显然，像“关于”这样的菜单非常简单；它对于实用功能以及诸如删除用户或修改文件/归档等可重复的子任务非常有用。
 - en: Simple select scripts could also be useful for a number of activities such as
     mounting a drop box, decrypting or mounting a drive, or generating administrative
     reports.
+  id: totrans-189
   prefs: []
   type: TYPE_NORMAL
+  zh: 简单的select脚本还可以用于许多活动，例如挂载Dropbox、解密或挂载驱动器，或者生成管理报告。
 - en: Getting ready
+  id: totrans-190
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 准备就绪
 - en: 'Select is already a part of the Bash shell, but it has a few less than obvious
     points. Select relies on three variables:'
+  id: totrans-191
   prefs: []
   type: TYPE_NORMAL
+  zh: Select已经是Bash shell的一部分，但它有一些不太显而易见的要点。Select依赖于三个变量：
 - en: '`PS3`: The prompt that''s echoed to the user before the menu is created'
+  id: totrans-192
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '`PS3`：在创建菜单之前回显给用户的提示符'
 - en: '`REPLY`: The index of the item selected from the array'
+  id: totrans-193
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '`REPLY`：从数组中选择的项的索引'
 - en: '`opt`: The value of the item selected from the array—not the index'
+  id: totrans-194
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '`opt`：从数组中选择的项的值——而不是索引'
 - en: Technically, `opt` is not mandatory, but it is the value of the element being
     iterated by Select in our example. You could use another name and call it **element**,
     for example.
+  id: totrans-195
   prefs: []
   type: TYPE_NORMAL
+  zh: 从技术上讲，`opt`不是必须的，但它是我们示例中由Select迭代的元素的值。你可以使用其他名称，例如**element**。
 - en: How to do it...
+  id: totrans-196
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 如何操作...
 - en: 'Let''s start our activity as follows:'
+  id: totrans-197
   prefs: []
   type: TYPE_NORMAL
+  zh: 我们的活动从以下开始：
 - en: 'Open a terminal and create a script called `select_menu.sh` with the following
     contents:'
+  id: totrans-198
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 打开终端并创建一个名为`select_menu.sh`的脚本，内容如下：
 - en: '[PRE34]'
+  id: totrans-199
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE34]'
 - en: 'Execute the script using the following command:'
+  id: totrans-200
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 使用以下命令执行脚本：
 - en: '[PRE35]'
+  id: totrans-201
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE35]'
 - en: Press *1* to enter the file list functionality. Enter the number of any files
     in the menu. Once satisfied, type "back" and press *Enter* to return to the main
     menu.
+  id: totrans-202
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 按*1*进入文件列表功能。在菜单中输入任何文件的编号。一旦满意，输入“back”并按*Enter*返回主菜单。
 - en: How it works...
+  id: totrans-203
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 它是如何工作的...
 - en: 'Let''s understand our script in detail:'
+  id: totrans-204
   prefs: []
   type: TYPE_NORMAL
+  zh: 让我们详细了解我们的脚本：
 - en: 'Creating the `select_menu.sh` script was trivial, but besides the use of select,
     some of the concepts should look familiar: functions, return, case statements,
     and recursion.'
+  id: totrans-205
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 创建`select_menu.sh`脚本非常简单，但除了使用select外，一些概念应该看起来很熟悉：函数、返回、case语句和递归。
 - en: The script enters the menu by calling the `main_menu` function and then proceeds
     to use select to generate a menu from the `${OPTIONS}`array. The hard-coded variable
     named `PS3` will output the prompt before the menu, and `$REPLY` contains the
     index of the item selected.
+  id: totrans-206
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 脚本通过调用`main_menu`函数进入菜单，然后使用select从`${OPTIONS}`数组生成菜单。硬编码的变量`PS3`将在菜单之前输出提示符，而`$REPLY`包含所选项的索引。
 - en: Pressing *1* and pressing *Enter* will cause select to walk through the items
     and then execute the `list_files` function. This function creates a submenu by
     using select for the second time to list all of the files in the directory. Selecting
     any directory will return a `$OPT was selected` message, but if `back` is entered,
     then the script will return from this function and call `main_menu` from within
     itself (recursion). At this point, you may select any items in the main menu.
+  id: totrans-207
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 按*1*并按*Enter*将导致select遍历各个项，然后执行`list_files`函数。此函数使用select第二次列出目录中的所有文件，创建一个子菜单。选择任何目录都会返回`$OPT
+    was selected`消息，但如果输入`back`，则脚本将从此函数返回，并在其中调用`main_menu`（递归）。此时，你可以选择主菜单中的任何项。
 - en: Generating and trapping signals for cleanup
+  id: totrans-208
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 生成并捕获信号以进行清理
 - en: Throughout this book, you have probably pressed *Ctrl* + *C* or *Ctrl* + *Z*
     without knowing what was occurring—it's just like pressing *Ctrl* + *Alt* + *Delete*
     in another OS, right? Well, in one regard, yes—it is a signal, but the action
@@ -944,8 +1374,10 @@
     a flag or some sort of immediate notification that says *hey - something happened
     here*. If the appropriate listener is set up, that signal can execute some sort
     of functionality.
+  id: totrans-209
   prefs: []
   type: TYPE_NORMAL
+  zh: 在本书中，你可能在不知情的情况下按过*Ctrl* + *C*或*Ctrl* + *Z*——这就像在其他操作系统中按*Ctrl* + *Alt* + *Delete*对吧？嗯，从某种程度上来说，是的——它是一个信号，但在Linux中，它的操作非常不同。硬件层面的信号类似于一个标志或某种即时通知，表示*嘿——这里发生了某些事情*。如果已设置适当的监听器，该信号可以执行某种功能。
 - en: On the other hand, software signaling is far more flexible and we can use signals
     as *simple* notification mechanisms that are far more flexible than their hardware
     siblings. In Linux, *Ctrl* + *C* equates to SIGINT (program interrupt), which
@@ -953,284 +1385,414 @@
     cleanup can be executed. *Ctrl* + *Z* or SIGTSTP (keyboard stop) typically tells
     a program to be **suspended** and pushed to the background (more about jobs in
     a later section), but it can also be blocked—just like SIGINT.
+  id: totrans-210
   prefs: []
   type: TYPE_NORMAL
+  zh: 另一方面，软件信号要灵活得多，我们可以将信号作为*简单*的通知机制，它们比硬件信号更具灵活性。在Linux中，*Ctrl* + *C*等同于SIGINT（程序中断），它通常会退出程序。它可以被停止，并且可以执行其他功能，比如清理。*Ctrl*
+    + *Z*或SIGTSTP（键盘停止）通常会告诉程序被**挂起**并推到后台（更多关于作业的内容将在后面部分讲解），但它也可以被阻止——就像SIGINT一样。
 - en: SIGHUP is already a signal we are familiar with—the same as with SIGKILL. We
     saw them when we used `disown` or exited a shell. For more information regarding
     signals, see the [manual page for a great signal overview](http://man7.org/linux/man-pages/man7/signal.7.html).
+  id: totrans-211
   prefs: []
   type: TYPE_NORMAL
+  zh: SIGHUP 是我们已经熟悉的信号——与 SIGKILL 相同。当我们使用 `disown` 或退出一个 shell 时，我们就会看到它们。有关信号的更多信息，请参阅[关于信号的详细手册页](http://man7.org/linux/man-pages/man7/signal.7.html)。
 - en: Getting ready
+  id: totrans-212
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 准备工作
 - en: Besides using the keyboard within a program, we can also send signals to programs
     using the `kill` command. The `kill` command can kill programs, but these signals
     can also be used for reloading configurations or sending user-defined signals.
     The most common signals you may use are SIGHUP (1), SIGINT (2), SIGKILL(9), SIGTERM(15),
     SIGSTOP(17,18,23), SIGSEGV(12), and SIGUSR1(10)/SIGUSR2(12). The latter two can
     be defined within your program or leveraged by other developers.
+  id: totrans-213
   prefs: []
   type: TYPE_NORMAL
+  zh: 除了在程序中使用键盘，我们还可以通过 `kill` 命令向程序发送信号。`kill` 命令可以终止程序，但这些信号也可以用于重新加载配置或发送用户定义的信号。你可能使用的最常见信号有：SIGHUP
+    (1)、SIGINT (2)、SIGKILL (9)、SIGTERM (15)、SIGSTOP (17,18,23)、SIGSEGV (12) 和 SIGUSR1
+    (10)/SIGUSR2 (12)。后两个信号可以在你的程序中定义，或者被其他开发者利用。
 - en: 'The `kill` command can be used easily as follows:'
+  id: totrans-214
   prefs: []
   type: TYPE_NORMAL
+  zh: '`kill` 命令可以像下面这样轻松使用：'
 - en: '[PRE36]'
+  id: totrans-215
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE36]'
 - en: The `kill` command can refer to the signal number itself or by its name. It
     does require a process ID number to target. This can easily be found either by
     searching using `ps | grep X` or by using the preceding `final` using `pidof`.
+  id: totrans-216
   prefs: []
   type: TYPE_NORMAL
+  zh: '`kill` 命令可以通过信号编号或信号名称来引用。它确实需要一个进程 ID 来定位目标。你可以通过 `ps | grep X` 来搜索，也可以通过使用前面的
+    `final` 和 `pidof` 来查找。'
 - en: How to do it...
+  id: totrans-217
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 如何做到……
 - en: 'Let''s start our activity as follows:'
+  id: totrans-218
   prefs: []
   type: TYPE_NORMAL
+  zh: 让我们开始进行以下操作：
 - en: 'Open a terminal and begin a new script called `mytrap.sh` with the following
     contents:'
+  id: totrans-219
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 打开终端，创建一个新的脚本，命名为 `mytrap.sh`，内容如下：
 - en: '[PRE37]'
+  id: totrans-220
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE37]'
 - en: Execute the script with `$ bash mtrap.sh`.
+  id: totrans-221
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 使用 `$ bash mtrap.sh` 执行脚本。
 - en: Press *Enter* several times and watch the behavior of the program.
+  id: totrans-222
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 按 *Enter* 多次并观察程序的行为。
 - en: Press *Ctrl* + *C*; notice anything different?
+  id: totrans-223
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 按 *Ctrl* + *C*；注意到有什么不同吗？
 - en: How it works...
+  id: totrans-224
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 它是如何工作的……
 - en: 'Let''s understand our script in detail:'
+  id: totrans-225
   prefs: []
   type: TYPE_NORMAL
+  zh: 让我们详细了解一下脚本：
 - en: The `mytrap.sh` script leverages functions and the trap call. Inside of the
     `setup` function, we set the function to be called by the `trap` command. Therefore,
     when *Ctrl* + *C* is called, the `cleanup`functionis executed.
+  id: totrans-226
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: '`mytrap.sh` 脚本利用了函数和 `trap` 调用。在 `setup` 函数中，我们设置了通过 `trap` 命令调用的函数。因此，当按下
+    *Ctrl* + *C* 时，`cleanup` 函数会被执行。'
 - en: Running the script will cause the script to run forever after printing out the
     PID of the script.
+  id: totrans-227
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 运行脚本会导致脚本在打印出 PID 后一直运行。
 - en: Pressing regular keys such as *Enter* will not have an effect on the program.
+  id: totrans-228
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 按常规键如 *Enter* 对程序不会产生影响。
 - en: Pressing *Ctrl+* *C* will echo `cleanup` on the console and the script will
     exit using the `exit` command.
+  id: totrans-229
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 按 *Ctrl* + *C* 会在控制台上输出 `cleanup`，并且脚本会使用 `exit` 命令退出。
 - en: Using temporary files and lock files in your program
+  id: totrans-230
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 在程序中使用临时文件和锁文件
 - en: Another mechanism or component programs and scripts often use is called a lock
     file. It's usually temporary (it resides in `/tmp`) and is sometimes used when
     multiple entities rely on a single source of data or need to know that other programs
     exist. Sometimes, it's merely the presence of a file, a particular timestamp on
     a file, or another simple artifact.
+  id: totrans-231
   prefs: []
   type: TYPE_NORMAL
+  zh: 另一个程序和脚本常用的机制或组件是锁文件。它通常是临时的（存储在 `/tmp` 目录下），有时用于多个实体依赖单一数据源或需要知道其他程序存在的情况。有时，仅仅是文件的存在、文件上的特定时间戳，或其他简单的工件。
 - en: There are several ways to test for the existence of a file, but one important
     attribute that has not been demonstrated or explored is the concept of a **hidden**
     file. A hidden file in Linux is not really hidden (like in Windows), but it is
     not usually apparently unless a particular flag or command is ran. For example,
     the `ls` command does not return hidden files among the results, but the `ls`command
     with the `-a`flag will (`-a` for all).
+  id: totrans-232
   prefs: []
   type: TYPE_NORMAL
+  zh: 有几种方法可以测试文件是否存在，但有一个重要的属性尚未演示或探讨，那就是 **隐藏** 文件的概念。Linux 中的隐藏文件并不像 Windows 中那样真正“隐藏”，但通常不会显示，除非运行了特定的标志或命令。例如，`ls`
+    命令不会返回隐藏文件，而 `ls` 命令加上 `-a` 标志（`-a` 代表所有）则会显示它们。
 - en: Most file explorers have hidden files that aren't visible by default. In Ubuntu, *Ctrl*
     + *H* inside of the file explorer toggles this feature.
+  id: totrans-233
   prefs: []
   type: TYPE_NORMAL
+  zh: 大多数文件浏览器默认不会显示隐藏文件。在 Ubuntu 中，按 *Ctrl* + *H* 可以切换该功能。
 - en: 'To create a hidden file, a `.` (period) needs to be present at the beginning
     of a file''s name:'
+  id: totrans-234
   prefs: []
   type: TYPE_NORMAL
+  zh: 要创建一个隐藏文件，文件名的开头需要有一个 `.`（点）：
 - en: '[PRE38]'
+  id: totrans-235
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE38]'
 - en: Besides the presence of any regular file, we can also use the `mktemp` command
     to create lock files.
+  id: totrans-236
   prefs: []
   type: TYPE_NORMAL
+  zh: 除了常规文件外，我们还可以使用`mktemp`命令来创建锁文件。
 - en: Getting ready
+  id: totrans-237
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 准备工作
 - en: We briefly mentioned that temporary files can reside inside the `/tmp` directory.
     Often, `/tmp` is home to short lived files such as lock files or information that
     can be volatile (destroyed on a power event without any detriment to the system).
     It is also usually RAM-based, which can offer performance benefits as well, especially
     if used as part of an inter-process communication system (more on this later in
     another recipe).
+  id: totrans-238
   prefs: []
   type: TYPE_NORMAL
+  zh: 我们简要提到过临时文件可以存放在`/tmp`目录中。通常，`/tmp`存放的是短暂的文件，如锁文件或可以被销毁（在电源事件发生时不会对系统造成任何损害）的信息。它通常也是基于RAM的，这可以提供性能上的好处，特别是当它作为进程间通信系统的一部分时（更多内容将在另一个示例中讲解）。
 - en: However, it is important to know that other programs can access your file in
     `/tmp`, so it should be secured with the sufficient permissions. It should also
     be given a name that is suitably random so that a filename collision does not
     occur.
+  id: totrans-239
   prefs: []
   type: TYPE_NORMAL
+  zh: 然而，重要的是要知道其他程序可以访问`/tmp`目录中的文件，因此应该使用足够的权限来保护它。它还应该给定一个足够随机的名称，以避免文件名冲突。
 - en: How to do it...
+  id: totrans-240
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 如何操作…
 - en: 'Let''s start our activity as follows:'
+  id: totrans-241
   prefs: []
   type: TYPE_NORMAL
+  zh: 让我们按如下方式开始我们的活动：
 - en: 'Open a new terminal and create a new script by the name of `mylock.sh` with
     the following contents:'
+  id: totrans-242
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 打开一个新的终端，创建一个名为`mylock.sh`的新脚本，内容如下：
 - en: '[PRE39]'
+  id: totrans-243
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE39]'
 - en: Execute the script with the `$ bash mylock.sh` script and review the console's
     output.
+  id: totrans-244
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 执行脚本`$ bash mylock.sh`并查看控制台输出。
 - en: Next, we know that the script is looking for a particular lock file. What happens
     when we create a lock file and then re-run the script?
+  id: totrans-245
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 接下来，我们知道脚本正在寻找一个特定的锁文件。那么，当我们创建锁文件并重新运行脚本时会发生什么？
 - en: '[PRE40]'
+  id: totrans-246
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE40]'
 - en: How it works...
+  id: totrans-247
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 它是如何工作的…
 - en: 'Let''s understand our script in detail:'
+  id: totrans-248
   prefs: []
   type: TYPE_NORMAL
+  zh: 让我们详细了解一下我们的脚本：
 - en: 'The `mylock.sh` script reuses a couple of concepts that we are already familiar
     with: traps and symbolic links. We know that if a trap is called or rather, it
     catches a particular signal, it can clean up a lock file (as is the case in this
     script). Symbolic links are used since they can survive atomic operations over
     network file systems. If a file is present at the `LOCKFILE` location, then a
     lock is present. If the `LOCKFILE` is absent, the doors are open.'
+  id: totrans-249
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: '`mylock.sh`脚本重新使用了我们已经熟悉的几个概念：捕捉信号（traps）和符号链接（symbolic links）。我们知道，如果一个捕捉信号被调用，或者说它捕获了一个特定的信号，它可以清理锁文件（正如这个脚本中的情况）。符号链接被使用是因为它们可以在网络文件系统上的原子操作中存活。如果`LOCKFILE`位置存在文件，则表示锁定已发生。如果`LOCKFILE`缺失，则表示门已打开。'
 - en: 'When we run `mylock.sh`, we will get the following because no lock file exists
     yet—including any temporary ones:'
+  id: totrans-250
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 当我们运行`mylock.sh`时，由于尚不存在锁文件（包括任何临时文件），我们将看到以下内容：
 - en: '[PRE41]'
+  id: totrans-251
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE41]'
 - en: Since the preceding script exited correctly, the `SIGKILL` signal was handled
     and the temporary lockfile was removed. In this case, we want to create our own
     lockfiles that bypass this mechanism. Create a lockfile with a faux PID of `1000`;
     running the script will return `Locked by 1000`, and upon deleting the lockfile,
     the regular behavior will occur once more (doors are unlocked).
+  id: totrans-252
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 由于前面的脚本正确退出，`SIGKILL`信号被处理并且临时锁文件被删除。在这种情况下，我们希望创建自己的锁文件，绕过这个机制。创建一个假设PID为`1000`的锁文件；运行脚本将返回`Locked
+    by 1000`，删除锁文件后，常规行为将恢复（门被解锁）。
 - en: Leveraging timeout when waiting for command completion
+  id: totrans-253
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 在等待命令完成时利用超时
 - en: 'Sometimes, waiting for a command to finish execution or ignoring commands until
     completion might not be considered a solid practice in scripting, though it does
     have applications:'
+  id: totrans-254
   prefs: []
   type: TYPE_NORMAL
+  zh: 有时，等待命令完成执行或忽略命令直到完成可能不是脚本中的最佳实践，尽管它确实有应用场景：
 - en: Where commands take variable lengths of time to complete (for example, pinging
     a network host)
+  id: totrans-255
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 在某些命令执行需要不确定时间的情况下（例如，ping一个网络主机）
 - en: Where tasks or commands can be executed in such a way that the *master* script
     waits for the success or failure of several multiple operations
+  id: totrans-256
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 当任务或命令以某种方式执行时，*主*脚本会等待多个操作的成功或失败。
 - en: However, the important thing to note is that timeout/wait requires a process,
     or even a subshell so that it can be monitored (by the Process ID or PID). In
     this recipe, we will demonstrate the use of waiting for a subshell with the timeout
     command (which was added into the coreutils package 7.0) and how to do so using
     trap and kill (for alarms/timers).
+  id: totrans-257
   prefs: []
   type: TYPE_NORMAL
+  zh: 然而，重要的是要注意，超时/等待需要一个进程，甚至是一个子 shell，以便它可以通过进程ID（PID）进行监控。在本食谱中，我们将演示如何使用超时命令（该命令已被添加到coreutils包7.0中）来等待子
+    shell，并展示如何通过trap和kill命令（用于警报/计时器）实现这一点。
 - en: Getting ready
+  id: totrans-258
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 准备工作
 - en: 'In earlier recipes, we introduced the use of `trap` to catch signals, and the
     use of `kill` to send signals to processes. These will be explained further in
     this recipe, but here are three new native Bash variables:'
+  id: totrans-259
   prefs: []
   type: TYPE_NORMAL
+  zh: 在早期的食谱中，我们介绍了使用`trap`捕获信号，以及使用`kill`向进程发送信号。这些内容将在本食谱中进一步解释，但这里有三个新的本地Bash变量：
 - en: '`$$`: Which returns the PID of the current script'
+  id: totrans-260
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '`$$`：返回当前脚本的PID。'
 - en: '`$?`: Which returns the PID of the last job that was sent to the background'
+  id: totrans-261
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '`$?`：返回最后一个被发送到后台的作业的PID。'
 - en: '`$@` :Which returns the array of input variables (for example, `$!`, `$2`)'
+  id: totrans-262
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '`$@`：返回输入变量的数组（例如，`$!`、`$2`）。'
 - en: We are skirting around the ideas of jobs, tasks, background, and foreground
     as they will appear again in proper detail in a later administrative recipe.
+  id: totrans-263
   prefs: []
   type: TYPE_NORMAL
+  zh: 我们正在绕开作业、任务、后台和前台的概念，它们将在稍后的管理食谱中详细出现。
 - en: How to do it...
+  id: totrans-264
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 如何实现...
 - en: 'We begin this recipe knowing that there is a command called `timeout` available
     to the Bash shell. However, it falls short of being able to provide the functionality
     of timeouts in functions within a script itself. Using `trap`, `kill`, and signals,
     we can set timers or `alarms` (`ALRM`) to perform clean exits from runaway functions
     or commands. Let''s begin:'
+  id: totrans-265
   prefs: []
   type: TYPE_NORMAL
+  zh: 我们开始这本食谱时知道，Bash shell中有一个叫做`timeout`的命令。然而，它无法提供在脚本中函数的超时功能。通过使用`trap`、`kill`和信号，我们可以设置定时器或`警报`（`ALRM`），以便从失控的函数或命令中执行干净的退出。让我们开始：
 - en: 'Open a new terminal and create a new script by the name of `mytimeout.sh` with
     the following contents:'
+  id: totrans-266
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 打开一个新的终端，并创建一个名为`mytimeout.sh`的新脚本，内容如下：
 - en: '[PRE42]'
+  id: totrans-267
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE42]'
 - en: Using a command with variable times (`ping`), we can test `mytimeout.sh` using the
     first parameter to `mytimeout.sh` as the timeout variable!
+  id: totrans-268
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 使用带有变量次数的命令（`ping`），我们可以使用第一个参数作为超时变量来测试`mytimeout.sh`！
 - en: '[PRE43]'
+  id: totrans-269
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE43]'
 - en: How it works...
+  id: totrans-270
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 它是如何工作的...
 - en: 'You might be asking yourself, *can I put functions to the background?* Absolutely—and
     you could even use a command called `export` with the -f flag (although it may
     not be supported in all environments). If you were to use the timeout command
@@ -1240,38 +1802,50 @@
     the `alarm` signal, to act as a timer. When we set the alarm with a specific variable,
     it will raise `SIGALARM` once the timer expires! If the process is still alive,
     we merely kill it and exit the script if we haven''t already exited:'
+  id: totrans-271
   prefs: []
   type: TYPE_NORMAL
+  zh: 你可能会问自己，*我可以将函数放到后台吗？* 当然可以——你甚至可以使用一个名为`export`并带有-f标志的命令（尽管它可能在所有环境中不被支持）。如果你使用超时命令，你必须要么只运行你希望监控的命令，要么将该函数放到一个第二个脚本中，通过超时命令调用。显然，在某些情况下，这并不理想。在本食谱中，我们使用信号，或者更准确地说，使用`alarm`信号作为定时器。当我们设置一个特定变量的警报时，它将在计时器到期后触发`SIGALRM`！如果进程仍然存活，我们只需杀死它并退出脚本（如果我们还没有退出的话）。
 - en: In step 1, we create the `mytimeout.sh` script. It uses a few of our new primitives
     such as `$!` to monitor the PID of the function we sent to execute in the background
     as a job (or subshell, in this case). We `arm` the timer and then carry on with
     the execution of the script. Then, we use shift to literally *shift*the parameters
     passed to our script to ignore `$1` (or the timeout variable). Finally, we watch
     for `SIGALRM` and perform a cleanup if necessary.
+  id: totrans-272
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 在步骤1中，我们创建了`mytimeout.sh`脚本。它使用了我们的一些新原语，例如`$!`，来监控我们发送到后台作为作业（或者在这个情况下是子 shell）执行的函数的PID。我们“启动”计时器，然后继续执行脚本。接着，我们使用shift命令字面上*移动*传递给脚本的参数，忽略`$1`（或超时变量）。最后，我们监视`SIGALRM`信号，并在必要时执行清理操作。
 - en: 'In step 2, `mytimeout.sh` is executed twice using the `ping` command, which
     is targeting `google.ca`. In the first instance, we use a timeout of `1` second,
     and in the second instance, we use a timeout of 10 seconds. Ping, in both cases,
     will perform 10 pings (for example, one ping there and back to whatever host is
     answering ICMP requests for the DNS entry for google.ca). The first instance will
     execute early, and the second allows 10 pings to execute cleanly and exit:'
+  id: totrans-273
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 在步骤2中，`mytimeout.sh`使用`ping`命令执行两次，目标是`google.ca`。第一次执行时，使用`1`秒的超时，第二次执行时，使用`10`秒的超时。在这两次操作中，Ping将进行10次ping操作（例如，ping一次，往返到响应ICMP请求的任何主机，针对google.ca的DNS条目）。第一次会较早执行，而第二次则允许10次ping操作顺利执行并退出：
 - en: '[PRE44]'
+  id: totrans-274
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE44]'
 - en: Notice that google.ca could be replaced with another DNS name, but the times
     may vary depending on your location. Therefore, 10 PINGs may not actually have
     time to be executed fully.
+  id: totrans-275
   prefs: []
   type: TYPE_NORMAL
+  zh: 请注意，google.ca可以替换为其他DNS名称，但执行时间可能因您的位置而异。因此，10次PING可能实际上无法完全执行。
 - en: Creating a file-in-file-out program and running processes in parallel
+  id: totrans-276
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 创建文件进文件出程序并并行运行进程
 - en: In this recipe, we use a concept called file-in-file-out (FIFO), also known
     as **pipes**, to pass along a parameter to several "worker" scripts. These workers
     operate in parallel (in other words, mostly independent of the master process),
@@ -1279,67 +1853,95 @@
     file system activities or input/output (IO), and data can flow directly to listeners
     or recipients. They are represented on the file system as files and are bidirectional—they
     can be read and written to at the same time.
+  id: totrans-277
   prefs: []
   type: TYPE_NORMAL
+  zh: 在这个方案中，我们使用了一个叫做文件进文件出（FIFO）的概念，也叫做**管道**，通过它将参数传递给多个“工作”脚本。这些工作脚本并行运行（换句话说，主要独立于主进程），读取输入并执行命令。FIFO非常有用，因为它们可以减少文件系统操作或输入/输出（IO），数据可以直接流向监听者或接收者。它们在文件系统中表现为文件，并且是双向的——可以同时读取和写入。
 - en: Getting ready
+  id: totrans-278
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 准备工作
 - en: 'To create FIFOs, we use the `mkinfo` command to create what appears to be a
     file (everything is a file in Linux). This file has a special property, though,
     which is different than normal files and also different from the pipes we had
     been previously using: the pipes, in this case, can allow for multiple readers
     and writers!'
+  id: totrans-279
   prefs: []
   type: TYPE_NORMAL
+  zh: 要创建FIFO，我们使用`mkinfo`命令来创建一个看似文件的东西（在Linux中，一切皆文件）。不过，这个文件有一个特殊的属性，与普通文件不同，也与我们之前使用的管道不同：在这种情况下，管道允许多个读者和写者！
 - en: 'As with any file, you can also provide permissions using the `-m` flag such
     as this: `-m a=rw`, or use the `mknod` command (this isn''t covered as it requires
     that you use a second command called `chown` to change **`permissions`** after
     creation).'
+  id: totrans-280
   prefs: []
   type: TYPE_NORMAL
+  zh: 与任何文件一样，您还可以使用`-m`标志提供权限，例如：`-m a=rw`，或者使用`mknod`命令（这里不再详细说明，因为它需要您使用第二个命令`chown`来更改**`权限`**，这是文件创建后的操作）。
 - en: How to do it...
+  id: totrans-281
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 如何操作...
 - en: 'To start this exercise, we will introduce two terms: leader and follower, or
     master and worker. In this case, the master (the central host) will create the
     workers (or minions). While the recipe is a bit contrived, it should make for
     an easy go-to template for a simple **named pipes** or FIFO pattern. Essentially,
     there is a master that creates five workers, and those newly created workers echo
     out what is provided to them through the named pipe:'
+  id: totrans-282
   prefs: []
   type: TYPE_NORMAL
+  zh: 为了开始本练习，我们将引入两个术语：领导者和跟随者，或者主机和工作者。在这种情况下，主机（中央主机）将创建工作者（或从属进程）。尽管这个方案稍显牵强，但它应该是一个简单的**命名管道**或FIFO模式的易用模板。从本质上讲，主机创建了五个工作者，而这些新创建的工作者通过命名管道回显出提供给它们的数据：
 - en: 'To get started, open a new terminal and create two new scripts: `master.sh`
     and `worker.sh`.'
+  id: totrans-283
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 为了开始，打开一个新的终端并创建两个新的脚本：`master.sh`和`worker.sh`。
 - en: 'In `master.sh`, add the following contents:'
+  id: totrans-284
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 在`master.sh`中，添加以下内容：
 - en: '[PRE45]'
+  id: totrans-285
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE45]'
 - en: 'In `worker.sh`, add the following contents:'
+  id: totrans-286
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 在`worker.sh`中，添加以下内容：
 - en: '[PRE46]'
+  id: totrans-287
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE46]'
 - en: 'In the terminal, run the following command and observe the output:'
+  id: totrans-288
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 在终端中运行以下命令，并观察输出：
 - en: '[PRE47]'
+  id: totrans-289
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE47]'
 - en: How it works...
+  id: totrans-290
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 它是如何工作的...
 - en: 'The idea of this recipe is that if you have several repetitive tasks such as
     bulk operations and potentially multiple cores, you can perform tasks in parallel
     (often seen in the Linux world as Jobs). This recipe creates a single master that
@@ -1347,233 +1949,342 @@
     named pipe. Once they read input from the named pipe, they will echo it to the
     screen and then exit. Eventually, the master will exit too, removing the pipe
     along with it:'
+  id: totrans-291
   prefs: []
   type: TYPE_NORMAL
+  zh: 本方案的理念是，如果你有多个重复性任务，例如批量操作和可能的多核处理，你可以并行执行任务（在 Linux 世界中通常称为作业）。该方案创建一个主脚本，并将多个工作脚本分配到后台，它们等待来自命名管道的输入。一旦它们从命名管道读取到输入，就会将其回显到屏幕并退出。最终，主脚本也会退出，并将管道一同删除：
 - en: 'In step 1, we open a new terminal and create the two scripts: `master.sh` and
     `worker.sh`.'
+  id: totrans-292
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 在第 1 步中，我们打开一个新的终端并创建两个脚本：`master.sh` 和 `worker.sh`。
 - en: In step 2, we create the `master.sh` script. It uses two while loops to create *n*
     numbers of worker scripts with `$I` identifiers and then sends the same number
     of values to the FIFO before sleeping/exit.
+  id: totrans-293
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 在第 2 步中，我们创建了 `master.sh` 脚本。它使用两个 while 循环创建 *n* 个工作脚本，并为它们分配 `$I` 标识符，然后将相同数量的值发送到
+    FIFO 队列中，之后休眠或退出。
 - en: In step 3, we create the `worker.sh` script, which echos an initialization message
     and then waits until `$BUFFER` is not empty (NULL, as it can be sometimes referred
     to). Once `$BUFFER` is full or rather, contains a message, then it echos it to
     the console and the script exits.
+  id: totrans-294
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 在第 3 步中，我们创建了 `worker.sh` 脚本，它回显初始化消息，并等待直到 `$BUFFER` 不为空（有时也称为 NULL）。一旦 `$BUFFER`
+    被填满，或者说，包含了一个消息，它会将其回显到控制台并退出脚本。
 - en: 'In step 4, the console should contain an output similar to the following:'
+  id: totrans-295
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 在第 4 步中，控制台应该输出类似以下内容：
 - en: '[PRE48]'
+  id: totrans-296
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE48]'
 - en: With the two scripts working in tandem over the FIFO, a numeric value is passed
     between them and the workers perform their *work*. These values or messages could
     easily be modified so that the workers execute commands instead!
+  id: totrans-297
   prefs: []
   type: TYPE_NORMAL
+  zh: 通过这两个脚本在 FIFO 上协同工作，一个数字值在它们之间传递，工作脚本则执行它们的 *工作*。这些值或消息可以轻松修改，使得工作脚本执行命令！
 - en: Notice that the output can be in a different order. This is because Linux is
     not deterministic and spawning processes or reading from the FIFO might be blocked,
     or someone might get there before it (due to scheduling). Keep this in mind as
     the FIFO is also not atomic or synchronous—if you wish to designate which message
     goes to what host, you could create an identifier or messaging scheme.
+  id: totrans-298
   prefs: []
   type: TYPE_NORMAL
+  zh: 请注意，输出的顺序可能不同。这是因为 Linux 是非确定性的，生成进程或读取 FIFO 可能会被阻塞，或者某些进程可能会先到达（由于调度的原因）。请记住，FIFO
+    也不是原子操作或同步的——如果你希望指定哪个消息发送到哪个主机，你可以创建一个标识符或消息传递方案。
 - en: Executing your script on startup
+  id: totrans-299
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 在启动时执行脚本
 - en: This recipe is not limited to running only applications or services at startup,
     but to also start scripts on bootup (power on) of a system. For example, if your
     system boots up and you would like to apply several tweaks to the OS such as performance
     enhancements or battery tweaks, you can do this on startup via the `systemd` or
     `init.d` script. Another example could be to run a never ending script that creates
     logging events, like an electronic version of a pulse monitor.
+  id: totrans-300
   prefs: []
   type: TYPE_NORMAL
+  zh: 本方案不仅限于在启动时运行应用程序或服务，还可以在系统启动（开机）时启动脚本。例如，如果你的系统启动后，你希望对操作系统应用一些调整，如性能增强或电池优化，你可以通过
+    `systemd` 或 `init.d` 脚本在启动时完成这些调整。另一个例子是运行一个永不结束的脚本，生成日志事件，就像电子版的脉搏监视器一样。
 - en: 'In short, Linux or most *NIX systems use either the venerable `rc.d` system
     or the newer and more controversial systemd system to manage the starting and
     stopping of system resources. Without diving into the entire boot sequence of
     Linux, here is how it works:'
+  id: totrans-301
   prefs: []
   type: TYPE_NORMAL
+  zh: 简而言之，Linux 或大多数 *NIX 系统使用古老的 `rc.d` 系统或较新且争议较大的 systemd 系统来管理系统资源的启动和停止。无需深入了解整个
+    Linux 启动序列，以下是其工作原理：
 - en: The Linux kernel is loaded and mounts the root filesystem.
+  id: totrans-302
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: Linux 内核被加载并挂载根文件系统。
 - en: The rootfile system contains a shell at a particular path (the init level).
+  id: totrans-303
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 根文件系统在特定路径下包含一个 shell（初始化级别）。
 - en: Then, the systemd works its way through a series of services to start (the run
     level).
+  id: totrans-304
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 然后，systemd 会依次启动一系列服务（运行级别）。
 - en: 'If a service or script is added, it will likely be added at the **run level**.
     It can also be started, stopped, reloaded, and restarted from the command line
     at any time as well. When the system is booting, it merely uses the start functionality
     provided by the `init.d` or `system.d` script. However, even though the semantics
     of either the rc.d or systemd system differ, they still require the following:'
+  id: totrans-305
   prefs: []
   type: TYPE_NORMAL
+  zh: 如果添加了服务或脚本，它很可能会被添加到 **运行级别**。它还可以随时通过命令行启动、停止、重载和重启。当系统启动时，它仅使用 `init.d` 或
+    `system.d` 脚本提供的启动功能。然而，尽管 rc.d 或 systemd 系统的语义有所不同，它们仍然需要以下内容：
 - en: Scripts or services need to be enabled for specific system startup levels.
+  id: totrans-306
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 脚本或服务需要为特定的系统启动级别启用。
 - en: Scripts to be started and/or stopped can be configured to be started in a specific
     order.
+  id: totrans-307
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 要启动和/或停止的脚本可以配置为按特定顺序启动。
 - en: Directives for starting (at a minimum), stopping, restarting and/or reloading
     are executed based on a parameter when executing one of these actions (or blocks).
     Any number of commands can also be executed when calling start, for example.
+  id: totrans-308
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 启动（至少）、停止、重启和/或重载的指令会根据执行这些操作（或块）时的参数执行。例如，调用 start 时，也可以执行多个命令。
 - en: 'You may notice when scouring the web when looking for resources that a number
     of init systems exist: upstart, SysVinit, rc.d, procd, and the list goes on. You
     can refer to your distribution documentation for a current explanation on the
     startup system in use.'
+  id: totrans-309
   prefs: []
   type: TYPE_NORMAL
+  zh: 当你在网上寻找资源时，可能会注意到有许多不同的初始化系统：upstart、SysVinit、rc.d、procd，等等。你可以查阅你的发行版文档，了解当前使用的启动系统的相关说明。
 - en: Getting ready
+  id: totrans-310
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 准备工作
 - en: In Ubuntu 16.04 LTS (and other distributions), use systemd. Knowledge of both
     the init.d and systemd service control systems is certainly worth having as many
     embedded systems use Busybox. BusyBox uses the init.d system instead of systemd.
+  id: totrans-311
   prefs: []
   type: TYPE_NORMAL
+  zh: 在 Ubuntu 16.04 LTS（及其他发行版）中，使用 systemd。了解 init.d 和 systemd 服务控制系统是非常值得的，因为许多嵌入式系统使用
+    Busybox。BusyBox 使用 init.d 系统而不是 systemd。
 - en: 'Before diving into the "how to do it" section, we are going to create a template
     init script for posterity and awareness should you run into them. It will be called `myscript`
     and it will run `myscript.sh`. At a minimum, a system.d compatible script looks
     like the following:'
+  id: totrans-312
   prefs: []
   type: TYPE_NORMAL
+  zh: 在进入“如何做”部分之前，我们将创建一个模板初始化脚本，以便以后参考，并确保你在遇到它们时了解它。它将被命名为 `myscript`，并将运行 `myscript.sh`。至少，一个兼容
+    system.d 的脚本看起来应该如下所示：
 - en: '[PRE49]'
+  id: totrans-313
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE49]'
 - en: 'The content should be fairly easy to read if you have worked through the cookbook
     until this point. It relies on the comments in the header to determine the name,
     run levels, orders, and dependencies. Below that, it uses a switch statement while
     looking for several predetermined/standardized parameters: start, stop, restart,
     force-reload, and status. Inside of the start case, we start the binary, and in
     the stop case, we use the `killall` function to stop the binary.'
+  id: totrans-314
   prefs: []
   type: TYPE_NORMAL
+  zh: 如果你已经按照本手册的内容进行过操作，那么这些内容应该比较容易理解。它依赖于头部的注释来确定名称、运行级别、顺序和依赖关系。在此之后，它使用一个 switch
+    语句，查找一些预定的/标准化的参数：start、stop、restart、force-reload 和 status。在 start 的 case 中，我们启动二进制文件，而在
+    stop 的 case 中，我们使用 `killall` 函数来停止二进制文件。
 - en: It is important to know that the mere installation of an init script does not
     guarantee execution on startup. There is a process to **enable** the service or
     script. In the older system (SysV), you may have heard/seen of the command `chkconfig`
     being used. In systemd, you may use the `systemctl` command to enable/disable
     a service. In this section, we are only going to focus on systemd.
+  id: totrans-315
   prefs: []
   type: TYPE_NORMAL
+  zh: 需要知道的是，单纯安装初始化脚本并不能保证它会在启动时执行。必须有一个过程来**启用**该服务或脚本。在较旧的系统（SysV）中，你可能听说过/见过使用
+    `chkconfig` 命令。在 systemd 中，你可以使用 `systemctl` 命令来启用/禁用服务。在本节中，我们只关注 systemd。
 - en: SysV executes the scripts in sequential order based on their number in the filename
     (for example, `S99-myinit`). Systemd does not because it also reviews dependencies and
     waits for their completion.
+  id: totrans-316
   prefs: []
   type: TYPE_NORMAL
+  zh: SysV 会根据文件名中的数字顺序（例如，`S99-myinit`）按顺序执行脚本。Systemd 则不同，因为它还会检查依赖关系并等待其完成。
 - en: How to do it...
+  id: totrans-317
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 如何做...
 - en: 'Let''s start our activity as follows:'
+  id: totrans-318
   prefs: []
   type: TYPE_NORMAL
+  zh: 让我们按如下方式开始我们的活动：
 - en: 'Create a script called `myscript.sh` with the following contents:'
+  id: totrans-319
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 创建一个名为 `myscript.sh` 的脚本，内容如下：
 - en: '[PRE50]'
+  id: totrans-320
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE50]'
 - en: 'Next, let''s add the correct permissions to the script so that we can create
     a systemd service using it. Notice the use of the `sudo`command—enter your password
     where appropriate:'
+  id: totrans-321
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 接下来，让我们为脚本添加正确的权限，以便我们可以使用它创建 systemd 服务。请注意使用 `sudo` 命令——在适当的地方输入密码：
 - en: '[PRE51]'
+  id: totrans-322
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE51]'
 - en: 'Now that we have something to execute on start, we need to create a service
     configuration file to describe our service; we used `vi` in this example and `sudo`
     (note down its location):'
+  id: totrans-323
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 现在我们有了启动时执行的内容，我们需要创建一个服务配置文件来描述我们的服务；在这个示例中我们使用了`vi`和`sudo`（记住它的位置）：
 - en: '[PRE52]'
+  id: totrans-324
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE52]'
 - en: 'To enable the `myscript` service, run the following command:'
+  id: totrans-325
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 要启用`myscript`服务，请运行以下命令：
 - en: '[PRE53]'
+  id: totrans-326
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE53]'
 - en: 'To start and verify the presence of the process, run the following command:'
+  id: totrans-327
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 要启动并验证进程的存在，请运行以下命令：
 - en: '[PRE54]'
+  id: totrans-328
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE54]'
 - en: You may reboot the system to see our service in action on startup.
+  id: totrans-329
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 您可以重新启动系统以查看我们的服务在启动时的运行情况。
 - en: How it works...
+  id: totrans-330
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 工作原理...
 - en: 'Let''s understand our script in detail:'
+  id: totrans-331
   prefs: []
   type: TYPE_NORMAL
+  zh: 让我们详细了解我们的脚本：
 - en: In step 1, we create a trivial looping program to be ran at system startup called `myscript.sh`.
+  id: totrans-332
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 在步骤 1 中，我们创建了一个简单的循环程序，用于系统启动时运行，名为`myscript.sh`。
 - en: In step 2, we copy the script to the `/usr/bin` directory and add permissions
     using the `chmod` command for everyone to be able to execute the script (`chmod
     a+x myscript.sh`). Notice the use of `sudo` permissions to create a file in this
     directory and to apply permissions.
+  id: totrans-333
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 在步骤 2 中，我们将脚本复制到`/usr/bin`目录，并使用`chmod`命令为所有人添加执行权限（`chmod a+x myscript.sh`）。注意使用`sudo`权限在此目录中创建文件并应用权限。
 - en: 'In the third step, we create the service configuration file, which describes
     a service unit for systemd. It goes by the name of `myscript` and within the `[Service]`
     directive, the two most important parameters are present: `ExecStart` and `ExecStop`.
     Notice that the start and stop sections look similar to the SysV/init.d approach.'
+  id: totrans-334
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 在第三步中，我们创建了描述 systemd 服务单元的服务配置文件。它的名字叫做`myscript`，在`[Service]`指令中，有两个最重要的参数：`ExecStart`和`ExecStop`。注意启动和停止部分看起来类似于
+    SysV/init.d 的方法。
 - en: Next, we use the `systemctl` command to enable `myscript`. Conversely, it can
     be used in the following way to disable `myscript:` `` $systemctl disable myscript`.`
     ``
+  id: totrans-335
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 接下来，我们使用`systemctl`命令来启用`myscript`。相反，它可以用以下方式来禁用`myscript：` `` $systemctl disable
+    myscript`.` ``
 - en: 'Then, we use `systemctl` to start `myscript` and verify the status of our script.
     You should get a similar output to the following (notice that we double checked
     the presence using `ps`):'
+  id: totrans-336
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 然后，我们使用`systemctl`来启动`myscript`并验证我们脚本的状态。你应该会得到类似以下的输出（请注意我们使用`ps`进行了双重检查）：
 - en: '[PRE55]'
+  id: totrans-337
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE55]'
 - en: On reboot, if enable was set, our script will be running as expected.
+  id: totrans-338
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 在重启时，如果启用了，我们的脚本将按预期运行。
