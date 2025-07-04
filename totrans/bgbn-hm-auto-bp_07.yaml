@@ -1,28 +1,40 @@
 - en: Chapter 7. Facebook Plant Monitor
+  id: totrans-0
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 第7章 Facebook植物监控
 - en: Social networks are very common nowadays, and having a monitoring (or controlling)
     system that interacts with them has become a must, especially for consumer systems.
+  id: totrans-1
   prefs: []
   type: TYPE_NORMAL
+  zh: 社交网络如今非常普遍，拥有一个与社交网络互动的监控（或控制）系统已成为必需，尤其对于消费系统来说。
 - en: In this chapter, we're going to see how to implement a plant monitor capable
     of measuring solar light, soil moisture, and the soil temperature (internal and
     external) along with how to take some pictures at specific intervals via a webcam.
+  id: totrans-2
   prefs: []
   type: TYPE_NORMAL
+  zh: 在本章中，我们将学习如何实现一个植物监控器，能够测量太阳光、土壤湿度、土壤温度（包括内部和外部温度），并且通过网络摄像头在特定时间间隔拍摄照片。
 - en: The user will be able to control the monitor through a web interface and they
     can then decide to publish the plant pictures on their Facebook timeline.
+  id: totrans-3
   prefs: []
   type: TYPE_NORMAL
+  zh: 用户可以通过 Web 界面控制监控器，并且可以决定是否将植物的照片发布到他们的 Facebook 时间线。
 - en: The basics of functioning
+  id: totrans-4
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 功能原理
 - en: 'In this project, I''m going to present a simple implementation of a plant monitor
     with the following two special features:'
+  id: totrans-5
   prefs: []
   type: TYPE_NORMAL
+  zh: 在这个项目中，我将展示一个简单的植物监控系统实现，其中包含以下两个特殊功能：
 - en: The first feature is the ability to measure and estimate the soil moisture according
     to a direct measurement of the moisture via a dedicated sensor and through the
     temperature difference between the external soil temperature and the internal
@@ -32,114 +44,168 @@
     changes and this effect will produce a false *dry* read. For this reason, we employ
     two different temperature probes in order to know if the soil is too hot with
     respect to the internal soil temperature and then we regulate the moisture level.
+  id: totrans-6
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 第一个功能是能够根据专用传感器直接测量的湿度，以及通过植物所在花园花盆内外土壤温度差异来估算土壤湿度。这是因为湿度传感器的内部电阻可能会随温度变化；实际上，当阳光照射到土壤上，土壤温度升高时，电阻会发生变化，这种效应会导致出现错误的*干*读数。因此，我们使用两个不同的温度探头，以便判断土壤是否相对于内部土壤温度过热，从而调整湿度水平。
 - en: The second feature is the ability to add a webcam to take several pictures of
     our lovely plant at well-defined intervals and the possibility to publish them,
     at the user's request, on our Facebook timeline in order to show to our friends
     how green is our thumb!
+  id: totrans-7
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 第二个功能是能够添加一个网络摄像头，在规定的时间间隔拍摄我们心爱的植物的照片，并根据用户的要求将这些照片发布到我们的 Facebook 时间线，向朋友们展示我们有多么的绿色大拇指！
 - en: 'A little schematic representation of the sensors position to correctly implement
     the first feature is shown in the following image:'
+  id: totrans-8
   prefs: []
   type: TYPE_NORMAL
+  zh: 以下是传感器位置的简单示意图，以便正确实现第一个功能：
 - en: '![The basics of functioning](img/3526OS_07_01.jpg)'
+  id: totrans-9
   prefs: []
   type: TYPE_IMG
+  zh: '![功能原理](img/3526OS_07_01.jpg)'
 - en: 'Let''s consider *Te* as the external soil temperature and *Ti* as the internal
     soil temperature. If we name the value returned by the moisture sensor *M*, a
     reasonable estimation (*Me*) of the real moisture can be given by the following
     formula:'
+  id: totrans-10
   prefs: []
   type: TYPE_NORMAL
+  zh: 假设 *Te* 是外部土壤温度，*Ti* 是内部土壤温度。如果我们将湿度传感器返回的值命名为 *M*，则可以通过以下公式给出湿度的合理估计值 (*Me*)：
 - en: '*Me = M + K * (Te – Ti) when Te > Ti*'
+  id: totrans-11
   prefs: []
   type: TYPE_NORMAL
+  zh: '*Me = M + K * (Te – Ti) 当 Te > Ti*'
 - en: '*Me = M when Te ≤ Ti*'
+  id: totrans-12
   prefs: []
   type: TYPE_NORMAL
+  zh: '*Me = M 当 Te ≤ Ti*'
 - en: where *K* is a suitable (and empirical) *moisture coefficient* that the user
     can set at runtime in order to fix their needs. Note that if *K* is `0`, the system
     will take the measured moisture level without any compensation.
+  id: totrans-13
   prefs: []
   type: TYPE_NORMAL
+  zh: 其中 *K* 是一个合适的（且经验性的）*湿度系数*，用户可以在运行时设置，以满足他们的需求。请注意，如果 *K* 为 `0`，系统将直接采用测得的湿度水平，不进行任何补偿。
 - en: Regarding the second feature, it is possible to take a picture of the monitored
     plant and then publish it on Facebook. In order to do this, we have to use the
     Facebook API to interact with a Facebook account. This step will be explained
     in detail in the next section.
+  id: totrans-14
   prefs: []
   type: TYPE_NORMAL
+  zh: 关于第二个功能，可以拍摄被监控植物的照片并将其发布到 Facebook。为了做到这一点，我们必须使用 Facebook API 来与 Facebook
+    帐户进行交互。这个步骤将在下一节中详细解释。
 - en: Setting up the hardware
+  id: totrans-15
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 设置硬件
 - en: In this project, we are going to use two analog sensors, two digital sensors,
     and a webcam to take the pictures. The analog sensors are connected to two different
     ADC channels inputs (as in the previous chapter). The contactless external temperature
     sensor uses an I²C bus to communicate with the BeagleBone Black, while the waterproof
     internal temperature sensor uses a 1-Wire bus. Finally, the webcam is connected
     via the **USB** bus.
+  id: totrans-16
   prefs: []
   type: TYPE_NORMAL
+  zh: 在本项目中，我们将使用两个模拟传感器、两个数字传感器和一个网络摄像头来拍照。模拟传感器连接到两个不同的 ADC 输入通道（如前一章所述）。非接触式外部温度传感器通过
+    I²C 总线与 BeagleBone Black 通信，而防水内部温度传感器使用 1-Wire 总线。最后，网络摄像头通过**USB** 总线连接。
 - en: As in the previous chapter, I can add some actuators to flood water the plant
     and so on; but due to lack of space, I decided to leave these tasks to the reader
     as an exercise.
+  id: totrans-17
   prefs: []
   type: TYPE_NORMAL
+  zh: 如前一章所述，我可以添加一些执行器来给植物灌水等；但由于空间不足，我决定将这些任务留给读者作为练习。
 - en: Connecting the moisture sensor
+  id: totrans-18
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 连接湿度传感器
 - en: 'The moisture sensor is the device shown in the following image:'
+  id: totrans-19
   prefs: []
   type: TYPE_NORMAL
+  zh: 湿度传感器就是下图所示的设备：
 - en: '![Connecting the moisture sensor](img/3526OS_07_02.jpg)'
+  id: totrans-20
   prefs: []
   type: TYPE_IMG
+  zh: '![连接湿度传感器](img/3526OS_07_02.jpg)'
 - en: Note
+  id: totrans-21
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
+  zh: 注意
 - en: The device can be purchased from [http://www.cosino.io/product/moisture-sensor](http://www.cosino.io/product/moisture-sensor),
     or by surfing the Internet.
+  id: totrans-22
   prefs: []
   type: TYPE_NORMAL
+  zh: 该设备可以从[http://www.cosino.io/product/moisture-sensor](http://www.cosino.io/product/moisture-sensor)购买，或者通过浏览互联网来获取。
 - en: The user guide of this device is available at [http://seeedstudio.com/wiki/Grove_-_Moisture_Sensor](http://seeedstudio.com/wiki/Grove_-_Moisture_Sensor).
+  id: totrans-23
   prefs: []
   type: TYPE_NORMAL
+  zh: 该设备的用户指南可以在[http://seeedstudio.com/wiki/Grove_-_Moisture_Sensor](http://seeedstudio.com/wiki/Grove_-_Moisture_Sensor)获取。
 - en: This device is quite similar to the water sensor presented in [Chapter 3](ch03.html
     "Chapter 3. Aquarium Monitor"), *Aquarium Monitor*, since the functioning is still
     based on water conductivity; however, its shape is different due to the fact that
     we are interested in the soil humidity level and not whether water is present
     or not.
+  id: totrans-24
   prefs: []
   type: TYPE_NORMAL
+  zh: 该设备与[第3章](ch03.html "第3章. 水族馆监控")中的水传感器*水族馆监控*非常相似，因为它的工作原理仍然基于水的电导率；然而，由于我们关注的是土壤湿度水平，而非水的存在与否，其形状有所不同。
 - en: 'The connection to the BeagleBone Black is shown in the following table:'
+  id: totrans-25
   prefs: []
   type: TYPE_NORMAL
+  zh: 连接到 BeagleBone Black 的方式如下表所示：
 - en: '| Pin | Cable color |'
+  id: totrans-26
   prefs: []
   type: TYPE_TB
+  zh: '| 引脚 | 电缆颜色 |'
 - en: '| --- | --- |'
+  id: totrans-27
   prefs: []
   type: TYPE_TB
+  zh: '| --- | --- |'
 - en: '| P9.3 - Vcc | Red |'
+  id: totrans-28
   prefs: []
   type: TYPE_TB
+  zh: '| P9.3 - Vcc | 红色 |'
 - en: '| P9.39 - AIN0 | Yellow |'
+  id: totrans-29
   prefs: []
   type: TYPE_TB
+  zh: '| P9.39 - AIN0 | 黄色 |'
 - en: '| P9.1 - GND | Black |'
+  id: totrans-30
   prefs: []
   type: TYPE_TB
+  zh: '| P9.1 - GND | 黑色 |'
 - en: By using a multimeter, we can verify whether the output voltage is near to 0V
     when the sensor is in the air, the output is about 1.5V while in water, and that
     all the other output values stay in this range.
+  id: totrans-31
   prefs: []
   type: TYPE_NORMAL
+  zh: 使用万用表，我们可以验证当传感器处于空气中时输出电压接近0V，当传感器处于水中时输出电压约为1.5V，而其他所有输出值都保持在此范围内。
 - en: Note that, since the maximum output voltage is about 1.5V, we can safely connect
     the output pin of this device directly to the BeagleBone Black ADC's input. However,
     we can use a 1.8V Zener diode between the *AIN0* pin and GND in order to be definitely
@@ -147,64 +213,102 @@
     what has been said several times in the previous chapters, starting from [Chapter
     2](ch02.html "Chapter 2. Ultrasonic Parking Assistant"), *Ultrasonic Parking Assistant*,
     about this issue.)
+  id: totrans-32
   prefs: []
   type: TYPE_NORMAL
+  zh: 请注意，由于最大输出电压约为1.5V，我们可以安全地将该设备的输出引脚直接连接到 BeagleBone Black 的 ADC 输入。然而，我们可以在*AIN0*引脚和
+    GND 之间使用一个1.8V的齐纳二极管，以确保输出电压不会超过1.8V的临界值。（记得前几章中多次提到过的这个问题，尤其是从[第2章](ch02.html
+    "第2章. 超声波停车助手")，*超声波停车助手*开始。）
 - en: 'Now, to verify the device output, we can enable the BeagleBone Black''s ADCs
     by using the following command:'
+  id: totrans-33
   prefs: []
   type: TYPE_NORMAL
+  zh: 现在，为了验证设备输出，我们可以通过以下命令启用 BeagleBone Black 的 ADC：
 - en: '[PRE0]'
+  id: totrans-34
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE0]'
 - en: Note
+  id: totrans-35
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
+  zh: 注意
 - en: 'These settings can be done by using the `bin/load_firmware.sh` script in the
     book''s example code repository, as follows:'
+  id: totrans-36
   prefs: []
   type: TYPE_NORMAL
+  zh: 这些设置可以通过使用书中示例代码库中的`bin/load_firmware.sh`脚本来完成，如下所示：
 - en: '[PRE1]'
+  id: totrans-37
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE1]'
 - en: 'Then, we can read the moisture level in water by putting the sensor into a
     cup of water and then executing the following command:'
+  id: totrans-38
   prefs: []
   type: TYPE_NORMAL
+  zh: 然后，我们可以将传感器放入水杯中读取水中的湿度水平，并执行以下命令：
 - en: '[PRE2]'
+  id: totrans-39
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE2]'
 - en: 'Then, we can read the moisture level in air by removing the sensor from the
     water and then rerunning the following command:'
+  id: totrans-40
   prefs: []
   type: TYPE_NORMAL
+  zh: 然后，我们可以将传感器从水中取出，并重新运行以下命令来读取空气中的湿度水平：
 - en: '[PRE3]'
+  id: totrans-41
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE3]'
 - en: So, the higher the moisture level, the higher the returned value.
+  id: totrans-42
   prefs: []
   type: TYPE_NORMAL
+  zh: 所以，湿度水平越高，返回的值也就越高。
 - en: Connecting the light sensor
+  id: totrans-43
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 连接光传感器
 - en: 'An ambient light sensor is shown in the following image:'
+  id: totrans-44
   prefs: []
   type: TYPE_NORMAL
+  zh: 下图展示了一个环境光传感器：
 - en: '![Connecting the light sensor](img/B00255_07_03.jpg)'
+  id: totrans-45
   prefs: []
   type: TYPE_IMG
+  zh: '![连接光传感器](img/B00255_07_03.jpg)'
 - en: Note
+  id: totrans-46
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
+  zh: 注意
 - en: The device can be purchased from [http://www.cosino.io/product/photoresitor](http://www.cosino.io/product/photoresitor),
     or found by surfing the Internet.
+  id: totrans-47
   prefs: []
   type: TYPE_NORMAL
+  zh: 该设备可以从 [http://www.cosino.io/product/photoresitor](http://www.cosino.io/product/photoresitor)
+    购买，或者通过上网查找。
 - en: The user guide of this device is available at [https://www.sparkfun.com/datasheets/Sensors/Imaging/SEN-09088-datasheet.pdf](https://www.sparkfun.com/datasheets/Sensors/Imaging/SEN-09088-datasheet.pdf).
+  id: totrans-48
   prefs: []
   type: TYPE_NORMAL
+  zh: 该设备的用户指南可以在 [https://www.sparkfun.com/datasheets/Sensors/Imaging/SEN-09088-datasheet.pdf](https://www.sparkfun.com/datasheets/Sensors/Imaging/SEN-09088-datasheet.pdf)
+    查阅。
 - en: 'This device functioning is quite similar to the light sensor presented in [Chapter
     5](ch05.html "Chapter 5. WhatsApp Laundry Room Monitor"), *WhatsApp Laundry Room
     Monitor*; however, this is a single photoresistor with low power consumption that
@@ -212,300 +316,464 @@
     6](ch06.html "Chapter 6. Baby Room Sentinel"), *Baby Room Sentinel*, so, even
     in this case, we can use the same circuitry to manage it, as reported in the following
     diagram:'
+  id: totrans-49
   prefs: []
   type: TYPE_NORMAL
+  zh: 该设备的功能与 [第 5 章](ch05.html "第 5 章. WhatsApp 洗衣房监控器") 中介绍的光传感器非常相似，*WhatsApp 洗衣房监控器*；然而，这是一个低功耗的单个光敏电阻，输出功能与
+    [第 6 章](ch06.html "第 6 章. 宝宝房间守卫") 中介绍的压力传感器非常相似，*宝宝房间守卫*，因此，即使在这种情况下，我们也可以使用相同的电路进行管理，如下图所示：
 - en: '![Connecting the light sensor](img/B00255_07_04.jpg)'
+  id: totrans-50
   prefs: []
   type: TYPE_IMG
+  zh: '![连接光传感器](img/B00255_07_04.jpg)'
 - en: In the preceding diagram, *R=6.8 KΩ* and **Rp** is the light sensor's internal
     resistor that is represented by a variable resistor.
+  id: totrans-51
   prefs: []
   type: TYPE_NORMAL
+  zh: 在上面的示意图中，*R=6.8 KΩ*，**Rp** 是光传感器的内部电阻，由一个可调电阻表示。
 - en: Tip
+  id: totrans-52
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
+  zh: 小贴士
 - en: 'Note that the preceding circuitry not only connects the sensor to the BeagleBone
     Black''s ADC input pin but also ensures that the input voltage on that pin is
     lower than the critical value on 1.8V! In fact, the V[ADCin] voltage is given
     by the following formula:'
+  id: totrans-53
   prefs: []
   type: TYPE_NORMAL
+  zh: 请注意，上面的电路不仅将传感器连接到 BeagleBone Black 的 ADC 输入引脚，还确保该引脚上的输入电压低于 1.8V 的临界值！实际上，V[ADCin]
+    电压由以下公式给出：
 - en: '*V[ADCin]* *= R / (R + Rp + R) * Vcc = R / (2R + Rp) * Vcc*'
+  id: totrans-54
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '*V[ADCin]* *= R / (R + Rp + R) * Vcc = R / (2R + Rp) * Vcc*'
 - en: Now we know that Vcc is 3.3V, so, even in case the **Rp** value drops to 0Ω,
     the *V[ADCin]* is equal to Vcc/2, that is, 1.65V, which is a safe value for the
     BeagleBone Black's ADCs.
+  id: totrans-55
   prefs: []
   type: TYPE_NORMAL
+  zh: 现在我们知道 Vcc 为 3.3V，因此，即使 **Rp** 的值降到 0Ω，*V[ADCin]* 也等于 Vcc/2，即 1.65V，这是 BeagleBone
+    Black 的 ADC 安全值。
 - en: This sensor must be connected with the BeagleBone Black at the *AIN1* input
     pin, which is labeled *P9.40*, while the other end must be connected with the
     resistor R, as shown in the preceding circuitry diagram.
+  id: totrans-56
   prefs: []
   type: TYPE_NORMAL
+  zh: 该传感器必须连接到 BeagleBone Black 的 *AIN1* 输入引脚，该引脚标记为 *P9.40*，而另一端必须连接到电阻 R，如上面的电路图所示。
 - en: 'Now for all connections, we can use the following command:'
+  id: totrans-57
   prefs: []
   type: TYPE_NORMAL
+  zh: 现在对于所有连接，我们可以使用以下命令：
 - en: '[PRE4]'
+  id: totrans-58
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE4]'
 - en: 'Now, as we have already done for the other light sensor in the earlier chapters,
     we can cover it with a cup and try to reread the ADC:'
+  id: totrans-59
   prefs: []
   type: TYPE_NORMAL
+  zh: 现在，正如我们在前几章中对其他光传感器所做的那样，我们可以用一个杯子将其覆盖，然后重新读取 ADC：
 - en: '[PRE5]'
+  id: totrans-60
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE5]'
 - en: 'On the other hand, if we turn on a lamp over the sensor, we get the following:'
+  id: totrans-61
   prefs: []
   type: TYPE_NORMAL
+  zh: 另一方面，如果我们在传感器上方打开一盏灯，我们将得到以下结果：
 - en: '[PRE6]'
+  id: totrans-62
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE6]'
 - en: So, the brighter the environment light, the higher the returned value.
+  id: totrans-63
   prefs: []
   type: TYPE_NORMAL
+  zh: 因此，环境光越亮，返回的数值越高。
 - en: Setting up the contactless temperature sensor
+  id: totrans-64
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 设置非接触温度传感器
 - en: 'The contactless temperature sensor is the same as that used in [Chapter 6](ch06.html
     "Chapter 6. Baby Room Sentinel"), *Baby Room Sentinel*, so you can take a look
     at the *Setting up the contactless temperature sensor* section to see how to set
     up and test this device; however, for completeness, again, some basic information
     about it is reported as follows:'
+  id: totrans-65
   prefs: []
   type: TYPE_NORMAL
+  zh: 非接触温度传感器与 [第 6 章](ch06.html "第 6 章. 宝宝房间守卫") 中使用的相同，*宝宝房间守卫*，因此你可以查看 *设置非接触温度传感器*
+    部分，了解如何设置和测试该设备；但是，为了完整性，以下再次提供一些基本信息：
 - en: '![Setting up the contactless temperature sensor](img/B00255_07_05.jpg)'
+  id: totrans-66
   prefs: []
   type: TYPE_IMG
+  zh: '![设置非接触温度传感器](img/B00255_07_05.jpg)'
 - en: Note
+  id: totrans-67
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
+  zh: 注意
 - en: The device can be purchased from [http://www.cosino.io/product/contactless-temperature-sensor](http://www.cosino.io/product/contactless-temperature-sensor),
     or found by surfing the Internet.
+  id: totrans-68
   prefs: []
   type: TYPE_NORMAL
+  zh: 该设备可以从 [http://www.cosino.io/product/contactless-temperature-sensor](http://www.cosino.io/product/contactless-temperature-sensor)
+    购买，或者通过上网查找。
 - en: The user guide of this device is available at [https://www.sparkfun.com/datasheets/Sensors/Temperature/SEN-09570-datasheet-3901090614M005.pdf](https://www.sparkfun.com/datasheets/Sensors/Temperature/SEN-09570-datasheet-3901090614M005.pdf).
+  id: totrans-69
   prefs: []
   type: TYPE_NORMAL
+  zh: 此设备的用户手册可在[https://www.sparkfun.com/datasheets/Sensors/Temperature/SEN-09570-datasheet-3901090614M005.pdf](https://www.sparkfun.com/datasheets/Sensors/Temperature/SEN-09570-datasheet-3901090614M005.pdf)中找到。
 - en: 'The connections are shown in the following table:'
+  id: totrans-70
   prefs: []
   type: TYPE_NORMAL
+  zh: 连接信息如下表所示：
 - en: '| Pin | Temperature sensor pin |'
+  id: totrans-71
   prefs: []
   type: TYPE_TB
+  zh: '| 引脚 | 温度传感器引脚 |'
 - en: '| --- | --- |'
+  id: totrans-72
   prefs: []
   type: TYPE_TB
+  zh: '| --- | --- |'
 - en: '| P9.4 - Vcc | 3 - Vdd |'
+  id: totrans-73
   prefs: []
   type: TYPE_TB
+  zh: '| P9.4 - Vcc | 3 - Vdd |'
 - en: '| P9.17 - SCL | 1 - SCL |'
+  id: totrans-74
   prefs: []
   type: TYPE_TB
+  zh: '| P9.17 - SCL | 1 - SCL |'
 - en: '| P9.18 - SDA | 2 - SDA |'
+  id: totrans-75
   prefs: []
   type: TYPE_TB
+  zh: '| P9.18 - SDA | 2 - SDA |'
 - en: '| P9.2 - GND | 3 - Vss |'
+  id: totrans-76
   prefs: []
   type: TYPE_TB
+  zh: '| P9.2 - GND | 3 - Vss |'
 - en: 'Now, if everything has been well connected, we can activate the I²C bus with
     the following command:'
+  id: totrans-77
   prefs: []
   type: TYPE_NORMAL
+  zh: 现在，如果一切连接正确，我们可以使用以下命令激活I²C总线：
 - en: '[PRE7]'
+  id: totrans-78
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE7]'
 - en: 'While the temperature can be retrieved by reading at the device location `0x07`,
     so by using the `i2cget` command, we can do the following:'
+  id: totrans-79
   prefs: []
   type: TYPE_NORMAL
+  zh: 温度可以通过读取设备位置`0x07`来获取，因此使用`i2cget`命令，我们可以执行如下操作：
 - en: '[PRE8]'
+  id: totrans-80
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE8]'
 - en: 'The output value must be converted to degree Celsius by multiplying it by 0.02
     after converting it to a decimal value, so we can use the following command:'
+  id: totrans-81
   prefs: []
   type: TYPE_NORMAL
+  zh: 输出值必须通过乘以0.02并转换为十进制值后转化为摄氏度，因此我们可以使用以下命令：
 - en: '[PRE9]'
+  id: totrans-82
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE9]'
 - en: Setting up the waterproof temperature sensor
+  id: totrans-83
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 设置防水温度传感器
 - en: 'Regarding the internal temperature sensor, I used the same one used in [Chapter
     3,](ch03.html "Chapter 3. Aquarium Monitor") *Aquarium Monitor*, so you can take
     a look at the *Connecting the temperature sensor* section to see how to set up
     and test this device; however, for completeness, again, some basic information
     about it is reported:'
+  id: totrans-84
   prefs: []
   type: TYPE_NORMAL
+  zh: 关于内部温度传感器，我使用的是与[第3章](ch03.html "第3章 水族箱监控器")，*水族箱监控器*中使用的相同传感器，因此您可以查看*连接温度传感器*部分，了解如何设置和测试此设备；不过，为了完整起见，以下是一些基本信息：
 - en: '![Setting up the waterproof temperature sensor](img/B00255_07_06.jpg)'
+  id: totrans-85
   prefs: []
   type: TYPE_IMG
+  zh: '![设置防水温度传感器](img/B00255_07_06.jpg)'
 - en: Note
+  id: totrans-86
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
+  zh: 注意
 - en: The device can be purchased from [http://www.cosino.io/product/waterproof-temperature-sensor](http://www.cosino.io/product/waterproof-temperature-sensor),
     or found by surfing the Internet.
+  id: totrans-87
   prefs: []
   type: TYPE_NORMAL
+  zh: 该设备可以从[http://www.cosino.io/product/waterproof-temperature-sensor](http://www.cosino.io/product/waterproof-temperature-sensor)购买，或者通过上网搜索找到。
 - en: The datasheet of this device is available at [http://datasheets.maximintegrated.com/en/ds/DS18B20.pdf](http://datasheets.maximintegrated.com/en/ds/DS18B20.pdf).
+  id: totrans-88
   prefs: []
   type: TYPE_NORMAL
+  zh: 该设备的数据手册可在[http://datasheets.maximintegrated.com/en/ds/DS18B20.pdf](http://datasheets.maximintegrated.com/en/ds/DS18B20.pdf)中找到。
 - en: 'The connections are shown in the following table:'
+  id: totrans-89
   prefs: []
   type: TYPE_NORMAL
+  zh: 连接信息如下表所示：
 - en: '| Pin | Cable color |'
+  id: totrans-90
   prefs: []
   type: TYPE_TB
+  zh: '| 引脚 | 电缆颜色 |'
 - en: '| --- | --- |'
+  id: totrans-91
   prefs: []
   type: TYPE_TB
+  zh: '| --- | --- |'
 - en: '| P9.4 - Vcc | Red |'
+  id: totrans-92
   prefs: []
   type: TYPE_TB
+  zh: '| P9.4 - Vcc | 红色 |'
 - en: '| P8.11 - GPIO1_13 | White |'
+  id: totrans-93
   prefs: []
   type: TYPE_TB
+  zh: '| P8.11 - GPIO1_13 | 白色 |'
 - en: '| P9.2 - GND | Black |'
+  id: totrans-94
   prefs: []
   type: TYPE_TB
+  zh: '| P9.2 - GND | 黑色 |'
 - en: 'To enable it, we have to load a proper DTS file into the kernel with the following
     command:'
+  id: totrans-95
   prefs: []
   type: TYPE_NORMAL
+  zh: 要启用它，我们必须通过以下命令将适当的DTS文件加载到内核中：
 - en: '[PRE10]'
+  id: totrans-96
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE10]'
 - en: Note
+  id: totrans-97
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
+  zh: 注意
 - en: See [Chapter 3](ch03.html "Chapter 3. Aquarium Monitor"), *Aquarium Monitor*,
     to see how to obtain the DTS file.
+  id: totrans-98
   prefs: []
   type: TYPE_NORMAL
+  zh: 请参见[第3章](ch03.html "第3章 水族箱监控器")，*水族箱监控器*，了解如何获取DTS文件。
 - en: 'If everything works well, we should see a new 1-Wire device under the `/sys/bus/w1/devices/`
     directory as follows:'
+  id: totrans-99
   prefs: []
   type: TYPE_NORMAL
+  zh: 如果一切正常，我们应该在`/sys/bus/w1/devices/`目录下看到一个新的1-Wire设备，如下所示：
 - en: '[PRE11]'
+  id: totrans-100
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE11]'
 - en: 'The new temperature sensor is represented by the directory named `28-000004b541e9`
     and to read the current temperature, we can use the `cat` command on the `w1_slave`
     file, as follows:'
+  id: totrans-101
   prefs: []
   type: TYPE_NORMAL
+  zh: 新的温度传感器由名为`28-000004b541e9`的目录表示，若要读取当前温度，我们可以使用`cat`命令访问`w1_slave`文件，如下所示：
 - en: '[PRE12]'
+  id: totrans-102
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE12]'
 - en: In the preceding example, the current temperature is `t=29500`, which is expressed
     in **millidegrees Celsius** (**m°C**), so it's equivalent to 29.5°C.
+  id: totrans-103
   prefs: []
   type: TYPE_NORMAL
+  zh: 在前面的示例中，当前温度为`t=29500`，表示为**毫度摄氏度**（**m°C**），因此它相当于29.5°C。
 - en: Tip
+  id: totrans-104
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
+  zh: 提示
 - en: Note that your sensor has a different ID, so, in your system, you'll get a different
     path name in the form of `/sys/bus/w1/devices/28-NNNNNNNNNNNN/w1_slave`.
+  id: totrans-105
   prefs: []
   type: TYPE_NORMAL
+  zh: 请注意，您的传感器有不同的ID，因此，在您的系统中，您将得到不同的路径名称，形式为`/sys/bus/w1/devices/28-NNNNNNNNNNNN/w1_slave`。
 - en: Setting up the webcam
+  id: totrans-106
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 设置摄像头
 - en: In [Chapter 3](ch03.html "Chapter 3. Aquarium Monitor"), *Aquarium Monitor*,
     I explained how to use a webcam with the BeagleBone Black, so you can take a look
     at that chapter to do the job. However, in that chapter, I required a UVC-based
     webcam (or at least another one which is supported by the `mjpg-streamer` tool).
     But this time, you can use any webcam supported by the Video4Linux driver class.
+  id: totrans-107
   prefs: []
   type: TYPE_NORMAL
+  zh: 在[第3章](ch03.html "第3章 水族馆监视器")中，*水族馆监视器*，我解释了如何使用网络摄像头与BeagleBone Black，你可以查看该章节来完成这项任务。然而，在那一章中，我要求使用基于UVC的网络摄像头（或至少是`mjpg-streamer`工具支持的其他摄像头）。但这次，你可以使用任何Video4Linux驱动类支持的摄像头。
 - en: Note
+  id: totrans-108
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
+  zh: 注意
 - en: The curious reader can obtain more information about Video4Linux drivers from
     [http://www.linuxtv.org/wiki/index.php/Main_Page]( http://www.linuxtv.org/wiki/index.php/Main_Page).
+  id: totrans-109
   prefs: []
   type: TYPE_NORMAL
+  zh: 好奇的读者可以从[http://www.linuxtv.org/wiki/index.php/Main_Page]( http://www.linuxtv.org/wiki/index.php/Main_Page)获取关于Video4Linux驱动程序的更多信息。
 - en: To know if our webcam is supported by the Video4Linux system, you just need
     to connect it to the BeagleBone Black USB host port and then check if a new `/dev/video`
     **X** device has been added (where **X** can be 0, 1, 2, and so on).
+  id: totrans-110
   prefs: []
   type: TYPE_NORMAL
+  zh: 要知道我们的网络摄像头是否受Video4Linux系统支持，只需将其连接到BeagleBone Black的USB主机端口，然后检查是否添加了新的`/dev/video`
+    **X**设备（其中**X**可以是0、1、2等）。
 - en: 'As an example, on my system, using the same webcam used in [Chapter 3](ch03.html
     "Chapter 3. Aquarium Monitor"), *Aquarium Monitor*, I get the following output:'
+  id: totrans-111
   prefs: []
   type: TYPE_NORMAL
+  zh: 例如，在我的系统上，使用与[第3章](ch03.html "第3章 水族馆监视器")中相同的网络摄像头，*水族馆监视器*，我得到了以下输出：
 - en: '[PRE13]'
+  id: totrans-112
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE13]'
 - en: 'So, my webcam is supported by the Video4Linux subsystem and it can be used
     by the `fswebcam` program to take pictures. To install the program, we can use
     the following command:'
+  id: totrans-113
   prefs: []
   type: TYPE_NORMAL
+  zh: 所以，我的网络摄像头由Video4Linux子系统支持，可以通过`fswebcam`程序来拍照。要安装该程序，可以使用以下命令：
 - en: '[PRE14]'
+  id: totrans-114
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE14]'
 - en: 'Then, we can take a simple picture by using the following command:'
+  id: totrans-115
   prefs: []
   type: TYPE_NORMAL
+  zh: 然后，我们可以通过以下命令拍摄简单的图片：
 - en: '[PRE15]'
+  id: totrans-116
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE15]'
 - en: Tip
+  id: totrans-117
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
+  zh: 提示
 - en: 'It can happen that when the `fswebcam` program is executed, you get the following
     message:'
+  id: totrans-118
   prefs: []
   type: TYPE_NORMAL
+  zh: 当执行`fswebcam`程序时，可能会收到以下消息：
 - en: '[PRE16]'
+  id: totrans-119
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE16]'
 - en: 'Then, when you try to display the picture, the image is black. To resolve this
     issue, the trick is to skip the first frames with the `-S` option argument, as
     follows:'
+  id: totrans-120
   prefs: []
   type: TYPE_NORMAL
+  zh: 然后，当你尝试显示图片时，图片是黑色的。要解决这个问题，诀窍是使用`-S`选项参数跳过前几帧，如下所示：
 - en: '[PRE17]'
+  id: totrans-121
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE17]'
 - en: 'However, what is really interesting in this program is the possibility to add
     text in different positions on the picture. For example, by using the following
     command, we can take a picture with, in the bottom-right corner, the text `Picture''s
     title`, and in the bottom-left corner the text `Information text` with a smaller
     font and a time stamp:'
+  id: totrans-122
   prefs: []
   type: TYPE_NORMAL
+  zh: 然而，这个程序真正有趣的地方在于可以在图片的不同位置添加文本。例如，通过以下命令，我们可以拍摄一张图片，在右下角显示文本`图片标题`，在左下角显示文本`信息文本`，并带有时间戳，使用更小的字体：
 - en: '[PRE18]'
+  id: totrans-123
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE18]'
 - en: 'The output picture is shown in the following screenshot:'
+  id: totrans-124
   prefs: []
   type: TYPE_NORMAL
+  zh: 输出图片如下截图所示：
 - en: '![Setting up the webcam](img/B00255_07_07.jpg)'
+  id: totrans-125
   prefs: []
   type: TYPE_IMG
+  zh: '![设置网络摄像头](img/B00255_07_07.jpg)'
 - en: As you can see, this is a great software for taking pictures with descriptions!
+  id: totrans-126
   prefs: []
   type: TYPE_NORMAL
+  zh: 正如你所见，这是一个用来带有描述信息拍照的优秀软件！
 - en: Adding a water pump
+  id: totrans-127
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 添加水泵
 - en: Since we know if water is present on the floor, we can also decide to implement
     an automatic system to flood our plant with water when we detect that it's missing.
     A possible solution is using a water pump, as already done in [Chapter 3](ch03.html
@@ -513,35 +781,51 @@
     relays to control several pumps by using BeagleBone Black's GPIOs, but, as already
     stated, I'm not going to do it here due to lack of space, thus, leaving this issue
     as a useful exercise for the reader.
+  id: totrans-128
   prefs: []
   type: TYPE_NORMAL
+  zh: 由于我们知道地板上是否存在水，当检测到缺水时，我们还可以决定实施一个自动灌溉系统来为我们的植物浇水。一个可能的解决方案是使用水泵，就像在[第3章](ch03.html
+    "第3章 水族馆监视器")中已经做过的那样。然后，我们可以通过使用BeagleBone Black的GPIO控制一个或多个继电器来控制几个水泵，但是，正如已经提到的，由于空间不足，我不打算在这里做这件事，因此，将此问题留给读者作为一个有用的练习。
 - en: The final picture
+  id: totrans-129
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 最终图片
 - en: 'The following image shows the prototype I made to implement this project and
     to test the software:'
+  id: totrans-130
   prefs: []
   type: TYPE_NORMAL
+  zh: 以下图片展示了我制作的原型，用于实施这个项目并测试软件：
 - en: '![The final picture](img/B00255_07_08.jpg)'
+  id: totrans-131
   prefs: []
   type: TYPE_IMG
+  zh: '![最终图片](img/B00255_07_08.jpg)'
 - en: The connections are very simple this time. Note also that all the sensors should
     be connected to the BeagleBone Black with a long cable in order to be easily put
     in the plant's garden pot.
+  id: totrans-132
   prefs: []
   type: TYPE_NORMAL
+  zh: 这次连接非常简单。还要注意，所有传感器应该用长电缆连接到BeagleBone Black，以便轻松放置在植物花盆中。
 - en: Setting up the software
+  id: totrans-133
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 设置软件
 - en: This time, we monitor (and possibly control) a very slow system (a growing plant).
     So, using a simple Bash script is more than appropriate, while the web interface
     can be implemented by using two little HTML (with JavaScript) and PHP scripts.
     The real difficulty, apart from getting access to the peripherals, is using the
     Facebook API in order to get access to an account.
+  id: totrans-134
   prefs: []
   type: TYPE_NORMAL
+  zh: 这一次，我们监控（并可能控制）一个非常慢的系统（一个生长中的植物）。因此，使用一个简单的Bash脚本是非常合适的，而Web界面可以通过两个小的HTML（带JavaScript）和PHP脚本来实现。除了访问外围设备的难度外，真正的难点是使用Facebook
+    API来访问一个账户。
 - en: 'Apropos the monitoring loop and the web interface, there is a major issue,
     that is, the **Inter Process Communication** (**IPC**) system to use in order
     to exchange data between them. In [Chapter 1](ch01.html "Chapter 1. Dangerous
@@ -553,272 +837,404 @@
     by using a normal file with a well-defined internal structure and proper locking
     functions to serialize access to it, we can solve the problem with very few system
     resources. This solution will be explained in detail in a later section.'
+  id: totrans-135
   prefs: []
   type: TYPE_NORMAL
+  zh: 关于监控循环和Web界面，有一个主要问题，即用于交换数据的**进程间通信**（**IPC**）系统。在[第1章](ch01.html "第1章 危险气体传感器")《危险气体传感器》中，我们主要使用了MySQL服务器来存储系统的数据和配置设置，但我们也利用它在构成系统的不同任务之间交换数据！然而，这一次，我们要存储的数据非常少，使用数据库可能非常昂贵。因此，我决定使用一种简单的方法来解决这个问题：我打算使用一个文件！是的，通过使用一个具有良好定义的内部结构和适当锁定功能的普通文件来序列化对其的访问，我们可以用极少的系统资源解决这个问题。这个解决方案将在后续部分详细解释。
 - en: The Facebook API
+  id: totrans-136
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: Facebook API
 - en: At [https://developers.facebook.com/docs/reference/php/5.0.0](https://developers.facebook.com/docs/reference/php/5.0.0),
     there is a user manual of the PHP API I used to get access to my Facebook account.
+  id: totrans-137
   prefs: []
   type: TYPE_NORMAL
+  zh: 在[https://developers.facebook.com/docs/reference/php/5.0.0](https://developers.facebook.com/docs/reference/php/5.0.0)上，有一本用户手册，介绍了我用来访问Facebook账户的PHP
+    API。
 - en: Note
+  id: totrans-138
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
+  zh: 注意
 - en: Actually, different APIs exist to get access to Facebook, and for further information
     about them, the reader can take a look at [https://developers.facebook.com/docs/apis-and-sdks](https://developers.facebook.com/docs/apis-and-sdks).
+  id: totrans-139
   prefs: []
   type: TYPE_NORMAL
+  zh: 实际上，有不同的API可以访问Facebook，关于这些API的更多信息，读者可以参考[https://developers.facebook.com/docs/apis-and-sdks](https://developers.facebook.com/docs/apis-and-sdks)。
 - en: There is a lot to read, so in the following section I've listed all steps I
     followed to install and configure it.
+  id: totrans-140
   prefs: []
   type: TYPE_NORMAL
+  zh: 阅读的内容很多，因此在接下来的部分，我列出了我安装和配置它时所遵循的所有步骤。
 - en: Downloading the code
+  id: totrans-141
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
+  zh: 下载代码
 - en: 'First of all, we have to download the source code. There are two possible ways
     to do it: installing with **Composer** and manual installing. I decided to use
     the manual installing method since I have no Composer support on my BeagleBone
     Black (nor do I wish to install it for such an easy task).'
+  id: totrans-142
   prefs: []
   type: TYPE_NORMAL
+  zh: 首先，我们必须下载源代码。有两种方法可以做到这一点：通过**Composer**安装和手动安装。我决定使用手动安装方法，因为我的BeagleBone Black上没有Composer支持（而且我也不想为了这么一个简单的任务去安装它）。
 - en: Note
+  id: totrans-143
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
+  zh: 注意
 - en: The Composer tool is a dependency manager for PHP; a curious reader can refer
     to [https://getcomposer.org/](https://getcomposer.org/) for further information
     about it.
+  id: totrans-144
   prefs: []
   type: TYPE_NORMAL
+  zh: Composer工具是一个PHP依赖管理工具；好奇的读者可以参考[https://getcomposer.org/](https://getcomposer.org/)以获取更多信息。
 - en: 'The code can be downloaded by clicking either on the **Download the SDK for
     PHP v5.0** button in the browser running on the host PC or directly on the BeagleBone
     Black by using the following command:'
+  id: totrans-145
   prefs: []
   type: TYPE_NORMAL
+  zh: 代码可以通过在主机PC上的浏览器中点击**Download the SDK for PHP v5.0**按钮，或者直接在BeagleBone Black上使用以下命令下载：
 - en: '[PRE19]'
+  id: totrans-146
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE19]'
 - en: Note
+  id: totrans-147
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
+  zh: 注意
 - en: A copy of that archive can be found in the `chapter_07/5.0-dev.zip` file in
     the book's example code repository.
+  id: totrans-148
   prefs: []
   type: TYPE_NORMAL
+  zh: 该归档的副本可以在书籍示例代码仓库中的`chapter_07/5.0-dev.zip`文件中找到。
 - en: 'Once downloaded, put the archive on your BeagleBone Black (if not already present)
     and then unzip it with the following command:'
+  id: totrans-149
   prefs: []
   type: TYPE_NORMAL
+  zh: 下载完成后，将归档文件放置在BeagleBone Black上（如果尚未存在），然后使用以下命令解压：
 - en: '[PRE20]'
+  id: totrans-150
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE20]'
 - en: Tip
+  id: totrans-151
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
+  zh: 提示
 - en: If not installed, the `unzip` command can be retrieved by using the usual `aptitude`
     command.
+  id: totrans-152
   prefs: []
   type: TYPE_NORMAL
+  zh: 如果未安装，可以通过常用的`aptitude`命令获取`unzip`命令。
 - en: 'Now, to use the API, we simply need to use the following two lines in all our
     scripts:'
+  id: totrans-153
   prefs: []
   type: TYPE_NORMAL
+  zh: 现在，要使用该API，我们只需在所有脚本中使用以下两行：
 - en: '[PRE21]'
+  id: totrans-154
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE21]'
 - en: 'To simplify this operation, I created a file called `setup.php`, where I put
     these lines so that I can do a simple include in all my scripts, as follows:'
+  id: totrans-155
   prefs: []
   type: TYPE_NORMAL
+  zh: 为了简化操作，我创建了一个名为`setup.php`的文件，在其中放入了这些行，这样我就可以在所有脚本中简单地包含它，如下所示：
 - en: '[PRE22]'
+  id: totrans-156
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE22]'
 - en: Note
+  id: totrans-157
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
+  zh: 注意
 - en: The preceding file can be found in the `chapter_07/setup.php` file in the book's
     example code repository.
+  id: totrans-158
   prefs: []
   type: TYPE_NORMAL
+  zh: 前面的文件可以在书籍示例代码库中的`chapter_07/setup.php`文件中找到。
 - en: Creating a new Facebook app
+  id: totrans-159
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
+  zh: 创建新的 Facebook 应用
 - en: 'Now, we need a new app that can use the API. In fact, all Facebook access must
     be done through a dedicated app, and the following steps are needed to create
     a new one:'
+  id: totrans-160
   prefs: []
   type: TYPE_NORMAL
+  zh: 现在，我们需要一个新的应用来使用 API。事实上，所有对 Facebook 的访问都必须通过一个专用的应用程序进行，以下是创建新应用所需的步骤：
 - en: Go to the Facebook developers page at [https://developers.facebook.com/apps/?action=create](https://developers.facebook.com/apps/?action=create)
     and click on the **Add a New App** button.
+  id: totrans-161
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 访问 Facebook 开发者页面：[https://developers.facebook.com/apps/?action=create](https://developers.facebook.com/apps/?action=create)，然后点击**添加新应用**按钮。
 - en: Choose the **Website** option.
+  id: totrans-162
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 选择**网站**选项。
 - en: Type a name for your App (I used `BBB Plant Monitor`) and click on the **Create
     New Facebook App ID** button.
+  id: totrans-163
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 为你的应用输入一个名称（我使用的是`BBB Plant Monitor`），然后点击**创建新的 Facebook 应用 ID**按钮。
 - en: Choose a category (I used `Entertainment`) and click on **Create App ID**.
+  id: totrans-164
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 选择一个类别（我使用的是`娱乐`），然后点击**创建应用 ID**。
 - en: Fill in the **Site URL** with `http://localhost` and click on **Next**.
+  id: totrans-165
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 在**站点 URL**中填写`http://localhost`，然后点击**下一步**。
 - en: Tip
+  id: totrans-166
   prefs:
   - PREF_IND
   - PREF_H3
   type: TYPE_NORMAL
+  zh: 提示
 - en: Note that to be able to follow the preceding steps, you need a pre-existing
     Facebook account, otherwise the system will ask to register before continuing.
+  id: totrans-167
   prefs:
   - PREF_IND
   type: TYPE_NORMAL
+  zh: 请注意，为了能够按照前面的步骤操作，你需要一个预先存在的 Facebook 账户，否则系统会要求你先注册再继续。
 - en: 'Your App has now been created. Then, in the **Next Steps** section, click on
     **Skip to Developer Dashboard**, and the panel shown in the following screenshot
     should appear:'
+  id: totrans-168
   prefs: []
   type: TYPE_NORMAL
+  zh: 你的应用现在已经创建。接下来，在**下一步**部分，点击**跳转到开发者仪表板**，然后应该出现如下截图所示的面板：
 - en: '![Creating a new Facebook app](img/B00255_07_09.jpg)'
+  id: totrans-169
   prefs: []
   type: TYPE_IMG
+  zh: '![创建新的 Facebook 应用](img/B00255_07_09.jpg)'
 - en: The **App ID** is visible by default, but the **App Secret** is hidden. Click
     on **Show**, enter your password again (if requested) to reveal the **App Secret**,
     and then copy and keep this information apart.
+  id: totrans-170
   prefs: []
   type: TYPE_NORMAL
+  zh: '**应用 ID**默认是可见的，但**应用密钥**是隐藏的。点击**显示**，再次输入密码（如果系统要求），以显示**应用密钥**，然后复制并保留此信息。'
 - en: Now, to finish the job, click on **Settings**, add `http://localhost` to **App
     Domains**, add your valid e-mail to **Contact Email**, and then click on **Save
     Changes**.
+  id: totrans-171
   prefs: []
   type: TYPE_NORMAL
+  zh: 现在，为了完成工作，点击**设置**，将`http://localhost`添加到**应用域名**中，将有效的电子邮件地址添加到**联系电子邮件**中，然后点击**保存更改**。
 - en: Getting access to the Facebook account
+  id: totrans-172
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
+  zh: 获取 Facebook 账户访问权限
 - en: Now that our app is ready, we can start trying some code on it. However, before
     going live, we can create a `test user` account with different permissions that
     do not interfere with our real Facebook account to make sure that everything is
     set up correctly (under the **Roles** menu and then the **Test Users** section).
+  id: totrans-173
   prefs: []
   type: TYPE_NORMAL
+  zh: 现在我们的应用程序已经准备好，我们可以开始在其上尝试一些代码。然而，在上线之前，我们可以创建一个具有不同权限的`测试用户`账户，这样它就不会干扰我们的真实
+    Facebook 账户，以确保一切设置正确（在**角色**菜单下，然后是**测试用户**部分）。
 - en: 'The following screenshot shows the **Test Users** panel:'
+  id: totrans-174
   prefs: []
   type: TYPE_NORMAL
+  zh: 以下截图显示了**测试用户**面板：
 - en: '![Getting access to the Facebook account](img/B00255_07_10.jpg)'
+  id: totrans-175
   prefs: []
   type: TYPE_IMG
+  zh: '![获取 Facebook 账户访问权限](img/B00255_07_10.jpg)'
 - en: Click on the **Edit** button and choose the **Get an access token for this test
     user** entry from the displayed list, accept the default settings, and then copy
     and keep the access token apart.
+  id: totrans-176
   prefs: []
   type: TYPE_NORMAL
+  zh: 点击**编辑**按钮，并从显示的列表中选择**为此测试用户获取访问令牌**选项，接受默认设置，然后复制并保留该访问令牌。
 - en: 'Now it''s time to test our first script! The following code snippet of a simple
     script used to get basic information of a Facebook account:'
+  id: totrans-177
   prefs: []
   type: TYPE_NORMAL
+  zh: 现在是测试我们第一个脚本的时候了！以下是一个用于获取 Facebook 账户基本信息的简单脚本代码片段：
 - en: '[PRE23]'
+  id: totrans-178
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE23]'
 - en: Note
+  id: totrans-179
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
+  zh: 注意
 - en: The complete code can be found in the `chapter_07/get_info.php` file in the
     book's example code repository.
+  id: totrans-180
   prefs: []
   type: TYPE_NORMAL
+  zh: 完整代码可以在书籍示例代码库中的`chapter_07/get_info.php`文件中找到。
 - en: 'The script is really simple. As the first step, we need to define a new Facebook
     session with the `Facebook\Facebook` class, where the `APP_ID` and `APP_SECRET`
     values are taken from the preceding app information, and the `DEF_TOKEN` is the
     test that the user''s token generated previously. All this information is stored
     in a dedicated file named `config.php`, holding the following code:'
+  id: totrans-181
   prefs: []
   type: TYPE_NORMAL
+  zh: 这个脚本非常简单。作为第一步，我们需要使用`Facebook\Facebook`类定义一个新的Facebook会话，其中`APP_ID`和`APP_SECRET`的值来自前面的应用信息，而`DEF_TOKEN`是之前生成的用户测试令牌。所有这些信息都存储在一个名为`config.php`的专用文件中，代码如下：
 - en: '[PRE24]'
+  id: totrans-182
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE24]'
 - en: Tip
+  id: totrans-183
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
+  zh: 提示
 - en: Please note that all information has been replaced by zeros or the `X` character,
     so you have to replace them with your custom values.
+  id: totrans-184
   prefs: []
   type: TYPE_NORMAL
+  zh: 请注意，所有信息已被替换为零或`X`字符，因此您需要将其替换为自定义值。
 - en: 'Then, the file can be loaded, as in the preceding command, with the following
     PHP command:'
+  id: totrans-185
   prefs: []
   type: TYPE_NORMAL
+  zh: 然后，文件可以像前面的命令一样通过以下PHP命令加载：
 - en: '[PRE25]'
+  id: totrans-186
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE25]'
 - en: Once the Facebook session has been created, we can start fetching data from
     it by using the `get()` method with different parameters. For example, by using
     the `/me` string, we can get the user's name and ID, while using the `/me/permissions`
     string, we can get the user's permissions.
+  id: totrans-187
   prefs: []
   type: TYPE_NORMAL
+  zh: 一旦创建了Facebook会话，我们可以通过使用`get()`方法并传入不同的参数来开始从中获取数据。例如，通过使用`/me`字符串，我们可以获取用户的姓名和ID，而使用`/me/permissions`字符串，我们可以获取用户的权限。
 - en: Note
+  id: totrans-188
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
+  zh: 注意
 - en: The Facebook permissions are listed and explained well at [https://developers.facebook.com/docs/facebook-login/permissions/v2.2](https://developers.facebook.com/docs/facebook-login/permissions/v2.2).
+  id: totrans-189
   prefs: []
   type: TYPE_NORMAL
+  zh: Facebook的权限列表和解释可以在[https://developers.facebook.com/docs/facebook-login/permissions/v2.2](https://developers.facebook.com/docs/facebook-login/permissions/v2.2)查看。
 - en: 'Once collected, the user''s information is displayed as follows:'
+  id: totrans-190
   prefs: []
   type: TYPE_NORMAL
+  zh: 一旦收集完成，用户的信息将显示如下：
 - en: '[PRE26]'
+  id: totrans-191
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE26]'
 - en: 'The API is okay and the accessing information has been correctly written! So,
     let''s see how we can post a picture on the test user''s timeline. To do the trick,
     we must use the `post()` method, as shown in the following code snippet:'
+  id: totrans-192
   prefs: []
   type: TYPE_NORMAL
+  zh: API正常，访问信息已经正确写入！现在，让我们看看如何在测试用户的时间线上发布一张图片。为了实现这个功能，我们必须使用`post()`方法，如下所示的代码片段：
 - en: '[PRE27]'
+  id: totrans-193
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE27]'
 - en: After creating the Facebook session, as explained previously, we have to call
     the `post()` method with the `/me/photos` string and proper parameters. In particular,
     you should pay attention to the `videoToUpload()` method that is used to specify
     the image to be published.
+  id: totrans-194
   prefs: []
   type: TYPE_NORMAL
+  zh: 在创建Facebook会话后，如前所述，我们必须调用`post()`方法，使用`/me/photos`字符串和适当的参数。特别是，您应该注意`videoToUpload()`方法，它用于指定要发布的图片。
 - en: 'Now, supposing that the image is in the `webcam-shot.jpg` file, we can do our
     post with the following command:'
+  id: totrans-195
   prefs: []
   type: TYPE_NORMAL
+  zh: 现在，假设图片保存在`webcam-shot.jpg`文件中，我们可以使用以下命令进行发布：
 - en: '[PRE28]'
+  id: totrans-196
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE28]'
 - en: 'To verify the post, we can log in with the test user account generated previously
     by selecting the **Log in as this test user** entry in the **Edit** button. The
     following screenshot shows what I got on my test:'
+  id: totrans-197
   prefs: []
   type: TYPE_NORMAL
+  zh: 为了验证发布内容，我们可以通过选择**作为此测试用户登录**选项，使用之前生成的测试用户账户登录。以下截图显示了我在测试中得到的结果：
 - en: '![Getting access to the Facebook account](img/B00255_07_11.jpg)'
+  id: totrans-198
   prefs: []
   type: TYPE_IMG
+  zh: '![获取Facebook账户的访问权限](img/B00255_07_11.jpg)'
 - en: When finished, you have to log out from this test account and then log in again
     with your own account.
+  id: totrans-199
   prefs: []
   type: TYPE_NORMAL
+  zh: 完成后，您必须从此测试账户登出，然后使用您的账户重新登录。
 - en: Now we are ready to go. Click on the **Status & Review** menu in the **Do you
     want to make this app and all its live features available to the general public?**
     section and click on **Yes**. Then, we need an access token for our Facebook profile,
@@ -827,176 +1243,262 @@
     drop-down list and then select our new application, **BBB Plant Monitor**. Then,
     click on the **Get Token** drop-down list and select the **Get Access Token**
     entry.
+  id: totrans-200
   prefs: []
   type: TYPE_NORMAL
+  zh: 现在我们准备好了。在**您是否希望将此应用及其所有实时功能向公众开放？**部分点击**状态与审核**菜单，然后点击**是**。接着，我们需要一个Facebook配置文件的访问令牌，因此我们必须进入**工具与支持**顶端菜单，然后选择**Graph
+    API Explorer**选项。在新页面中，点击**Graph API Explorer**下拉列表，然后选择我们的新应用**BBB Plant Monitor**。接着，点击**获取令牌**下拉列表，选择**获取访问令牌**。
 - en: In the new window, you can add whatever permission you wish; however, we need
     only the extended permission `publish_actions`, so enable it and then click on
     the **Get Access Token** button.
+  id: totrans-201
   prefs: []
   type: TYPE_NORMAL
+  zh: 在新窗口中，您可以添加任何权限；然而，我们只需要扩展权限`publish_actions`，因此请启用它，然后点击**获取访问令牌**按钮。
 - en: 'At this time, an authorization window such as the one shown in the following
     screenshot should appear (sorry for the non-English text):'
+  id: totrans-202
   prefs: []
   type: TYPE_NORMAL
+  zh: 此时，应该会弹出一个授权窗口，如下图所示（抱歉，窗口中有非英文文本）：
 - en: '![Getting access to the Facebook account](img/B00255_07_12.jpg)'
+  id: totrans-203
   prefs: []
   type: TYPE_IMG
+  zh: '![获取 Facebook 账户访问权限](img/B00255_07_12.jpg)'
 - en: Then, approve and select the audience of the new app (just you, your friends
     only, or public. Don't worry about it—this setting can be changed later from your
     profile settings).
+  id: totrans-204
   prefs: []
   type: TYPE_NORMAL
+  zh: 然后，批准并选择新应用的受众（仅限你自己、只有你的朋友，或公开。别担心——这个设置可以稍后从你的个人资料设置中更改）。
 - en: 'Now, get the new access token and copy it into the `config.php` file and then
     rerun the `get_info.php` script. If everything works well, you should get something
     like the following:'
+  id: totrans-205
   prefs: []
   type: TYPE_NORMAL
+  zh: 现在，获取新的访问令牌并将其复制到`config.php`文件中，然后重新运行`get_info.php`脚本。如果一切正常，你应该看到类似下面的内容：
 - en: '[PRE29]'
+  id: totrans-206
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE29]'
 - en: 'Great, now I can try to post a picture to my Facebook timeline by using the
     `post_pic.php` script, as follows:'
+  id: totrans-207
   prefs: []
   type: TYPE_NORMAL
+  zh: 很好，现在我可以尝试通过使用`post_pic.php`脚本将一张图片发布到我的 Facebook 时间线，如下所示：
 - en: '[PRE30]'
+  id: totrans-208
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE30]'
 - en: 'The following screenshot shows a snippet of my Facebook timeline with the new
     post:'
+  id: totrans-209
   prefs: []
   type: TYPE_NORMAL
+  zh: 以下截图显示了我的 Facebook 时间线的一部分，包含了新的帖子：
 - en: '![Getting access to the Facebook account](img/B00255_07_13.jpg)'
+  id: totrans-210
   prefs: []
   type: TYPE_IMG
+  zh: '![获取 Facebook 账户访问权限](img/B00255_07_13.jpg)'
 - en: Okay, it seems to work well! However, there is a problem. If you click on the
     **i** in the blue circle (near the beginning of your new access token), a window
     will appear showing the token's expiration time (that is, the time till your access
     token will work), and, as you can see, it's very short! Usually, it is only 1
     or 2 hours.
+  id: totrans-211
   prefs: []
   type: TYPE_NORMAL
+  zh: 好的，看起来似乎工作得不错！但是，有一个问题。如果你点击蓝色圆圈中的**i**（在新访问令牌的开始处），一个窗口会弹出，显示令牌的过期时间（也就是令牌将有效的时间），如你所见，这个时间非常短！通常只有1到2个小时。
 - en: 'See the following screenshot for an example:'
+  id: totrans-212
   prefs: []
   type: TYPE_NORMAL
+  zh: 参见以下截图作为示例：
 - en: '![Getting access to the Facebook account](img/B00255_07_14.jpg)'
+  id: totrans-213
   prefs: []
   type: TYPE_IMG
+  zh: '![获取 Facebook 账户访问权限](img/B00255_07_14.jpg)'
 - en: 'To increase this time, we can click on the **Open in Access Token Tool** button
     and then ask for an extended version by clicking on the **Extend Access Token**
     button. Then, a new extended token will be released, as shown in the following
     screenshot (note that it may happen that the system will request your profile
     password again before giving the extended token to you; if so, enter the password
     again):'
+  id: totrans-214
   prefs: []
   type: TYPE_NORMAL
+  zh: 为了增加这个时间，我们可以点击**在访问令牌工具中打开**按钮，然后点击**延长访问令牌**按钮请求一个扩展版。接着，将发布一个新的扩展令牌，如下图所示（注意，系统可能会要求你再次输入个人资料密码才能为你提供扩展令牌；如果是这样，请再次输入密码）：
 - en: '![Getting access to the Facebook account](img/B00255_07_15.jpg)'
+  id: totrans-215
   prefs: []
   type: TYPE_IMG
+  zh: '![获取 Facebook 账户访问权限](img/B00255_07_15.jpg)'
 - en: The new token is now valid for 60 days.
+  id: totrans-216
   prefs: []
   type: TYPE_NORMAL
+  zh: 新令牌现在有效期为60天。
 - en: Unluckily, I've not found a suitable way to either automate this procedure or
     to renew a token when the current one expires. When it happens, you have to repeat
     this procedure to get a new valid token and then update the `config.php` file
     accordingly.
+  id: totrans-217
   prefs: []
   type: TYPE_NORMAL
+  zh: 不幸的是，我还没有找到合适的方式来自动化此过程，或者在当前令牌过期时更新令牌。当发生这种情况时，你需要重复此过程以获取一个新的有效令牌，然后相应地更新`config.php`文件。
 - en: Tip
+  id: totrans-218
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
+  zh: 提示
 - en: 'It may happen that you get an error in executing the command. In that case,
     you can enable the debugging messages by using the `-d` option argument and then
     trying to execute the command again, as follows:'
+  id: totrans-219
   prefs: []
   type: TYPE_NORMAL
+  zh: 可能会遇到执行命令时出现错误的情况。在这种情况下，你可以通过使用`-d`选项参数启用调试信息，然后再次尝试执行命令，如下所示：
 - en: '[PRE31]'
+  id: totrans-220
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE31]'
 - en: This is not related to the Facebook API itself, but to an authentication stage
     of the SSL certificate. A possible workaround is implemented by using the following
     patch. However, this decreases the security level of the whole API. You are warned!
+  id: totrans-221
   prefs: []
   type: TYPE_NORMAL
+  zh: 这与 Facebook API 本身无关，而是与 SSL 证书的身份验证阶段有关。一个可能的解决方法是通过使用以下补丁实现的。然而，这会降低整个 API
+    的安全级别。请注意！
 - en: '[PRE32]'
+  id: totrans-222
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE32]'
 - en: The monitoring loop
+  id: totrans-223
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 监控循环
 - en: Now that the Facebook API is up and running, we can start writing the code to
     implement our plant monitor.
+  id: totrans-224
   prefs: []
   type: TYPE_NORMAL
+  zh: 现在 Facebook API 已经正常运行，我们可以开始编写代码来实现我们的植物监控器。
 - en: As already stated, the monitoring system is so slow that using a Bash script
     can be the most *quick-and-dirty* way to resolve our problem. In fact, we simply
     need to read plant's data from all installed sensors and then do some simple actions.
     The most difficult part is to create a status file containing all measured data
     to be exchanged with the web interface (see the next section for this last part).
+  id: totrans-225
   prefs: []
   type: TYPE_NORMAL
+  zh: 如前所述，监控系统非常慢，因此使用Bash脚本可能是解决问题的最*快捷粗暴*方法。实际上，我们只需要从所有已安装的传感器读取植物数据，然后执行一些简单的操作。最困难的部分是创建一个包含所有测量数据的状态文件，该文件将与网页接口进行交换（有关这一部分，请参见下一节）。
 - en: 'The monitoring loop is in the `chapter_07/plant_mon.sh` file in the book''s
     example code repository, while the relevant code is shown in the following snippet:'
+  id: totrans-226
   prefs: []
   type: TYPE_NORMAL
+  zh: 监控循环位于书中的示例代码仓库中的`chapter_07/plant_mon.sh`文件中，相关代码显示如下：
 - en: '[PRE33]'
+  id: totrans-227
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE33]'
 - en: 'As you can see, there are three main steps to execute:'
+  id: totrans-228
   prefs: []
   type: TYPE_NORMAL
+  zh: 如你所见，执行时有三个主要步骤：
 - en: Read the plant's data from all sensors.
+  id: totrans-229
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 从所有传感器读取植物数据。
 - en: Exchange the data by managing the file addressed by the `STATUS_FILE` variable.
+  id: totrans-230
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 通过管理由`STATUS_FILE`变量指向的文件来交换数据。
 - en: Take a new picture according to the user input.
+  id: totrans-231
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 根据用户输入拍摄新照片。
 - en: 'The first step is implemented by the `read_sensors` function as follows:'
+  id: totrans-232
   prefs: []
   type: TYPE_NORMAL
+  zh: 第一步通过`read_sensors`函数实现，代码如下：
 - en: '[PRE34]'
+  id: totrans-233
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE34]'
 - en: 'The last step is implemented by the `do_picture` function as follows:'
+  id: totrans-234
   prefs: []
   type: TYPE_NORMAL
+  zh: 最后一步由`do_picture`函数实现，代码如下：
 - en: '[PRE35]'
+  id: totrans-235
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE35]'
 - en: The second action needs some explanation. As already stated, we have to send
     the plant's data to the web interface. From the web interface, we have to read
     an input value (the moisture coefficient). To do that, I decided to use a normal
     file due to the fact that all operations are executed very slowly.
+  id: totrans-236
   prefs: []
   type: TYPE_NORMAL
+  zh: 第二个操作需要一些解释。如前所述，我们必须将植物的数据发送到网页接口。从网页接口中，我们需要读取一个输入值（湿度系数）。为了做到这一点，我决定使用普通文件，因为所有操作执行得非常慢。
 - en: The only difficulty when using a file to exchange data is related to the fact
     that we must be sure to have exclusive access to it. To do so, we can use the
     `flock()` system call to ask the system for exclusive access to a file in order
     to exclude concurrent reads or writes.
+  id: totrans-237
   prefs: []
   type: TYPE_NORMAL
+  zh: 使用文件交换数据的唯一困难在于我们必须确保对该文件具有独占访问权限。为此，我们可以使用`flock()`系统调用向系统请求对文件的独占访问，从而排除并发读取或写入操作。
 - en: 'To use the `flock()` in a Bash script, we have the `flock` command that, when
     used in a shell script, must be used as suggested by the `flock`''s man pages.
     The code is as follows:'
+  id: totrans-238
   prefs: []
   type: TYPE_NORMAL
+  zh: 要在Bash脚本中使用`flock()`，我们有`flock`命令，当它在shell脚本中使用时，必须按照`flock`的man页面中的建议进行使用。代码如下：
 - en: '[PRE36]'
+  id: totrans-239
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE36]'
 - en: Tip
+  id: totrans-240
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
+  zh: 提示
 - en: See the `man flock` command for further information.
+  id: totrans-241
   prefs: []
   type: TYPE_NORMAL
+  zh: 请参阅`man flock`命令获取更多信息。
 - en: After grabbing the lock, we can start reading the file. It holds the system
     status in the JSON format because the file content must be shared with a PHP application
     that has predefined functions to manage such format. So, first we read the user
@@ -1004,256 +1506,391 @@
     level using the formula described at the beginning of this chapter, and, as the
     last step, we write back the status file in the JSON format by using the `json_encode`
     function.
+  id: totrans-242
   prefs: []
   type: TYPE_NORMAL
+  zh: 获取锁后，我们可以开始读取文件。该文件以JSON格式保存系统状态，因为文件内容必须与一个PHP应用共享，而该应用具有预定义的函数来管理此格式。因此，首先我们通过`json_decode`函数读取用户输入，然后使用本章开始时描述的公式计算预估的湿度水平，最后，使用`json_encode`函数将状态文件以JSON格式写回。
 - en: 'To execute the program enabling all debugging messages, we can use the following
     command line:'
+  id: totrans-243
   prefs: []
   type: TYPE_NORMAL
+  zh: 要执行程序并启用所有调试信息，我们可以使用以下命令行：
 - en: '[PRE37]'
+  id: totrans-244
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE37]'
 - en: Then, the program can be stopped by running the *CTRL* + *C* keys.
+  id: totrans-245
   prefs: []
   type: TYPE_NORMAL
+  zh: 然后，可以通过按下*CTRL* + *C*键停止程序。
 - en: Tip
+  id: totrans-246
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
+  zh: 提示
 - en: Remember to modify the line where I define the `INT_TEMP_DEV` variable holding
     the 1-Wire temperature sensor's ID according to the ID of your sensor, otherwise
     you're going to get a read error while executing the program.
+  id: totrans-247
   prefs: []
   type: TYPE_NORMAL
+  zh: 请记得修改定义`INT_TEMP_DEV`变量的那一行，该变量存储了1-Wire温度传感器的ID，根据你传感器的ID进行修改，否则在执行程序时会出现读取错误。
 - en: Note that as the first step, the program reads all the sensors' data and then
     takes a picture in such a way that the web interface has whatever it needs to
     display the current system status to the user, as explained in the next section.
+  id: totrans-248
   prefs: []
   type: TYPE_NORMAL
+  zh: 请注意，作为第一步，程序读取所有传感器的数据，然后拍照，以便网页接口获取它所需要的任何内容，以便向用户显示当前系统状态，具体细节见下一节。
 - en: The web interface
+  id: totrans-249
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 网页接口
 - en: This time, I'm going to implement a simple web interface by using the HTML,
     PHP, and JavaScript languages. What I want to implement is something really simple
     that allows the user to see the plant's data and the last picture of the plant
     stored on the system. Then, they should be able to post that picture on the Facebook
     timeline.
+  id: totrans-250
   prefs: []
   type: TYPE_NORMAL
+  zh: 这一次，我将使用 HTML、PHP 和 JavaScript 语言实现一个简单的网页界面。我想实现的功能非常简单，允许用户查看植物的数据以及系统中存储的植物最后一张图片。然后，用户应该能够将这张图片发布到
+    Facebook 时间线上。
 - en: 'The core of the web interface is in the `chapter_07/plant.html` file in the
     book''s example code repository, while the relevant code is shown in the following
     snippet:'
+  id: totrans-251
   prefs: []
   type: TYPE_NORMAL
+  zh: 网页界面的核心在书中示例代码库的 `chapter_07/plant.html` 文件中，相关代码显示在下面的代码片段中：
 - en: '[PRE38]'
+  id: totrans-252
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE38]'
 - en: As you can see, there is a simple table where all the data is reported and where
     the user can change the moisture coefficient with the **Set** button. Then, the
     plant's picture is shown at the bottom with a **Post on Facebook** button to allow
     the user to post the current picture on Facebook.
+  id: totrans-253
   prefs: []
   type: TYPE_NORMAL
+  zh: 如你所见，这里有一个简单的表格，所有数据都在其中报告，用户可以通过 **设置** 按钮更改湿度系数。然后，植物的图片显示在底部，并带有 **在 Facebook
+    上发布** 按钮，允许用户将当前图片发布到 Facebook。
 - en: 'The **Set** button is managed by the following JavaScript code included in
     the `plant.html` file:'
+  id: totrans-254
   prefs: []
   type: TYPE_NORMAL
+  zh: '**设置** 按钮由以下 JavaScript 代码管理，该代码包含在 `plant.html` 文件中：'
 - en: '[PRE39]'
+  id: totrans-255
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE39]'
 - en: So, each time we press the button, we generate a `POST` request holding the
     user input value.
+  id: totrans-256
   prefs: []
   type: TYPE_NORMAL
+  zh: 因此，每次按下按钮时，我们都会生成一个 `POST` 请求，并携带用户输入的值。
 - en: 'In a similar manner, the **Post on Facebook** button is managed by the following
     code:'
+  id: totrans-257
   prefs: []
   type: TYPE_NORMAL
+  zh: 类似地，**在 Facebook 上发布** 按钮由以下代码管理：
 - en: '[PRE40]'
+  id: totrans-258
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE40]'
 - en: In this case, we generate another `POST` request, but with different parameters.
+  id: totrans-259
   prefs: []
   type: TYPE_NORMAL
+  zh: 在这种情况下，我们生成另一个`POST`请求，但使用不同的参数。
 - en: 'On the other hand, the following JavaScript code is used for two main tasks:'
+  id: totrans-260
   prefs: []
   type: TYPE_NORMAL
+  zh: 另一方面，以下 JavaScript 代码用于两个主要任务：
 - en: '[PRE41]'
+  id: totrans-261
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE41]'
 - en: The first task is to request and then update the plant's data on the web page,
     while the second task is to update the plant's image.
+  id: totrans-262
   prefs: []
   type: TYPE_NORMAL
+  zh: 第一个任务是请求并更新网页上的植物数据，第二个任务是更新植物的图像。
 - en: Tip
+  id: totrans-263
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
+  zh: 提示
 - en: 'Note that we use a trick to force the browser to refresh the plant''s image:'
+  id: totrans-264
   prefs: []
   type: TYPE_NORMAL
+  zh: 请注意，我们使用了一种技巧来强制浏览器刷新植物的图片：
 - en: '[PRE42]'
+  id: totrans-265
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE42]'
 - en: Here, I appended a parameter with the current date to the image's attribute
     in order to force the browser to update the image.
+  id: totrans-266
   prefs: []
   type: TYPE_NORMAL
+  zh: 在这里，我为图片的属性附加了当前日期的参数，以强制浏览器更新图片。
 - en: 'Looking at the preceding codes, the reader can notice that when the PHP file
     is executed, the `handler.php` script is executed in turn too. The `handler.php`
     file manages the data on the server side, and the following snippet shows its
     relevant code:'
+  id: totrans-267
   prefs: []
   type: TYPE_NORMAL
+  zh: 从前面的代码来看，读者可以注意到，当 PHP 文件执行时，`handler.php` 脚本也会依次执行。`handler.php` 文件管理服务器端的数据，下面的代码片段展示了其相关代码：
 - en: '[PRE43]'
+  id: totrans-268
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE43]'
 - en: Note
+  id: totrans-269
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
+  zh: 注意
 - en: The complete code can be found in the `chapter_07/handler.php` file in the book's
     example code repository.
+  id: totrans-270
   prefs: []
   type: TYPE_NORMAL
+  zh: 完整代码可以在书中示例代码库中的 `chapter_07/handler.php` 文件中找到。
 - en: At the first step, we check for any `POST` requests and, in case, we serve them.
     In the first case, we update the moisture coefficient, while in the second case
     we call the `do_post()` function that is explained next to post the plant's image
     on Facebook.
+  id: totrans-271
   prefs: []
   type: TYPE_NORMAL
+  zh: 在第一步中，我们检查是否有任何 `POST` 请求，如果有，则处理它们。在第一种情况下，我们更新湿度系数；而在第二种情况下，我们调用下文解释的 `do_post()`
+    函数，将植物的图片发布到 Facebook。
 - en: 'Then, we have to read (and eventually update) the system''s status file by
     using the `flock()` system call. In PHP, the file lock is managed by the `flock()`
     function, as follows, in order to acquire and release the lock on a file:'
+  id: totrans-272
   prefs: []
   type: TYPE_NORMAL
+  zh: 然后，我们必须使用 `flock()` 系统调用来读取（并最终更新）系统的状态文件。在 PHP 中，文件锁由 `flock()` 函数管理，如下所示，用于获取和释放文件的锁：
 - en: '[PRE44]'
+  id: totrans-273
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE44]'
 - en: As the last action, we return the plant's data to the browser in the JSON format
     suitable for the calling JavaScript.
+  id: totrans-274
   prefs: []
   type: TYPE_NORMAL
+  zh: 最后的操作是将植物的数据以适合调用的 JavaScript 的 JSON 格式返回给浏览器。
 - en: 'Okay, now we''re at the last thing to show, which is the `do_post()` function:'
+  id: totrans-275
   prefs: []
   type: TYPE_NORMAL
+  zh: 好的，现在我们要展示最后一项内容，即 `do_post()` 函数：
 - en: '[PRE45]'
+  id: totrans-276
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE45]'
 - en: This function simply performs the same steps as the `post_pic.php` script shown
     previously in order to post the plant's picture on the user's Facebook timeline.
+  id: totrans-277
   prefs: []
   type: TYPE_NORMAL
+  zh: 该功能简单地执行与前面展示的 `post_pic.php` 脚本相同的步骤，以便将植物的图片发布到用户的 Facebook 时间线。
 - en: Final test
+  id: totrans-278
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 最终测试
 - en: 'To test the prototype, I first executed the `chapter_07/SYSINIT.sh` file in
     the book''s example code repository to set up all peripherals:'
+  id: totrans-279
   prefs: []
   type: TYPE_NORMAL
+  zh: 为了测试原型，我首先执行了书中示例代码库中的 `chapter_07/SYSINIT.sh` 文件来设置所有外设：
 - en: '[PRE46]'
+  id: totrans-280
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE46]'
 - en: 'Now, after checking that the web server is running, I started the `plant_mon.sh`
     plant monitor script, enabling all debugging messages:'
+  id: totrans-281
   prefs: []
   type: TYPE_NORMAL
+  zh: 现在，在检查了 Web 服务器是否运行之后，我启动了 `plant_mon.sh` 植物监控脚本，并启用了所有调试信息：
 - en: '[PRE47]'
+  id: totrans-282
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE47]'
 - en: Then, I set up the web server's root directory in order to implement the web
     interface. On my BeagleBone Black, the web server's root directory is `/var/www/`,
     but it may vary according to your system settings.
+  id: totrans-283
   prefs: []
   type: TYPE_NORMAL
+  zh: 然后，我设置了 Web 服务器的根目录以实现 Web 界面。在我的 BeagleBone Black 上，Web 服务器的根目录是 `/var/www/`，但根据系统设置可能会有所不同。
 - en: Note
+  id: totrans-284
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
+  zh: 注意
 - en: The reader can take a look at the book *BeagleBone Essentials*, *Packt Publishing*,
     written by the author of this book, in order to get more information regarding
     how to set up a web server on the BeagleBone Black.
+  id: totrans-285
   prefs: []
   type: TYPE_NORMAL
+  zh: 读者可以阅读由本书作者编写的《*BeagleBone Essentials*》，*Packt Publishing*，以获取更多关于如何在 BeagleBone
+    Black 上设置 Web 服务器的信息。
 - en: 'If you have the same configuration as mine, and the `plant_mon.sh` script is
     running, then your `/var/www/` directory should look like the following:'
+  id: totrans-286
   prefs: []
   type: TYPE_NORMAL
+  zh: 如果您的配置与我的相同，并且 `plant_mon.sh` 脚本正在运行，那么您的 `/var/www/` 目录应该如下所示：
 - en: '[PRE48]'
+  id: totrans-287
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE48]'
 - en: These files are created by the monitoring script, and they're, respectively,
     the lock file, the system's status file, and the last picture taken. Along with
     these files you also need the Facebook API (so we have to unzip its source code
     here, as shown previously) and the configuration files `config.php` and `setup.php`.
+  id: totrans-288
   prefs: []
   type: TYPE_NORMAL
+  zh: 这些文件是由监控脚本创建的，分别是锁文件、系统状态文件和最后拍摄的图片。除了这些文件之外，您还需要 Facebook API（因此我们需要在此解压其源代码，如前所述）和配置文件
+    `config.php` 和 `setup.php`。
 - en: 'Then, we have to add the `plant.html`, `plant.css`, and `handler.php` files
     for the the web interface with the `jquery-1.9.1.js` file that can be downloaded
     from [https://code.jquery.com/jquery/](https://code.jquery.com/jquery/) by using
     the browser on the host PC or directly on your BeagleBone Black with the following
     command line:'
+  id: totrans-289
   prefs: []
   type: TYPE_NORMAL
+  zh: 然后，我们需要添加 `plant.html`、`plant.css` 和 `handler.php` 文件，以及 `jquery-1.9.1.js` 文件，该文件可以通过在主机
+    PC 上的浏览器或直接在 BeagleBone Black 上使用以下命令行从 [https://code.jquery.com/jquery/](https://code.jquery.com/jquery/)
+    下载：
 - en: '[PRE49]'
+  id: totrans-290
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE49]'
 - en: 'Then, we must make sure that all files are owned by the system user `www-user`
     in order to allow the web server to read/write them without problems. To do so,
     we can use the following command:'
+  id: totrans-291
   prefs: []
   type: TYPE_NORMAL
+  zh: 然后，我们必须确保所有文件都归系统用户 `www-user` 所有，以便 Web 服务器可以不出问题地读写它们。为此，我们可以使用以下命令：
 - en: '[PRE50]'
+  id: totrans-292
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE50]'
 - en: 'If everything works well, your web server''s root directory should look like
     the following:'
+  id: totrans-293
   prefs: []
   type: TYPE_NORMAL
+  zh: 如果一切顺利，您的 Web 服务器根目录应该如下所示：
 - en: '[PRE51]'
+  id: totrans-294
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE51]'
 - en: 'Now, everything should be in place, so, on my host PC, I pointed my browser
     to the BeagleBone Black''s IP address on the emulated Ethernet line via a USB
     cable to display the web interface. A screenshot of my test is as follows:'
+  id: totrans-295
   prefs: []
   type: TYPE_NORMAL
+  zh: 现在，一切应该就绪，所以在我的主机 PC 上，我通过 USB 电缆将浏览器指向 BeagleBone Black 在模拟以太网线上的 IP 地址，以显示
+    Web 界面。以下是我的测试截图：
 - en: '![Final test](img/B00255_07_16.jpg)'
+  id: totrans-296
   prefs: []
   type: TYPE_IMG
+  zh: '![最终测试](img/B00255_07_16.jpg)'
 - en: 'Notice that a similar result can be obtained by using a smartphone or tablet.
     In fact, if I connect my BeagleBone Black to my LAN and then point my smartphone''s
     browser to the BeagleBone Black IP address, I get what is shown in the following
     screenshot:'
+  id: totrans-297
   prefs: []
   type: TYPE_NORMAL
+  zh: 请注意，通过智能手机或平板电脑也可以获得类似的结果。事实上，如果我将 BeagleBone Black 连接到我的局域网，然后将智能手机的浏览器指向 BeagleBone
+    Black 的 IP 地址，我会看到以下截图所示的内容：
 - en: '![Final test](img/B00255_07_17.jpg)'
+  id: totrans-298
   prefs: []
   type: TYPE_IMG
+  zh: '![最终测试](img/B00255_07_17.jpg)'
 - en: Tip
+  id: totrans-299
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
+  zh: 提示
 - en: Remember that the IP address of the USB emulated Ethernet is usually `192.168.7.2`,
     while the IP address that the BeagleBone Black gets when it is connected to your
     LAN may vary according to your LAN settings. It can be retrieved by using the
     `ifconfig eth0` command on a BeagleBone Black's terminal.
+  id: totrans-300
   prefs: []
   type: TYPE_NORMAL
+  zh: 请记住，USB 模拟以太网的 IP 地址通常是 `192.168.7.2`，而当 BeagleBone Black 连接到您的局域网时，它的 IP 地址可能会根据您的局域网设置而有所不同。可以通过在
+    BeagleBone Black 的终端上使用 `ifconfig eth0` 命令来获取。
 - en: Summary
+  id: totrans-301
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 总结
 - en: This time, we used several sensors to get important data about our lovely plant.
     Then, we also discovered a simple way to exchange this data between processes
     by using a normal file. We learned how to use the Facebook PHP API to do a post
     on a user's timeline by using a simple script.
+  id: totrans-302
   prefs: []
   type: TYPE_NORMAL
+  zh: 这次，我们使用了多个传感器来获取关于我们可爱植物的重要数据。然后，我们还发现了一种通过使用普通文件在进程之间交换数据的简单方法。我们学会了如何使用 Facebook
+    PHP API，通过一个简单的脚本在用户的时间线上发布内容。
 - en: In the next chapter, we'll try to implement an intrusion alarm system with motion
     detection sensors that, in case of alarm, will start taking pictures of the intruders
     and then send them to the user's e-mail address.
+  id: totrans-303
   prefs: []
   type: TYPE_NORMAL
+  zh: 在下一章中，我们将尝试实现一个入侵报警系统，配备运动检测传感器，当触发报警时，系统将开始拍摄入侵者的照片，并将其发送到用户的电子邮件地址。
