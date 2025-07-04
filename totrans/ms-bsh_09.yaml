@@ -1,0 +1,600 @@
+- en: Subshells, Signals, and Job Controls
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'Whatever we have seen so far was pretty straightforward. We launched a script
+    that executed some commands, instances, variables, and made something out of it,
+    that is all--one command after the other, one instruction piled on the previous
+    one. This is what we would call a serial execution, one command after the other
+    just like domino tiles: the first coming in and the first being processed; and
+    this brings to mind the concept of the FIFO queue, **First In First Out**.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'What if we wanted to process more than one instruction at a time? Well, we
+    cannot do this and it would not be incorrect: a CPU is a serial device and it
+    can process only one instruction at a time. What we use to give us the *taste* of
+    multitasking is having the CPU switching between an instruction and the other
+    really fast. So, instead of completely processing an instruction before passing
+    on to the other, the CPU will work a bit on the first one, pass it to work a bit
+    on the second, and then again back to the first for a while. It is this back and
+    forth idea that gives us the illusion that our CPU is working on more than one
+    thing at the same time. And then, we have systems with multiprocessors, and we
+    can take advantage of this kind of architecture so that we can distribute processes
+    on different CPU, so they can really be elaborated in parallel.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Whatever we decide to do, everything starts from an invocation, a leap of faith
+    into a new instance of the main shell so that a new child shell is given birth,
+    and it will be devoted to our tasks. So, first, what is a subshell?
+  prefs: []
+  type: TYPE_NORMAL
+- en: What is a subshell?
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: Let's start with a more basic question. What is a shell? To make it simple,
+    a shell is an interface between the user and the underlying operating system.
+    It can be a command-line interpreter or a graphic interface, but the purpose of
+    a shell is to be an intermediary between the user and the core of the system,
+    allowing the former to access the services offered by the latter. So, for instance,
+    a bash shell gives us a command-line interface access through a Terminal and a
+    series of commands that allows us to communicate with the operating system and
+    make use of its services to perform tasks.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'In a shell, each command is usually executed after the former has concluded
+    its task, but we can change to some extent this behavior leveraging some key concepts:
+    background process, signals, and subshells.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Background processes
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: Let's start with an intuitive definition of a background process, and define
+    it as a process with no interaction with the terminal it is launched from. This
+    practically means that a background process has no interaction with the user and
+    that's it. Technically, we can say that a background process is the one whose
+    process ID group differs from the one of the terminal it has been launched from.
+    We can define a process group as a bunch of processes sharing the same process
+    group ID, which is an identifier allowing the system to manage all the processes
+    as a whole. A process group ID is determined by the process ID of the first process
+    of the group, also called process group leader; each subsequent process in the
+    group will be the process group ID drawn from the process ID of the leader; and
+    each child process is placed in the process group ID of its parent. Similarly,
+    a session is a collection of process groups; and the first process in the session
+    is also the session leader, which is the only process allowed to control a terminal,
+    if any is available. Thus, the process that prepares the login session for the
+    user is also the session leader for all the processes spawned during the "user
+    session", and all the processes will be in a process group under the session.
+    When a user session is closed, the kernel sends a **Signal Hang Up** (**SIGHUP**)
+    signal to the leader of the session holding the terminal foreground process group.
+    This is because when the user closes its interactive session, the connection to
+    the terminal is closed and the foreground processes have no longer a terminal
+    to access to, so they must be killed. That being said, a background process will
+    be barred from reading or writing from the terminal with a** SIGnal due to TeleType
+    INput** (**SIGTTIN**) in case it attempts to read from it and **SIGnal due to
+    TTY OUtput** (**SIGTTOU**) in case it attempts to write to it.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Signals
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'In the early days of computing, signals were a means to deal with unusual events,
+    and usually, their job was to reset a condition to a default state. Nowadays,
+    with facilities such as job control, signals are used to actually instruct processes
+    on what to do and are now more an interprocess facilities than a reset mechanism,
+    as they were originally conceived. Each signal is associated to an action that
+    must be performed by the process receiving it, so here is a brief list with some
+    of the more interesting signals that the kernel can send to a process:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`SIGCHLD`: This signal is sent to a parent process when a child terminates
+    or stops.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`SIGCONT`: This tells the process that has been put on hold by `SIGSTOP` or
+    `SGSTP` to resume its execution. These three signals are used in job controlling.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`SIGHUP`: This signal is sent to a process when its terminal is closed and
+    kills it. It owes its name to the old good times when connections were held over
+    serial line, which hang up due to a line drop. If sent to a daemon, it usually
+    forces them to reload the configuration file and reopen the log file.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`SIGINT`: This is the signal given to the process when a user presses *Ctrl*
+    + *C,* and it interrupts the process, terminating it. This signal can be ignored
+    by the process.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`SIGKILL`: This terminates a process immediately. This cannot be ignored, and
+    the process has to die immediately without closing or saving anything. (kill -9)'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`SIGQUIT`: When the process receives this signal, it quits performing a core
+    dump. A core dump is a dump, a copy, of the memory used by the process, so we
+    can find in it a lot of useful information such as a processor, registers, flags,
+    data, which are  useful to debug the working state of the process itself.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`SIGSTOP`: This signal is sent to stop a process. It cannot be ignored.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`SIGTERM`: It is a termination request. This is the preferable way to kill
+    a process since it allows the process to shut down nicely, releasing the resources
+    and saving state and also killing all the child processes in an orderly way. It
+    can be ignored by the process (kill -15).'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`SIGTRAP`: This is a signal sent to a process when an exception or a trap arises.
+    We already had a glimpse of traps, and we will see more about them now.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`SIGTSTP`: This is an interactive stop, and it can be sent by the user pressing
+    *Ctrl*+*Z*. It can be ignored by the process. The process pauses in its current
+    state.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`SIGTTIN`: This signal is sent to a background process when it tries to read
+    from the terminal.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`SIGTTOU`: This signal is sent to a background process when it tries to write
+    to the terminal.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`SIGSEV`: This is sent to a process when it goes on segmentation fault, and
+    this happens when a process attempts to access a memory location; it is not allowed
+    to access or in a way it is not permitted.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: So, we have signals, and we have process groups and sessions and this leads
+    us to Unix job control. What is it? In Unix, we can control what we call jobs,
+    and we are already familiar with those since this is another term to refer to
+    process groups. A job is not a process, it is a group of processes. But what does
+    control mean? Simply, we can suspend, resume, or terminate a job and send signals
+    to it.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'When a shell session is started on a terminal, its process group is granted
+    access to it, and it becomes the foreground process group for that terminal. This
+    means that the processes belonging to the foreground group can read and write
+    from the terminal, while the processes belonging to other process groups are barred
+    from accessing the terminal and stopped if they try to. So, from the shell, you
+    can interact with the terminal and perform different actions, for example, retrieve
+    a list of processes and their job ID:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE0]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'As we can see, the `ps` and `awk` processes have the same process group ID,
+    which is the process ID of the first command in the group, `ps`. Now, what about
+    the job control? Let''s see how to start a process in the background:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE1]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'The sleep command just waits for the amount of seconds we specify as an argument,
+    but the ampersand is the key; it will put the process in the background. What
+    we get in return is a job number `[1]` and a process ID; `ps` will show us more
+    details:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE2]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Now, let''s have a look at this:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE3]'
+  prefs: []
+  type: TYPE_PRE
+- en: Here, we put one sleep process in the background but used the `()` to execute
+    it in the subshell, and it actually was executed in the foreground; but now, the
+    main shell did not report any job or process ID because the child shell could
+    not report back any information to the parent shell. The only job information
+    we received was for the second sleep instruction performed in the parent shell,
+    and interestingly, both the sleep processes have the same group ID.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Job controls
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'So, we have the  job ID, process ID, foreground, and background processes,
+    but how do we control these jobs? We have a bunch of commands available, let''s
+    have a look at how to use them:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '**`kill`:** We can pass the job ID to this command, which will send the `SIGTERM`
+    signal to all the processes belonging to the job itself:'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '[PRE4]'
+  prefs: []
+  type: TYPE_PRE
+- en: You can also pass to kill a specific signal to send to the process. For instance, `kill
+    -15` will nicely terminate a process with a `SIGTERM` signal, and if it refuses
+    to die, `kill -9`  will send a `SIGKILL`, which will instantly terminate a process.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Which signals can we send to a process? Either `kill -l` or  `cat /usr/include/asm-generic/signal.h` will
+    give us a list of all the signals supported.
+  prefs: []
+  type: TYPE_NORMAL
+- en: '**`killall`:** If we know what is the name of the process, the easiest way
+    to kill it is through the `killall` command followed by the name of the process:'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '[PRE5]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'But `killall` has another interesting to use. Let''s run the sleep command
+    for four times, each time with a different argument:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE6]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Now, let''s check the list of processes:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE7]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'We can see the four processes: same name and different argument. Now, let''s
+    use `killall` giving the process name, sleep, as its argument:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE8]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'All the processes have been killed at once. Quite handy, isn''t it? Let''s
+    make the last check:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE9]'
+  prefs: []
+  type: TYPE_PRE
+- en: No more instances of sleep running now; we killed everything with one single
+    run of `killall`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: '**`jobs`:** This shows the processes running in the background along with their
+    job ID:'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '[PRE10]'
+  prefs: []
+  type: TYPE_PRE
+- en: '**`fg`:** This sends a background running job to the foreground. It accepts
+    the job ID as an argument. If no job ID is provided, the current job is affected:'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '[PRE11]'
+  prefs: []
+  type: TYPE_PRE
+- en: '**`bg`:** This sends a foreground job to the background. If no job ID is provided,
+    the current job is affected.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**`suspend`:** This suspends the shell until a `SIGCONT` signal is received.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**`logout`:** This logs out from the login shell.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**`disown`:** This removes a job from the shell table of active jobs.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**`wait`:** This interesting command stops the execution of a script until
+    all the background jobs have terminated or, if passed as an argument, until a
+    job ID or a PID terminates, and returns the exit status of the process it was
+    waiting for.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '| **Job ID** | **Meaning** | **Example** |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `%n` | Job number | Kill %1 |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `%s` | String the command executed starts with | sleep 200 &[1] 9486kill
+    %sl[1]+ Terminated sleep 200 |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `%?s` | String the command executed contains | sleep 200 &[1] 9504kill %?ee[1]+
+    Terminated sleep 200 |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `%%` | Last job that has been either stopped in the foreground or started
+    in the background | sleep 200 &[1] 9536kill %%[1]+ Terminated sleep 200 |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `%+` | Last job that has been either stopped in foreground or started in
+    the background | sleep 200 &[1] 9618fg %+sleep 200 |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `%-` | Last job | sleep 200 &[1] 9626kill %-[1]+ Terminated sleep 200 |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `$!` | Last process in the background | sleep 200 &[1] 9646sleep 300 &[2]
+    9647sleep 400 &[3] 9648kill $![3]+ Terminated sleep 400 |'
+  prefs: []
+  type: TYPE_TB
+- en: '**`times`:** We saw this command at the opening of this book. It gives us statistics
+    on time elapsed during the execution of a command.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**`builtin`:** This execute a builtin command disabling functions and non-builtin
+    commands, which have the same name as the builtin.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**`command`:** This disables all the aliases and functions for the specified
+    command:'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '[PRE12]'
+  prefs: []
+  type: TYPE_PRE
+- en: '**`enable`:** This enables or disables the `-n` builtin command, so if we have
+    a builtin and an external command, then when invoked, the builtin will be ignored
+    and the external command will be executed. Specifying the -a option will show
+    a list of all the builtins along with their status, while the `-f` switch will
+    load a builtin as a shared library module from a compiled object file.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**`Autoload`:** This is not enabled by default in Bash and it must be loaded
+    through enabling `-f`. It marks a name as a function name and not a builtin or
+    an external command reference. The named function must reside in an external file
+    and it will be loaded from there.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: So, we had a look at the foreground and background processes and at the job
+    controlling commands; now, we can see how to work with subshells and what benefit
+    they can bestow on our scripts.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Subshells and parallel processing
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'We already talked a bit about subshells in the opening chapters of this book;
+    they can be defined as child processes of their main shell. So, a subshell is
+    a command interpreter inside a command interpreter. When does this happen? Well,
+    usually when we run a script, this spawns its own shell and from there executes
+    all the commands listed; but notice this nice detail: an external command, unless
+    invoked using `exec`, spawns a subprocess, but a builtin doesn''t. And this is
+    the reason why the bultins execution time is faster than the execution time for
+    the corresponding external command, as we saw in the previous pages of this book.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Well, what can be useful for a subshell? Let''s see a small example that will
+    make everything easier:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE13]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Nothing special. We echo in the first subshell spawned by the script, and then
+    open a subshell from inside the subshell and echo the $i variable using a range
+    between `1` and `10`:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE14]'
+  prefs: []
+  type: TYPE_PRE
+- en: As I just said, there is nothing really special in this script other than the
+    way we called a subshell using `(command_1; command_2; command_n)`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Whatever is inside the parentheses is executed in a new subshell isolated from
+    the parent shell since; whatever happens inside the subshell is local to this
+    environment:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE15]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Now, let''s run this piece of code:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE16]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'As we can see from the example, this is a one-way inheritance from the parent
+    to the child, nothing climbs up the ladder. But it is possible to spawn subshell
+    from inside a subshell, so to have a nesting structure, this is nice; but we could
+    lose track of where we are. It''s better to have a handy variable such as `$BASH_SUBSHELL`
+    available:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE17]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Firstly, we wrote the code in this fancy way just to highlight the nested structure
+    of the shells; we can use a more compact notation on a production script. Notice
+    the two variables:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`$BASH_SUBSHELL`: This internal variable is available from Bash version 3 and
+    holds the subshell level'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`$BASHPID`: This holds the process ID of the shell instance'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Let''s run the script and have a look at the output:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE18]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Well, we have the subshell levels nicely printed along with the PID of each
+    shell instance, and this shows us that they are actually different processes spawned
+    by each parent shell. We could be tempted to use the internal `$SHLVL` variable
+    to keep track of the shell level, but unfortunately this is not affected by the
+    nested shells as the following example highlights:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE19]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Nice, but what happens when we exit from a nested shell? Time for another example:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE20]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'In the lines of code we spawn an inner subshell counting from `1` to `10` and
+    printing to the `stdout` until we reach `5`: in this case we exit the subshell
+    and jump back to the first level. Will the script continue and print the other
+    three numbers? Running it will reveal the answer:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE21]'
+  prefs: []
+  type: TYPE_PRE
+- en: Yes, the exit call affected the inner subshell only and the rest of the script
+    kept running on the upper level.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Well, we saw some fancy stuff about subshells, but we  can use them for parallel
+    execution, but how? Just as usual, let''s start with a script:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE22]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'The first thing to notice is the `&` character whose job is to put in background
+    the commands or the shells it follows. In this example, the first subshell has
+    an infinite loop, and if we do not send it in the background, it will prevent
+    the second subshell to be spawned and its content executed. But let''s see what
+    happens when we send it in the background:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE23]'
+  prefs: []
+  type: TYPE_PRE
+- en: So, the second subshell was correctly spawned and the `for` loop executed, but
+    what happened to the first infinite while loop?
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE24]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Well, it is still there running in memory. You can use `&` not just for subshells
+    but also for any other command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE25]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Do you want the command you issued to run even after you logged off the system?
+    Just run the following command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE26]'
+  prefs: []
+  type: TYPE_PRE
+- en: It will run in a subshell in the background, and nohup will catch the `SIGHUP`
+    signal that is sent to all the subshells and processes when the main shell is
+    terminated. This way, the subshell and the related command will not be affected
+    by the terminate signal and will continue its execution.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Going back to subshells, why would you want to send in the background an entire
+    subshell and not single commands or compounds? Think of subshells as containers:
+    tear down a problem in less complex tasks, enclose the latter in subshells, and
+    have them to execute in the background, and you will save time having them executed
+    in parallel.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'We just said parallel, but actually Bash does not optimize the execution of
+    commands and script for a multicore architecture. If we want something more core
+    wise, we can install a nice program called *parallel*. We will not talk much about
+    this program since it is not really Bash related, but it is a nice tool for the
+    reader to explore, a tool core savy:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE27]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'The basic syntax of parallel is quite easy:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE28]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'It is similar to the following example:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE29]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Giving more arguments separated by `:::` will cause parallel to pass them to
+    the command in all the combinations possible:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE30]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'The number of jobs executed here is equal to the number of cores available,
+    but we can modify this value with`-j+n` to add the `n` jobs to the cores. Fire
+    parallel with `-j0`, and it will try to execute as many jobs as possible:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE31]'
+  prefs: []
+  type: TYPE_PRE
+- en: What can we do with parallel? Well, a lot of tricky stuff, but it is left to
+    the reader to try and experiment with this nice utility; I am confident that a
+    lot of new ideas will arise while tinkering with it.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Summary
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: We had a peek into some internals of our Bash, pidfiles, sessions, jobs, and
+    had lots of stuff to play with. We also introduced parallel and subshell. This
+    is probably one of those chapters that requires a bit of practice. Take time to
+    experiment and try whatever comes to our mind to get confident with the job controls
+    and background processes. Now that we had a look at the processes and how to manage
+    them, we will proceed to see how to make them talk to each other and exchange
+    information. Time for IPC!
+  prefs: []
+  type: TYPE_NORMAL

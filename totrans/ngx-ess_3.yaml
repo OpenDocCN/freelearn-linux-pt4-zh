@@ -1,0 +1,947 @@
+- en: Chapter 3. Proxying and Caching
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: Designed as a web accelerator and a frontend server, Nginx has powerful tools
+    to delegate complex tasks to upstream servers while focusing on heavy lifting.
+    Reverse proxy is one such tool that turns Nginx into an essential component of
+    any high-performance web service.
+  prefs: []
+  type: TYPE_NORMAL
+- en: By abstracting away complexities of HTTP and handling them in a scalable and
+    efficient manner, Nginx allows web applications to focus on solving the problem
+    they are designed to solve without stumbling upon low-level details.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'In this chapter, you will learn:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: How to set up Nginx as a reverse proxy
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: How to make proxying transparent for the upstream server and the end user
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: How to handle upstream errors
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: How to use Nginx cache
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: You will find out how to use all features of Nginx reverse proxy and turn it
+    into a powerful tool for accelerating and scaling your web service.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Nginx as a reverse proxy
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: HTTP is a complex protocol that deals with data of different modality and has
+    numerous optimizations that—if implemented properly—can lead to a significant
+    increase in web service performance.
+  prefs: []
+  type: TYPE_NORMAL
+- en: At the same time, web application developers have less time to deal with low-level
+    issues and optimizations. The mere idea of decoupling a web application server
+    from a frontend server shifts the focus on managing incoming traffic to the frontend,
+    while shifting the focus on functionality, application logic, and features to
+    the web application server. This is where Nginx comes into play as a decoupling
+    point.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'An example of a decoupling point is SSL termination: Nginx receives and processes
+    inbound SSL connections, it forwards the request over plain HTTP to an application
+    server, and wraps the received response back into SSL. The application server
+    no longer needs to take care of storing certificates, SSL sessions, handling encrypted
+    and unencrypted transmission, and so on.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Other examples of decoupling are as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Efficient handling of static files and delegating the dynamic part to the upstream
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Rate, request, and connection limiting
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Compressing responses from the upstream
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Caching responses from the upstream
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Accelerating uploads and downloads
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: By shifting these functions to a Nginx-powered frontend, you are essentially
+    investing in the reliability of your website.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Setting up Nginx as a reverse proxy
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'Nginx can be easily configured to work as a reverse proxy:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE0]'
+  prefs: []
+  type: TYPE_PRE
+- en: In the preceding code, `upstream_server_name` is the host name of the upstream
+    server. When a request for location is received, it will be passed to the upstream
+    server with a specified host name.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'If the upstream server does not have a host name, an IP address can be used
+    instead:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE1]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'If the upstream server is listening on a nonstandard port, the port can be
+    added to the destination URL:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE2]'
+  prefs: []
+  type: TYPE_PRE
+- en: The destination URL in the preceding examples does not have a path. This makes
+    Nginx pass the request as is, without rewriting the path in the original request.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'If a path is specified in the destination URL, it will replace a part of the
+    path from the original request that corresponds to the matching part of the location.
+    For example, consider the following configuration:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE3]'
+  prefs: []
+  type: TYPE_PRE
+- en: If a request for `/download/BigFile.zip` is received, the path in the destination
+    URL is `/media` and it corresponds to the matching `/download` part of the original
+    request URI. This part will be replaced with `/media` before passing to the upstream
+    server, so the passed request path will look like `/media/BigFile.zip`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'If `proxy_pass` directive is used inside a regex location, the matching part
+    cannot be computed. In this case, a destination URI without a path must be used:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE4]'
+  prefs: []
+  type: TYPE_PRE
+- en: The same applies to cases where the request path was changed with the rewrite
+    directive and is used by a `proxy_pass` directive.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Variables can be a part of the destination URL as well:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE5]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'In fact, any part or even the whole destination URL can be specified by a variable:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE6]'
+  prefs: []
+  type: TYPE_PRE
+- en: This gives enough flexibility in specifying the destination URL for the upstream
+    server. In [Chapter 5](ch05.html "Chapter 5. Managing Inbound and Outbound Traffic"),
+    *Managing Inbound and Outbound Traffic*, we will find out how to specify multiple
+    servers as an upstream and distribute connections among them.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Setting the backend the right way
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: The right way to configure a backend is to avoid passing everything to it. Nginx
+    has powerful configuration directives that help you ensure that only specific
+    requests are delegated to the backend.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Consider the following configuration:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE7]'
+  prefs: []
+  type: TYPE_PRE
+- en: This passes every request with a URI that ends with `.php` to the PHP interpreter.
+    This is not only inefficient due to the intensive use of regular expressions,
+    but also a serious security issue on most PHP setups because it may allow arbitrary
+    code execution by an attacker.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Nginx has an elegant solution for this problem in the form of the `try_files`
+    directive. The `try_files` directive takes a list of files and a location as the
+    last argument. Nginx tries specified files in consecutive order and if none of
+    them exists, it makes an internal redirect to the specified location. Consider
+    the following example:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE8]'
+  prefs: []
+  type: TYPE_PRE
+- en: The preceding configuration first looks up a file corresponding to the request
+    URI, looks for a directory corresponding to the request URI in the hope of returning
+    an index of that directory, and finally makes an internal redirect to the named
+    location `@proxy` if none of these files or directories exist.
+  prefs: []
+  type: TYPE_NORMAL
+- en: This configuration makes sure that whenever a request URI points to an object
+    in the filesystem it is handled by Nginx itself using efficient file operations,
+    and only if there is no match in the filesystem for the given request URI is it
+    delegated to the backend.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Adding transparency
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: Once forwarded to an upstream server, a request loses certain properties of
+    the original request. For example, the virtual host in a forwarded request is
+    replaced by the host/port combination of the destination URL. The forwarded request
+    is received from an IP address of the Nginx proxy, and the upstream server's functionality
+    based on the client's IP address might not function properly.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The forwarded request needs to be adjusted so that the upstream server can
+    obtain the missing information of the original request. This can be easily done
+    with the `proxy_set_header` directive:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE9]'
+  prefs: []
+  type: TYPE_PRE
+- en: The `proxy_set_header` directive takes two arguments, the first of which is
+    the name of the header that you want to set in the proxied request, and the second
+    is the value for this header. Again, both arguments can contain variables.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Here is how you can pass the virtual host name from the original request:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE10]'
+  prefs: []
+  type: TYPE_PRE
+- en: The variable `$host` has a smart functionality. It does not simply pass the
+    virtual host name from the original request, but uses the name of the server the
+    request is processed by if the host header of the original request is empty or
+    missing. If you insist on using the bare virtual host name from the original request,
+    you can use the `$http_host` variable instead of `$host`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Now that you know how to manipulate the proxied request, we can let the upstream
+    server know the IP address of the original client. This can be done by setting
+    `X-Real-IP` and/or the `X-Forwarded-For` headers:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE11]'
+  prefs: []
+  type: TYPE_PRE
+- en: This will make the upstream server aware of the original client's IP address
+    via `X-Real-IP` or the `X-Forwarded-For` header. Most application servers support
+    this header and take appropriate actions to properly reflect the original IP address
+    in their API.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Handling redirects
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: The next challenge is rewriting redirects. When the upstream server issues a
+    temporary or permanent redirect (HTTP status codes `301` or `302`), the absolute
+    URI in the location or refresh headers needs to be rewritten so that it contains
+    a proper host name (the host name of the server the original request came to).
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'This can be done using the `proxy_redirect` directive:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE12]'
+  prefs: []
+  type: TYPE_PRE
+- en: Consider a web application that is running at `http://localhost:8080/app`, while
+    the original server has the address `http://www.example.com`. Assume the web application
+    issues a temporary redirect (HTTP 302) to `http://localhost:8080/app/login`. With
+    the preceding configuration, Nginx will rewrite the URI in the location header
+    to `http://www.example.com/login`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: If the redirect URI was not rewritten, the client would be redirected to `http://localhost:8080/app/login`,
+    which is valid only within a local domain, so the web application would not be
+    able to work properly. With the `proxy_redirect` directive, the redirect URI will
+    be properly rewritten by Nginx, and the web application will be able to perform
+    the redirect properly.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The host name in the second argument of the `proxy_redirect` directive can
+    be omitted:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE13]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'The preceding code can be further reduced to the following configuration using
+    variables:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE14]'
+  prefs: []
+  type: TYPE_PRE
+- en: The same transparency option can be applied to cookies. In the preceding example,
+    consider cookies are set to the domain `localhost:8080`, since the application
+    server replies at `http://localhost:8080`. The cookies will not be returned by
+    the browser, because the cookie domain does not match the request domain.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Handling cookies
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'To make cookies work properly, the domain name in cookies needs to be rewritten
+    by the Nginx proxy. To do this, you can use the `proxy_cookie_domain` directive
+    as shown here:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE15]'
+  prefs: []
+  type: TYPE_PRE
+- en: In the preceding example, Nginx replaces the cookie domain `localhost:8080`
+    in the upstream response with `www.example.com`. The cookies set by the upstream
+    server will refer to the domain `www.example.com` and the browser will return
+    cookies in subsequent requests.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'If cookie path needs to be rewritten as well due to application server being
+    rooted at a different path, you can use the `proxy_cookie_path` directive as shown
+    in the following code:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE16]'
+  prefs: []
+  type: TYPE_PRE
+- en: In this example, whenever Nginx detects a cookie with a prefix specified in
+    the first argument of the `proxy_cookie_path` directive (`/my_webapp/`), it replaces
+    this prefix with the value in the second argument of the `proxy_cookie_path` directive
+    (`/`).
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Putting everything together for the `www.example.com` domain and the web application
+    running at `localhost:8080`, we get the following configuration:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE17]'
+  prefs: []
+  type: TYPE_PRE
+- en: The preceding configuration ensures transparency for a web application server
+    so that it doesn't even need to know which virtual host it is running on.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Using SSL
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'If the upstream server supports SSL, connections to the upstream server can
+    be secured by simply changing the destination URL scheme to `https`:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE18]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'If the authenticity of the upstream server needs to be verified, this can be
+    enabled using the `proxy_ssl_verify` directive:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE19]'
+  prefs: []
+  type: TYPE_PRE
+- en: The certificate of the upstream server will be verified against certificates
+    of well-known certification authorities. In Unix-like operating systems, they
+    are usually stored in `/etc/ssl/certs`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'If an upstream uses a trusted certificate that cannot be verified by well-known
+    certification authorities or a self-signed certificate, it can be specified and
+    declared as trusted using the `proxy_ssl_trusted_certificate` directive. This
+    directive specifies the path to the certificate of the upstream server or a certificate
+    chain required to authenticate the upstream server in PEM format. Consider the
+    following example:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE20]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'If Nginx needs to authenticate itself to the upstream server, the client certificate
+    and the key can be specified using the `proxy_ssl_certificate` and `proxy_ssl_certificate_key`
+    directives. The directive `proxy_ssl_certificate` specifies the path to the client
+    certificate in PEM format, while `proxy_ssl_certificate_key` specifies the path
+    to the private key from the client certificate in PEM format. Consider the following
+    example:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE21]'
+  prefs: []
+  type: TYPE_PRE
+- en: The specified certificate will be presented while setting up the secure connection
+    to the upstream server, and its authenticity will be verified by specified private
+    key.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Handling errors
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: If Nginx experiences a problem contacting the upstream server or the upstream
+    server returns an error, there is an option to take certain actions.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The upstream server connectivity errors can be handled using the `error_page`
+    directive:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE22]'
+  prefs: []
+  type: TYPE_PRE
+- en: This will make Nginx return the document from the file `50x.html` once an upstream
+    connectivity error has occurred.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'This will not change the HTTP status code in the response. To change the HTTP
+    status code to successful, you can use the following syntax:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE23]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'A more sophisticated action can be taken upon failure of an upstream server
+    using an `error_page` directive that points to a named location:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE24]'
+  prefs: []
+  type: TYPE_PRE
+- en: In the preceding configuration, Nginx first tries to fulfill the request by
+    forwarding it to the `upstreamA` server. If this results in an error, Nginx switches
+    to a named location `@retry` in an attempt to try with the `upstreamB` server.
+    Request an URI while switching so that the `upstreamB` server will receive an
+    identical request. If this doesn't help either, Nginx returns a static file `50x.html`
+    pretending no error occurred.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'If an upstream has replied but returned an error, it can be intercepted rather
+    than passed to the client using the `proxy_intercept_errors` directive:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE25]'
+  prefs: []
+  type: TYPE_PRE
+- en: In the preceding configuration, the `upstreamB` server will be called even when
+    the `upstreamA` server replies but returns erroneous HTTP status code, such as
+    `403` or `404`. This gives `upstreamB` an opportunity to fix the soft errors of
+    `upstreamA`, if necessary.
+  prefs: []
+  type: TYPE_NORMAL
+- en: However, this configuration pattern must not proliferate too much. In [Chapter
+    5](ch05.html "Chapter 5. Managing Inbound and Outbound Traffic"), *Managing Inbound
+    and Outbound Traffic*, we will find out how to handle such situations in a more
+    elegant way, without sophisticated configuration structures.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Choosing an outbound IP address
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: Sometimes, when your proxy server has multiple network interfaces, it becomes
+    necessary to choose which IP address should be used as outbound address for upstream
+    connections. By default, the system will choose the address of the interface that
+    adjoins the network containing the host used as destination in the default route.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'To choose a particular IP address for outbound connections, you can use the
+    `proxy_bind` directive:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE26]'
+  prefs: []
+  type: TYPE_PRE
+- en: This will make Nginx bind outbound sockets to the IP address `192.168.0.2` before
+    making a connection. The upstream server will then see connections coming from
+    IP address `192.168.0.2`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Accelerating downloads
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: Nginx is very efficient at heavy operations, such as handling large uploads
+    and downloads. These operations can be delegated to Nginx using built-in functionality
+    and third-party modules.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'To accelerate download, the upstream server must be able to issue the `X-Accel-Redirect`
+    header that points to the location of a resource which needs to be returned, instead
+    of the response obtained from the upstream. Consider the following configuration:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE27]'
+  prefs: []
+  type: TYPE_PRE
+- en: With the preceding configuration, once Nginx detects the `X-Accel-Redirect`
+    header in the upstream response, it performs an internal redirect to the location
+    specified in this header. Assume the upstream server instructs Nginx to perform
+    an internal redirect to `/internal-media/BigFile.zip`. This path will be matched
+    against the location `/internal-media`. This location specifies the document root
+    at `/var/www/media`. So if a file `/var/www/media/BigFile.zip` exists, it will
+    be returned to the client using efficient file operations.
+  prefs: []
+  type: TYPE_NORMAL
+- en: For many web application servers, this feature provides an enormous speed up—both
+    because they might not handle large downloads efficiently and because proxying
+    reduces efficiency of large downloads.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Caching
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: Once Nginx is set up as a reverse proxy, it's logical to turn it into a caching
+    proxy. Fortunately, this can be achieved very easily with Nginx.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Configuring caches
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: Before you can enable caching for a certain location, you need to configure
+    a cache. A cache is a filesystem directory containing files with cached items
+    and a shared memory segment where information about cached items is stored.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'A cache can be declared using the `proxy_cache_path` directive:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE28]'
+  prefs: []
+  type: TYPE_PRE
+- en: The preceding command declares a cache rooted at the path `<path>` with a shared
+    memory segment named `<name>` of the size `<size>`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'This directive has to be specified in the `http` section of the configuration.
+    Each instance of the directive declares a new cache and must specify a unique
+    name for a shared memory segment. Consider the following example:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE29]'
+  prefs: []
+  type: TYPE_PRE
+- en: The preceding configuration declares a cache rooted at `/var/www/cache` with
+    a shared memory segment named `my_cache`, which is 8 MB in size. Each cache item
+    takes around 128 bytes in memory, thus the preceding configuration allocates space
+    for around 64,000 items.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following table lists other parameters of `proxy_cache_path` and their
+    meaning:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '| Parameter | Description |'
+  prefs: []
+  type: TYPE_TB
+- en: '| --- | --- |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `levels` | Specifies hierarchy levels of the cache directory |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `inactive` | Specifies the time after which a cache item will be removed
+    from the cache if it was not used, regardless of freshness |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `max_size` | Specifies maximum size (total size) of all cache items |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `loader_files` | Specifies the number of files a **cache loader** process
+    loads in each iteration |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `loader_sleep` | Specifies the time interval a cache loader process sleeps
+    between each iteration |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `loader_threshold` | Specifies the time limit for each iteration of a cache
+    loader process |'
+  prefs: []
+  type: TYPE_TB
+- en: Once Nginx starts, it processes all configured caches and allocates shared memory
+    segments for each of the caches.
+  prefs: []
+  type: TYPE_NORMAL
+- en: After that, a special process called cache loader takes care of loading cached
+    items into memory. Cache loader loads items in iterations. The parameters `loader_files`,
+    `loader_sleep`, and `loader_threshold` define the behavior of the cache loader
+    process.
+  prefs: []
+  type: TYPE_NORMAL
+- en: When running, a special process called **cache manager** monitors the total
+    disk space taken by all cache items and evicts less requested items if the total
+    consumed space is larger than specified in the `max_size` parameter.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Enabling caching
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'To enable caching for a location, you need to specify the cache using the `proxy_cache`
+    directive:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE30]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'The argument of the `proxy_cache` directive is the name of a shared memory
+    segment that points to one of the caches configured using the `proxy_cache_path`
+    directive. The same cache can be used in multiple locations. The upstream response
+    will be cached if it is possible to determine the expiration interval for it.
+    The primary source for the expiration interval for Nginx is the upstream itself.
+    The following table explains which upstream response header influences caching
+    and how:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '| Upstream response header | How it influences caching |'
+  prefs: []
+  type: TYPE_TB
+- en: '| --- | --- |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `X-Accel-Expires` | This specifies the cache item expiration interval in
+    seconds. If the value starts from `@`, then the number following it is UNIX timestamp
+    when the item is due to expire. This header has the higher priority. |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `Expires` | This specifies the cache item expiration time stamp. |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `Cache-Control` | This enables or disables caching |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `Set-Cookie` | This disables caching |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `Vary` | The special value `*` disables caching. |'
+  prefs: []
+  type: TYPE_TB
+- en: 'It is also possible to explicitly specify an expiration interval for various
+    response codes using the `proxy_cache_valid` directive:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE31]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'This sets the expiration interval for responses with codes `200`, `301`, `302`
+    to `1h` (1 hour). Note that the default status code list for the `proxy_cache_valid`
+    directive is `200`, `301`, and `302`, so the preceding configuration can be simplified
+    as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE32]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'To enable caching for negative responses, such as `404`, you can extend the
+    status code list in the `proxy_cache_valid` directive:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE33]'
+  prefs: []
+  type: TYPE_PRE
+- en: The preceding configuration will cache `404` responses for `1m` (1 minute).
+    The expiration interval for negative responses is deliberately set to much lower
+    values than that of the positive responses. Such an optimistic approach ensures
+    higher availability by expecting negative responses to improve, considering them
+    as transient and assuming a shorter expected lifetime.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Choosing a cache key
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: Choosing the right cache key is important for the best operation of the cache.
+    The cache key must be selected such that it maximizes the expected efficiency
+    of the cache, provided that each cached item has valid content for all subsequent
+    requests that evaluate to the same key. This requires some explanation.
+  prefs: []
+  type: TYPE_NORMAL
+- en: First, let's consider efficiency. When Nginx refers to the upstream server in
+    order to revalidate a cache item, it obviously stresses the upstream server. With
+    each subsequent cache hit, Nginx reduces the stress on the upstream server in
+    comparison to the situation when requests were forwarded to the upstream without
+    caching. Thus, the efficiency of the cache can be represented as *Efficiency =
+    (Number hits + Number misses) / Number misses*.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Thus, when nothing can be cached, each request leads to a cache miss and the
+    efficiency is 1\. But when we get 99 subsequent cache hits for each cache miss,
+    the efficiency evaluates to *(99 + 1) / 1 = 100*, which is 100 times larger!
+  prefs: []
+  type: TYPE_NORMAL
+- en: Second, if a document is cached but it is not valid for all requests that evaluate
+    to the same key, clients might see content that is not valid for their requests.
+  prefs: []
+  type: TYPE_NORMAL
+- en: For example, the upstream analyses the `Accept-Language` header and returns
+    the version of the document in the most suitable language. If the cache key does
+    not include the language, the first user to request the document will obtain it
+    in their language and trigger the caching in that language. All users that subsequently
+    request this document will see the cached version of the document, and thus they
+    might see it in the wrong language.
+  prefs: []
+  type: TYPE_NORMAL
+- en: If the cache key includes the language of the document, the cache will contain
+    multiple separate items for the same document in each requested language, and
+    all users will see it in the proper language.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The default cache key is `$scheme$proxy_host$request_uri`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'This might not be optimal because of the following reasons:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: The web application server at `$proxy_host` can be responsible for multiple
+    domains
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: The HTTP and HTTPS versions of the website can be identical (`$scheme` variable
+    is redundant, thus duplicating items in the cache)
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Content can vary depending on query arguments
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Thus, considering everything described previously and given that HTTP and HTTPS
+    versions of the website are identical and content varies depending on query arguments,
+    we can set the cache key to a more optimal value `$host$request_uri$is_args$args`.
+    To change the default cache item key, you can use the `proxy_cache_key` directive:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE34]'
+  prefs: []
+  type: TYPE_PRE
+- en: This directive takes a script as its argument which is evaluated into a value
+    of a cache key at runtime.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Improving cache efficiency and availability
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'The efficiency and availability of the cache can be improved. You can prevent
+    an item from being cached until it gets a certain minimum number of requests.
+    This could be achieved using the `proxy_cache_min_uses` directive:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE35]'
+  prefs: []
+  type: TYPE_PRE
+- en: In the preceding example, the response will be cached once the item gets no
+    less than five requests. This prevents the cache from being populated by infrequently
+    used items, thus reducing the disk space used for caching.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Once the item has expired, it can be revalidated without being evicted. To
+    enable revalidation, use the `proxy_cache_revalidate` directive:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE36]'
+  prefs: []
+  type: TYPE_PRE
+- en: In the preceding example, once a cache item expires, Nginx will revalidate it
+    by making a conditional request to the upstream server. This request will include
+    the `If-Modified-Since` and/or `If-None-Match` headers as a reference to the cached
+    version. If the upstream server responds with a `304 Not Modified` response, the
+    cache item remains in the cache and the expiration time stamp is reset.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Multiple simultaneous requests can be prohibited from filling the cache at
+    the same time. Depending on the upstream reaction time, this might speed up cache
+    population while reducing the load on the upstream server at the same time. To
+    enable this behavior, you can use the `proxy_cache_lock` directive:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE37]'
+  prefs: []
+  type: TYPE_PRE
+- en: Once the behavior is enabled, only one request will be allowed to populate a
+    cache item it is related to. The other requests related to this cache item will
+    wait until either the cache item is populated or the lock timeout expires. The
+    lock timeout can be specified using the `proxy_cache_lock_directive` directive.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'If higher availability of the cache is required, you can configure Nginx to
+    reply with stale data when a request refers to a cached item. This is very useful
+    when Nginx acts as an edge server in a distribution network. The users and search
+    engine crawlers will see your web site available, even though the main site experiences
+    connectivity problems. To enable replying with stale data, use the `proxy_cache_use_stale`
+    directive:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE38]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'The preceding configuration enables replying with stale data in case of connectivity
+    error, upstream error (`502`, `503`, or `504`), and connection timeout. The following
+    table lists all possible values for arguments of the `proxy_cache_use_stale` directive:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '| Value | Meaning |'
+  prefs: []
+  type: TYPE_TB
+- en: '| --- | --- |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `error` | A connection error has occurred or an error during sending a request
+    or receiving a reply has occurred |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `timeout` | A connection timed out during setup, sending a request or receiving
+    a reply |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `invalid_header` | The upstream server has returned an empty or invalid reply
+    |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `updating` | Enables stale replies while the cache item is being updated
+    |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `http_500` | The upstream server returned a reply with HTTP status code `500`
+    (Internal Server Error) |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `http_502` | The upstream server returned a reply with HTTP status code `502`
+    (Bad Gateway) |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `http_503` | The upstream server returned a reply with HTTP status code `503`
+    (Service Unavailable) |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `http_504` | The upstream server returned a reply with HTTP status code `504`
+    (Gateway Timeout) |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `http_403` | The upstream server returned a reply with HTTP status code `403`
+    (Forbidden) |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `http_404` | The upstream server returned a reply with HTTP status code `404`
+    (Not Found) |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `off` | Disables use of stale replies |'
+  prefs: []
+  type: TYPE_TB
+- en: Handling exceptions and borderline cases
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'When caching is not desirable or not efficient, it can be bypassed or disabled.
+    This can happen in the following instances:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: A resource is dynamic and varies depending on external factors
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: A resource is user-specific and varies depending on cookies
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Caching does not add much value
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: A resource is not static, for example a video stream
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'When bypass is forced, Nginx forwards the request to the backend without looking
+    up an item in the cache. The bypass can be configured using the `proxy_cache_bypass`
+    directive:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE39]'
+  prefs: []
+  type: TYPE_PRE
+- en: This directive can take one or more arguments. When any of them evaluate to
+    true (nonempty value and not 0), Nginx does not look up an item in the cache for
+    a given request. Instead, it directly forwards the request to the upstream server.
+    The item can still be stored in the cache.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'To prevent an item from being stored in the cache, you can use the `proxy_no_cache`
+    directive:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE40]'
+  prefs: []
+  type: TYPE_PRE
+- en: This directive works exactly like the `proxy_cache_bypass` directive, but prevents
+    items from being stored in the cache. When only the `proxy_no_cache` directive
+    is specified, the items can still be returned from the cache. The combination
+    of both `proxy_cache_bypass` and `proxy_no_cache` disables caching completely.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Now, let''s consider a real-world example when caching needs to be disabled
+    for all user-specific pages. Assume that you have a website powered by WordPress
+    and you want to enable caching for all pages but disable caching for all customized
+    or user-specific pages. To implement this, you can use a configuration similar
+    to the following:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE41]'
+  prefs: []
+  type: TYPE_PRE
+- en: In the preceding configuration, we first delegate all requests pertaining to
+    the WordPress administrative area to the upstream server. We then use the `if`
+    directive to look up WordPress login cookies and set the `$do_not_cache` variable
+    to `1` if they are present. Then, we enable caching for all other locations but
+    disable caching whenever the `$do_not_cache` variable is set to `1` using the
+    `proxy_cache_bypass` and `proxy_no_cache` directives. This disables caching for
+    all requests with WordPress login cookies.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The preceding configuration can be extended to extract no-cache flags from arguments
+    or HTTP headers, to further tune your caching.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Summary
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: In this chapter, you learned how to work with proxying and caching—some of the
+    most important Nginx features. These features practically define Nginx as a web
+    accelerator and being proficient in them is essential to get the most out of Nginx.
+  prefs: []
+  type: TYPE_NORMAL
+- en: In the next chapter, we'll look into how to rewrite engine works in Nginx and
+    the basics of access control.
+  prefs: []
+  type: TYPE_NORMAL

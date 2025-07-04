@@ -1,0 +1,1023 @@
+- en: Kernel Tuning for KVM Performance
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'In this chapter, we are going to cover the following performance tuning recipes:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Tuning the kernel for low I/O latency
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Memory tuning for KVM guests
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: CPU performance options
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: NUMA tuning with libvirt
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Tuning the kernel for network performance
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Introduction
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: In this chapter, we are going to explore various configuration options and tools
+    that can help improve the performance of the host OS and the KVM instances running
+    on it.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'When running KVM virtual machines, it''s important to understand that from
+    the host perspective, they are regular processes. We can see that KVM guests are
+    Linux processes by examining the process tree on the hypervisor:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE0]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'The virtual CPUs allocated to the KVM guests are Linux threads, managed by
+    the host scheduler:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE1]'
+  prefs: []
+  type: TYPE_PRE
+- en: Depending on the type of I/O scheduler, the `libvirt` network driver, and memory
+    configuration, the performance of the virtual machine can vary greatly. Before
+    making any changes to the earlier-mentioned components, it is important to understand
+    the type of work the guest OS will be performing. Tuning the host and guest OS
+    for memory-intensive work will be different from I/O or CPU bound loads.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Because all KVM instances are just regular Linux processes, the QEMU driver
+    can apply any of the following **Control Group** (**cgroup**) controllers: `cpuset`,
+    `cpu`, `memory`, `blkio`, and device controllers. Using the cgroup controllers
+    provides more granular control over the allowed CPU, memory, and I/O resources,
+    as we are going to see in more detail in the following recipes.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Perhaps the most important point when tuning and optimizing any system is to
+    establish the performance baseline prior to making any adjustments. Start by measuring
+    the baseline performance of a subsystem, such as memory or I/O, make small incremental
+    adjustments, then measure the impact of the changes again. Repeat as necessary
+    until a desired effect is reached.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The recipes in this chapter are meant to give the reader a starting point for
+    what can be tuned on the host and the virtual machines to improve performance,
+    or account for the side effects of running different workloads on the same host/VM
+    and the effects of multitenancy. All resources should be adjusted based on the
+    type of workload, hardware setup, and other variables.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Tuning the kernel for low I/O latency
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: In this recipe, we are going to cover some of the disk performance optimization
+    techniques by selecting an I/O scheduler and tuning the block I/O using Linux
+    control groups, for the virtual guest and the host.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'There are three I/O schedulers to choose from on the host OS and in the KVM
+    instance:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`noop`: This is one of the simplest kernel schedulers; it works by inserting
+    all incoming I/O requests into a simple **FIFO** (**First In**, **First Out**)
+    queue. This scheduler is useful when the host OS should not attempt to reorder
+    I/O requests when multiple virtual machines are running.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`deadline`: This scheduler imposes a deadline on all I/O operations to prevent
+    starvation of requests, giving priority to read requests, due to processes usually
+    blocking on read operations.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`cfq`: The main goal of **Completely Fair Queuing** (**CFQ**) is to maximize
+    the overall CPU utilization while allowing better interactive performance.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Selecting the right I/O scheduler on the host and guests greatly depends on
+    the workloads and the underlying hardware storage.
+  prefs: []
+  type: TYPE_NORMAL
+- en: As a general rule, selecting the `noop` scheduler for the guest OS allows the
+    host hypervisor to better optimize the I/O requests, because it is aware of all
+    requests coming from the virtual guests. However, if the underlying storage for
+    the KVM machines is iSCSI volumes or any other remote storage such as GlusterFS,
+    using the deadline scheduler, might yield better results.
+  prefs: []
+  type: TYPE_NORMAL
+- en: On most modern Linux kernels, the `deadline` scheduler is the default, and it
+    might be sufficient for hosts running multiple KVM virtual machines. As with any
+    system tuning, testing is required when changing the schedulers on the host and
+    guest OS.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Getting ready
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'For this recipe, we are going to need the following:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: An Ubuntu host, with libvirt and QEMU installed and configured
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: A running KVM virtual machine
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: How to do it...
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'To change the I/O scheduler on the host and the KVM instance and set an I/O
+    weight, perform the following steps:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'On the host OS, list the I/O scheduler currently in use, substituting the block
+    device with whatever is appropriate for your system:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE2]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Change the I/O scheduler on demand and ensure it is in use by running:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE3]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'To make the change persistent across server restarts, add the following line
+    to the GRUB default configuration and update:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE4]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'For the KVM instance, set up the noop I/O scheduler persistently:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE5]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Set a weight of 100 for the KVM instance using the `blkio` cgroup controller:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE6]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Find the `cgroup` directory hierarchy on the host:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE7]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Ensure that the cgroup for the KVM instance contains the weight that we set
+    up earlier on the `blkio` controller:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE8]'
+  prefs: []
+  type: TYPE_PRE
+- en: For a detailed explanation on how Linux cgroups work, refer to the *Containerization
+    with LXC* book from Packt publishing at [https://www.packtpub.com/virtualization-and-cloud/containerization-lxc](https://www.packtpub.com/virtualization-and-cloud/containerization-lxc).
+  prefs: []
+  type: TYPE_NORMAL
+- en: How it works...
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: We can see what I/O scheduler the kernel is currently using by examining the `scheduler`
+    file in the `/sys` virtual filesystem. In step 1, we see that it's the `cfq` scheduler.
+    We then proceed to change the I/O scheduler on the running system in step 2\.
+    Please keep in mind that changing the scheduler on demand like that will not persist
+    server restarts. In steps 3 and 4, we modify the GRUB configuration which will
+    append the new scheduler information to the kernel boot instructions. Restarting
+    the server or the virtual machine will now select the new I/O scheduler.
+  prefs: []
+  type: TYPE_NORMAL
+- en: If running multiple virtual machines on the same host, it might be useful to
+    give more I/O priority to some of them based on certain criteria, such as time
+    of day and VM workload. In step 5, we use the `blkio` cgroup controller to set
+    a weight for the KVM guest. Lower weight will give better I/O priority. In steps
+    6 and 7, we can see that the correct `cgroup` hierarchy has been created and the `blkio.weight`
+    file contains the new weight we set with the `virsh` command.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Memory tuning for KVM guests
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: When it comes to memory tuning of KVM guests there are few options available,
+    depending on the workload of the virtual machine. One such option is Linux HugePages.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Most Linux hosts by default address memory in 4 KB segments, named pages. However,
+    the kernel is capable of using larger page sizes. Using HugePages (pages bigger
+    than 4 KB) may improve performance by increasing the CPU cache hits against the
+    transaction **Lookaside Buffer** (**TLB**). The TLB is a memory cache that stores
+    recent translations of virtual memory to physical addresses for quick retrieval.
+  prefs: []
+  type: TYPE_NORMAL
+- en: In this recipe, we are going to enable and set HugePages on the hypervisor and
+    the KVM guest, then examine the tuning options that the `virsh` command provides.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Getting ready
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'For this recipe, we are going to need the following:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: An Ubuntu host, with libvirt and QEMU installed and configured
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: A running KVM virtual machine
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: How to do it...
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'To enable and set HugePages on the hypervisor and the KVM guest and use the
+    `virsh` command to set various memory options, follow these steps:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Check the current HugePages settings on the host OS:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE9]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Connect to the KVM guest and check the current HugePages settings:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE10]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Increase the size of the pool of HugePages from 0 to 25000 on the hypervisor and
+    verify the following:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE11]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Check whether the hypervisor CPU supports 2 MB and 1 GB HugePages sizes:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE12]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Set 1 GB HugePages size by editing the default GRUB configuration and rebooting:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE13]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Install the HugePages package:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE14]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Check the current HugePages size:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE15]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Enable HugePages support for KVM:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE16]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Mount the HugeTable virtual filesystem on the host OS:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE17]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Edit the configuration for the KVM guest and enable HugePages:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE18]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'If you see the following error when starting the KVM instance: `error: internal
+    error: hugetlbfs filesystem is not mounted or disabled by administrator config`, make
+    sure that the HugePages virtual filesystem was mounted successfully in step 9.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'If you see the following error when starting the KVM instance: `error: internal
+    error: process exited while connecting to monitor: file_ram_alloc: can''t mmap
+    RAM pages: Cannot allocate memory`, you need to increase the HugePages pool in
+    step 3.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Update the memory hard limit for the KVM instance and verify, as follows:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE19]'
+  prefs: []
+  type: TYPE_PRE
+- en: How it works...
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: Libvirt and KVM support and take advantage of HugePages. Please be aware that
+    not every workload will benefit of having pages larger than the default. Instances
+    running databases and memory bound KVM instances are good use cases. As always,
+    before enabling this feature, measure the performance of your application inside
+    the virtual machine to ensure that it will benefit from HugePages.
+  prefs: []
+  type: TYPE_NORMAL
+- en: In this recipe, we enabled HugePages on the host and the guest OS and set a
+    hard limit on the usable memory for the guest. Let's go through the steps in more
+    detail.
+  prefs: []
+  type: TYPE_NORMAL
+- en: In steps 1 and 2, we check the current state of HugePages. From the output,
+    we can see that there's no HugePages pool currently allocated, indicated by the `HugePages_Total`field
+    and the current size of the HugePages of 2 MB.
+  prefs: []
+  type: TYPE_NORMAL
+- en: In step 3, we increase the HugePages pool size to 25000\. The change is on demand
+    and will not persist server reboot. To make it persistent, you can add it to the `/etc/sysctl.conf`
+    file.
+  prefs: []
+  type: TYPE_NORMAL
+- en: In order to use the HugePages feature, we need to ensure that the CPU of the
+    host server has hardware support for it, as indicated by the `pse` and `pdpe1`
+    flags, as shown in step 4.
+  prefs: []
+  type: TYPE_NORMAL
+- en: In step 5, we configure the GRUB bootloader to start the kernel with HugePages
+    support and a set size of 1 GB.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Although we can work directly with the files exposed by the `/proc` virtual
+    filesystem, in step 6, we install the HugePages package, which provides a few
+    useful userspace tools to list and manage various memory settings. We use the
+    `hugeadm` command in step 7 to list the size of the HugePages pool.
+  prefs: []
+  type: TYPE_NORMAL
+- en: To enable HugePages support for KVM, we update the `/etc/default/qemu-kvm` file
+    in step 8, mount the virtual filesystem for it in step 9, and finally reconfigure
+    the KVM virtual machine to use HugePages by adding the `<hugepages/>` stanza for
+    the `<memoryBacking>` object.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Libvirt provides a convenient way to manage the amount of allocated memory for
+    the KVM guests. In step 11, we set a hard limit of 2 GB for the `kvm1` virtual
+    machine.
+  prefs: []
+  type: TYPE_NORMAL
+- en: CPU performance options
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: There are a few methods to control CPU allocation and the available CPU cycles for
+    KVM machines-using cgroups and the libvirt-provided CPU pinning and affinity functions,
+    we are going to explore in this recipe. CPU affinity is a scheduler property that
+    connects a process to a given set of CPUs on the host OS.
+  prefs: []
+  type: TYPE_NORMAL
+- en: When provisioning virtual machines with libvirt, the default behavior is to
+    provision the guests on any available CPU cores. In some cases, **Non-Uniform
+    Memory Access** (**NUMA**) is a good example of when we need to designate a core
+    per KVM instance (as we are going to see in the next recipe), that it's better
+    to assign the virtual machine to a specified CPU core. Since each KVM virtual
+    machine is a kernel process (`qemu-system-x86_64` more specifically in our examples),
+    we can do this using tools such as `taskset` or the `virsh` command. We can also
+    use the cgroups CPU subsystem to manage CPU cycle allocation, which provides more
+    granular control over CPU resource utilization per virtual machine.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Getting ready
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'For this recipe, we are going to need the following:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: An Ubuntu host, with libvirt and QEMU installed and configured
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: A running KVM virtual machine
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: How to do it...
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'To pin a KVM virtual machine to a specific CPU and to change the CPU shares,
+    perform the following:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Obtain information about the available CPU cores on the hypervisor:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE20]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Get information about the CPU allocation for the KVM guest:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE21]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Pin the KVM instance CPU (`VCPU: 0`) to the first hypervisor CPU (`CPU: 0`)
+    and display the result:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE22]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'List the share of runtime that is assigned to a KVM instance:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE23]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Modify the current CPU weight of a running virtual machine:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE24]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Check the CPU shares in the CPU cgroups subsystem:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE25]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Examine the updated XML instance definition:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE26]'
+  prefs: []
+  type: TYPE_PRE
+- en: How it works...
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: We begin by gathering information about the CPU resources available on the hypervisor.
+    From the output in step 1, we can see that the host OS has 40 CPUs on one socket.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'In step 2, we collect information about the virtual machine CPU and its affinity
+    with the host CPUs. In this example, the KVM guest has one virtual CPU, denoted
+    by the `VCPU: 0` record and affinity to all 40 hypervisor processors, as indicated
+    by the `CPU Affinity: yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy` field.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'In step 3, we pin/bind the virtual CPU to the first physical processor on the
+    hypervisor. Note the change in the affinity output: `CPU Affinity: y---------------------------------------`.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: From the output of the `virsh` command in step 4, we can observe that the CPU
+    shares allocated to the KVM instance are set to 1024\. This value is a ratio,
+    meaning that if another guest has 512 shares, it will have twice fewer CPU runtime
+    than that of an instance with 1024 shares. We reduce that value in step 5.
+  prefs: []
+  type: TYPE_NORMAL
+- en: In steps 6 and 7, we confirm that the CPU shares were correctly set in the CPU
+    cgroup subsystem on the host OS. As we mentioned earlier, CPU shares are configured
+    using cgroups and can be adjusted directly or by the provided libvirt functionality,
+    by means of the `virsh` command.
+  prefs: []
+  type: TYPE_NORMAL
+- en: NUMA tuning with libvirt
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: NUMA is a technology that allows the system memory to be divided into zones,
+    also named nodes. The NUMA nodes are then allocated to particular CPUs or sockets.
+    In contrast to the traditional monolithic memory approach, where each CPU/core
+    can access all the memory regardless of its locality, usually resulting in larger
+    latencies, NUMA bound processes can access memory that is local to the CPU they
+    are being executed on. In most cases, this is much faster than the memory connected
+    to the remote CPUs on the system.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Libvirt uses the `libnuma` library to enable NUMA functionality for virtual
+    machines, as we can see here:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE27]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Libvirt NUMA supports the following memory allocation policies to place virtual
+    machines to NUMA nodes:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '**strict**: The placement will fail if the memory cannot be allocated on the
+    target node'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**interleave**: Memory pages are allocated in a round-robin fashion'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**preferred**: This policy allows the hypervisor to provide memory from other
+    nodes in case there''s not enough memory available from the specified nodes'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: In this recipe, we are going to enable NUMA access for a KVM instance and explore
+    its impact on the overall system performance.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Getting ready
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'For this recipe, we are going to need the following:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: An Ubuntu host, with libvirt and QEMU installed and configured
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: A running KVM virtual machine
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: The `numastat` utility
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: How to do it...
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'To enable a KVM virtual machine to run on a given NUMA node and CPU using the
+    strictNUMA policy, perform the following steps:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Install the `numactl` package and check the hardware configuration of the hypervisor:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE28]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Display the current NUMA placement for the KVM guest:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE29]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Edit the XML instance definition, set the memory mode to strict, and select
+    the second NUMA node (indexing starts from 0, so the second NUMA node is labeled
+    as 1), then restart the guest:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE30]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Get the NUMA parameters for the KVM instance:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE31]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Print the current virtual CPU affinity:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE32]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Print the NUMA node placement for the KVM instance:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE33]'
+  prefs: []
+  type: TYPE_PRE
+- en: How it works...
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'We start by examining the NUMA setup on the host OS. From the output of the
+    `numactl` command in step 1, we can observe that the hypervisor has two NUMA nodes:
+    node 0 and node 1\. Each node manages a list of CPUs. In this case, NUMA node
+    1 contains CPUs from 10 to 19 and from 30 to 39 and contains 64 GB of memory.
+    This means that 64 GB of RAM is going to be local to those CPUs and access to
+    the memory from those CPUs is going to be much faster than from CPUs that are
+    part of node 0\. To improve memory access latencies for a KVM guest, we need to
+    pin the virtual CPUs assigned to the virtual machine to CPUs that are a part of
+    the same NUMA node.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: In step 2, we can see that the KVM instance uses memory from both NUMA nodes,
+    which is not ideal.
+  prefs: []
+  type: TYPE_NORMAL
+- en: In step 3, we edit the guest XML definition and pin the guest on the 10th and
+    11th CPUs, which are a part of the NUMA node 1, using the `cpuset='10-11'` parameter.
+    We also specify the strict NUMA node and the second NUMA node with the `<memory
+    mode='strict' nodeset='1'/>` parameter.
+  prefs: []
+  type: TYPE_NORMAL
+- en: After restarting the instance, in step 4, we confirm that the KVM guest is now
+    running using the strict NUMA mode on node 1\. We also confirm that the CPU pinning
+    is indeed what we specified in step 5\. Note that the CPU affinity is flagged
+    on the 10th and 11th elements of the CPU affinity element.
+  prefs: []
+  type: TYPE_NORMAL
+- en: From the output in step 6, we can see that the KVM guest is now using memory
+    only from the NUMA node 1 as desired.
+  prefs: []
+  type: TYPE_NORMAL
+- en: If you run a memory intensive application before and after the NUMA adjustment
+    and test, you will most likely see significant performance gains when accessing
+    large amounts of memory inside the KVM guest, thanks to the CPU and memory locality
+    that NUMA provides.
+  prefs: []
+  type: TYPE_NORMAL
+- en: There is more...
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'In this recipe, we saw examples on how to manually assign a KVM process to
+    a NUMA node by editing the XML definition of the guest. Some Linux distributions
+    such as RHEL/CentOS 7 and Ubuntu 16.04 provide the `numad` (NUMA daemon) service,
+    which aims at automatically balancing processes between NUMA nodes by monitoring
+    the current memory topology:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'To install the service on Ubuntu 16.04, run:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE34]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'To start the service, execute the following code:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE35]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'To manage a specific KVM guest with `numad`, pass the process ID of the KVM
+    instance:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE36]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'The service will log any NUMA rebalancing attempts:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE37]'
+  prefs: []
+  type: TYPE_PRE
+- en: The `numad` service can be helpful on OpenStack compute nodes, where manual
+    NUMA balancing may be too involving.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Tuning the kernel for network performance
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: Most modern Linux kernels ship sufficiently tuned for various network workloads.
+    Some distributions provide predefined tuning services (a good example is `tuned` for
+    Red Hat/CentOS), which include a set of profiles based on the server role.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Let''s go over the steps taken during data transmission and reception, on a
+    typical Linux host, before we delve into how to tune the hypervisor:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: The application first writes the data to a socket, which in turn is put in the
+    transmit buffer.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: The kernel encapsulates the data into a **Protocol Data Unit** (**PDU**).
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: The PDU is then moved onto the per-device transmit queue.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: The **Network Interface Cards** (**NIC**) driver then pops the PDU from the
+    transmit queue and copies it to the NIC.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: The NIC sends the data and raises a hardware interrupt.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: On the other end of the communication channel, the NIC receives the frame, copies
+    it on the receive buffer, and raises hard interrupt.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: The kernel in turn handles the interrupt and raises a soft interrupt to process
+    the packet.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Finally, the kernel handles the soft interrupt and moves the packet up the TCP/IP
+    stack for decapsulation, and puts it in a receive buffer for a process to read
+    from.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: In this recipe, we are going to examine a few best practices for tuning the
+    Linux kernel, usually resulting in better network performance, on multitenant
+    KVM hosts.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Please make sure that you establish a baseline before making any configuration
+    changes, by measuring the host performance first. Make small incremental changes,
+    then measure the impact again.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The examples in this recipe are not meant to be copied/pasted without prior
+    understanding of the possible positive or negative impact they might make. Use
+    the examples presented as a guide as to what can be tuned-the actual values must
+    be carefully considered, based on the server type and the entire environment.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Getting ready
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'For this recipe, we are going to need the following:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: An Ubuntu host, with libvirt and QEMU installed and configured
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: A running KVM virtual machine
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: How to do it...
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'To tune the kernel for better network performance, execute the following steps
+    (for more information on what the kernel tunables are, read the *How it works...*
+    section):'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Increase the max TCP send and receive socket buffer size:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE38]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Increase the TCP buffer limits: min, default, and max number of bytes. Set
+    max to 16 MB for 1 GE NIC, and 32 M or 54 M for 10 GE NIC:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE39]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Ensure that TCP window scaling is enabled:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE40]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'To help increase TCP throughput with 1 GB NICs or larger, increase the length
+    of the transmit queue of the network interface. For paths with more than 50 ms
+    RTT, a value of 5000-10000 is recommended:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE41]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Reduce the `tcp_fin_timeout` value:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE42]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Reduce the `tcp_keepalive_intvl` value:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE43]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Enable fast recycling of `TIME_WAIT` sockets. The default value is 0 (disabled):'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE44]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Enable the reusing of sockets in  the `TIME_WAIT` state for new connections.
+    The default value is 0 (disabled):'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE45]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Starting with kernel version 2.6.13, Linux supports pluggable congestion control
+    algorithms. The congestion control algorithm used is set using the `sysctl` variable
+    `net.ipv4.tcp_congestion_control`, which is set to bic/cubic by default on Ubuntu.
+    To get a list of congestion control algorithms that are available in your kernel
+    (if you are running 2.6.20 or higher), run the following:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE46]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'To enable more pluggable congestion control algorithms, load the kernel modules:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE47]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'For long, fast paths, it is usually better to use cubic or htcp algorithms.
+    Cubic is the default for a number of Linux distributions, but if it is not the
+    default on your system, you can do the following:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE48]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'If the hypervisor is overwhelmed with SYN connections, the following options
+    might help in reducing the impact:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE49]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Having a sufficient number of available file descriptors is quite important,
+    since pretty much everything on Linux is a file. Each network connection uses
+    a file descriptor/socket. To check your current max and available file descriptors, run
+    the following code:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE50]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'To increase the max file descriptors, execute the following:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE51]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'If your hypervisor is using stateful iptable rules, the `nf_conntrack` kernel
+    module might run out of memory for connection tracking and an error will be logged:
+    `nf_conntrack: table full, dropping packet`. In order to raise that limit and
+    therefore allocate more memory, you need to calculate how much RAM each connection
+    uses. You can get that information from the proc file `/proc/slabinfo`. The `nf_conntrack`
+    entry shows the active entries, how big each object is, and how many fit in a
+    slab (each slab fits in one or more kernel page, usually 4 K if not using HugePages).
+    Accounting for the overhead of the kernel page size, you can see from the `slabinfo`
+    that each `nf_conntrack` object takes about 316 bytes (this will differ on different
+    systems). So to track 1 M connections, you''ll need to allocate roughly 316 MB
+    of memory:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE52]'
+  prefs: []
+  type: TYPE_PRE
+- en: How it works...
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: In step 1, we increase the maximum send and receive socket buffers. This will
+    allocate more memory to the TCP stack, but on servers with a large amount of memory
+    and many TCP connections, it will ensure that the buffer sizes will be sufficient.
+    A good starting point for selecting the default values is the **Bandwidth Delay
+    Product **(**BDP**) based on a measured delay, for example, multiply the bandwidth
+    of the link to the average round trip time to some host.
+  prefs: []
+  type: TYPE_NORMAL
+- en: In step 2, we increase the min, default, and max number of bytes used by TCP
+    to regulate send buffer sizes. TCP dynamically adjusts the size of the send buffer
+    from the default values.
+  prefs: []
+  type: TYPE_NORMAL
+- en: In step 3, we make sure that window scaling is enabled. TCP window scaling automatically
+    increases the receive window size.
+  prefs: []
+  type: TYPE_NORMAL
+- en: For more information on window scaling, please refer to[ https://en.wikipedia.org/wiki/TCP_window_scale_option](https://en.wikipedia.org/wiki/TCP_window_scale_option).
+  prefs: []
+  type: TYPE_NORMAL
+- en: In step 5, we reduce the `tcp_fin_timeout` value which specifies how many seconds
+    to wait for a final FIN packet before the socket is forcibly closed. In steps
+    6 and 7, we reduce the number of seconds between TCP keep-alive probes and fast
+    recycling of sockets in the `TIME_WAIT` state.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'As a refresher, the following diagram shows the various TCP states a connection
+    can be in:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00013.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: TCP state diagram
+  prefs: []
+  type: TYPE_NORMAL
+- en: In step 8, we enable the reuse of sockets in the `TIME_WAIT` state only for
+    new connections. On hosts with large numbers of KVM instances, this might have
+    a significant impact on how fast new connections can be established.
+  prefs: []
+  type: TYPE_NORMAL
+- en: In steps 9 and 10, we enable various congestion control algorithms. The choice
+    of congestion control algorithms is selected when the kernel is built. In step
+    11, we select the cubic algorithm, in which the window is a cubic function of
+    time since the last congestion event, with the inflection point set to the window
+    prior to that event.
+  prefs: []
+  type: TYPE_NORMAL
+- en: For more information about network congestion-avoidance algorithms, please refer
+    to [https://en.wikipedia.org/wiki/TCP_congestion_control](https://en.wikipedia.org/wiki/TCP_congestion_control).
+  prefs: []
+  type: TYPE_NORMAL
+- en: On systems experiencing an overwhelming amount of SYN requests, adjusting the
+    maximum number of queued connection requests that have still not received an acknowledgement
+    from the connecting client, using the `tcp_max_syn_backlog` and `tcp_synack_retries`
+    options, might help. We do that in step 12.
+  prefs: []
+  type: TYPE_NORMAL
+- en: In steps 13 and 14, we increase the maximum number of file descriptors on the
+    system. This helps when a large number of network connections are present because
+    each connection requires a file descriptor.
+  prefs: []
+  type: TYPE_NORMAL
+- en: In the last step, we have the `nf_conntrack_max` option. This is useful if we
+    are tracking connections on the hypervisor using the `nf_conntrack` kernel module.
+  prefs: []
+  type: TYPE_NORMAL

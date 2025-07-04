@@ -1,0 +1,991 @@
+- en: Chapter 1. Dangerous Gas Sensors
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: In this chapter, we will learn how to use the **BeagleBone Black** to monitor
+    some dangerous gases in a room, such as *CO*, *methane*, *LPG*, and so on, and
+    then enabling an acoustic and visive alarm in case of danger. Also, by using a
+    GSM module, the user will be able to send an SMS message to a predefined phone
+    number to alert, for instance, a relative.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Also, the user will be able to control, log, and display the measured concentrations
+    from the system console/terminal by using a command-line interface (this to keep
+    the code simple).
+  prefs: []
+  type: TYPE_NORMAL
+- en: We'll see how to build the circuitry to manage the sensors and how to get the
+    gas concentration from them. Then, we'll take a look at how to manage a GSM module
+    in order to send SMS messages.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The basic of functioning
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: In this project, our BeagleBone Black will periodically read the environmental
+    data from the sensors, comparing them with user selectable ranges, and then generate
+    an alarm in case one (or more) data read is out of that range.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The sensors will be connected to the BeagleBone Black ADCs with a dedicated
+    circuitry, while the alarms will be enabled with dedicated GPIO lines. Then a
+    GSM module will be connected to our BeagleBone Black's serial port in order to
+    send other alarm messages via SMS.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Setting up the hardware
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'As just stated, all devices are connected with the BeagleBone Black, which
+    is the real core of the system, as shown in the following screenshot:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Setting up the hardware](img/B00255_01_01.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: The data flow is from the sensors to the alarm actuators (LED, buzzer, and GSM
+    module) and the user will be able to send commands to the system, or check the
+    system status and the collected data, by using the system console.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Connecting the gas sensors
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'The gas sensors are used to monitor the environment and we can choose different
+    kinds of such devices. I decided to use the ones shown in the following screenshot
+    due to the fact they act as a variable resistor according to the gas concentration,
+    so they can be easily read with a normal ADC:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Connecting the gas sensors](img/B00255_01_02.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: In the prototype presented here, the gas sensors are actually four, but the
+    ones named **MQ-2** (**smoke detector**), **MQ-4** (**methane detector**), and
+    **MQ-7** (**LPG detector**) look very similar to each other (except the label
+    on each sensor), so I reported only one of them in the preceding screenshot, while
+    the carbon monoxide detector is the red device labeled with MQ-7.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Note
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: 'The devices can be purchased at the following links (or by surfing the Internet):'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'MQ-2: [http://www.cosino.io/product/mq-2-gas-sensor](http://www.cosino.io/product/mq-2-gas-sensor)'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'MQ-4: [http://www.cosino.io/product/mq-4-gas-sensor](http://www.cosino.io/product/mq-4-gas-sensor)'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'MQ-5: [http://www.cosino.io/product/mq-5-gas-sensor](http://www.cosino.io/product/mq-5-gas-sensor)'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'MQ-7: [http://www.cosino.io/product/mq-7-gas-sensor](http://www.cosino.io/product/mq-7-gas-sensor)'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'The following are the URLs where we can get the datasheet for each GAS sensor:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'MQ-2: [http://www.seeedstudio.com/depot/datasheet/MQ-2.pdf](http://www.seeedstudio.com/depot/datasheet/MQ-2.pdf)'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'MQ-4: [https://www.pololu.com/file/0J311/MQ4.pdf](https://www.pololu.com/file/0J311/MQ4.pdf)'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'MQ-5: [http://www.dfrobot.com/image/data/SEN0130/MQ-5.pdf](http://www.dfrobot.com/image/data/SEN0130/MQ-5.pdf)'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'MQ-7: [https://www.parallax.com/sites/default/files/downloads/605-00007-MQ-7-Datasheet.pdf](https://www.parallax.com/sites/default/files/downloads/605-00007-MQ-7-Datasheet.pdf)'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Looking carefully at the datasheet of the gas sensors, we can see exactly how
+    these sensors' class varies their internal resistance according to the gas concentration
+    (in reality, it depends on environment humidity and temperature too; but for an
+    indoor functioning, we can consider these values as constants). So, if we put
+    it in series with a resistor and apply a constant voltage). We can get an output
+    voltage that is proportional to the actual gas concentration.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The following diagram shows a possible schematics where the gas sensor is connected
+    to **5V** power supply and the **RL** resistor is formed by two resistors (**R1**
+    & **R2**) due to the fact we cannot put more than 1.8V at a BeagleBone Black's
+    ADC pin. So, by choosing these two resistors in such a way that *R1 ≥ 2*R2*, we
+    can be sure we have no more than *5.0V/3 ≈ 1.67V* at the ADC input pin on every
+    possible functioning condition, even if the sensor's internal resistance is shorted.
+    However, to be completely sure we can add a **Zener diode** (**Z**) with a reverse
+    threshold on 1.8V (but I didn't use it on my prototype).
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following diagram shows the circuitry I used to connect each sensor:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Connecting the gas sensors](img/B00255_01_03.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Tip
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: Note that the **GAS sensors** have six pins labeled in pairs as **A**, **B**,
+    and **H**; while the **A** and **B** pair pins are shortened, the **H** labeled
+    pairs must be connected at one end to the input voltage (5V in our case) and the
+    other end to the GND (see the datasheet for further information).
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Another important issue regarding these sensors is the calibration we should
+    perform before using them. This last adjustment is very important; as reported
+    in the MQ-2 datasheet, we read the following recommendation:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '*We recommend that you calibrate the detector for 1000 ppm **liquefied petroleum
+    gas** (**LPG**), or 1000ppm **iso-butane** (**i-C**[**4**]**H**[**10**]) concentration
+    in air and use value of **load resistance** that (**RL**) about 20K (5K to 47K).*'
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+- en: This step can be done by replacing resistors **R1** or **R2** with a **varistor**
+    and then fine tuning its resistance. However, I decided to use normal resistors
+    (*R1 = 15KΩ*, *R2 = 6.8KΩ* in such a way that *RL = R1 + R2 ≈ 20KΩ*, as suggested
+    by the datasheet) and then implemented a little translation in software (see the
+    following section), that is, we can translate raw data from the ADCs into a **ppm**
+    (**part-per-million**) value in such a way the user can work with physic data.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'This translation can be done using a *gain* and an *offset* value in the following
+    formula for each sensor:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '*ppm = raw * gain + offset*'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'During the calibration procedure, we just need to use two known points (*ppm1*
+    and *ppm2*), read the corresponding raw data (*raw1* and *raw2*), and then apply
+    the following formulas:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '*gain = (ppm1 – ppm2) / (raw1 – raw2)*'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '*offset = ppm1 – raw1 * gain*'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Of course, we need four gain/offset couples, one per sensor (the calibration
+    procedure is quite long!)
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Once we have fixed the input circuits, we simply have to connect each **Vout**
+    to the BeagleBone Black''s ADC input pins. Our board has 8 ADCs inputs, so we
+    can use the following connections:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '| Pin | Gas sensor |'
+  prefs: []
+  type: TYPE_TB
+- en: '| --- | --- |'
+  prefs: []
+  type: TYPE_TB
+- en: '| P9.39 - AIN0 | Vout @MQ-2 |'
+  prefs: []
+  type: TYPE_TB
+- en: '| P9.37 - AIN2 | Vout @MQ-4 |'
+  prefs: []
+  type: TYPE_TB
+- en: '| P9.35 - AIN6 | Vout @MQ-5 |'
+  prefs: []
+  type: TYPE_TB
+- en: '| P9.33 - AIN4 | Vout @MQ-7 |'
+  prefs: []
+  type: TYPE_TB
+- en: 'To enable them, we use the following command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE0]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'If everything works well, we should get the following kernel messages:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE1]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Then, the files `AIN0`, `AIN1`, …, `AIN7` should become available as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE2]'
+  prefs: []
+  type: TYPE_PRE
+- en: Note
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: 'These settings can be done using the `bin/load_firmware.sh` script in the book''s
+    example code repository, as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE3]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Then, we can read the input data by using the `cat` command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE4]'
+  prefs: []
+  type: TYPE_PRE
+- en: Tip
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: 'Note that the ADC can also be read by using other files still into the **sysfs**
+    filesystem. The following command, for instance, reads from AIN0 input pin:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE5]'
+  prefs: []
+  type: TYPE_PRE
+- en: Connecting the alarm actuators
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: Now, we have to connect the alarm actuators in such a way the user can have
+    a visual and acoustic feedback of any possible dangerous gas concentration. Also,
+    we have to connect the GSM module to a serial port to communicate with it.
+  prefs: []
+  type: TYPE_NORMAL
+- en: LED and buzzer
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: The LED and buzzer connections are very simple. The LEDs can be directly connected
+    (with a resistor) with the BeagleBone Black's GPIO pins without problems, while
+    the buzzer needs a little more work due to the fact that it needs a higher current
+    than the LED to work. However, we can resolve the problem by using a transistor
+    as shown in the following diagram to manage the buzzer with a higher current.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Tip
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: Note that the buzzer can't be a simple piezo without an internal oscillator,
+    otherwise an external oscillator circuit or a **PWM** signal must be used!
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![LED and buzzer](img/B00255_01_04.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: In my circuitry, I used an **R** (470Ω) resistor for the **LED** (**L**), an
+    **R** (2KΩ), **Rd** (4.7KΩ) resistors for the buzzer, and a **BC546 transistor**
+    (**T**). Note that, regarding the LEDs, an R = 100Ω resistor can result in a higher
+    brightness, so you may change it according to the LED color to have different
+    results.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Note also that the resistor **Rd** in the buzzer circuitry is needed to pull-down
+    the GPIO during the boot. In fact, during this stage it is set as input, and even
+    in such configuration the current that flows out from the pin can turn on the
+    buzzer!
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The BeagleBone Black has a lot of GPIOs lines, so we can use the following
+    connections:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '| Pin | Actuator |'
+  prefs: []
+  type: TYPE_TB
+- en: '| --- | --- |'
+  prefs: []
+  type: TYPE_TB
+- en: '| P8.9 - GPIO69 | R @LED |'
+  prefs: []
+  type: TYPE_TB
+- en: '| P8.10 - GPIO68 | R @Buzzer |'
+  prefs: []
+  type: TYPE_TB
+- en: 'Now, to test the connections, we can set up the **GPIO**s by exporting them
+    and then setting these lines as outputs with the following commands:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE6]'
+  prefs: []
+  type: TYPE_PRE
+- en: Note
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: Note that it will be a good idea to use blinking LEDs to do this job. However,
+    for this first chapter I'm going to use normal GPIO lines, leaving this topic
+    for the following chapters.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Now, to turn on and off both the LED and the buzzer, we simply write `1` or
+    `0` into the proper files, as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE7]'
+  prefs: []
+  type: TYPE_PRE
+- en: Note
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: 'These settings can be done by using the `bin/gpio_set.sh` script in the book''s
+    example code repository, as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE8]'
+  prefs: []
+  type: TYPE_PRE
+- en: GSM module
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: As stated in the introduction of this chapter, we wish to add a GSM module to
+    be able to alert the user remotely too. In order to do this, we can connect this
+    device with a normal serial port with TTL level signals. In this case, we have
+    only to choose one of the serial ports available on our BeagleBone Black.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following screenshot shows the GSM module I decided to use:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![GSM module](img/B00255_01_05.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Note
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: 'The device can be purchased at the following link (or by surfing the Internet):'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[http://www.cosino.io/product/serial-gsmgprs-module](http://www.cosino.io/product/serial-gsmgprs-module)'
+  prefs: []
+  type: TYPE_NORMAL
+- en: The user manual con be retrieved at [http://www.mikroe.com/downloads/get/1921/gsm_click_manual_v101c.pdf](http://www.mikroe.com/downloads/get/1921/gsm_click_manual_v101c.pdf).
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The BeagleBone Black has four available serial ports. By deciding to use the
+    device `/dev/ttyO1`, we can use the following connections:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '| Pin | GSM module |'
+  prefs: []
+  type: TYPE_TB
+- en: '| --- | --- |'
+  prefs: []
+  type: TYPE_TB
+- en: '| P9.24 - TX-O1 | RX |'
+  prefs: []
+  type: TYPE_TB
+- en: '| P9.26 - RX-O1 | TX |'
+  prefs: []
+  type: TYPE_TB
+- en: '| P9.1 - GND | GND |'
+  prefs: []
+  type: TYPE_TB
+- en: '| P9.3 - 3.3V | 3.3V |'
+  prefs: []
+  type: TYPE_TB
+- en: '| P9.5 - 3.3V | 5V |'
+  prefs: []
+  type: TYPE_TB
+- en: 'To enable the **serial port**, we have to use the following command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE9]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'If everything works well, we should get the following kernel messages:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE10]'
+  prefs: []
+  type: TYPE_PRE
+- en: The device file `/dev/ttyO1` should now become available.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Note
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: 'These settings can be done by using the `bin/load_firmware.sh` script in the
+    book''s example code repository, as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE11]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'To verify that the new device is ready, we can use the `ls` command as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE12]'
+  prefs: []
+  type: TYPE_PRE
+- en: Note
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: The reader can take a look at the book *BeagleBone Essentials*, *Packt Publishing*,
+    which was written by the author of this book, in order to have more information
+    regarding how to activate and use the GPIO lines and the serial ports available
+    on the system.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Now, we can test whether we actually talk with the modem by using the `screen`
+    command as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE13]'
+  prefs: []
+  type: TYPE_PRE
+- en: Note
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: 'The `screen` command can be installed by using the `aptitude` command as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE14]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'After pressing the *ENTER* key, you should get a blank terminal where, if you
+    enter the `ATZ` string, you should get the string `OK` as answer, as shown in
+    the following code:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE15]'
+  prefs: []
+  type: TYPE_PRE
+- en: It's the GSM module that answers that it's okay and fully functional. To quit
+    from the `screen` command, you have to enter the *CTRL* + *A* + *\* keys sequence
+    and then answer *yes* by pressing the *y* key when the program asks you to `Really
+    quit and kill all your windows [y/n]`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The final picture
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'Well, now we have to put it all together! The following image shows the prototype
+    I made to implement this project and to test the software:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![The final picture](img/B00255_01_06.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Note that we need an external power supplier due to the fact that the external
+    circuitry (and especially the GSM module) needs the 5V power supply.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Setting up the software
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'Now, it''s time to think about the software needed to implement the desired
+    functioning, that is, checking the gas concentrations, logging them, and eventually
+    activating the alarms. We need the following:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: A periodic procedure (`read_sensors.php`) that periodically scans all the sensors
+    and then logs their data into a database.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: A periodic procedure (`monitor.php`) that reads the sensors' data, checks them
+    against preset thresholds, and then sets some internal status.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: A periodic procedure (`write_actuators.php`) that enables the alarms according
+    to the previously saved status.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'The following diagram shows the situation:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Setting up the software](img/B00255_01_07.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: The core of the system is the database, where we store both the data we wish
+    to log and the system's status. In this manner, all periodic functions can be
+    realized as separate tasks that talk to each other by using the database itself.
+    Also, we can control all the tasks from the system console by just altering the
+    `config` table at runtime.
+  prefs: []
+  type: TYPE_NORMAL
+- en: I used **MySQL** to implement the database system, and the preceding configuration
+    can be created by using the `my_init.sh` script, where we define the proper tables.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Tip
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: 'The MySQL daemon can be installed by using the `aptitude` command as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE16]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Here is a snippet of the script:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE17]'
+  prefs: []
+  type: TYPE_PRE
+- en: Note
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: The `my_init.sh` script is stored in the `chapter_01/my_init.sh` file in the
+    book's example code repository.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The reader should notice that we define a `status` table with the `MEMORY` storage
+    engine since we don't need to preserve it at reboot but need a good performance
+    in accessing it, while the `config` table and the per-sensor logging tables (`MQ2_log`,
+    `MQ4_log`, `MQ5_log`, and `MQ7_log`) are defined as normal tables since we need
+    to save these data even during a complete restart. Note that we defined one table
+    per variable in order to easily get access to the logged data; however, nothing
+    changes, even if we decide to keep the logged data into a global logging table.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Note also that during the database initialization, we can define some default
+    settings by simply recording these values by using an `INSERT` command. For the
+    `status` table, we just need the `alarm` variable to be set to `off`, while into
+    the `config` table, we can set up the minimum delay in seconds (`sms_delay_s`)
+    to wait before resending a new SMS alarm, the gain/offset translation couple variables
+    (`mq2_gain`/`mq2_off` and friends), and the per-sensor threshold variables (`mq2_th_ppm`
+    and friends) to be used to activate the alarms.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Managing the ADCs
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'Now, to get data from the **ADC** and save them into the database, we have
+    to write a periodic task. This is quite easy and the following code snippet shows
+    a PHP implementation of the main function of the file `read_sensors.php`, which
+    does this:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE18]'
+  prefs: []
+  type: TYPE_PRE
+- en: Note
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: The complete script is stored in the `chapter_01/read_sensors.php` file in the
+    book's example code repository.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The function is quite simple. It starts the main loop to periodically read the
+    ADC data, get the *gain* and *offset* conversion values for the current variable
+    needed to convert it into the corresponding *ppm* number, then alters the current
+    `status` variables, and adds a new value into the logging table of the read sensor.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'If we execute the script enabling all debugging command-line options, we get:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE19]'
+  prefs: []
+  type: TYPE_PRE
+- en: Tip
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: Note that only the first sensor has been (more or less) calibrated!
+  prefs: []
+  type: TYPE_NORMAL
+- en: The process can be stopped as usual with the *CTRL* + *C* sequence.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Now, we can read the system status (in this case, the last read sensors datum)
+    by using the `my_dump.sh` script, as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE20]'
+  prefs: []
+  type: TYPE_PRE
+- en: Note
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: The `my_dump.sh` script is stored in the `chapter_01/my_dump.sh` file in the
+    book's example code repository.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The same script can be used to dump a logging table too. For instance, if we
+    wish to see the MQ-2 logged data, we can use the following command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE21]'
+  prefs: []
+  type: TYPE_PRE
+- en: Managing the actuators
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: When a sensor detects a dangerous gas concentration, the `alarm` status variable
+    is set to *on* state. Therefore, when this happens, we have to turn both the LED
+    and the buzzer on, and we must send an SMS message to the user's predefined number.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'In order to do these actions, we have to properly set up the GPIO lines that
+    manage the LED and the buzzer as shown previously, and then we have to talk with
+    the **GSM** module through the serial port to send the SMS message. To do this
+    last step, we have to to install the `gsm-utils` package where we can find the
+    `gsmsendsms` command, which is used to actually send the SMS. In order to install
+    the package, we use the following command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE22]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Then, after placing a functioning SIM into the module, we can verify to be
+    able to talk with the GSM module with the `gsmctl` command, as shown in the following
+    code:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE23]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Then, we can verify the current PIN status by using the following command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE24]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'The preceding message shows us that the GSM module is correctly configured
+    and the SIM in it is ready to operate; however, the SIM must be enabled by inserting
+    the proper PIN number if we get the following message:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE25]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'In this case, we must use the following command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE26]'
+  prefs: []
+  type: TYPE_PRE
+- en: In the preceding command, `NNNN` is the PIN number of your SIM. If the command
+    hangs with no output at all, it means that the connection is wrong.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Now that we''ve checked the connection and the SIM is enabled, we can start
+    to send SMS messages by using the following command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE27]'
+  prefs: []
+  type: TYPE_PRE
+- en: In the preceding command, the `NNNNNNNNNNNN` string is the number where the
+    SMS must be sent.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Tip
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: 'If the module answers is as follows it means that **SMS Service Centre Address**
+    (**SCA**); which is the phone number of the centre that is accepting SMS for delivery
+    is not set correctly in your phone:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE28]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'In this case, you should ask to your GSM operator and then try the following
+    command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE29]'
+  prefs: []
+  type: TYPE_PRE
+- en: In the preceding command, the `SSSSSSSSSSSS` string is the number of your centre.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Okay, now we have all the needed information to control our actuators. A possible
+    implementation of main function of the managing task is as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE30]'
+  prefs: []
+  type: TYPE_PRE
+- en: Note
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: The complete script is stored in the `chapter_01/write_actuators.php` file in
+    the book's example code repository.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Again, the function is really simple—we simply have to read the current `alarm`
+    variable status from the database and then set up the actuators according to it.
+    Note that a special job must be done for the SMS management; in fact, the system
+    must send one SMS at time and only during the *off-to-on* transition and not before
+    `sms_delay` seconds. To do the trick, we use the `old_alarm` and `sms_time` variables
+    to save the last loop status.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'To test the code, we can control the `alarm` variable by using the `my_set.sh`
+    command as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE31]'
+  prefs: []
+  type: TYPE_PRE
+- en: Note
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: The script is stored in the `chapter_01/my_set.sh` file in the book's example
+    code repository.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'So, let''s start the script with the command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE32]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'On another terminal, we can change the `alarm` variable, as already stated,
+    by using the following command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE33]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'After this we notice that the script does its job:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE34]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Regarding how to send an SMS message in PHP, I simply used the following code:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE35]'
+  prefs: []
+  type: TYPE_PRE
+- en: Basically, here we use the `system()` function to call the `gsmsendsms` command.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Note
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: You may note that `gsmsendsms` takes a while to send the SMS. It's normal.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Controlling the environment
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: Now, we only need the glue between the sensors and actuators managing tasks,
+    that is, a periodic function that according to the user inputs periodically checks
+    whether the alarms must be activated according to the information read, or not.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'A possible implementation of the main function of the `monitor.php` script
+    is as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE36]'
+  prefs: []
+  type: TYPE_PRE
+- en: Note
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: The complete script is stored in the `chapter_01/monitor.php` file in the book's
+    example code repository.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The function starts the `main` loop where, after getting the sensors' thresholds,
+    it simply gets the last sensor's values and sets up the `alarm` variable accordingly.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Again, we can change the gas concentration thresholds by using the `my_set.sh`
+    command as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE37]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'We can test the script by executing it in the same manner as the previous two,
+    as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE38]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'To stop the test, just use the *CTRL* + *C* sequence. You should get an output
+    as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE39]'
+  prefs: []
+  type: TYPE_PRE
+- en: Final test
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: Once everything has been connected and the software is ready, it's time to do
+    a little test of our new system. The demonstration can be done by using a lighter.
+    In fact, our system is really sensitive to the gas inside the lighter!
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'First of all, we have to check the system configuration:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE40]'
+  prefs: []
+  type: TYPE_PRE
+- en: Tip
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: Note that I used a very weak calibration setting; however, these are okay for
+    a demo.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Then, we can take a look at the system''s current status:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE41]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Then, we can do all hardware settings at once by using the `chapter_01/SYSINIT.sh`
+    script in the book''s example code repository as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE42]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Okay, now let''s start all the required process daemons:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE43]'
+  prefs: []
+  type: TYPE_PRE
+- en: Tip
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: 'Note that all the daemons are running in background in this way; however, the
+    debugging messages are enabled and they can be viewed into the system log with
+    the following command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE44]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Now, we have to approach the lighter to the sensors and press the button on
+    the lighter in order to allow the sensor to detect the gas. After a while, the
+    alarms should be turned on, and looking at the system status, we should get the
+    following:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE45]'
+  prefs: []
+  type: TYPE_PRE
+- en: Also, if we have set up a phone number, we should receive an SMS on the phone!
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'As last step, let''s display the data logged by plotting them. We can use the
+    following command to extract the data from the database:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE46]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'In the `mq2.log` file, we should find something like the following:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE47]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Now, using the next command, we''re going to create a PNG image holding a plot
+    of our data:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE48]'
+  prefs: []
+  type: TYPE_PRE
+- en: Tip
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: 'Note that in order to execute this command, you need the `gnuplot` command,
+    which can be installed by using the following command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE49]'
+  prefs: []
+  type: TYPE_PRE
+- en: Also, both the `mq2.log` and `mq2.plot` files are need. The former is created
+    by the preceding command line, while the latter can be found in the `chapter_01/mq2.plot`
+    file in the book's example code repository. It holds the `gnuplot` instructions
+    to effectively draw the plot.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The plot of the MQ-2 data of my test is shown in the following screenshot:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Final test](img/B00255_01_08.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: As you can see, the sensors are very sensitive to the gas; as soon as I opened
+    my lighter and the gas reached them, the ppm concentration went to high values
+    very quickly.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'To stop the test, we can use the following commands:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE50]'
+  prefs: []
+  type: TYPE_PRE
+- en: Summary
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: In this chapter, we discovered how to manage the ADCs, the GPIOs lines, a GSM
+    module thought, and a serial port. We also saw how to implement a simple monitoring
+    program that can communicate (through a database server) with a sensors reader
+    task to collect input data, and with an actuators manager to alert the user in
+    case of emergency.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'In the next chapter, we''ll see how to manage an **ultrasonic distance** sensor
+    to implement a parking assistant that can communicate to the driver, the distance
+    between the car and the garage''s wall. However, the really interesting part of
+    the next chapter is about how to manage the distance sensor in two different setups:
+    one with all the peripherals near the BeagleBone Black, and another with a remote
+    connection of the sensor through a USB cable.'
+  prefs: []
+  type: TYPE_NORMAL

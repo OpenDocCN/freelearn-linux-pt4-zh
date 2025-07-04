@@ -1,0 +1,660 @@
+- en: Chapter 4. Implementing iSCSI SANs
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'A really big change that you may notice on RHEL 7 compared with earlier releases
+    is that the iSCSI target service is now part of the kernel. This is part and parcel
+    of the move to version 3.x.x of the Linux kernel that we see in the latest Enterprise
+    offering from Raleigh, NC. The management and configuration of the iSCSI server
+    or target is completely revamped. You will soon learn how to share disks and partitions
+    with devices on your network. In doing so, we will look at how to configure the
+    following prerequisites:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: The iSCSI target (server)
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Logical volumes with LVM
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Installing the `targetd` service and `targetcli` tools
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Managing iSCSI targets using `targetcli`
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: The iSCSI initiator client
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: The iSCSI target (server)
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: The iSCSI target is a software that makes disk space available on a network.
+    This service shares disks rather than filesystems and establishes a **Storage
+    Area Network** (**SAN**). This SAN storage can be used so that servers can share
+    same disks, a situation that is often required where other network services are
+    clustered and need access to shared disks on the network. It's usual that only
+    one server will have access to each shared disk at any one time. The iSCSI target
+    can share complete disks, but it's often more efficient to share the exact space
+    required by the client through logical volumes implemented with LVMs. As well
+    as sharing block devices, it's also possible to create files and share the file
+    space as disks through the target server.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The disk IO passes through standard network connections to iSCSI servers. So,
+    the faster the network connection, the better the storage performance. Although
+    iSCSI will work on 1 GB Ethernet networks, 10 GB Ethernet is preferred for Enterprise
+    usage. Having said that, for home or small office use, you will find that 1 GB
+    network speed should be fine (especially if you can define a separate network
+    segment to isolate the iSCSI traffic from the rest of your network). The default
+    TCP port used by the target is `3260`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Managing logical volumes with LVM
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'Although we can share the entire disk space or disk partitions, it really makes
+    sense to share just the disk space that a client service requires. So, for example,
+    if a web server requires 20 GB of space for web files, we can share just that
+    absolute space, rather than the whole disk that may be terabytes in size. To do
+    so, we will create logical volumes and share these as block devices. To implement
+    LVMs, we create three objects:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '**Physical volumes**: This represents the raw disk space as disk partitions.
+    When we use partitions, the partition type should be set to `Linux LVM` with an
+    ID of `8E` using the `fdisk` partitioning tool.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**Volume groups**: This aggregates physical volumes together so that the disk
+    space can be consumed to logical volumes.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**Logical volumes**: This represents the block device that can be shared. It
+    consumes space that is allocated from volume groups.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: On the demonstration RHEL 7.1 system that we will use for this course, I have
+    three disks attached currently. We can use part of the space on the third drive
+    for the LVM system. We will start by partitioning the third disk (currently unpartitioned)
+    so that we can use some elements of this disk for LVM and other elements for other
+    filesystems.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Partitioning the disk
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'Using the `fdisk` command, we can partition the disk as required. We will use
+    a single extended partition and create logical partitions therein. This is purely
+    to allow many partitions that we can use here and in later chapters:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE0]'
+  prefs: []
+  type: TYPE_PRE
+- en: Take care with the device name that you use!
+  prefs: []
+  type: TYPE_NORMAL
+- en: When you run the `fdisk` command, you will be presented with a menu. The `m`
+    command can be used to see menu choices, but we can use `n` to create a new partition
+    and then `e` to create an extended partition. We will enter to accept the defaults
+    for the partition number and the start and end sectors. We will set the extended
+    partition to use the complete disk.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Now, we will use `n` again to create another new partition; this time we will
+    choose `l` for logical reasons. The partition number will default to `5`, so `/dev/sdc5`
+    in my case3\. We can accept the default starting sector, but we will limit the
+    size to 200 M with `+200M` as the ending sector. The following screenshot illustrates
+    this setting:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Partitioning the disk](img/image00225.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: With the settings entered and still within the interactive `fdisk` command,
+    we can use the `t` option to set a type. By default, this will be set to `83`.
+    When you enter `t,` you will be asked for the partition number, which will default
+    to `5`. To type the partition code, we will use `8e` for LVM. Subsequently, we
+    will use `p` to print the configuration and then `w` to save the changes and exit
+    the program.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Creating the physical volume
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'So far, we have created a partition for LVM to use, but this is not part of
+    any LVM system yet. To mark it as available, we will use the `pvcreate` command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE1]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'To display the LVM physical volume on a system, you can use either the `pvs`
+    command or the `pvscan` command as the root user. The output of `sudo pvscan`
+    is shown in the following screenshot:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Creating the physical volume](img/image00226.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: The output shows that we already have LVM in use on this system because this
+    is the default on RHEL and many other systems. The new `PV` is shown as `/dev/sdc5`,
+    but without any membership of a **volume group** (**VG**).
+  prefs: []
+  type: TYPE_NORMAL
+- en: Creating the volume group
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'As we already have a volume group in place, we will use that group and extend
+    it to include the new PV using the `vgextend` command. We want to keep this volume
+    group separate and solely for space to be shared with the iSCSI Target. For this
+    reason, we will create a new volume group with the `vgcreate` command, as shown
+    in the following code example:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE2]'
+  prefs: []
+  type: TYPE_PRE
+- en: Using this command, we will create a new volume group called `iscsi` and use
+    `/dev/sdc5` PV.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Similar to physical volumes, we can use `vgscan` or `vgs` to display information
+    on the volume groups that are available. The output from `sudo vgs` is shown in
+    the following screenshot:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Creating the volume group](img/image00227.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: From the preceding output, we can see that our newly created `VG` named `iscsi`
+    has a single `PV` connected to it, but as yet, no logical volumes (`LV`), which
+    we will create next.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Creating logical volumes
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: '**Logical volumes** (**LVs**) are block device units that we can use locally
+    or (in our case) share via iSCSI. We create LVs using the `lvcreate` command.
+    An example is as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE3]'
+  prefs: []
+  type: TYPE_PRE
+- en: As is normal, we will not use all of the available space and just use the space
+    requested by the web team for their new web volume. The `-L` option sets the size
+    we allocate. We will allocate `100M`; `-n` sets the name to web in this case,
+    whereas the `VG` name is appended to the end of the command string.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'This command will create a block device in the `/dev` directory, but this device
+    is usually accessed via symbolic links. The following two symbolic links will
+    be created:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`/dev/mapper/iscsi-web`'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`/dev/iscsi/web`'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: In our case, these link to the `/dev/dm-2` block device. On your system, the
+    actual block device name will depend on how many existing LVs you have. This is
+    why the OS uses symbolic links because this name is determinable, whereas the
+    actual block device name is not so determinable.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'If you can detect a pattern here, you will realize that, in order to display
+    information about LVs on a system, we can use `lvs` or `lvscan`. The output of
+    the `sudo lvscan` command is shown in the following screenshot:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Creating logical volumes](img/image00228.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: At this stage, we have a working block device that we can use with the iSCSI
+    target service to share between servers on the network. We will now look at how
+    to configure the iSCSI target on RHEL 7.1.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Installing the targetd service and targetcli tools
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'To manage the kernel-based iSCSI Target service on RHEL 7, we will need to
+    install the `targetd` and `targetcli` package, as shown in the following command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE4]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'From the output, we can see that additional packages are installed; however,
+    it''s more interesting to see how Python is used as a major tool to manage iSCSI.
+    The following screenshot is an extract from the command line output:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Installing the targetd service and targetcli tools](img/image00229.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'Although the iSCSI target runs as part of the kernel, the `targetd` package
+    provides a service. This service is used to load the iSCSI target configuration.
+    This is all that `targetd` does, so we never need to start this service as such;
+    just ensure that `targetd` is enabled for autostart, as shown in the following
+    command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE5]'
+  prefs: []
+  type: TYPE_PRE
+- en: Tip
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: Once the system startup enables the `targetd` service, it ensures that the `targetcli
+    restoreconfig` command is executed. It also ensures that the current configuration
+    is loaded on boot.
+  prefs: []
+  type: TYPE_NORMAL
+- en: We have now installed management tools for the `targetcli` iSCSI target and
+    the `targetd` service, which provides a mechanism to enable the configuration
+    to be read at boot time. We will now move on to how to configure the target with
+    `targetcli`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Managing iSCSI targets with targetcli
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: The `targetcli` command is a shell to view, edit, save, and load the iSCSI target
+    configuration. When you look at the configuration, you will see that `targetcli`
+    provides a hierarchical structure in a similar way to a filesystem.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'To invoke the `targetcli` shell, we will run this command as root using `sudo`.
+    You will see that on the first run of the command, a preferences file is created.
+    This is illustrated in the following screenshot:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Managing iSCSI targets with targetcli](img/image00230.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'As you can see in the preceding output, you can enter `help` to display a list
+    of commands that can be entered. To view the available configuration objects,
+    we can use the `ls` command. The output is shown in the following screenshot:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Managing iSCSI targets with targetcli](img/image00231.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: We will work with `backstores` objects to start with so that we can add it to
+    the LVM block device in the configuration in addition to the `fileio` backstore.
+    As the name suggests, this will be a file within the filesystem; we can share
+    this to a network as a virtual disk.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Creating storage backstores
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: We will work from the root of the `targetcli` configuration; this should be
+    exactly where we are, but we can always use the `pwd` command to display our working
+    directory. If required, we can change it to the root of the configuration with
+    `cd /`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Tip
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: While using the `targetcli` command, we can use *CTRL* + *L* to clear the screen
+    as we would in Bash, but most importantly, the *Tab* key completion works, so
+    we do not need to type the complete name or path to objects and properties.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'To create a new `block`, back store on the LVM LV that we created earlier in
+    this section. If we recall, this was `/dev/iscsi/web`:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE6]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'This will create the block backstore with a name called `web_lv`. Using the
+    `ls` command again will list the additional object within the hierarchy. In the
+    following screenshot, we see the creation of the backstore and the subsequent
+    listing:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Creating storage backstores](img/image00232.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'We will also add a new backstore called `fileio`. The creation of the new backstore
+    is similar to the root of the configuration:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE7]'
+  prefs: []
+  type: TYPE_PRE
+- en: This command will create the backstore and the physical file, which we will
+    use as a virtual disk. If the file already exists, we omit the size parameter.
+    Both these objects will show in the listing if we choose to use the `ls` command
+    again.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Other backstore types include `pscsi` and `ramdisk`. These represent `Passthrough
+    SCSI` connections that refer to physical iSCSI devices and `Memory Based Disks`,
+    which, as with `fileio`, can be created on the fly using `targetcli`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Creating iSCSI targets
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'The iSCSI objects that we see in the main list represents iSCSI targets and
+    their properties. Firstly, we will create a simple iSCSI target with default names.
+    We can then delete this object and see how to create our own target with the correct
+    naming convention:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE8]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'This will create an iSCSI target and listen on the TCP port `3260`. There will
+    not be any LUNS or backstores connected, and the **IQN** (**iSCSI Qualified Name**)
+    will be system generated. We can always add the backstore, but most likely, we
+    want to use our own name. So, in this case, we will delete the object. The IQN
+    on my system was generated as `iqn.2003-01.org.linux-iscsi.redhat7.x8664:sn.ce1ebea336a2`,
+    but do not forget that we can use the *Tab* key completion. So, we do not need
+    to write the complete name while deleting or editing it. The following command
+    displays this, but it may wrap when displayed or printed so that it is executed
+    as a single line of code:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE9]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'We will now create an iSCSI target by supplying a custom IQN. To perform this,
+    we create the object as before, but this time, specify the name that is usually
+    written to contain the date and the reversed DNS name. The following command is
+    an example that we will use in this book:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE10]'
+  prefs: []
+  type: TYPE_PRE
+- en: IQN starts with `iqn`, which is followed by the year and month it was created
+    and the reverse DNS name. We can add the description of the target with the `:web`
+    at the end, indicating that this is a target for the web server.
+  prefs: []
+  type: TYPE_NORMAL
+- en: We can filter what is displayed using the `ls` command by adding the object
+    hierarchy that we want to list. For example, to list targets, we will use the
+    `ls iscsi` command.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The output of this command is shown in the following screenshot:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Creating iSCSI targets](img/image00233.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Now we have our customized name for the target, but we still have to add the
+    LUNS or logical units to make the **SAN** (**Storage Area Network**) effective.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Adding LUNS to the iSCSI target
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'Staying with the `targetcli` shell, we will now move on to our target and **TPG**
+    (**Target Portal Group**) object. Similar to the filesystem, this is achieved
+    using the `cd` command, as shown in the following command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE11]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'We can run `ls` from here, but the content was included in the previous listing
+    that we ran from the root of the configuration. We have one portal that listens
+    on all IPv4 interfaces on the TCP port `3260`. Currently, we have no `acls` or
+    `luns`. To add a LUN, we will use the following command, which will utilize the
+    LVM block backstore:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE12]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'This will have an additional side effect of activating a backstore. This can
+    be seen by listing the `/backstores` object. The command and output are shown
+    in the following screenshot:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Adding LUNS to the iSCSI target](img/image00234.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Adding ACLS
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: We are not required to add ACLS, but often we only want a single host, perhaps
+    a virtual cluster device in order to access the LUN. If there is no ACL, we will
+    need to set a property so that the LUN does not default to read only.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'To create an ACL, we limit the access from LUN to a given initiator name or
+    names that we mention in **Access Control List** (**ACL**). The initiator is the
+    iSCSI client and will have a unique client IQN configured on the initiator in
+    the `/etc/iscsi/initiatorname.iscsi` file. If this file is not present, you will
+    need to install the `iscsi-initiator-utils` package. The filename used to configure
+    the initiator name will be consistent for Linux clients, but will differ for other
+    operating systems. To add an ACL, we will remain with the current configuration
+    hierarchy: `/iscsi/iqn….:web/tpg1` and issue the following command, again written
+    as a single line:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE13]'
+  prefs: []
+  type: TYPE_PRE
+- en: This ACL restricts access to the initiator listed within the ACL. Be careful
+    if you ever change the initiator name because the ACL will also need to be updated.
+    The initiator is the iSCSI client.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Using the `ls` command from this location in the configuration hierarchy, we
+    see the output similar to the following screenshot, which also includes the command
+    to create the ACL:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Adding ACLS](img/image00235.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'If you do not add an ACL, the LUN will be read only. If you require the LUN
+    to be writable, you will need to use the following command in order to set the
+    required attribute:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE14]'
+  prefs: []
+  type: TYPE_PRE
+- en: The iSCSI target is now configured. Exiting `targetcli` should save this configuration,
+    but you may feel safer to manually save your changes.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'To do this, return to the root of the configuration and enter the `saveconfig`
+    command, as shown in the following example:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE15]'
+  prefs: []
+  type: TYPE_PRE
+- en: Tip
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: The `targetd` service that we enabled earlier in this chapter runs the `restoreconfig`
+    command from `targetcli`. This is used to load the configuration when the system
+    boots.
+  prefs: []
+  type: TYPE_NORMAL
+- en: With the configuration saved, we can migrate to the client in order to look
+    at the iSCSI Initiator and see the disk sharing at work on our SAN.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Working with the iSCSI Initiator
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'The iSCSI Initiator or client on RHEL 7 is installed with the `iscsi-initiator-utils`
+    package; you can verify that this is installed on your system using the `yum`
+    command, as shown in the following example:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE16]'
+  prefs: []
+  type: TYPE_PRE
+- en: If it's listed as `Installed`, all well and good, but if it's listed as `Available`,
+    you will need to install it.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'For the purpose of this exercise, we will use a separate RHEL 7 system as our
+    initiator and connect it to the existing target. We will need to edit the `/etc/iscsi/initiatorname.iscsi`
+    file on the new RHEL 7 system to ensure that the name is set to match the name
+    we added to the ACL in the earlier section of this chapter; we can display this
+    using the `cat` command, as shown in the following screenshot:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Working with the iSCSI Initiator](img/image00236.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'We will use the main client tool: `iscsiadm`. This was installed with the previously
+    mentioned package. To discover iSCSI LUNS on the target, we will use the following
+    command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE17]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'The output should be similar to the following line:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE18]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Now, we have seen that we can connect to the iSCSI target and have it sent
+    us the configured LUNS. We should now connect to this LUN and use the same command
+    with the following options:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE19]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'The following screenshot shows the command and output:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Working with the iSCSI Initiator](img/image00237.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'To the initiator, the shared LUN is now a disk. We can partition and format
+    this disk in a normal manner. We will use `lsblk` to list the various connected
+    block devices. On this system, we can see that it connects as `/dev/sdc` and matches
+    the `100M` size that we assigned, as shown in the following screenshot:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Working with the iSCSI Initiator](img/image00238.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Using the traditional `fdisk` or `parted` commands, we can create a partition
+    and then format it to be used locally on this system. As we used `fdisk` previously
+    in the chapter to create the partition for LVM interactively, we will see how
+    to manage this from the command line directly with `parted`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The command will need a disk label in order to create the partition table. This
+    can be set to `msdos` or `gpt`. The `fdisk` command creates the `msdos` label
+    automatically, but this is because it can only work with traditional `msdos` partition
+    tables. Parted can work with `msdos` and `gpt` (GUID partition tables). The `parted`
+    command also allows partitions to be created either interactively or directly
+    from the command line and hence, is scriptable. There is an added complication
+    here, that is, the sectors to start a new partition are not shown. So, we need
+    to figure out the optimal starting sector.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Once you know this for a disk of a given type, this will be the same for similar
+    disks.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'To establish the starting sector on a disk, we will read the values from two
+    files: `/sys/block/sdc/queue/optimal_io_size` and divide this by `/sys/block/sdc/queue/physical_block_size`.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'On the demonstration system, this relates to *4194304 / 512 = 8192*; values
+    from files can be read with the `cat` command as a standard user. Once we are
+    aware of the optimal alignment details, we can label the disk and create the partition
+    with the following commands:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE20]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'We create a single partition: `/dev/sdc1`. When we start with the optimal starting
+    sector, this partition uses 100 percent of the used disk space.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'With this in place, we can format the partition with the filesystem of our
+    choice and mount it in a normal manner. The `iscsid` background service is enabled,
+    but it only runs when required. On reboot, the connection will be remade to the
+    remote iSCSI Storage server so that the `/dev/sdc1` partition will persist on
+    the client. This will happen as long as the default setting is not changed on
+    the initiator. You should check the `/etc/iscsi/iscsid.conf` file and ensure that
+    the setting is done as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE21]'
+  prefs: []
+  type: TYPE_PRE
+- en: With this in place, which is the default on RHEL 7, the `iscsid` service will
+    reconnect on startup.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Summary
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'In this chapter, we have seen how ready RHEL 7 is for the Enterprise network
+    to act as a SAN server using the new kernel-based iSCSI target server. The management
+    of the server is now made through Python-based tools, such as `targetcli`, and
+    the `targetd` service is there to load the configuration at boot. We often provide
+    disk storage on demand from logical volumes. We also looked at how to use three
+    components of LVM to make this happen: physical volumes, volume groups, and logical
+    volumes.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: With our storage created and shared, we looked at the second RHEL 7 system and
+    how to connect it as an iSCSI Initiator to utilize this shared storage on the
+    iSCSI target. This was managed initially using `iscsiadm`, but the connections
+    are persisted through the `iscsid` service.
+  prefs: []
+  type: TYPE_NORMAL
+- en: In the next chapter, we will take a look at the **BTRFS** (**Better File System**),
+    which makes its first appearance on RHEL with version 7\. I am sure that you will
+    be impressed with what is on offer with this filesystem.
+  prefs: []
+  type: TYPE_NORMAL

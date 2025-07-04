@@ -1,0 +1,965 @@
+- en: Chapter 6. Mesos Frameworks
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'This chapter walks the reader through the concept and features of Mesos frameworks
+    in detail. It also provides a detailed overview of the Mesos API, including the
+    new HTTP Scheduler API, and provides the recipe for building custom frameworks
+    on Mesos. The following topics will be covered in this chapter:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Introduction to Mesos frameworks
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Framework authentication
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Framework authorization
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Access Control Lists (ACLs)
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: The scheduler HTTP API
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Building custom distributed frameworks on Mesos
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Introduction to Mesos frameworks
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'A Mesos framework sits between Mesos and the application and acts as a layer
+    for managing task scheduling and execution. As its implementation is application-specific,
+    the term is often used to refer to the application itself. Earlier, a Mesos framework
+    could interact with the Mesos API using only the libmesos C++ library, due to
+    which other language bindings were developed for Java, Scala, Python, and Go among
+    others, which leveraged libmesos heavily. Since v0.19.0, changes made to the HTTP-based
+    protocol enabled developers to develop frameworks using the language they wanted
+    without having to rely on the C++ code. A framework consists of two components:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: A scheduler
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: An executor
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: The **scheduler** is responsible for taking decisions on the resource offers
+    made to it and tracking the current state of the cluster. Communication with the
+    Mesos master is handled by the `SchedulerDriver` module, which registers the framework
+    with the master, launches tasks, and passes messages to other components.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The second component, **Executor**, as its name suggests, is responsible for
+    the execution of tasks on the slave nodes. Communication with the slaves is handled
+    by the `ExecutorDriver` module, which is also responsible for sending status updates
+    to the scheduler.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Frameworks – Authentication, authorization, and access control
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'From the user''s perspective, authentication, authorization, and access control
+    often appear to be the same thing because they are typically implemented together.
+    However, there are some important distinctions between them. Some of these are
+    listed below to provide better clarity on what each of these concepts means:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '**Authentication:** Authentication is a process by which you verify that someone
+    or something is who or what they claim to be, respectively. It typically involves
+    implementing one or more methods of demonstrating identity. The result of an authentication
+    procedure is normally a yes/no answer.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**Authorization:** Authorization is used to establish whether the application
+    or user (already authenticated) is allowed to perform the requested task. It is
+    used to define and determine what an authenticated application/user can and cannot
+    do. An authorization module typically includes a mechanism for defining rules
+    (such as roles, privileges, and so on).'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**Access Control:** Access Control is the process of ensuring that nonauthenticated
+    or unauthorized applications/users cannot bypass the system and perform restricted
+    actions. It typically involves implementing a variety of security features to
+    ensure that no loopholes are present in the system.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Framework authentication
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: Framework authentication support for Mesos was added v0.15 onward, and slave
+    authentication support was introduced in v0.19\. This is a very useful feature
+    to prevent unauthorized applications from running on Mesos.
+  prefs: []
+  type: TYPE_NORMAL
+- en: For a framework to register with the Mesos master, it needs to be authenticated.
+    Similarly, the authentication of slaves is necessary for them to be able to register
+    with the master as otherwise, unauthorized processes could launch **Distributed
+    Denial of Service** (**DDoS**) attacks, obtain task information, and so on. It
+    also prohibits rogue access to the `/teardown` HTTP endpoint so that the frameworks
+    can't be illegally terminated.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The **Cyrus Simple Authentication and Security Layer** (**SASL**) library, a
+    flexible framework with support for various mechanisms, such as CRAM-MD5, Plain,
+    GSSAPI, and so on, is leveraged by Mesos to enable authentication. The **CRAM-MD5**
+    mechanism is currently supported by Mesos though users have the ability to implement
+    their own modules as well. CRAM-MD5 implements a shared secret authentication
+    mechanism in which a principal (in this case, the framework) and authenticator
+    (Mesos) share a mutually known "secret" key with each other to encrypt and decrypt
+    information. Whenever the framework communicates with Mesos, it is asked to decrypt
+    or encrypt information successfully using this "secret" key so that Mesos can
+    understand that it is really the authorized framework that wishes to communicate
+    with it. It should be noted that this is not the same as the framework user, which
+    is what an executor uses to run tasks.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Configuration options
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: 'The authentication module uses the following configuration options:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Masters:'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`--[no-]authenticate`: If `true`, then the registration of authenticated frameworks
+    is permitted. If `false`, then other frameworks can register as well.'
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`--[no-]authenticate_slaves`: If `true`, then the registration of authenticated
+    slaves is permitted. If `false`, then other slaves can register as well.'
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`--authenticators`: This is used to specify which authentication mechanism
+    needs to be used to authenticate the master, with CRAM-MD5 being the default.
+    The `–modules` option may be used to add other mechanisms as well.'
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`--credentials`: This is used to specify the location of the file containing
+    a valid credentials list and can be optional based on which mechanism is employed
+    for authentication.'
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Slaves:'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`--authenticate`: This is used to specify which authentication mechanism needs
+    to be used to authenticate the slave, with CRAM-MD5 being the default.'
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`--credential`: This is used to specify the location of the file containing
+    the credentials, which needs to be used to determine the slave.'
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Framework authorization
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: Authorization refers to the process of determining whether an already authenticated
+    user has the required permissions to execute the requested task or access specific
+    resources. Since Mesos 0.24, the authorization API has been modularized so that
+    system administrators can implement authorization backend/protocols of their choice
+    (Lightweight directory access protocol or LDAP, for example).
+  prefs: []
+  type: TYPE_NORMAL
+- en: When starting the master, authorization can be configured by specifying the
+    `--acls` flag.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following authorizations are currently supported:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: The registration of frameworks with specified roles
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Task launching by frameworks as authorized users
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: The shutting down of frameworks by authorized principals
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Quota setting by authorized principals
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Reservation and freeing up of resources by authorized principals
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Creation and destruction of persistent volumes by authorized principals
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Access Control Lists (ACLs)
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: '**Access Control Lists** or **ACLs** are used to implement *authorization*
+    capabilities in Mesos. An ACL needs to be defined in the JSON format for each
+    of the six supported authorizations mentioned before. In every ACL, a list of
+    Subjects need to be defined that can carry out Actions on a group of Objects.
+    The Mesos master then checks these to confirm whether a request received by it
+    is an authorized one or not.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The supported Actions list is as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`register_frameworks`: This is used for framework registration'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`run_tasks`: This is used to run tasks'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`shutdown_frameworks`: This is used to terminate frameworks'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`set_quotas`: This is used for quota setting'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`reserve_resources`: This is used for resource reservation'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`unreserve_resources` : This is used to free up resources'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`create_volumes`: This is used to create persistent volumes'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`destroy_volumes`: This is used to destroy persistent volumes'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'The supported `Subjects` list is as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`principals`: These can be of two types:'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Framework principals
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Usernames
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'The supported `Objects` list is as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`roles`'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`users`'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`framework_principals`'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`resources`'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`reserver_principals`'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`volume_types`'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`creator_principals`'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: For example, when a framework attempts to register with the master, it checks
+    the `register_frameworks` ACLs to verify that the framework attempting to register
+    with it is authorized to receive resources offers for the specified role. The
+    scheduler is terminated, and an error message is sent if the framework is an unauthorized
+    one.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Another example is that of a framework trying to launch a set of tasks. In this
+    case, the `run_tasks` ACLs are checked to verify that the framework is permitted
+    to run the required tasks and as the specified user. A `TASK_LOST` message is
+    sent back if the framework is unauthorized and the tasks do not get launched.
+  prefs: []
+  type: TYPE_NORMAL
+- en: For more information, visit [http://mesos.apache.org/documentation/latest/authorization/](http://mesos.apache.org/documentation/latest/authorization/).
+  prefs: []
+  type: TYPE_NORMAL
+- en: Note
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: ACLs are checked in setup order; that is, the first relevant ACL is used to
+    determine the request authorization status.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The `ACLs.permissive` field determines how a nonmatching request should be treated.
+    The default is `true`, which means that if no matching ACL exists, then the request
+    is authorized.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Examples
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: 'A few examples of how to implement ACLs are as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The `A` and `B` frameworks can run tasks as user `U`. Take a look at the following
+    code:'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '[PRE0]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'The framework `A` can run tasks only as user `guest` and no other user, as
+    demonstrated by the following code:'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '[PRE1]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'The framework `A` can only register with the `X` role but no other roles. Also,
+    no other framework can register with any roles, as in the following code:'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '[PRE2]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: The Mesos API
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: Mesos provides an API to allow developers to build custom frameworks that can
+    run on top of the underlying distributed infrastructure. Refer to the *API details*
+    section in [Chapter 1](ch01.html "Chapter 1. Introducing Mesos"), *Introducing
+    Mesos* for a detailed explanation of the Mesos API. The detailed steps involved
+    in developing bespoke frameworks leveraging this API will be described in the
+    subsequent section with the help of an example.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Mesos also implements an **actor style message-passing programming model** to
+    enable nonblocking communication between different Mesos components and leverages
+    protocol buffers for the same.
+  prefs: []
+  type: TYPE_NORMAL
+- en: In addition, there is also a new scheduler HTTP API that was recently introduced,
+    and it will be briefly discussed in the next section.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The scheduler HTTP API
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: Since Mesos version 0.24.0, experimental support has been introduced for a new
+    HTTP API (only scheduler for the time being). The Mesos master hosts the `api/v1/scheduler`
+    endpoint with which the scheduler communicates.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Request Calls
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'The master currently accepts the following request calls:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Subscribe
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: The scheduler `sends` a `Subscribe` message, including the relevant framework
+    information such as name and so on, via an `HTTP POST` request to enable communication
+    with the master. The response includes a subscription confirmation and details
+    such as the framework ID, which will be used in all subsequent communications.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The `SUBSCRIBE` request (JSON) is as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE3]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'The `SUBSCRIBE` response (JSON) is as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE4]'
+  prefs: []
+  type: TYPE_PRE
+- en: TEARDOWN
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: The scheduler sends this request when it wants to shut itself. When it receives
+    this request, Mesos will terminate all executors, killing all the running tasks
+    in the process. It will then proceed to remove the framework and end all communication
+    between the Mesos master and scheduler.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The `TEARDOWN` request (JSON) is as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE5]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'The `TEARDOWN` response is as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE6]'
+  prefs: []
+  type: TYPE_PRE
+- en: ACCEPT
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: When the scheduler wants to accept the resource offers made by the Mesos master,
+    it sends this request. The operations that the scheduler intends to carry out
+    are included as parameters in the request (for example, launch task, create volumes,
+    and reserve resources).
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The `ACCEPT` request (JSON) is as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE7]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'The `ACCEPT` response is as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE8]'
+  prefs: []
+  type: TYPE_PRE
+- en: DECLINE
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: When the scheduler wants to decline the resource offers made by the Mesos master,
+    it sends this request.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The `DECLINE` request (JSON) is as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE9]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'The `DECLINE` response is as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE10]'
+  prefs: []
+  type: TYPE_PRE
+- en: REVIVE
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: If any filters are set by prior accept or decline requests, then the scheduler
+    can send a revive call to remove them.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The `REVIVE` request (JSON) is as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE11]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'The `REVIVE` response is as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE12]'
+  prefs: []
+  type: TYPE_PRE
+- en: KILL
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: If a specific task needs to be killed, then the scheduler can send a `KILL`
+    request. If a custom executor is present, then the request is passed on to this
+    executor, in which it can be processed. If the master is unaware of the task that
+    is requested to be killed, it will generate a `Task_Lost` message.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The `KILL` request (JSON) is as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE13]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'The `KILL` response is as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE14]'
+  prefs: []
+  type: TYPE_PRE
+- en: SHUTDOWN
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: This newly introduced call is sent by the scheduler when it wants to end specific
+    custom executors.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The `SHUTDOWN` request (JSON) is as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE15]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'The `SHUTDOWN` response is as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE16]'
+  prefs: []
+  type: TYPE_PRE
+- en: ACKNOWLEDGE
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: When a status update needs to be acknowledged, the scheduler sends this request.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The `ACKNOWLEDGE` request (JSON) is as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE17]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'The `ACKNOWLEDGE` response is as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE18]'
+  prefs: []
+  type: TYPE_PRE
+- en: RECONCILE
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: When the status nonterminal tasks needs to be queried, the scheduler sends this
+    request. For every task in the list, an Update event is sent back by the master.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The `RECONCILE` request (JSON) is as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE19]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'The `RECONCILE` response is as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE20]'
+  prefs: []
+  type: TYPE_PRE
+- en: MESSAGE
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: If arbitrary binary data needs to be sent to the executor, the scheduler makes
+    use of this request.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The `MESSAGE` request (JSON) is as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE21]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'The `MESSAGE` response is as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE22]'
+  prefs: []
+  type: TYPE_PRE
+- en: REQUEST
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: This is used by the scheduler to request resources from the master.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The `REQUEST` request (JSON) is as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE23]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'The `REQUEST` response is as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE24]'
+  prefs: []
+  type: TYPE_PRE
+- en: Response events
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: The master currently sends the following events as responses.
+  prefs: []
+  type: TYPE_NORMAL
+- en: SUBSCRIBED
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: 'When a `Subscribe` request is made by the scheduler, the first event sent by
+    the master is the `Subscribed` event. The format is given as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The `SUBSCRIBED` event (JSON) is as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE25]'
+  prefs: []
+  type: TYPE_PRE
+- en: OFFERS
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: The master sends this event whenever it can offer frameworks a new set of resources.
+    Every offer corresponds to a group of resources on a slave. The resources are
+    assumed to be allocated till the scheduler makes an `Accept` or `Decline` call
+    to the master. The offer is rescinded if a slave is lost or times out.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The `OFFERS` event (JSON) is as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE26]'
+  prefs: []
+  type: TYPE_PRE
+- en: RESCIND
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: When an offer's validity expires (for example, when the slave mentioned in the
+    offer is lost) the master sends this event to rescind the offer. If the scheduler
+    makes any calls in the future, these are considered invalid.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The `RESCIND` event (JSON) is as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE27]'
+  prefs: []
+  type: TYPE_PRE
+- en: UPDATE
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: The master sends this event if the executor creates a status update regarding
+    the running tasks. For example, if the `Task_Finished` update is generated, then
+    the master can release the resources given to the task for use elsewhere.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The `UPDATE` event (JSON) is as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE28]'
+  prefs: []
+  type: TYPE_PRE
+- en: MESSAGE
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: The Mesos master forwards executor-generated messages to the scheduler without
+    interpretation or delivery guarantee by passing the `Message` event. If the message
+    delivery fails for any reason, the executor needs to resend the request.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The `MESSAGE` event (JSON) is as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE29]'
+  prefs: []
+  type: TYPE_PRE
+- en: FAILURE
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: The master sends this event upon slave removal or executor termination.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The `FAILURE` event (JSON) is as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE30]'
+  prefs: []
+  type: TYPE_PRE
+- en: ERROR
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: The master sends this event upon the occurrence of an error (for example, a
+    framework with the given role unauthorized to subscribe to the requested resources).
+    The recommendation is that the framework should abort upon the receipt of this
+    event and the resubscribe.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The `ERROR` event (JSON) is as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE31]'
+  prefs: []
+  type: TYPE_PRE
+- en: HEARTBEAT
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: The master sends this event at periodic intervals to communicate to the scheduler
+    that an established subscribed connection is alive. This helps make sure that
+    a live connection is not terminated due to insufficient data movement.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The `HEARTBEAT` event (JSON) is as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE32]'
+  prefs: []
+  type: TYPE_PRE
+- en: For more information regarding the scheduler HTTP API, visit [http://mesos.apache.org/documentation/latest/scheduler-http-api/](http://mesos.apache.org/documentation/latest/scheduler-http-api/).
+  prefs: []
+  type: TYPE_NORMAL
+- en: Building a custom framework on Mesos
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'As we already know, a Mesos framework is an application running on Mesos. In
+    this module, we will see how we can create our own Mesos framework. For the sake
+    of simplicity, we will create a simple Java application to calculate the value
+    of *pi*. A Mesos framework consists of the following three components:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '**Driver**: This is the piece of code that submits tasks to the framework'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**Executor:** This is the piece of code that is launched on the Mesos slave
+    nodes to run the framework''s tasks'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**Scheduler**: This is the piece of code that registers with the master, asks
+    for resources from it, and runs tasks on the executor'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Now, let's take a look at how we can develop each of these components to build
+    a custom Mesos framework in the following sections.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Driver implementation
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'The driver program is the one that creates the **executor information**. The
+    executor information consists of an `executorID` being a String value and a command
+    that is executed through the Linux `/bin/sh-c` command. This can be implemented
+    in our Java code as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE33]'
+  prefs: []
+  type: TYPE_PRE
+- en: Here, we used Google Protocol Buffers to communicate with Mesos and craft the
+    executor information with the Builder pattern.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Now that we have the executor information ready, next in line is information
+    about the framework. This contains information such as under which Unix user the
+    tasks should be launched (which can be set to the default if we leave the field
+    empty) and the failover time, which makes the master wait before removing the
+    framework in case of scheduler failure. These two properties are set using the
+    `.setUser` and `.setFailOverTimeout` calls, which would look as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE34]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'We can now initialize the `Scheduler` with the number of tasks that are submitted
+    to the executor to run our program. This is done with the following code:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE35]'
+  prefs: []
+  type: TYPE_PRE
+- en: '`PiScheduler` is instantiated with one task as we only require one task to
+    compute it.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`MesosSchedulerDriver` is used to launch and kill tasks on Mesos. It also manages
+    the life cycle of our scheduler with the `start`, `stop`, and `wait for tasks
+    to finish` calls. This is done with the following piece of code:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE36]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Now that we have discussed all the parts of the driver program, let''s assemble
+    them all together and take a look at how the real code looks. This is shown as
+    follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE37]'
+  prefs: []
+  type: TYPE_PRE
+- en: Executor implementation
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: '`PiExecutor` is our executor component. We will need to implement the *Executor*
+    interface and override a few methods. Here, we will focus on the core method,
+    that is, the `launchTask()` call—which is the call to actually compute the value
+    of `pi` in our case. We will also need to set a few properties of our task within
+    this function, which are explained as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE38]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'We can now create a `PiExecutor` class by implementing the `Executor` class
+    and overriding the default methods. The complete code is given as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE39]'
+  prefs: []
+  type: TYPE_PRE
+- en: Scheduler implementation
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: We will now discuss the scheduler implementation, which is responsible for the
+    framework's scheduling. We will create `PiScheduler`, which actually implements
+    the Scheduler interface of Mesos. We will focus on overriding the `resourceOffer()`,
+    `statusUpdate()`, and `frameworkMessage()` methods, which form a core part of
+    `PiScheduler`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The complete code is as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE40]'
+  prefs: []
+  type: TYPE_PRE
+- en: Running the framework
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'We need to package the jar with all the dependencies in order to run the framework.
+    For this, we can create a `build.sbt` file with Mesos and log4j as dependencies.
+    This will look similar to the following:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE41]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'We can now create an uber jar with the following `sbt` command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE42]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Then, we will run the program with the following command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE43]'
+  prefs: []
+  type: TYPE_PRE
+- en: Note that we specified the Mesos master URI as an argument to our `PiDriver`
+    program.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Once we run the program, you will see the following output in the Terminal:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE44]'
+  prefs: []
+  type: TYPE_PRE
+- en: '![Running the framework](img/B05186_06_01.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'We can also see the framework being registered in the Mesos master UI, which
+    runs on port `5050`, as shown in the following screenshot:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Running the framework](img/B05186_06_02.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'We can also see the single task that calculated the value of Pi has finished
+    in the same UI if we click on the framework ID:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Running the framework](img/B05186_06_03.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Summary
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: After reading this chapter, you should have a fair idea of framework security
+    features such as authorization, authentication, and access control in Mesos. You
+    should also now be able to use the Mesos API to build your own custom application/framework
+    on Mesos. In addition, the experimental scheduler HTTP API was also introduced
+    in this chapter.
+  prefs: []
+  type: TYPE_NORMAL
+- en: In the next chapter, we will explore some interesting projects, such as Myriad
+    (YARN on Mesos) and Kubernetes on Mesos. We will also discuss how to deploy containerized
+    apps using Docker and how a continuous integration process can be set up using
+    Jenkins on Mesos.
+  prefs: []
+  type: TYPE_NORMAL

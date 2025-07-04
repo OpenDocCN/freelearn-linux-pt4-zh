@@ -1,0 +1,1459 @@
+- en: Chapter 8. Container Orchestration
+  prefs: []
+  type: TYPE_NORMAL
+- en: As Containers became the basis of modern application development and deployment,
+    it is necessary to deploy hundreds or thousands of Containers to a single data
+    center cluster or data center clusters. The cluster could be an on-premises cluster
+    or in a cloud. It is necessary to have a good Container orchestration system to
+    deploy and manage Containers at scale.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following topics will be covered in this chapter:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: The basics of modern application deployment
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Container orchestration with Kubernetes, Docker Swarm, and Mesos and their core
+    concepts, installation, and deployment
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Comparison of popular orchestration solutions
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Application definition with Docker Compose
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Packaged Container Orchestration solutions—the AWS container service, Google
+    container engine, and CoreOS Tectonic
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Modern application deployment
+  prefs: []
+  type: TYPE_NORMAL
+- en: We covered the basics of Microservices in [Chapter 1](index_split_023.html#filepos77735),
+    CoreOS Overview. In cloud-based application development, infrastructure is treated
+    as cattle rather than pet ([http://www.slideshare.net/randybias/pets-vs-cattle-the-elastic-cloud-story](http://www.slideshare.net/randybias/pets-vs-cattle-the-elastic-cloud-story)).
+    What this means is that the infrastructure is commonly a commodity hardware that
+    can easily go bad and high availability needs to be handled at either the application
+    layer or application Orchestration layer. High availability can be taken care
+    of by having a combination of the load balancer and Orchestration system that
+    monitors the health of services taking necessary actions such as respawning the
+    service if it dies. Containers have the nice property of isolation and packaging
+    that allows independent teams to develop individual components as Containers.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Companies can adopt a pay-as-you-grow model where they can scale their Containers
+    as they grow. It is necessary to manage hundreds or thousands of Containers at
+    scale. To do this efficiently, we need a Container Orchestration system. The following
+    are some characteristics of a Container Orchestration system:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: It treats disparate infrastructure hardware as a collection and represents it
+    as one single resource to the application
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: It schedules Containers based on user constraints and uses the infrastructure
+    in the most efficient manner
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: It scales out containers dynamically
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: It maintains high availability of services
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'There is a close relation between the application definition and Container
+    Orchestration. The application definition is typically a manifest file describing
+    the Containers that are part of the application and the services that the Container
+    exposes. Container Orchestration is done based on the application definition.
+    The Container Orchestrator operates on resources that could be a VM or bare metal.
+    Typically, the nodes where Containers run are installed with Container-optimized
+    OSes, such as CoreOS, DCOS, and Atomic. The following image shows you the relationship
+    between the application definition, Container Orchestration, and Container-optimized
+    nodes along with some examples of solutions in each category:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00458.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Container Orchestration
+  prefs: []
+  type: TYPE_NORMAL
+- en: A basic requirement of Container orchestration is to efficiently deploy M containers
+    into N compute resources.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following are some problems that a Container Orchestration system should
+    solve:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: It should schedule containers efficiently, giving enough control to the user
+    to tweak scheduling parameters based on their need
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: It should provide Container networking across the cluster
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Services should be able to discover each other dynamically
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Orchestration system should be able to handle service failures
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: We will cover Kubernetes, Docker Swarm, and Mesos in the following sections.
+    Fleet is used internally by CoreOS for Container orchestration. Fleet has very
+    minimal capabilities and works well for the deployment of critical system services
+    in CoreOS. For very small deployments, Fleet can be used for Container orchestration,
+    if necessary.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Kubernetes
+  prefs: []
+  type: TYPE_NORMAL
+- en: Kubernetes is an open source platform for Container Orchestration. This was
+    initially started by Google and now multiple vendors are working together in this
+    open source project. Google has used Containers to develop and deploy applications
+    in their internal data center and they had a system called Borg ([http://research.google.com/pubs/pub43438.html](http://research.google.com/pubs/pub43438.html))
+    for cluster management. Kubernetes uses a lot of the concepts from Borg combined
+    with modern technologies available now. Kubernetes is lightweight, works across
+    almost all environments, and has a lot of industry traction currently.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Concepts of Kubernetes
+  prefs: []
+  type: TYPE_NORMAL
+- en: Kubernetes has some unique concepts, and it will be good to understand them
+    before diving deep into the architecture of Kubernetes.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Pods
+  prefs: []
+  type: TYPE_NORMAL
+- en: Pods are a set of Containers that are scheduled together in a single node and
+    need to work closely with each other. All containers in a Pod share the IPC namespace,
+    network namespace, UTS namespace, and PID namespace. By sharing the IPC namespace,
+    Containers can use IPC mechanisms to talk to each other.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'By sharing the network namespace, Containers can use sockets to talk to each
+    other, and all Containers in a Pod share a single IP address. By sharing the UTS
+    namespace, volumes can be mounted to a Pod and all Containers can see these volumes.
+    The following are some common application deployment patterns with Pods:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Sidecar pattern: An example is an application container and logging container
+    or application synchronizer container such as a Git synchronizer.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Ambassador pattern: In this pattern, the application container and proxy container
+    work together. When the application container changes, external services can still
+    talk to the proxy container as before. An example is a redis application container
+    with the redis proxy.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Adapter pattern: In this pattern, there is an application container and adapter
+    container that adapts to different environments. An example is a logging container
+    that works as an adapter and changes with different cloud providers but the interface
+    to the adapter container remains the same.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: The smallest unit in Kubernetes is a Pod and Kubernetes takes care of scheduling
+    the Pods.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following is a Pod definition example with the NGINX Container and Git
+    helper container:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`apiVersion: v1 kind: Pod metadata:   name: www spec:   containers:   - name: nginx
+        image: nginx   - name: git-monitor     image: kubernetes/git-monitor     env:
+        - name: GIT_REPO       value: http://github.com/some/repo.git`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Networking
+  prefs: []
+  type: TYPE_NORMAL
+- en: Kubernetes has the one IP per Pod approach. This approach was taken to avoid
+    the pains associated with NAT to access Container services when Containers shared
+    the host IP address. All Containers in a pod share the same IP address. Pods across
+    nodes can talk to each other using different techniques such as cloud-based routing
+    from cloud providers, Flannel, Weave, Calico, and others. The end goal is to have
+    Networking as a plugin within Kubernetes and the user can choose the plugin based
+    on their needs.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Services
+  prefs: []
+  type: TYPE_NORMAL
+- en: Services are an abstraction that Kubernetes provides to logically combine Pods
+    that provide similar functionality. Typically, Labels are used as selectors to
+    create services from Pods. As Pods are ephemeral, Kubernetes creates a service
+    object with its own IP address that always remains permanent. Kubernetes takes
+    care of load balancing for multiple pods.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following is an example service:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`{     "kind": "Service",     "apiVersion": "v1",     "metadata": {         "name": "my-service"
+        },     "spec": {         "selector": {             "app": "MyApp"         },
+            "ports": [             {                 "protocol": "TCP",                 "port": 80,
+                    "targetPort": 9376             }         ]     } }`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: In the preceding example, we created a `my-service` service that groups all
+    pods with a `Myapp` label. Any request to the `my-service` service's IP address
+    and port number `80` will be load balanced to all the pods with the `Myapp` label
+    and redirected to port number `9376`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Services need to be discovered internally or externally based on the type of
+    service. An example of internal discovery is a web service needing to talk to
+    a database service. An example of external discovery is a web service that gets
+    exposed to the outside world.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'For internal service discovery, Kubernetes provides two options:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Environment variable: When a new Pod is created, environment variables from
+    older services can be imported. This allows services to talk to each other. This
+    approach enforces ordering in service creation.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'DNS: Every service registers to the DNS service; using this, new services can
+    find and talk to other services. Kubernetes provides the `kube-dns` service for
+    this.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'For external service discovery, Kubernetes provides two options:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'NodePort: In this method, Kubernetes exposes the service through special ports
+    (30000-32767) of the node IP address.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Loadbalancer: In this method, Kubernetes interacts with the cloud provider
+    to create a load balancer that redirects the traffic to the Pods. This approach
+    is currently available with GCE.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Kubernetes architecture
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following diagram shows you the different software components of the Kubernetes
+    architecture and how they interact with each other:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00460.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'The following are some notes on the Kubernetes architecture:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: The master node hosts the Kubernetes control services. Slave nodes run the pods
+    and are managed by master nodes. There can be multiple master nodes for redundancy
+    purposes and to scale master services.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Master nodes run the critical services such as the Scheduler, Replication controller,
+    and API server. Slave nodes run the critical services such as Kubelet and Kube-proxy.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: User interaction with Kubernetes is through Kubectl, which uses standard Kubernetes-exposed
+    APIs.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: The Kubernetes scheduler takes care of scheduling the pods in the nodes based
+    on the constraints specified in the Pod manifest.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: The replication controller is necessary to maintain high availability of Pods
+    and create multiple instances of pods as specified in the replication controller
+    manifest.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: The API server in the master node talks to Kubelet of each slave node to provision
+    the pods.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Kube-proxy takes care of service redirection and load balancing the traffic
+    to the Pods.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Etcd is used as a shared data repository for all nodes to communicate with each
+    other.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: DNS is used for service discovery.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Kubernetes installation
+  prefs: []
+  type: TYPE_NORMAL
+- en: Kubernetes can be installed on baremetal, VM, or in cloud providers such as
+    AWS, GCE, and Azure. We can decide on the choice of the host OS on any of these
+    systems. In this chapter, all the examples will use CoreOS as the host OS. As
+    Kubernetes consists of multiple components such as the API server, scheduler,
+    replication controller, kubectl, and kubeproxy spread between master and slave
+    nodes, the manual installation of the individual components would be complicated.
+    There are scripts provided by Kubernetes and its users that automate some of the
+    node setup and software installation. The latest stable version of Kubernetes
+    as of October 2015 is 1.0.7 and all examples in this chapter are based on the
+    1.0.7 version.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Non-Coreos Kubernetes installation
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'For non-Coreos-based Kubernetes installation, the procedure is straightforward:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Find the Kubernetes release necessary from [https://github.com/kubernetes/kubernetes/releases](https://github.com/kubernetes/kubernetes/releases).
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Download `kubernetes.tar.gz` for the appropriate version and unzip them.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Set `KUBERNETES_PROVIDER` as one of these (AWS, GCE, Vagrant, and so on)
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Change the cluster size and any other configuration parameter in the `cluster`
+    directory.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Run `cluster/kube-up.sh`.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Kubectl installation
+  prefs: []
+  type: TYPE_NORMAL
+- en: Kubectl is the CLI client to interact with Kubernetes. Kubectl is not installed
+    by default. Kubectl can be installed in either the client machine or the kubernetes
+    master node.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following command can be used to install kubectl. It is needed to match
+    kubectl version with Kubernetes version:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`ARCH=linux; wget https://storage.googleapis.com/kubernetes-release/release/v1.0.7/bin/$ARCH/amd64/kubectl`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'If Kubectl is installed in the client machine, we can use the following command
+    to proxy the request to the Kubernetes master node:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`ssh -f -nNT -L 8080:127.0.0.1:8080 core@<control-external-ip>`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Vagrant installation
+  prefs: []
+  type: TYPE_NORMAL
+- en: I used the procedure at [https://github.com/pires/kubernetes-vagrant-coreos-cluster](https://github.com/pires/kubernetes-vagrant-coreos-cluster)
+    to create a Kubernetes cluster running on the Vagrant environment with CoreOS.
+    I initially tried this in Windows. As I faced the issue mentioned in [https://github.com/pires/kubernetes-vagrant-coreos-cluster/issues/158](https://github.com/pires/kubernetes-vagrant-coreos-cluster/issues/158),
+    I moved to the Vagrant environment running on Ubuntu Linux.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following are the commands:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`Git clone https://github.com/pires/kubernetes-vagrant-coreos-cluster.git``Cd coreos-container-platform-as-a-service/vagrant``Vagrant up`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following output shows the two running Kubernetes nodes:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00462.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: GCE installation
+  prefs: []
+  type: TYPE_NORMAL
+- en: I used the procedure at [https://github.com/rimusz/coreos-multi-node-k8s-gce](https://github.com/rimusz/coreos-multi-node-k8s-gce)
+    to create a Kubernetes cluster running in GCE with CoreOS.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following are the commands:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`git clone https://github.com/rimusz/coreos-multi-node-k8s-gce``cd coreos-multi-node-k8s-gce`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: In the `settings` file, change `project`, `zone`, `node count`, and any other
+    necessary changes.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Run the following three scripts in the same order:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`1-bootstrap_cluster.sh``2-get_k8s_fleet_etcd.sh``3-install_k8s_fleet_units.sh`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following output shows the cluster composed of three nodes:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00464.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'The following output shows the Kubernetes client and server versions:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00465.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'The following output shows the Kubernetes services running in master and slave
+    nodes:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00468.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: The script used in this example uses Fleet to orchestrate Kubernetes services.
+    As we can see in the preceding image, the API server, controller, and scheduler
+    run in the master node and kubelet and proxy run in the slave nodes. There are
+    three copies of kubelet and kube-proxy, one each for every slave node.
+  prefs: []
+  type: TYPE_NORMAL
+- en: AWS installation
+  prefs: []
+  type: TYPE_NORMAL
+- en: I used the procedure at [https://coreos.com/kubernetes/docs/latest/kubernetes-on-aws.html](https://coreos.com/kubernetes/docs/latest/kubernetes-on-aws.html)
+    to create the Kubernetes CoreOS cluster running on AWS.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The first step is to install the kube-aws tool:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`Git clone https://github.com/coreos/coreos-kubernetes/releases/download/v0.1.0/kube-aws-linux-amd64.tar.gz`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Unzip and copy kube-aws to an executable path. Make sure that `~/.aws/credentials`
+    is updated with your credentials.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Create a default `cluster.yaml` file:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`curl --silent --location https://raw.githubusercontent.com/coreos/coreos-kubernetes/master/multi-node/aws/cluster.yaml.example > cluster.yaml`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Modify `cluster.yaml` with your `keyname`, `region`, and `externaldnsname`;
+    `externaldnsname` matters for external access only.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'To deploy the cluster, we can perform the following:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`Kube-aws up`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following output shows the two nodes that are part of the Kubernetes cluster:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00470.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: An example of a Kubernetes application
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following diagram illustrates the guestbook example that we will use to
+    illustrate the different Kubernetes concepts discussed in the previous sections.
+    This example is based on the reference at [http://kubernetes.io/v1.1/examples/guestbook/README.html](http://kubernetes.io/v1.1/examples/guestbook/README.html):'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00472.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'The following are some notes on this guestbook application:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: This application uses the php frontend with the redis master and slave backend
+    to store the guestbook database
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Frontend RC creates three instances of the `kubernetes/example-guestbook-php-redis`
+    container
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Redis-master RC creates one instance of the redis container
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Redis-slave RC creates two instances of the `kubernetes/redis-slave` container
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: For this example, I used the cluster created in the previous section with Kubernetes
+    running on AWS with CoreOS. There is one master node and two slave nodes.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Let''s look at the nodes:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00474.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'In this example, the Kubernetes cluster uses flannel to communicate across
+    pods. The following output shows the flannel subnet allocated to each node in
+    the cluster:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00477.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'The following are the commands necessary to start the application:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`kubectl create -f redis-master-controller.yaml``kubectl create --validate=false -f redis-master-service.yaml``kubectl create -f redis-slave-controller.yaml``kubectl create --validate=false -f redis-slave-service.yaml``kubectl create -f frontend-controller.yaml``kubectl create --validate=false -f frontend-service.yaml`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Let''s look at the list of pods:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00478.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: The preceding output shows three instances of the php frontend, one instance
+    of the redis master, and two instances of the redis slave.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Let''s look at the list of RC:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00480.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: The preceding output shows the replication count per pod. Frontend has three
+    replicas, `redis-master` has one replica, and `redis-slave` has two replicas,
+    as we requested.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Let''s look at the list of services:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00481.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: In the preceding output, we can see the three services comprising the guestbook
+    application.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'For internal service discovery, this example uses `kube-dns`. The following
+    output shows the `kube-dns` RC running:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00484.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'For external service discovery, I modified the example to use the `NodePort`
+    mechanism, where one of the internal ports gets exposed. The following is the
+    new `frontend-service.yaml` file:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`apiVersion: v1 kind: Service metadata:   name: frontend   labels:     name: frontend
+    spec:   # if your cluster supports it, uncomment the following to automatically create
+      # an external load-balanced IP for the frontend service.   type: NodePort   ports:
+        # the port that this service should serve on   - port: 80   selector:     name: frontend`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following is the output when we start the frontend service with the `NodePort`
+    type. The output shows that the service is exposed using port `30193`:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00486.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'Once we expose port `30193` using the AWS firewall, we can access the guestbook
+    application as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00488.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'Let''s look at the application containers in `Node1`:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00489.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'Let''s look at the application containers in `Node2`:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00492.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: The preceding output accounts for three instances of frontend, one instance
+    of redis master, and two instances of redis slave.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'To illustrate how the replication controller maintains the pod replication
+    count, I went and stopped the guestbook frontend Docker Container in one of the
+    nodes, as shown in the following image:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00493.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'Kubernetes RC detects that the Pod is not running and restarts the Pod. This
+    can be seen in the restart count for one of the guestbook pods, as shown in the
+    following image:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00495.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'To do some basic debugging, we can log in to the pods or containers themselves.
+    The following example shows you how we can get inside the Pod:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00496.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: The preceding output shows the IP address in the guestbook pod, which agrees
+    with the flannel subnet allocated to that node, as shown in the Flannel output
+    in the beginning of this example.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Another command that''s useful for the debugging is `kubectl logs` as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00476.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Kubernetes with Rkt
+  prefs: []
+  type: TYPE_NORMAL
+- en: By default, Kubernetes works with Container runtime Docker. The architecture
+    of Kubernetes allows other Container runtime such as Rkt to work with Kubernetes.
+    There is active work going on ([https://github.com/kubernetes/kubernetes/tree/master/docs/getting-started-guides/rkt](https://github.com/kubernetes/kubernetes/tree/master/docs/getting-started-guides/rkt))
+    to integrate Kubernetes with Rkt and CoreOS.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Kubernetes 1.1 update
+  prefs: []
+  type: TYPE_NORMAL
+- en: Kubernetes released 1.1 version ([http://blog.kubernetes.io/2015/11/Kubernetes-1-1-Performance-upgrades-improved-tooling-and-a-growing-community.html](http://blog.kubernetes.io/2015/11/Kubernetes-1-1-Performance-upgrades-improved-tooling-and-a-growing-community.html))
+    in November 2015\. Significant additions in 1.1 are increased performance, auto-scaling,
+    and job objects for the batching tasks.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Docker Swarm
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Swarm is Docker''s native Orchestration solution. The following are some properties
+    of Docker Swarm:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Rather than managing individual Docker nodes, the cluster can be managed as
+    a single entity.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Swarm has a built-in scheduler that decides the placement of Containers in the
+    cluster. Swarm uses user-specific constraints and affinities ([https://docs.docker.com/swarm/scheduler/filter/](https://docs.docker.com/swarm/scheduler/filter/))
+    to decide the Container placement. Constraints could be CPU and memory, and affinity
+    are parameters to group related Containers together. Swarm also has the provision
+    to take its scheduler out and work with other schedulers such as Kubernetes.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'The following image shows the Docker Swarm architecture:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00188.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'The following are some notes on the Docker Swarm architecture:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: The Swarm Master takes care of scheduling Docker Containers based on the scheduling
+    algorithm, constraints, and affinities. Supported algorithms are spread, `binpack`,
+    and `random`. The default algorithm is spread. Multiple Swarm masters can be run
+    in parallel to provide high availability. The Spread scheduling is used to distribute
+    workloads evenly. The binpack scheduling is used to utilize each node fully before
+    scheduling on another node.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: The Swarm Agent runs in each node and communicates to the Swarm Master.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: There are different approaches available for Swarm worker nodes to discover
+    the Swarm Master. Discovery is necessary because the Swarm Master and agents run
+    on different nodes and Swarm agents are not started by the Swarm Master. It is
+    necessary for Swarm agents and the Swarm Master to discover each other in order
+    to understand that they are part of the same cluster. Available discovery mechanisms
+    are Docker hub, Etcd, Consul, and others.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Docker Swarm integrates with the Docker machine to ease the creation of Docker
+    nodes. Docker Swarm integrates with Docker compose for multicontainer application
+    orchestration.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: With the Docker 1.9 release, Docker Swarm integrates with multi-host Docker
+    networking that allows Containers scheduled across hosts to talk to each other.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: The Docker Swarm installation
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'A prerequisite for this example is to install Docker 1.8.1 and Docker-machine
+    0.5.0\. I used the procedure at [https://docs.docker.com/swarm/install-w-machine/](https://docs.docker.com/swarm/install-w-machine/)
+    to create a single Docker Swarm master with two Docker Swarm agent nodes. The
+    following are the steps:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Create a discovery token.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Create a Swarm master node with the created discovery token.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Create two Swarm agent nodes with the created discovery token.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'By setting the environment variable to `swarm-master`, as shown in the following
+    command we can control the Docker swarm cluster using regular Docker commands:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`eval $(docker-machine env --swarm swarm-master)`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Let''s look at the `docker info` output on the Swarm cluster:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00056.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: The preceding output shows that three nodes (one master and two agents) are
+    in the cluster and that four containers are running in the cluster. The `swarm-master`
+    node has two containers and the `swarm-agent` node has one container each. These
+    containers are used to manage the Swarm service. Application containers are scheduled
+    only in Swarm agent nodes.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Let''s look at the individual containers in the master node. This shows the
+    master and agent services running:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00191.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'Let''s look at the container running in the agent node. This shows the `swarm
+    agent` running:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00193.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: An example of Docker Swarm
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'To illustrate the Docker Swarm Container orchestration, let''s start four `nginx`
+    containers:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`docker run -d --name nginx1 nginx``docker run -d --name nginx2 nginx``docker run -d --name nginx3 nginx``docker run -d --name nginx4 nginx`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'From the following output, we can see that the four containers are spread equally
+    between `swarm-agent-00` and `swarm-agent-01`. The default `spread` scheduling
+    strategy has been used here:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00195.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'The following output shows the overall Container count across the cluster that
+    includes the master and two agent nodes. The container count eight includes Swarm
+    service containers as well as nginx application containers:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00252.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Mesos
+  prefs: []
+  type: TYPE_NORMAL
+- en: Apache Mesos is an open source clustering software. Mesosphere's DCOS is the
+    commercial version of Apache Mesos. Mesos combines the Clustering OS and Cluster
+    manager. Clustering OS is responsible for representing resources from multiple
+    disparate computers in one single resource over which applications can be scheduled.
+    The cluster manager is responsible for scheduling the jobs in the cluster. The
+    same cluster can be used for different workloads such as Hadoop and Spark. There
+    is a two-level scheduling within Mesos. The first-level scheduling does resource
+    allocation among frameworks and the framework takes care of scheduling the jobs
+    within that particular framework. Each framework is an application category such
+    as Hadoop, Spark, and others. For general purpose applications, the best framework
+    available is Marathon. Marathon is a distributed INIT and HA system to schedule
+    containers. The Chronos framework is like a Cron job and this framework is suitable
+    to run shorter workloads that need to be run periodically. The Aurora framework
+    provides you with a much more fine-grained control for complex jobs.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following image shows you the different layers in the Mesos architecture:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00198.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Comparing Kubernetes, Docker Swarm, and Mesos
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Even though all these solutions (Kubernetes, Docker Swarm, and Mesos) do application
+    Orchestration, there are many differences in their approach and use cases. I have
+    tried to summarize the differences based on their latest available release. All
+    these Orchestration solutions are under active development, so the feature set
+    can vary going forward. This table is updated as of October 2015:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '| Feature | Kubernetes | Docker Swarm | Mesos |'
+  prefs: []
+  type: TYPE_TB
+- en: '| Deployment unit | Pods | Container | Process or Container |'
+  prefs: []
+  type: TYPE_TB
+- en: '| Container runtime | Docker and Rkt. | Docker. | Docker; there is some discussion
+    ongoing on Mesos with Rkt. |'
+  prefs: []
+  type: TYPE_TB
+- en: '| Networking | Each container has an IP address, and can use external network
+    plugins. | Initially, this did Port forwarding with a common agent IP address.
+    With Docker 1.9, it uses Overlay networking and per container IP address. It can
+    use external network plugins. | Initially, this did Port forwarding with a common
+    agent IP address. Currently, it works on per Container IP. integration with Calico.
+    |'
+  prefs: []
+  type: TYPE_TB
+- en: '| Workloads | Homogenous workload. With namespaces, multiple virtual clusters
+    can be created. | Homogenous workload. | Multiple frameworks such as Marathon,
+    Aurora, and Hadoop can be run in parallel. |'
+  prefs: []
+  type: TYPE_TB
+- en: '| Service discovery | This can use either environment variable-based discovery
+    or Kube-dns for dynamic discovery. | Static with modification of `/etc/hosts`.
+    A DNS approach is planned in the future. | DNS-based approach to discover services
+    dynamically. |'
+  prefs: []
+  type: TYPE_TB
+- en: '| High availability | With a replication controller, services are highly available.
+    Service scaling can be done easily. | Service high availability is not yet implemented.
+    | Frameworks take care of service high availability. For example, Marathon has
+    the `Init.d` system to run containers. |'
+  prefs: []
+  type: TYPE_TB
+- en: '| Maturity | Relatively new. The first production release was done a few months
+    before. | Relatively new. The first production release was done a few months before.
+    | Pretty stable and used in big production environments. |'
+  prefs: []
+  type: TYPE_TB
+- en: '| Complexity | Easy. | Easy. | This is a little difficult to set up. |'
+  prefs: []
+  type: TYPE_TB
+- en: '| Use case | This is more suitable for homogenous workloads. | Presenting Docker
+    frontend makes it attractive for Docker users not needing to learn any new management
+    interface. | Suitable for heterogeneous workloads. |'
+  prefs: []
+  type: TYPE_TB
+- en: Kubernetes can be run as a framework on top of Mesos. In this case, Mesos does
+    the first-level scheduling for Kubernetes and Kubernetes schedules and manages
+    applications scheduled. This project ([https://github.com/mesosphere/kubernetes-mesos](https://github.com/mesosphere/kubernetes-mesos))
+    is dedicated to running Kubernetes on top of Mesos.
+  prefs: []
+  type: TYPE_NORMAL
+- en: There is work ongoing to integrate Docker Swarm with Kubernetes so that Kubernetes
+    can be used as a scheduler and process manager for the cluster while users can
+    still use the Docker interface to manage containers using Docker Swarm.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Application definition
+  prefs: []
+  type: TYPE_NORMAL
+- en: When an application is composed of multiple Containers, it is useful to represent
+    each Container property along with its dependencies in a single JSON or YAML file
+    so that the application can be instantiated as a whole rather than instantiating
+    each Container of the application separately. The application definition file
+    takes care of defining the multicontainer application. Docker-compose defines
+    both the application file and runtime to instantiate containers based on the application
+    file.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Docker-compose
+  prefs: []
+  type: TYPE_NORMAL
+- en: Docker-compose provides you with an application definition format, and when
+    we run the tool, Docker-compose takes care of parsing the application definition
+    file and instantiating the Containers taking care of all the dependencies.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Docker-compose has the following advantages and use cases:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: It gives a simple approach to specify an application's manifest that contains
+    multiple containers along with their constraints and affinities
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: It integrates well with Dockerfile, Docker Swarm, and multihost networking
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: The same compose file can be adapted to different environments using environment
+    variables
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: A single-node application
+  prefs: []
+  type: TYPE_NORMAL
+- en: The following example shows you how to build a multicontainer WordPress application
+    with a WordPress and MySQL container.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following is the `docker-compose.yml` file defining the Containers and
+    their properties:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`wordpress:   image: wordpress   ports:    - "8080:80"   environment:     WORDPRESS_DB_HOST: "composeword_mysql_1:3306"
+        WORDPRESS_DB_PASSWORD: mysql mysql:   image: mysql   environment:     MYSQL_ROOT_PASSWORD: mysql`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following command shows you how to start the application using `docker-compose`:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`docker-compose –p composeword –f docker-compose.yml up -d`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following is the output of the preceding command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00200.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Containers are prefixed with a keyword specified in the `-p` option. In the
+    preceding example, we have used `composeword_mysql_1` as the hostname, and the
+    IP address is derived dynamically from the container using this and updated in
+    `/etc/hosts`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following output shows the running containers of the wordpress application:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00202.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'The following output is the `/etc/hosts` output in the wordpress container;
+    the one which shows that the IP address of the MySQL container is dynamically
+    updated:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00220.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: A multinode application
+  prefs: []
+  type: TYPE_NORMAL
+- en: I used the example at [https://docs.docker.com/engine/userguide/networking/get-started-overlay/](https://docs.docker.com/engine/userguide/networking/get-started-overlay/)
+    to create a web application spanning multiple nodes using `docker-compose`. In
+    this case, `docker-compose` is integrated with Docker Swarm and Docker multihost
+    networking.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The prerequisite for this example is to have a working Docker Swarm cluster
+    and Docker version 1.9+.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following command creates the multihost counter application. This application
+    has a web container as the frontend and a mongo container as the backend. These
+    commands have to be executed against the Swarm cluster:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`docker-compose –p counter –x-networking up -d`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following is the output of the preceding command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00204.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'The following output shows the overlay network `counter` created as part of
+    this application:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00206.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'The following output shows the running Containers in the Swarm cluster:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00207.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'The following output shows the Swarm cluster information. There are in total
+    five containers—three of them are Swarm service containers and two of them are
+    the preceding application containers:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00209.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'The following output shows the working web application:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00211.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Packaged Container Orchestration solutions
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'There are many components necessary for the deployment of a distributed microservice
+    application at scale. The following are some of the important components:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: An infrastructure cluster
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: A Container-optimized OS
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: A Container orchestrator with a built-in scheduler, service discovery, and networking
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Storage integration
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Multitenant capability with authentication
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: An API at all layers to ease management
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Cloud providers such as Amazon and Google already have an ecosystem to manage
+    VMs, and their approach has been to integrate Containers and Container orchestration
+    into their IaaS offering so that Containers play well with their other tools.
+    The AWS Container service and Google Container engine fall in this category. The
+    focus of CoreOS has been to develop a secure Container-optimized OS and open source
+    tools for distributed application development. CoreOS realized that integrating
+    their offering with Kubernetes would give their customers an integrated solution,
+    and Tectonic provides this integrated solution.
+  prefs: []
+  type: TYPE_NORMAL
+- en: There are a few other projects such as OpenStack Magnum ([https://github.com/openstack/magnum](https://github.com/openstack/magnum))
+    and Cisco's Mantl ([https://mantl.io/](https://mantl.io/)) that falls under this
+    category of managed Container Orchestration. We have not covered these in this
+    chapter.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The AWS Container service
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The AWS EC2 Container Service (ECS) is a Container Orchestration service from
+    AWS. The following are some of the key characteristics of this service:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: ECS creates and manages the node cluster where containers are launched. The
+    user needs to specify only the cluster size.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Container health is monitored by container agents running on the node. The Container
+    agent communicates to the master node that makes all service-related decisions.
+    This allows for high availability of Containers.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: ECS takes care of scheduling the containers across the cluster. A scheduler
+    API is implemented as a plugin and this allows integration with other schedulers
+    such as Marathon and Kubernetes.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: ECS integrates well with other AWS services such as Cloudformation, ELB, logging,
+    Volume management, and others.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Installing ECS and an example
+  prefs: []
+  type: TYPE_NORMAL
+- en: ECS can be controlled from the AWS console or using the AWS CLI or ECS CLI.
+    For the following example, I have used the ECS CLI, which can be installed using
+    the procedure in this link ([http://docs.aws.amazon.com/AmazonECS/latest/developerguide/ECS_CLI_installation.html](http://docs.aws.amazon.com/AmazonECS/latest/developerguide/ECS_CLI_installation.html)).
+  prefs: []
+  type: TYPE_NORMAL
+- en: I used the following example ([http://docs.aws.amazon.com/AmazonECS/latest/developerguide/ECS_CLI_tutorial.html](http://docs.aws.amazon.com/AmazonECS/latest/developerguide/ECS_CLI_tutorial.html))
+    to create a WordPress application with two containers (WordPress and MySQL) using
+    the compose YML file.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following are the steps:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Create an ECS cluster.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Deploy the application as a service over the cluster.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: The cluster size or service size can be dynamically changed later based on the
+    requirements.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'The following command shows the running containers of the WordPress application:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`ecs-cli ps`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following is the output of the preceding command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00213.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'We can scale the application using the `ecs-cli` command. The following command
+    scales each container to two:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`ecs-cli compose --file hello-world.yaml scale 2`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following output shows the running containers at this point. As we can
+    see, containers have scaled to two:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00214.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Note
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Note: The MySQL container is scaled typically using a single master and multiple
+    slaves.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'We can also log in to each AWS node and look at the running containers. The
+    following output shows three containers in one of the AWS nodes. Two of them are
+    application containers, and the third one is the ECS agent container that does
+    container monitoring and talks to the master node:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00216.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Note
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Note: To log in to each node, we need to use `ec2-user` as the username along
+    with the private key used while creating the cluster.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: To demonstrate HA, I tried stopping containers or nodes. Containers got rescheduled
+    because the Container agent monitors containers in each node.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Google Container Engine
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Google Container Engine is the cluster manager and container orchestration
+    solution from Google that is built on top of Kubernetes. The following are the
+    differences or benefits that we get from GCE compared to running a container cluster
+    using Kubernetes as specified in the Kubernetes installation section:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: A node cluster is created automatically by Google Container engine. The user
+    needs to specify only the cluster size and the CPU and memory requirement.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Kubernetes is composed of multiple individual services such as an API server,
+    scheduler, and agents that need to be installed for the Kubernetes system to work.
+    Google Container engine takes care of creating the Kubernetes master with appropriate
+    services and installing other Kubernetes services in agent nodes.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Google Container engine integrates well with other Google services such as VPC
+    networking, Logging, autoscaling, load balancing, and so on.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: The Docker hub, Google container registry, or on-premise registry can be used
+    to store Container images.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Installing GCE and an example
+  prefs: []
+  type: TYPE_NORMAL
+- en: The procedure at [https://cloud.google.com/container-engine/docs/before-you-begin](https://cloud.google.com/container-engine/docs/before-you-begin)
+    can be used to install the gcloud container components and kubectl. Containers
+    can also be managed using the GCE dashboard.
+  prefs: []
+  type: TYPE_NORMAL
+- en: I used the procedure at [https://cloud.google.com/container-engine/docs/tutorials/guestbook](https://cloud.google.com/container-engine/docs/tutorials/guestbook)
+    to create a guestbook application containing three services. This application
+    is the same as the one used in the An example of Kubernetes application section
+    specified earlier.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following are the steps:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Create a node cluster with the required cluster size. This will automatically
+    create a Kubernetes master and appropriate agent services will be installed in
+    the nodes.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Deploy the application using a replication controller and service files.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: The cluster can be dynamically resized later based on the need.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'The following is the cluster that I created. There are four nodes in the cluster
+    as specified by `NUM_NODES`:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00217.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'The following command shows the running services that consist of frontend,
+    redis-master, and redis-slave. The Kubernetes service is also running in the master
+    node:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`Kubectl get services`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following is the output of the preceding command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00342.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'As the frontend service is integrated with the GCE load balancer, there is
+    also an external IP address. Using the external IP address, guestbook service
+    can be accessed. The following command shows the list of endpoints associated
+    with the load balancer:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`Kubectl describe services frontend`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following is the output of the preceding command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00222.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'To resize the cluster, we need to first find the instance group associated
+    with the cluster and resize it. The following command shows the instance group
+    associated with the guestbook:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00224.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'Using the instance group, we can resize the cluster as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00225.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: The initial set of outputs that show the cluster size as four were done after
+    the resizing of the cluster.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'We can log in to the individual nodes and see the containers launched in the
+    node using regular Docker commands. In the following output, we see one instance
+    of `redis-slave` and one instance of front end running in this node. Other Containers
+    are Kubernetes infrastructure containers:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00227.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: CoreOS Tectonic
+  prefs: []
+  type: TYPE_NORMAL
+- en: Tectonic is the commercial offering from CoreOS where they have integrated CoreOS
+    and the open source components of CoreOS (Etcd, Fleet, Flannel, Rkt, and Dex)
+    along with Kubernetes. With Tectonic, CoreOS is integrating their other commercial
+    offerings such as CoreUpdate, Quay repository, and Enterprise CoreOS into Tectonic.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The plan is to expose the Kubernetes API as it is in Tectonic. Development in
+    CoreOS open source projects will continue as it is, and the latest software will
+    be updated to Tectonic.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following diagram illustrates the different components of Tectonic:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00228.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'Tectonic provides you with Distributed Trusted Computing (DTM), where security
+    is provided at all layers including hardware and software. The following are some
+    unique differentiators:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: At the firmware level, the customer key can be embedded, and this allows customers
+    to verify all the software running in the system.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Secure keys embedded in the firmware can verify the bootloader as well as CoreOS.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Containers such as Rkt can be verified with their image signature.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Logs can be made tamper-proof using the TPM hardware module embedded in the
+    CPU motherboard.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Summary
+  prefs: []
+  type: TYPE_NORMAL
+- en: In this chapter, we covered the importance of Container Orchestration along
+    with the internals of popular container orchestration solutions, such as Kubernetes,
+    Docker Swarm, and Mesos. There are many companies offering integrated Container
+    orchestration solutions, and we covered a few popular ones such as the AWS Container
+    service, Google Container Engine, and CoreOS Tectonic. For all the technologies
+    covered in this chapter, installation and examples have been provided so that
+    you can try them out. Customers have a choice of picking between integrated Container
+    Orchestration solutions and manually integrating the Orchestration solution in
+    their infrastructure. The factors affecting the choice would be flexibility, integration
+    with in-house solutions, and cost. In the next chapter, we will cover OpenStack
+    integration with Containers and CoreOS.
+  prefs: []
+  type: TYPE_NORMAL
+- en: References
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The Kubernetes page: [http://kubernetes.io/](http://kubernetes.io/)'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Mesos: [http://mesos.apache.org/](http://mesos.apache.org/) and [https://mesosphere.com/](https://mesosphere.com/)'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Docker Swarm: [https://docs.docker.com/swarm/](https://docs.docker.com/swarm/)'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Kubernetes on CoreOS: [https://coreos.com/kubernetes/docs/latest/](https://coreos.com/kubernetes/docs/latest/)'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Google Container Engine: [https://cloud.google.com/container-engine/](https://cloud.google.com/container-engine/)'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'AWS ECS: [https://aws.amazon.com/ecs/](https://aws.amazon.com/ecs/)'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Docker Compose: [https://docs.docker.com/compose](https://docs.docker.com/compose)'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Docker machine: [https://docs.docker.com/machine/](https://docs.docker.com/machine/)'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Tectonic: [https://tectonic.com](https://tectonic.com)'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Tectonic Distributed Trusted Computing: [https://tectonic.com/blog/announcing-distributed-trusted-computing/](https://tectonic.com/blog/announcing-distributed-trusted-computing/)'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Further reading and tutorials
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Container Orchestration with Kubernetes and CoreOS: [https://www.youtube.com/watch?v=tA8XNVPZM2w](https://www.youtube.com/watch?v=tA8XNVPZM2w)'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Comparing Orchestration solutions: [http://radar.oreilly.com/2015/10/swarm-v-fleet-v-kubernetes-v-mesos.html](http://radar.oreilly.com/2015/10/swarm-v-fleet-v-kubernetes-v-mesos.html),
+    [http://www.slideshare.net/giganati/orchestration-tool-roundup-kubernetes-vs-docker-vs-heat-vs-terra-form-vs-tosca-1](http://www.slideshare.net/giganati/orchestration-tool-roundup-kubernetes-vs-docker-vs-heat-vs-terra-form-vs-tosca-1),
+    and [https://www.openstack.org/summit/vancouver-2015/summit-videos/presentation/orchestration-tool-roundup-kubernetes-vs-heat-vs-fleet-vs-maestrong-vs-tosca](https://www.openstack.org/summit/vancouver-2015/summit-videos/presentation/orchestration-tool-roundup-kubernetes-vs-heat-vs-fleet-vs-maestrong-vs-tosca)'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Mesosphere introduction: [https://www.digitalocean.com/community/tutorials/an-introduction-to-mesosphere](https://www.digitalocean.com/community/tutorials/an-introduction-to-mesosphere)'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Docker and AWS ECS: 0[https://medium.com/aws-activate-startup-blog/cluster-based-architectures-using-docker-and-amazon-ec2-container-service-f74fa86254bf#.afp7kixga](https://medium.com/aws-activate-startup-blog/cluster-based-architectures-using-docker-and-amazon-ec2-container-service-f74fa86254bf#.afp7kixga)'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL

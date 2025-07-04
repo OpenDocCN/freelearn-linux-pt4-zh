@@ -1,0 +1,856 @@
+- en: Chapter 2. Troubleshooting Active Processes
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: A deeper understanding of the underlying active processes in CentOS 7 is an
+    essential skill for any troubleshooter. From high load averages to slow response
+    times, system overloads to dead and dying processes, there comes a time when every
+    server may start to feel sluggish, act impoverished, or fail to respond, and as
+    a consequence, it will require your immediate attention.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'In this chapter, we will:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Learn about memory management, swap, swappiness, and thrashing
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Learn how to analyze active processes using the `vmstat`, `top`, and `ps` commands
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Learn how to monitor the server with `iotop`, `iostat`, and `lsof`
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Learn about system load and `systemd`
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Learn how to find process IDs, identify parent process IDs and orphaned processes,
+    and initiate the various forms of the `kill` signal
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Tuning server performance with memory management and swap
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'Regardless of how you look at it, the question of memory usage remains critical
+    to the life cycle of a system, and whether you are maintaining system health or
+    troubleshooting a particular service or application, you will always need to remember
+    that the use of memory is a critical resource to your system. For this reason,
+    we will begin by calling the `free` command in the following way:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE0]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'The main elements of the preceding command will look similar to this:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE1]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'In the example shown, I have used the `-m` option to ensure that the output
+    is formatted in megabytes. This makes it easier to read, but for the sake of troubleshooting,
+    rather than trying to understand every numeric value shown, let''s reduce the
+    scope of the original output to highlight the relevant area of concern:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE2]'
+  prefs: []
+  type: TYPE_PRE
+- en: The importance of this line is based on the fact that it accounts for the associated
+    buffers and caches to illustrate what memory is currently being used and what
+    is held in reserve. Where the first value indicates how much memory is being used,
+    the second value tells us how much memory is available to our applications. In
+    the example shown, this instance translates into 164 MB of used memory and 1673
+    MB of available memory.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Bearing this in mind, let me draw your attention to the final line in order
+    that we can examine the importance of swap:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE3]'
+  prefs: []
+  type: TYPE_PRE
+- en: Swapping typically occurs when memory usage is impacting performance. As we
+    can see from the preceding example, the first value tells us that there is a total
+    amount of system swap set at 2063 MB, with the second value indicating how much
+    swap is being used (0 MB), while the third value shows the amount of swap that
+    is still available to the system as a whole (2063 MB). So yes, based on the example
+    data shown here, we can conclude that this is a healthy system, and no swap is
+    being used, but while we are here, let's use this time to discover more about
+    the swap space on your system.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'To begin, we will revisit the contents of the `proc` directory and reveal the
+    total and used swap size by typing the following command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE4]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Assuming that you understand the output shown, you should then investigate
+    the level of swappiness used by your system with the following command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE5]'
+  prefs: []
+  type: TYPE_PRE
+- en: Having done this, you will now see a numeric value between the ranges of 0-100\.
+    The numeric value is a percentage and it implies that, if your system has a value
+    of 30, for example, it will begin to use swap memory at 70 percent occupation
+    of RAM.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The default for all Linux systems is usually set with a notional value between
+    30 to 60, but you can use either of the following commands to temporarily change
+    and modify the swappiness of your system.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'This can be achieved by replacing the value of `X` with a numeric value from
+    1-100 by typing:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE6]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Or more specifically, this can also be achieved with:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE7]'
+  prefs: []
+  type: TYPE_PRE
+- en: If you change your mind at any point, then you have two options in order to
+    ensure that no permanent changes have been made. You can either repeat one of
+    the preceding two commands and return the original values, or issue a full system
+    reboot.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'On the other hand, if you want to make the change persist, then you should
+    edit the `/etc/sysctl.conf` file and add your swappiness preferences in the following
+    way:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE8]'
+  prefs: []
+  type: TYPE_PRE
+- en: When complete, simply save and close the file to ensure that the changes take
+    effect.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The level of swappiness controls the tendency of the kernel to move a process
+    out of the physical RAM on to a swap disk. This is memory management at work,
+    but it is important to realize that swapping will not occur immediately, as the
+    level of swappiness is actually expressed as a percentage value. For this reason,
+    the process of swapping should be viewed more as a measurement of preference when
+    using the cache, and as every administrator will know, there is an option for
+    you to clear the swap by using the commands `swapoff -a` and `swapon -a` to achieve
+    the desired result.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The golden rule is to realize that a system displaying a level of swappiness
+    close to the maximum value (100) will prefer to begin swapping inactive pages.
+    This is because a value of 100 is a representative of 0 percent occupation of
+    RAM. By comparison, the closer your system is to the lowest value (0), the less
+    likely swapping is to occur as 0 is representative of 100 percent occupation of
+    RAM.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Generally speaking, we would all probably agree that systems with a very large
+    pool of RAM would not benefit from aggressive swapping. However, and just to confuse
+    things further, let's look at it in a different way. We all know that a desktop
+    computer will benefit from a low swappiness value, but in certain situations,
+    you may also find that a system with a large pool of RAM (running batch jobs)
+    may also benefit from a moderate to aggressive swap in a fashion similar to a
+    system that attempts to do a lot but only uses small amounts of RAM. So, in reality,
+    there are no hard and fast rules; the use of swap should be based on the needs
+    of the system in question rather than looking for a single solution that can be
+    applied across the board.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Taking this further, special care and consideration should be taken while making
+    changes to the swapping values as RAM that is not used by an application is used
+    as disk cache. In this situation, by decreasing swappiness, you are actually increasing
+    the chance of that application not being swapped-out, and you are thereby decreasing
+    the overall size of the disk cache. This can make disk access slower. However,
+    if you do increase the preference to swap, then because hard disks are slower
+    than memory modules, it can lead to a slower response time across the overall
+    system. Swapping can be confusing, but by knowing this, we can also appreciate
+    the hidden irony of swappiness. As Newton's third law of motion states, *for every
+    action, there is an equal and opposite reaction*, and finding the optimum swappiness
+    value may require some additional experimentation.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Managing memory with vmstat
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'A different aspect of memory management can be achieved by using the `vmstat`
+    command. Considered to be a summary reporting feature associated with memory,
+    processes, and paging, `vmstat` can be seen in action by typing:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE9]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Having used the `-a` option to call on all active and inactive memory, the
+    most endearing columns shown under vmstat''s output are best described as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`si`: This column shows the value swapped in from disk'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`so`: This column shows the value swapped out to disk'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`bi`: This column shows the value sent to block devices'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`bo`: This column shows the value received from block devices'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`us`: This column shows the user time'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`sy`: This column shows the system time'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`id`: This column shows the idle time'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'The display does look quite confusing to begin with, but for our purposes,
+    we want to concentrate on the following columns contained under the swap column:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE10]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Where `free` shows the current allocation of free memory, `si` shows page-ins
+    while `so` provides page-outs. Sadly, viewing it by this method alone can be seen
+    to be a little too restrictive for our needs, and so the most effective way to
+    look at this is by managing the output with a delay option being added to the
+    original command like this:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE11]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Here, `X` is a numeric time value expressed in seconds and `N` indicates the
+    number of times we would like to call `vmstat` itself; a working demonstration
+    of this code format would be as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE12]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'In this example, I have added the values `3` and `5`, in which the first number
+    indicates a delay in seconds followed by the second number calling the number
+    of results. In this instance, `vmstat 3 5` will run `vmstat` with a `3`-second
+    delay, and it will show a total of `5` updates like this:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE13]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Alternatively, you can keep `vmstat` running at intervals of `N` number of
+    seconds by reducing the complexity of the command format to:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE14]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'So, by running `vmstat 10`, `vmstat` will continue to refresh its report of
+    all activity every `10` seconds. However, for more details regarding the time
+    of occurrence, you can use the `-t` option like this in order to call a similar
+    report with a timestamp:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE15]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Finally, as the default `vmstat` command will make a report in kilobytes, to
+    avoid confusion it is often better to ask `vmstat` to display a report using megabytes
+    with the following expression:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE16]'
+  prefs: []
+  type: TYPE_PRE
+- en: Page-ins (`si`) are generally expected when you have started an application
+    and the information is "paged-in". However, occasional or intermittent page outs
+    (`so`) also happen, and this is particularly so during periods when the kernel
+    is freeing up memory. Occurrence of regular page outs (`so`), or the growth of
+    regular page outs is not wanted. Eventually, should the regularity of these events
+    increase exponentially, then the event will adopt a behavior that is generally
+    referred to as thrashing.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Thrashing is an event that happens when a system is seen to be spending more
+    time managing paging than providing applications or services. It is not necessarily
+    a dire event in itself, but it does indicate that the troubleshooter should re-evaluate
+    the value of particular operations and consider trying to spread them out over
+    different periods of the working day. You can always buy more RAM for your system
+    and this may assist you in the short term, but this will not narrow down the cause,
+    nor will it stop the event from repeating. So, in order to make our lives a little
+    easier, the next step is to use the `top` command.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Checking the system load with the top command
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'The top command can be called at any time by typing:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE17]'
+  prefs: []
+  type: TYPE_PRE
+- en: The `top` command is the standard command for checking system load (RAM/MEM
+    and CPU). It contains a lot of information related to tasks associated with the
+    kernel; the display is updated in real-time and the highest load factors are expressed
+    as a percentage of CPU or MEM. However, it is important to realize that `top`
+    may take these values above the expected percentile range. This is because all
+    individual cores are expressed as a percentage and multiple instances of these
+    cores are totaled. For example, a dual core system may have the first core at
+    70 percent and the second core at 60 percent, and in this instance, `top` may
+    show a combined result of 130 percent, but you will not know the individual values.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'You can use the *M* key to sort `top` by memory, but as you will see, rather
+    than simply showing the amount of free memory (as seen with the `free` command),
+    `top` will provide the swap details you may need in order to make a judgment call
+    against certain operations and tasks. Moreover, you can also extend the functionality
+    of `top` by customizing the output to show a particular user like this:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE18]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'As you will notice, `top` will automatically refresh; therefore, try to observe
+    it for a few minutes before making any decisions. To assist in this process, you
+    can request that `top` exits after `10` cycles like this:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE19]'
+  prefs: []
+  type: TYPE_PRE
+- en: When using `top`, you should always be aware that certain processes are spawned.
+    Known as `child-processes` they will have a tendency to be displayed individually
+    (`httpd` and `php-fpm` are good examples of this), and you can expect that it
+    is these services that will be consuming the most amount of memory.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Having said that, even though a series of child-processes can be seen using
+    a significant amount of RAM, you should avoid the habit of adding the `%MEM` column
+    together as these processes often use shared memory. So, in many respects, you
+    should be aware that the values shown can be misleading, and for this reason,
+    the results provided by `top` should not form the only body of evidence you will
+    want to review before making a final decision.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'You can learn more about the top command by reviewing the manual like this:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE20]'
+  prefs: []
+  type: TYPE_PRE
+- en: Monitoring disk I/O with iotop
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: Every administrator knows that a system can begin to slow down as a result of
+    heavy disk I/O activities. However, in the role of a troubleshooter you will probably
+    want to know which processes or (in the case of multi-user systems) which users
+    are the culprits that and it is for this reason, you will want to turn to `iotop`—a
+    tool that shows a list of the most I/O intensive processes in real time in a top-like
+    interface.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'To begin with, you will need to install `iotop` by typing:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE21]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'The download is only small, and to start a discovery session, simply use the
+    following command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE22]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Running `iotop` without any arguments will result in a list of all existing
+    processes regardless of their disk I/O activities, so if you want `iotop` to only
+    report on processes that are committed to disk I/O activity, you should use the
+    following instead:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE23]'
+  prefs: []
+  type: TYPE_PRE
+- en: The output is verbose as it works in a way similar to the `top` command, so
+    familiarity should make you feel at home. However, unlike `top`, `iotop` displays
+    a list of all processes and threads and a measurement of disk activity (total
+    disk read and actual disk read) in order so that you can quickly identify what
+    is impacting any current I/O activity across the server.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'You can learn more about `iotop` by reviewing the manual like this:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE24]'
+  prefs: []
+  type: TYPE_PRE
+- en: Checking processes with the ps command
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'For most troubleshooters who want a more complete picture of the processes
+    running on their system, we can employ the `ps` command in the following way:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE25]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Alternatively, the information can be displayed in a user-friendly, tree-view
+    mode like this:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE26]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'If you prefer a little less detail, try:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE27]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Of course, there are always a lot more options that we can use with `ps`. For
+    example, the command can be piped and applied with `grep` or `tail`, and you can
+    use explicit statements such as `ps -e` (to show every process on the system).
+    Alternatively, you can target a specific process by typing the following command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE28]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Moreover, you can even extend its usage to show every process (except those
+    running as root) with the following variation:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE29]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'For a specific user, you can use:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE30]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Finally, you can then obtain additional security information and output the
+    results to a text file in the following way:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE31]'
+  prefs: []
+  type: TYPE_PRE
+- en: Based on this, I think you would agree in saying that `ps` is not only useful
+    but also its flexibility and customization do make it an important tool in the
+    troubleshooter's kitbag. The `ps` command can be used to display a snapshot of
+    the current processes on the system, but for the purpose of this chapter, our
+    interest lies in the fact that the `ps` command will also provide us with the
+    relevant process ID. Otherwise referred to in its simpler form as the `PID`, this
+    essential piece of information will be revisited in just a few moments after we
+    digress a little, to learn a little more about system load.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Checking performance with iostat and lsof
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'Having already discovered how `vmstat` can be used to provide statistics related
+    to memory management, when troubleshooting performance-related issues an overburdened
+    CPU is yet another area of concern. For this purpose, we can use the `iostat`
+    command like this:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE32]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'However, to display a more interactive CPU utilization report, you can use
+    the `–c` option (and provide a numeric value measured in seconds, such as 5 seconds)
+    like this:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE33]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Most of the columns should be self-explanatory, but if the system is getting
+    busy, you will see an increase in `%iowait`, which is used to report on an increase
+    in waiting time for any I/O requests to be completed. Based on this, if the server
+    is transferring or copying a large amount of files, you may also notice additional
+    time being spent at the system level as files will be moved in and out of relevant
+    disk partitions. A feature that is particularly useful when attempting to monitor
+    storage devices in your search for possible bottlenecks is using `iostat` with
+    a numeric value as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE34]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'As you can see, to check on the read/write operations we have simply added
+    a polling option to `iostat`. Of course, you can combine this knowledge with the
+    insights gained from running either `vmstat –d` or `vmstat –p <partition_name>`,
+    but this command can also be improved with a timestamp by using the `–t` option
+    like this:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE35]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'You should be aware that `iostat` reports run continuously until the process
+    is cancelled. However, from these observations, it should now make your use of
+    `top` and all the other commands much more satisfying. The technique of using
+    the following command is particularly welcomed by the fact that you can review
+    a list of open files with the `lsof` command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE36]'
+  prefs: []
+  type: TYPE_PRE
+- en: Note
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: When using `lsof`, it is important to note that the first column will show you
+    which command is using the file in question, the process ID (`PID`) of that command,
+    the user, and the name of the file that is open.
+  prefs: []
+  type: TYPE_NORMAL
+- en: So, with that in mind, and realizing how every command discussed in this chapter
+    is connected, let's return to the important subject of system load.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Calculating the system load
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: The system load is a measure of the amount of processing a computer system is
+    currently performing. It is not the perfect way to measure computer performance,
+    but it does provide the troubleshooter with the additional evidence they need
+    to fix a system.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The expression most commonly associated with calculating load is:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '*Actual Load = Total Load (uptime) / Number of CPUs*'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'As you probably know the number of CPUs, you can calculate the uptime by reviewing
+    the results of the `top` command or by typing:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE37]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'The output of the preceding command may look like this:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE38]'
+  prefs: []
+  type: TYPE_PRE
+- en: The server load is expressed as a value based on 1 minute, 5 minute, and 15
+    minute read times. So, by looking at the final three values in the preceding output,
+    we can see that, for this system, the average load was `0.01` (at 1 minute), `0.02`
+    (at 5 minutes), and `0.05` (at 15 minutes).
+  prefs: []
+  type: TYPE_NORMAL
+- en: At this current time, the example system shows no sign of fatigue, but as the
+    cause of high-load can vary, this is not to say that the current state of this
+    machine will not alter during the course of a working day. High-load can be the
+    result of database connectivity, disk input and output, poor coding, visitor frequencies
+    for websites, power-hungry applications or e-commerce sites, scripted attacks,
+    spam, batch jobs, and much more. Should you encounter this situation, simply run
+    the `top` command and begin troubleshooting your system in the usual way. In most
+    cases, a short-term solution can be found (especially if your website is receiving
+    a lot of visitors during peak intervals), but only a long-term plan will stop
+    this from happening again.
+  prefs: []
+  type: TYPE_NORMAL
+- en: When troubleshooting load, it is important to know that, when load increases,
+    processors are queued, and if there are multiple processors, the load is evenly
+    distributed across the server's cores to balance the work. The ideal load for
+    a server is generally agreed to be set at a value of 1\. This does not mean you
+    should hit the panic button as soon as this value is reached or exceeded, but
+    if you do begin to see double-digit responses for some period of time, then yes,
+    expect that a sluggish server (load value > 1) may now begin to crack under the
+    weight of its workload (load value > 10).
+  prefs: []
+  type: TYPE_NORMAL
+- en: So with this in mind, let's return to the subject of process IDs.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Discovering process IDs with pgrep and systemctl
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'Rather than using `ps`, another way of discovering a specific process ID is
+    to use the `pgrep` command like this:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE39]'
+  prefs: []
+  type: TYPE_PRE
+- en: In most cases, the use of this command will reveal the process ID or `PID`.
+    However, by using this approach, it is also possible that the output will provide
+    more than one value. So remember, if an application (such as `httpd` or `ssh`)
+    provides one or more process IDs, you can safely assume that the lowest number
+    (which represents the first `PID` generated by the system) is the most important.
+    This value is known as the `PPID` or parent process ID.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'On the other hand, a more succinct method could be based on taking advantage
+    of `systemd` by using the following command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE40]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'The output of the preceding command will look similar to the following sample,
+    and as we can see, the main `PID` for Apache is `2413`:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE41]'
+  prefs: []
+  type: TYPE_PRE
+- en: Linux is all about options, and yes, there are many more ways to obtain the
+    required process ID (`PID`) or parent process ID (`PPID`), but we will not wade
+    through all the options (both old and new). Based on speed alone, I think you
+    will agree that taking advantage of the `systemd` command has its own advantages.
+  prefs: []
+  type: TYPE_NORMAL
+- en: More about systemd
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: The `systemd` system and service manager is responsible for controlling how
+    services are managed on CentOS 7\. Things are very different now, and the consequence
+    of this is to appreciate that, not only have the locations of the scripts changed
+    to `/usr/lib/systemd/systemd`, but the older commands are to be depreciated to
+    such an extent that (eventually) they will be expunged.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'For example, when using `systemd` to check the status or start or stop a service,
+    you can use one of the following commands:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE42]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Moreover, rather than using `chkconfig`, to enable and disable a service during
+    the boot sequence, you should now use:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE43]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'You may be in two minds about this approach, but rather than dwelling on the
+    subject of change, let''s consider how we can use the new commands to make troubleshooting
+    an active process a little easier. To do this, we shall begin with a simple approach:
+    listing all current services with the following command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE44]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Everything is now known as a unit, and by realizing this, the same command
+    can be modified to show all mounts as well:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE45]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Meanwhile, invoking the following command can be used to list all service dependencies:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE46]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Furthermore, `systemd` also comes with its own version of `top`, and in order
+    to view the processes that are associated with a particular service, you can use
+    the `system-cgtop` command like this:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE47]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'As you will notice, this command provides a summary of all associated processes
+    and indicates the path, number of tasks, percentage of CPU used, memory allocation,
+    and the relative inputs and outputs. It works in a way similar to `top`, but it
+    is different and its use can be modified to output a recursive list of service
+    content as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE48]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'The output will look something like this:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE49]'
+  prefs: []
+  type: TYPE_PRE
+- en: So, as we can see, in many respects `systemd` is verbose but it does save us
+    time when attempting to retrieve certain information regarding an active process.
+    At this stage, it is important to realize that we have only scratched the surface
+    of `systemd`, but, for the purpose of this chapter, I am sure your continued experience
+    of using it will be both productive and enjoyable.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Issuing the kill signal
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'The most common reason behind wanting to know a process ID is to pass this
+    information to the `kill` command. The process ID does have other uses, but our
+    primary concern is to remove a problematic service or application by issuing a
+    termination signal (`SIGTERM`) to the relevant daemon as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE50]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'The `kill` signal instructs the process to terminate, thereby enabling the
+    process in question to perform some basic cleanup operations and exit in an orderly
+    fashion. This approach is known as a "safe kill". However, depending on your situation,
+    a better solution can be to force a service or application to hang up, and thereby
+    enable an automatic reload of the daemon as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE51]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'This command is known as a `SIGHUP` or `hangover` command. On the other hand,
+    if the process has seemingly crashed, and a safe kill or reload operation fails
+    to make any difference, then by passing the following command, you will be able
+    to literally kill the process in question:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE52]'
+  prefs: []
+  type: TYPE_PRE
+- en: The use of option `9` in this command infers a signal kill (`SIGKILL`), and
+    unlike the original kill order (`SIGTERM`), this alternative version is issued
+    to the kernel directly, thereby killing the process in a far more abrupt manner.
+    There are no cleanup operations or safe exits with this command, and as a consequence,
+    it is known as a "forced kill".
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Finally, to take the issue of a "forced kill" one stage further, it is also
+    quite proper to use the `pkill` command with the following syntax:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE53]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Alternatively, you can use the `pgrep` command to ensure that all processes
+    associated with the relevant search term are removed:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE54]'
+  prefs: []
+  type: TYPE_PRE
+- en: So, having covered the most common usage of the `kill` command, one technique
+    that remains is based on the need to deal with an orphaned process.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Dealing with an orphaned process
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: Orphaned processes are not common issues, but they do arise, and in order to
+    deal with them, we must begin by matching the displayed `PID` or `PPID` with the
+    ID used by the `init` process itself. Using `ps` will reveal that both have a
+    `PPID` equal to `1` and being honest, you will probably realize that there is
+    little difference between an orphaned process and a daemon process with the exception
+    that an orphaned process arises out of error. So, the golden rule here is to remember
+    that an orphaned process can be spotted using a relatively simple technique, and
+    it can be killed in the standard way.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Orphans can arise for a number of reasons and, though they have been adopted
+    by `init`, you will find that they are still executing commands. For this reason,
+    orphaned processes are potentially dangerous as they continue to starve your system
+    of resources. In some instances, having too many orphans can overload the `init`
+    process and cause a system hang. This is not common, but the removal of such erroneous
+    daemons is an important task for the troubleshooter, and should your system be
+    prone to such instances, this is something you should keep a constant eye on.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Summary
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: The purpose of this chapter was to elucidate some concepts with regards to troubleshooting
+    active processes and in this respect we have managed to sweep through the hallways
+    of `swap`, `vmstat`, `top`, `ps`, process IDs, `kill`, and `pkill`. Of course,
+    there are many more utilities at your disposal but for most troubleshooters (beginner
+    and experienced alike), knowing how to monitor and measure memory usage; determining
+    server load; watching for power-greedy applications, services, or users; removing
+    orphaned processes; and using `systemd` will easily serve you well before we move
+    forward and consider an approach to troubleshoot the network.
+  prefs: []
+  type: TYPE_NORMAL
+- en: References
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'The Red Hat Enterprise Linux 7 System Administrators guide: [https://access.redhat.com/documentation/en-US/Red_Hat_Enterprise_Linux/7/html/System_Administrators_Guide/chap-Managing_Services_with_systemd.html](https://access.redhat.com/documentation/en-US/Red_Hat_Enterprise_Linux/7/html/System_Administrators_Guide/chap-Managing_Services_with_systemd.html)'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'The Swappiness Wikipedia page: [http://en.wikipedia.org/wiki/Swappiness](http://en.wikipedia.org/wiki/Swappiness)'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'The `vmstat` command Wikipedia page: [http://en.wikipedia.org/wiki/Vmstat](http://en.wikipedia.org/wiki/Vmstat)'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'The `iostat` command Wikipedia page: [http://en.wikipedia.org/wiki/Iostat](http://en.wikipedia.org/wiki/Iostat)'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'The `lsof` command Wikipedia page: [http://en.wikipedia.org/wiki/Lsof](http://en.wikipedia.org/wiki/Lsof)'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'The `kill` command Wikipedia page: [http://en.wikipedia.org/wiki/Kill_(command)](http://en.wikipedia.org/wiki/Kill_(command))'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'The `pkill` command Wikipedia page: [http://en.wikipedia.org/wiki/Pkill](http://en.wikipedia.org/wiki/Pkill)'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'SysVinit to Systemd Cheatsheet: [https://fedoraproject.org/wiki/SysVinit_to_Systemd_Cheatsheet](https://fedoraproject.org/wiki/SysVinit_to_Systemd_Cheatsheet)'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'The Orphans Wikipedia page: [http://en.wikipedia.org/wiki/Orphan_process](http://en.wikipedia.org/wiki/Orphan_process)'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL

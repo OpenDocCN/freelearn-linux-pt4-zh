@@ -1,0 +1,1447 @@
+- en: Chapter 11. CoreOS and Containers – Production Considerations
+  prefs: []
+  type: TYPE_NORMAL
+- en: There is a big difference between running applications and containers in development
+    versus production environments. Production environments pose a special set of
+    challenges. The challenges mainly lie in scalability, high availability, security,
+    and automation. CoreOS and Docker have solved significant challenges in taking
+    applications from development to production. In this chapter, we will cover the
+    production considerations for microservice infrastructure, including deployment,
+    automation, and security.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following topics will be covered in this chapter:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: CoreOS cluster design considerations
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Distributed infrastructure design consideration – Service discovery, deployment
+    patterns, PaaS, and stateful and stateless Containers
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Security considerations
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Deployment and automation – CI/CD approaches and using Ansible for automation
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: CoreOS and the Docker roadmap
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Microservice infrastructure – platform choices and solution providers
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: CoreOS cluster design considerations
+  prefs: []
+  type: TYPE_NORMAL
+- en: The cluster size and update strategy are important design considerations for
+    a CoreOS cluster.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The update strategy
+  prefs: []
+  type: TYPE_NORMAL
+- en: The CoreOS automatic update feature keeps the nodes in the cluster secure and
+    up-to-date. CoreOS provides you with various update mechanisms to control updates,
+    and the user can select an approach based on their needs. We covered details of
+    update strategies in [Chapter 3](index_split_075.html#filepos216260), CoreOS AutoUpdate.
+    Some customers prefer doing the update only in the maintenance window and CoreOS
+    gives control to do this.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Cluster considerations
+  prefs: []
+  type: TYPE_NORMAL
+- en: The following are some considerations that need to be taken into account when
+    choosing the CoreOS cluster. We have covered these individual topics in earlier
+    chapters.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Cluster size: A bigger cluster size provides better redundancy but updates
+    take a little longer.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Cluster architecture: We need to choose the architecture based on whether the
+    cluster is used for development or production. For a production cluster, the preferable
+    scheme is to have a small master cluster to run critical services such as Etcd
+    and Fleet and have worker nodes point to the master cluster. Worker nodes should
+    be used only to run application Containers.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Etcd heartbeat and timeout tuning: These parameter values need to be tuned
+    depending on whether the cluster is local or geographically distributed.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Node backup and restore: Nodes can go bad. It is necessary to take periodic
+    backups.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Adding and removing nodes in the cluster: CoreOS provides mechanisms to add
+    and remove nodes in the Etcd cluster dynamically without data loss. This can be
+    used to grow the cluster size organically.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Distributed infrastructure design considerations
+  prefs: []
+  type: TYPE_NORMAL
+- en: In this section, we will cover some miscellaneous infrastructure design considerations
+    that were not covered in earlier chapters.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Service discovery
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Microservices are dynamic and Service discovery refers to how microservices
+    can find each other dynamically. Service discovery has three components:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: It discovers services automatically as they come up and accesses a service by
+    the service name using DNS
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: It maintains a shared database of services along with their access details that
+    can be accessed from multiple hosts
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: It accesses services using a load balancer and handles service failures automatically
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Service discovery is automatically taken care of when using a Container orchestration
+    system such as Kubernetes. For smaller deployments, when there is no Orchestration
+    system, we can do this manually using standalone tools.
+  prefs: []
+  type: TYPE_NORMAL
+- en: We covered Service discovery in [Chapter 4](index_split_093.html#filepos245712),
+    CoreOS Core Services – Etcd, Systemd, Fleet in the Service discovery section using
+    the Sidekick service and Etcd. This approach did not provide DNS lookup. The following
+    approach is another way of doing service discovery with integrated DNS.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Service discovery using Registrator and Consul
+  prefs: []
+  type: TYPE_NORMAL
+- en: Consul ([https://consul.io/](https://consul.io/)) and the Gliderlabs registrator
+    ([https://github.com/gliderlabs/docker-consul/tree/consul-0.4](https://github.com/gliderlabs/docker-consul/tree/consul-0.4))
+    in combination provide automatic service discovery and a service database.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following figure shows the model:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00218.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'The following points show you how this works:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Consul provides service discovery, shared key-value storage, DNS-based service
+    lookup and service health monitoring
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Gliderlabs registrator monitors the Docker socket for service creation and informs
+    Consul about registration
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: As DNS is integrated with Consul, services can be accessed by the service name
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'The following are the steps necessary to try this out in a Ubuntu Linux machine:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Set the Docker daemon to use the Docker bridge IP as one of the DNS lookup servers.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Add this line to `/etc/default/docker`:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`DOCKER_OPTS="--dns 172.18.0.1 --dns 8.8.8.8 --dns-search service.consul"`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Restart the Docker daemon:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`Sudo service docker restart`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Start the Consul server:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`docker run -d -p 8400:8400 -p 8500:8500 -p 172.18.0.1:53:8600/udp -h node1 gliderlabs/consul-server -server –bootstrap`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: The preceding command exposes port `8400` for rpc, `8500` for UI, and `8600`
+    for DNS. We mapped DNS to the Docker bridge IP address (`172.18.0.1`), and this
+    allows us to access service names directly from inside Containers. In the preceding
+    step, we made the Docker bridge IP as one of the DNS lookup servers.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Start the Gliderlabs registrator:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`docker run -d \``    --name=registrator \``    --net=host \``    --volume=/var/run/docker.sock:/tmp/docker.sock \``    gliderlabs/registrator:latest \``      consul://localhost:8500`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: In the preceding command, we also specified the location of Consul so that the
+    registrator can register services to Consul.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Now, let''s start a few Containers:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`docker run -d -P --name=nginx nginx``docker run --name mysql -e MYSQL_ROOT_PASSWORD=mysql -d mysql``docker run --name wordpress --link mysql:mysql -d -P wordpress``docker run --name wordpress1 --link mysql:mysql -d -P wordpress`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Following output shows the running Containers:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00415.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'We can look at the Consul UI to check whether the Services are registered.
+    The Consul, NGINX, and WordPress Containers are seen in the following output along
+    with their IP addresses and port numbers:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00473.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'We can check whether the service lookup by the DNS name is working by accessing
+    the service across Containers. The following output shows that the NGINX container
+    is able to access the WordPress container by the service name, `wordpress`:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00299.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Dynamic load balancing
+  prefs: []
+  type: TYPE_NORMAL
+- en: As part of Service discovery, a load balancer should be able to automatically
+    find out active services and load balance among the active instances of the service.
+    For example, when three instances of a web service are started, and if one of
+    the instances dies, the load balancer should automatically be able to remove the
+    inactive instance from the load balance list.
+  prefs: []
+  type: TYPE_NORMAL
+- en: I found the following two approaches to be useful to achieve this.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Load balancing with confd and nginx
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'In the approach at [https://www.digitalocean.com/community/tutorials/how-to-use-confd-and-etcd-to-dynamically-reconfigure-services-in-coreos](https://www.digitalocean.com/community/tutorials/how-to-use-confd-and-etcd-to-dynamically-reconfigure-services-in-coreos),
+    the following is a list of the steps:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: The Sidekick service registers service details with `etcd`.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Confd listens for etcd changes and updates `nginx.conf`.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: The Nginx load balancer does the load balancing based on entries in `nginx.conf`.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'The following diagram illustrates the load balancing with ETCD, HA DISCOVER,
+    and HAProxy:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00402.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Load balancing with HAdiscover and HAproxy
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'In the approach at [http://adetante.github.io/articles/service-discovery-haproxy/](http://adetante.github.io/articles/service-discovery-haproxy/),
+    the following is a list of the steps:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: The registrator registers the service details with `etcd`
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: HAdiscover listens for changes to etcd and updates `haproxy.conf`
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: HAproxy does the load balancing based on the HAproxy configuration
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'The following diagram illustrates the load balancing with ETCD, HA DISCOVER,
+    and NGINX:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00024.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Deployment patterns
+  prefs: []
+  type: TYPE_NORMAL
+- en: We covered the advantages of microservices in the first chapter. Designing a
+    microservice-based application is similar to object-oriented programming, where
+    the Container image can be compared to a class and Containers can be compared
+    to objects. There are many design patterns in object-oriented programming that
+    specify how to split a monolithic application into classes and how classes can
+    work together with other classes. Some of the object-oriented design principles
+    also apply to microservices.
+  prefs: []
+  type: TYPE_NORMAL
+- en: In [Chapter 8](index_split_181.html#filepos585742), Container Orchestration,
+    we covered Kubernetes Pods and how closely related containers can be grouped together
+    in a single Pod. Design patterns such as Sidecar, ambassador, and adapter are
+    pretty widely used to create Pods. Even though these design patterns are mentioned
+    in the context of the Kubernetes pod, these can also be used in a non-Kubernetes-based
+    system as well.
+  prefs: []
+  type: TYPE_NORMAL
+- en: This link ([http://blog.kubernetes.io/2015/06/the-distributed-system-toolkit-patterns.html](http://blog.kubernetes.io/2015/06/the-distributed-system-toolkit-patterns.html))
+    talks about common Kubernetes composite patterns.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The following are more details on common Kubernetes composite patterns.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The Sidecar pattern
+  prefs: []
+  type: TYPE_NORMAL
+- en: In the Sidecar pattern, there are two dependent Containers accomplishing a single
+    task.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'In the following diagram, the health check container monitors the web container
+    and updates the results in a shared storage, such as ETCD, which can be used by
+    the load balancer:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00032.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'In the following diagram, the Git sync container updates data volume from the
+    Git server, which is used by the web container to update the web page:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00037.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'In the following diagram, the Web container updates the log volume that is
+    read by the logging container to update the central log server:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00385.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: The Ambassador pattern
+  prefs: []
+  type: TYPE_NORMAL
+- en: The Ambassador pattern is used when there is a need to access different types
+    of services from a client container and it is not efficient to modify the client
+    container for each type of service. A proxy container will take care of accessing
+    different types of service and the client container needs to talk only to the
+    proxy container. For example, the redis proxy takes care of talking to a single
+    redis master scenario or a scenario with a redis master and multiple redis slaves
+    without the redis client being aware of the type of the redis service.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following diagram shows the redis client with the redis ambassador accessing
+    the redis service:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00047.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: The Adapter pattern
+  prefs: []
+  type: TYPE_NORMAL
+- en: The Adapter pattern is the inverse of the Ambassador pattern. An example of
+    the Adapter pattern is a service container exposing a common interface independent
+    of the application residing in the service. For example, a monitoring or logging
+    application wants a common interface to gather inputs irrespective of the application
+    type. An adapter container takes care of converting the data to a standard format
+    expected by the monitoring or logging application.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following example shows a monitoring/logging application accessing two
+    different container applications, each with their own adapters:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00322.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Rolling updates with the Canary pattern
+  prefs: []
+  type: TYPE_NORMAL
+- en: This is an upgrade approach used when an application runs as a Container across
+    a cluster of servers behind a load balancer. In this approach, the application
+    upgrade is done on a few servers, and based on the preliminary feedback from customers,
+    the upgrade can either be continued or reverted.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Kubernetes supports a rolling upgrade with the Canary pattern. In the following
+    example, we will demonstrate the Canary pattern with Kubernetes running on a CoreOS
+    cluster in AWS. Here, we will upgrade `hello1-controller` with three replicas
+    of the `hello:v1` container to `hello2-controller`, which also has three replicas
+    of the `hello:v2` container.
+  prefs: []
+  type: TYPE_NORMAL
+- en: For this example, we need a three-node Kubernetes CoreOS cluster. Installation
+    instructions can be found in [Chapter 8](index_split_181.html#filepos585742),
+    Container Orchestration.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following is a three-node cluster with one master and two worker nodes:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00230.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'The following is the replication controller, `hello1-controller.json`, with
+    the `hello1` container image and three replicas:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`apiVersion: v1 kind: ReplicationController metadata:   name: hello1   labels:
+        name: hello spec:   replicas: 3   selector:     name: hello     version: v1
+      template:     metadata:       labels:         name: hello         version: v1
+        spec:       containers:       - name: hello         image: quay.io/kelseyhightower/hello:1.0.0
+            ports:         - containerPort: 80`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following is the `hello-s.json` service using the `hello1` replication
+    controller:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`apiVersion: v1 kind: Service metadata:   name: hello   labels:     name: hello
+    spec:   # if your cluster supports it, uncomment the following to automatically create
+      # an external load-balanced IP for the hello service.   type: NodePort   ports:
+        # the port that this service should serve on     - port: 80   selector:     name: hello`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Let''s start the replication controller and service:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`kubectl create -f hello1-controller.json ``kubectl create -f hello-s.json`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Let''s look at the running services and pods:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00271.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'Let''s create a new replication controller and perform a Canary pattern rolling
+    upgrade. The following is the new replication `controller`, `hello2-controller.json`,
+    using the `hello:2.0.0` container image:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`apiVersion: v1 kind: ReplicationController metadata:   name: hello2   labels:
+        name: hello spec:   replicas: 3   selector:     name: hello     version: v2
+      template:     metadata:       labels:         name: hello         version: v2
+        spec:       containers:       - name: hello         image: quay.io/kelseyhightower/hello:2.0.0
+            ports:         - containerPort: 80`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following command does the rolling upgrade to `hello2`:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`kubectl rolling-update hello1 --update-period=10s -f hello2-controller.json`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: The `update-period` parameter specifies the time interval between the upgrade
+    of each pod.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following output shows you how each pod gets upgraded from `hello1` to
+    `hello2`. At the end, the `hello1` replication controller is deleted:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00307.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'Let''s look at the running replication controllers now. As we can see in the
+    following output, `hello2` RC is running and `hello1` RC has been deleted:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00335.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Kubernetes also supports the rollback option. In case a problem is detected
+    as part of a rolling upgrade, the rolling upgrade can be stopped and rollback
+    can be done using the `--rollback` option.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Containers and PaaS
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Traditionally, the Services architecture has three types:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: IaaS (Infrastructure as a service)
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: PaaS (Platform as a service)
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: SaaS (Software as a service)
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: With the advent of Docker, the PaaS layer has become a little difficult to define.
+    PaaS vendors have used Containers as their underlying technology from the beginning.
+    In fact, Docker came from the Dotcloud Company, which was providing a PaaS service.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following figure describes the new PaaS models and how they tie in to the
+    traditional PaaS models and IaaS:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00384.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'The following are some notes on the preceding diagram as well as how newer
+    PaaS models are being developed:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: PaaS is typically used to simplify application deployment, which allows application
+    developers to just develop the application, and PaaS provides necessary infrastructure
+    services such as HA, scalability, and networking. PaaS is typically used for web
+    applications.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: PaaS is typically deployed internally as Containers though users of PaaS need
+    not be aware of this.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Even though PaaS makes deploying applications faster, flexibility gets lost
+    with PaaS.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Examples of traditional PaaS systems are AWS Elastic beanstalk, Google GAE,
+    Openshift, and Cloudfoundry.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: There is a new class of Micro-PaaS, where every service runs as a Docker Container,
+    and this gives a little more flexibility than traditional PaaS. Examples are Deis,
+    Flynn, and Tutum. Tutum was recently acquired by Docker.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: With Docker containers, Container orchestration systems such as Kubernetes,
+    and Container OSes such as CoreOS, it becomes easier for customers to build a
+    PaaS system by themselves, which gives them maximum flexibility. Both Amazon and
+    Google have launched Container services where users can run their Containers.
+    Users have the option to build Container services on top of their own infrastructure
+    as well.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Stateful and Stateless Containers
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Stateless containers are typically web applications such as NGINX, Node.js,
+    and others. These follow the 12-factor application development ([http://12factor.net/](http://12factor.net/))
+    methodology. These containers can be horizontally scaled. Stateful containers
+    are used to store data like databases as data volumes in the host machine. Examples
+    of stateful containers are Redis, MySQL, and MongoDB. We covered options for Container
+    data persistence in [Chapter 6](index_split_147.html#filepos425088), CoreOS Storage
+    Management. When stateful containers are migrated, it is necessary to migrate
+    the data associated with the stateful containers. The following options are available
+    to migrate stateful containers:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Using tools such as Flocker, which takes care of the volume and data migration
+    when a Container moves across hosts
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Using a cluster-file system or NFS so that the same data volume can be seen
+    across multiple hosts
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: If implementing stateful containers is difficult, the other option for storage
+    is to keep databases separate from application containers and run them on special
+    systems.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Security
+  prefs: []
+  type: TYPE_NORMAL
+- en: The following are some approaches to secure the CoreOS cluster.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Secure the external daemons
+  prefs: []
+  type: TYPE_NORMAL
+- en: Services such as Etcd, Fleet, and Docker can be reached externally. We can secure
+    the client and server side using TLS and client and server certificates. We covered
+    some of these details in earlier chapters when individual services were covered.
+    If we are using Container orchestration such as Kubernetes, we need to make sure
+    that the Kubernetes API server is using the TLS mechanism.
+  prefs: []
+  type: TYPE_NORMAL
+- en: SELinux
+  prefs: []
+  type: TYPE_NORMAL
+- en: SELinux is a Linux kernel feature that allows Container isolation even in case
+    of a kernel bug that can cause the hacker to escape the Container namespace. SELinux
+    integration is available from CoreOS 808.0 release. CoreOS disables SELinux by
+    default. It can be enabled using the procedure at [https://coreos.com/os/docs/latest/selinux.html](https://coreos.com/os/docs/latest/selinux.html).
+    There are some limitations like not being able to run SELinux with the btrfs filesystem
+    and with Containers sharing volumes.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Container image signing
+  prefs: []
+  type: TYPE_NORMAL
+- en: Docker supports Container signing using the Docker content trust. Rkt supports
+    image signing using GPG. Using these approaches, we can validate that Containers
+    running on CoreOS come from reliable sources and the Container image is not tampered
+    in the middle. Container image signing was covered in detail in [Chapter 7](index_split_164.html#filepos509414),
+    Container Integration with CoreOS – Docker and Rkt.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Deployment and automation
+  prefs: []
+  type: TYPE_NORMAL
+- en: Containers make it easy to package and ship software and guarantee that the
+    same Container can work in development as well as production environments. Combining
+    Containers with good deployment and automation techniques will aid in faster software
+    deployment.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Continuous Integration and Continuous Delivery
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The traditional approach of releasing software has the following problems:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Software release cycles were spaced apart, which caused new features taking
+    a longer time to reach the customers
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Majority of the processes from the development stage to production were manual
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Considering the different deployment scenarios, it was difficult to guarantee
+    that software worked in all environments and configurations
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Containers have tried to mitigate some of these problems. Using microservices
+    and the Container approach, it is guaranteed that the application will behave
+    similarly in the development and production stages. Process automation and appropriate
+    testing are still necessary for a Container-based environment.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Continuous Integration (CI) refers to the process of making an executable or
+    Container image automatically after a developer has done the Unit testing and
+    code commit..
+  prefs: []
+  type: TYPE_NORMAL
+- en: Continuous Delivery (CD) refers to the process of taking the developer's built
+    image, setting up the staging environment to test the image, and deploying it
+    successfully for production.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following figure illustrates the steps for CI/CD:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00430.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'The following are some notes on the preceding diagram:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: The first row in the preceding diagram captures the steps for CI and the second
+    row is the steps for CD.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: The CI process starts when developers commit the code after their basic UT.
+    Typically, GitHub or Bitbucket is used as an image repository.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: There are hooks provided from the image repository to build system to automatically
+    trigger the build after committing. The build system could be something such as
+    Jenkins, which integrates with different code repositories. For Container images,
+    `Dockerfile` and `docker build` will be used to build the Container image.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Automatic UT suites can be kicked in if necessary before the image is committed
+    to the image repository.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: The build itself needs to be done inside Containers in order to eliminate dependency
+    on the host system.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: An image repository could be something such as the Docker hub or Docker trusted
+    registry for Containers. CoreOS support the Quay repository for Container images.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Once the image is pushed to a repository, the start of CD is automatically triggered.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: The staging environment needs to be set up with different Containers, storage,
+    and other non-container software if necessary.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: QA tests are done in the staging environment. It is necessary that the staging
+    environment be as close as possible to production.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Once the QA tests are successful, images are deployed in production, such as
+    AWS or GCE. If it's a PaaS application, it can be deployed to Cloudfoundry, among
+    others.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: There are companies that provide integrated CI/CD solutions, such as Codeship,
+    CircleCI, Shippable, and others. Docker has released an enterprise product called
+    Universal Control Plane (UCP), which targets the CD part. Jenkins has Docker plugins
+    to build images in Containers and also provides integration with the Docker hub.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: There are different deployment patterns to do the upgrade. We covered the Canary
+    deployment pattern in an earlier section.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Ansible integration with CoreOS and Docker
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Ansible is a configuration management and automation tool. Ansible is a very
+    popular DevOps tool and serves similar purposes as Puppet or Chef. Ansible has
+    a unique feature that there is no need to install an agent on the device side
+    and this makes it very popular. There is active work ongoing to integrate Ansible
+    with CoreOS and Docker. The following are some integration possibilities:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Manage the CoreOS system with Ansible. As CoreOS does not come with Python installed
+    and the fact that packages cannot be installed directly, there are some workarounds
+    necessary to get Ansible to manage a CoreOS system.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Ansible has a Docker module that simplifies Container management such as starting
+    and stopping containers and controlling Container properties.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: The Docker installation can be automated with Ansible. Other than automating
+    the Docker installation, Ansible can also manage other host infrastructure such
+    as logging, storage, and networking.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Ansible can be used to build Docker images instead of using Dockerfile. There
+    is a `docker_image` module ([http://docs.ansible.com/ansible/docker_image_module.html](http://docs.ansible.com/ansible/docker_image_module.html)),
+    but it is advised not to use it as its idempotent nature causes the Docker image
+    to not be built in certain cases, which is a problem.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Using Ansible to manage CoreOS
+  prefs: []
+  type: TYPE_NORMAL
+- en: I followed the procedure at [https://coreos.com/blog/managing-coreos-with-ansible/](https://coreos.com/blog/managing-coreos-with-ansible/)
+    to manage CoreOS with Ansible. As there is no package manager in CoreOS, Python
+    cannot be installed directly. An approach at [https://github.com/defunctzombie/ansible-coreos-bootstrap](https://github.com/defunctzombie/ansible-coreos-bootstrap)
+    that is being used is to install PyPy, which is a minimal Python interpreter in
+    CoreOS in the user directory and get Ansible to use this. The following example
+    prepares the CoreOS node to be managed by Ansible and starts Etcd and Fleet service
+    in the node using Ansible.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following are the steps:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Install Ansible in the host machine. In my case, I am running Ansible 1.9 version
+    in my Ubuntu 14.04 machine.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Create a CoreOS cluster.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Run the CoreOS bootstrap role to install the Python interpreter in CoreOS and
+    update the system PATH to use it. Ansible roles create an abstraction over playbooks
+    for specific tasks.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Run Ansible playbooks to start CoreOS services. Playbook is an Ansible task
+    list.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'Set up a CoreOS cluster:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following commands set up the CoreOS cluster. In this case, a single-node
+    cluster is created:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`git clone https://github.com/defunctzombie/coreos-ansible-example.git``cd coreos-ansible-example``vagrant up`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Set up passwordless SSH access:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Use the following command to set up passwordless SSH access. Ansible needs passwordless
+    SSH access.
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`./bin/generate_ssh_config`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Run the CoreOS bootstrap role:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following command sets up a CoreOS node with Python using the Ansible role,
+    `defunctzombie.coreos-bootstrap`:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`ansible-galaxy install defunctzombie.coreos-bootstrap -p ./roles``ansible-playbook -i inventory/vagrant bootstrap.yml`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'I created the following playbook to start CoreOS services, Etcd2, and Fleet:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`//Coreos_services.yml: - name: CoreOS services   hosts: web   tasks:     - name: Start etcd2
+          service: name=etcd2.service state=started       sudo: true       sudo_user: root      - name: Start fleet
+          service: name=fleet.service state=started       sudo: true       sudo_user: root`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: In the preceding playbook, we have used the Ansible `service` module. Ansible
+    modules are functions to do specific tasks. Ansible ships with a number of default
+    modules and users can extend or write their own modules.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following is the output when I started the playbook for the first time.
+    The inventory file contains details of the single CoreOS node:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`ansible-playbook –i inventory/vagrant coreos-services.yml`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00125.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: .
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following is the output when I ran the same playbook one more time:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00133.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: As we can see, services don't get restarted as they have already started and
+    the `changed` variable is not set.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following output shows the running Etcd2 and Fleet services in the CoreOS
+    node:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00143.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Using Ansible to manage Docker Containers
+  prefs: []
+  type: TYPE_NORMAL
+- en: Ansible provides you with a Docker module ([http://docs.ansible.com/ansible/docker_module.html](http://docs.ansible.com/ansible/docker_module.html))
+    to manage Docker Containers. The Docker module can manage the Container life cycle,
+    which includes the starting and stopping of Containers. As Ansible modules are
+    idempotent, we can use this functionality to pull Docker images only if necessary
+    and restart Containers only if the base image has changed.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following is a playbook that is executed on the same CoreOS node where
+    we had run the CoreOS services playbook in the previous section. This will install
+    the Docker module in the remote host and start the NGINX Container and a WordPress
+    service having the WordPress and MySQL Containers:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`//Coreos_containers.yml: - name: CoreOS Container   hosts: web   tasks:     - name: Install docker-py
+          pip: name=docker-py version=1.1.0      - name: pull container       raw: docker pull nginx      - name: launch nginx container
+          docker:         image: "nginx"         name: "example-nginx"         ports: "8080:80"
+            net: bridge         state: reloaded      - name: launch mysql container
+          docker:         image: mysql         name: mysql         pull: always         net: bridge
+            state: reloaded         env:             MYSQL_ROOT_PASSWORD: mysql      - name: launch wordpress container
+          docker:         image: wordpress         name: wordpress         pull: always
+            ports: 8000:80         net: bridge         state: reloaded         links:
+            - "mysql:mysql"`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following shows the output when the playbook is started for the first time:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00152.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'The following screenshot shows the output when the same playbook is run again.
+    As we can see, the `changed` flag is not set as all the Containers are running
+    and there is no configuration change necessary:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00162.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'The following output shows the running Containers in the CoreOS node:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00172.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Note
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Note: The `reloaded` flag in the Ansible Docker module should restart containers
+    only if the base image is changed or configuration flags have changed. I hit a
+    bug where Containers were restarted always. The link here ([https://github.com/ansible/ansible-modules-core/issues/1251](https://github.com/ansible/ansible-modules-core/issues/1251))
+    describes this bug. Its workaround is to specify the `net` parameter as I have
+    done in the preceding playbook.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: The `reloaded` and `pull` flags are available from Ansible 1.9.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Ansible as a Container
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Public Container images with Ansible preinstalled are available. This link,
+    [https://hub.docker.com/r/ansible/ubuntu14.04-ansible/](https://hub.docker.com/r/ansible/ubuntu14.04-ansible/),
+    is an example Container image with Ansible preinstalled. The following output
+    shows the Ansible version in the running Container:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00181.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Using Ansible to install Docker
+  prefs: []
+  type: TYPE_NORMAL
+- en: Ansible has this concept of Roles that gives a good abstraction to share a list
+    of playbooks that accomplish a single task. Ansible Roles are available to install
+    Docker on the Linux host. Ansible Roles are maintained in a central repository
+    called Ansible Galaxy, which can be shared across users. Ansible Galaxy is similar
+    to the Docker hub for Ansible roles.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following are the steps necessary:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Install the Ansible role locally from Ansible Galaxy.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Create a playbook with this role and run it.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: I used this Galaxy role ([https://github.com/jamesdbloom/ansible-install-docker](https://github.com/jamesdbloom/ansible-install-docker))
+    to install Docker on my Ubuntu node. There are a few other roles in Galaxy accomplishing
+    the same task.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Use the following command to install the role:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`ansible-galaxy install jamesdbloom.install-docker -p ./roles`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Create the `install_docker1.yml` playbook with the role:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`- name: install docker   hosts: ubuntu   gather_facts: True   sudo: true   roles:
+        - jamesdbloom.install-docker`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Run the playbook as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`ansible-playbook -i inventory/vagrant install_docker1.yml`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following is my inventory file:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`## inventory file for vagrant machines``ubuntu-01 ansible_ssh_host=172.13.8.101``[ubuntu]``ubuntu-01``[ubuntu:vars]``ansible_ssh_user=vagrant`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following output shows the playbook output:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`Ansible-playbook –i inventory/vagrant install_docker1.yml`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00190.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'The following output shows Docker installed on my Ubuntu host using the preceding
+    playbook:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00321.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Note
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Note: I faced an issue with restarting the Docker service. I was able to solve
+    it using the procedure at [https://github.com/ansible/ansible-modules-core/issues/1170](https://github.com/ansible/ansible-modules-core/issues/1170),
+    where the init file has to be removed. I faced this issue with Ansible 1.9.1;
+    however, this is fixed in later Ansible versions.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: The CoreOS roadmap
+  prefs: []
+  type: TYPE_NORMAL
+- en: Ignition
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The Ignition ([https://github.com/coreos/ignition](https://github.com/coreos/ignition))
+    project is being developed to setup initial CoreoS filesystem and it overcomes
+    some of the issues with `coreos-cloudinit`. The `coreos-cloudinit` program is
+    used to set up an initial CoreOS system configuration. The following are some
+    known issues with `coreos-cloudinit`:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: It is difficult to feed in dynamic environment variables. This makes it difficult
+    to run CoreOS in Openstack environments and other environments where it is difficult
+    to determine the IP address. This link, [https://groups.google.com/forum/#!topic/coreos-user/STmEU6FGRB4](https://groups.google.com/forum/#!topic/coreos-user/STmEU6FGRB4),
+    describes the case where IP addresses don't get set because of which `cloud-config`
+    services fail in Openstack.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: The `cloud-config` service is processed serially and we cannot specify dependencies.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Ignition is run once on initial system bring-up and it writes the necessary
+    files like service files and configuration data. On the first boot, Ignition reads
+    the configuration from a specific location that's specified in the bootloader.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Systemd, as part of a running provider metadata service file, will create `coreos-metadata.target`,
+    which will contain necessary environment variables that service files can use.
+    Service files will specify this target file as a dependency and systemd will take
+    care of this dependency.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following is a sample `etcd2.service` file, which specifies `coreos-metadata.service`
+    as a dependency. The `/run/metadata/coreos` environment file will contain `COREOS_IPV4_PUBLIC`,
+    and this will be generated by `coreos-metadata.service`:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`[Unit] Requires=coreos-metadata.service After=coreos-metadata.service  [Service]
+    EnvironmentFile=/run/metadata/coreos ExecStart= ExecStart=/usr/bin/etcd2 \     --advertise-client-urls=http://${COREOS_IPV4_PUBLIC}:2379 \
+        --initial-advertise-peer-urls=http://${COREOS_IPV4_LOCAL}:2380 \     --listen-client-urls=http://0.0.0.0:2379 \
+        --listen-peer-urls=http://${COREOS_IPV4_LOCAL}:2380 \     --initial-cluster=${ETCD_NAME}=http://${COREOS_IPV4_LOCAL}:2380`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Ignition will be backward-compatible with cloudinit. Ignition has not yet been
+    officially released.
+  prefs: []
+  type: TYPE_NORMAL
+- en: DEX
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'DEX is an open source project started by CoreOS for identity management, including
+    authentication and authorization. The following are some properties of DEX:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: DEX uses the OpenID connect (OIDC) ([http://openid.net/connect/](http://openid.net/connect/))
+    standard, which is built on OAuth 2.0\. OAuth 2.0 is used by Google to sign in
+    to their services such as Gmail.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: DEX supports multiple identity providers using the Connectors module. Currently,
+    DEX supports the local connector using local servers and a OIDC connector such
+    as Google.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: There is a plan to add authorization, user management, and multiple other connectors
+    such as LDAP and GitHub.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: DEX is used as an identity provider in the Tectonic project.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: DEX is still in its early stages and under active development.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Clair
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Clair is an open source project started by CoreOS to detect Container vulnerabilities.
+    The following are some properties of Clair:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Clair scans Container images stored in the Quay Container repository for vulnerabilities
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Each Container layer contains information about packages installed in that layer
+    and this is provided by the corresponding Linux package manager
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Clair analyzes each Container layer by querying the package manager-related
+    files and compares them against the vulnerability database available in the particular
+    Linux distribution to check whether the particular Container layer is vulnerable
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Clair makes an index-directed graph of each Container layer, and this speeds
+    up the analysis of a lot of Container images sharing layers
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Clair currently supports CentOS, Ubuntu, and Debian Linux distributions
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Clair is still in its early stages and under active development.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The Docker roadmap
+  prefs: []
+  type: TYPE_NORMAL
+- en: Docker has transitioned from providing Container runtime to a Container platform.
+    Docker provides both open source solutions as well as commercial products around
+    Containers.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following diagram shows different Docker products around Core Docker, Security,
+    Orchestration, Registry, and Deployment as of November 2015:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00210.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: The following are some new projects announced recently by Docker.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Tutum
+  prefs: []
+  type: TYPE_NORMAL
+- en: Tutum makes it easy to build, deploy, and manage Containerized applications
+    and is available as a SaaS application. An application can be a single- or multi-container
+    application. Tutum integrates well with the Docker hub.
+  prefs: []
+  type: TYPE_NORMAL
+- en: UCP
+  prefs: []
+  type: TYPE_NORMAL
+- en: UCP is Docker's commercial offering to provide on-premise Container deployment
+    solutions. UCP integrates with the Docker trusted registry as well as with enterprise
+    services such as LDAP and Role-based access control (RBAC). UCP also integrates
+    with all other Docker services such as Networking, Compose, and Swarm. UCP is
+    in the beta phase currently.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Nautilus
+  prefs: []
+  type: TYPE_NORMAL
+- en: This project is targeted towards Container vulnerability detection. This is
+    similar to the Clair project from CoreOS. Nautilus is still in the very early
+    stages.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Microservices infrastructure
+  prefs: []
+  type: TYPE_NORMAL
+- en: In this section, we will cover an overview of microservice infrastructure components
+    and examples of a few solution providers.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Platform choices
+  prefs: []
+  type: TYPE_NORMAL
+- en: The following are some design decisions/platform choices that customers who
+    are developing and deploying microservices need to make. The following examples
+    are just a sample set and do not cover all the providers.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'IaaS vs PaaS: This choice applies for local data centers as well as for Cloud
+    providers. In the earlier section, we covered the comparison between Container
+    and PaaS models. Here, the trade-offs are flexibility versus time-to-market.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Local data center versus cloud providers: This is mostly a cost versus time
+    trade-off.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Base OS: The choice here is either going with Container-optimized OSes such
+    as CoreOS, Rancher, or Atomic or traditional OSes such as Ubuntu or Fedora. For
+    pure microservice architecture, Container-optimized OSes are definitely worth
+    pursuing.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'VM Orchestration: VMs and Containers have different use cases and will continue
+    to live together. There will be scenarios where VMs will be used standalone or
+    Containers will run on top of VMs. There are open source solutions such as Openstack
+    and commercial solutions from VMWare for VM Orchestration.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Container runtime: Choices here are Docker, Rkt, or LXC.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Networking: Container orchestration systems such as Kubernetes typically integrate
+    networking. As networking support is provided as plugins, it can be swapped with
+    a different implementation if necessary. Some examples of networking plugins include
+    Weave, Calico, and Contiv.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Storage: We need to evaluate between dedicated storage versus stateful Containers.
+    Choices for stateful Containers are GlusterFS, Ceph, or Flocker.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Container Orchestration: Choices here are Kubernetes, Docker Swarm, Mesos,
+    and so on.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Service discovery and DNS: This can be built manually using building blocks
+    mentioned in previous sections, or if we choose a container orchestration system
+    such as Kubernetes, it''s already integrated with this.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'CI and CD: This can be manually built or we can use packaged solutions from
+    Codeship, CircleCI, or Shippable.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Monitoring and logging system: Examples are Sysdig or Logentries. We covered
+    more details on Monitoring and logging in [Chapter 10](index_split_219.html#filepos708963),
+    CoreOS and Containers - Troubleshooting and Debugging.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Solution providers
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'As we have seen throughout this book, there are many hardware and software
+    components that comprise the infrastructure to create and deploy microservices.
+    We can think of each component as a LEGO block and there are numerous ways of
+    bringing these LEGO blocks together. Customers have the following three choices:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Integrating all the infrastructure components by themselves
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Going with solution providers who integrate these components and give an opinionated
+    architecture
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Choosing a hybrid solution between the previous two options, where we can choose
+    reference architecture and replace a few components based on specific needs
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'The following are some commercial and open source integrated solutions available.
+    The list is not extensive and some of these solutions do not integrate all the
+    components:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Tectonic Enterprise from CoreOS.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Google Container service
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: AWS Container service
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Cisco's Mantl project
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Openstack Magnum
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Summary
+  prefs: []
+  type: TYPE_NORMAL
+- en: In this chapter, we covered some of the production considerations in deploying
+    microservice-based distributed infrastructure, and this includes CoreOS, Docker,
+    and the associated ecosystem. Cloud companies such as Google, Amazon, and Facebook
+    have used microservices and Container-based technologies for quite a long time
+    and they have learned the best practices and pitfalls based on their experience.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The issue till now has been the replication of approaches and not having a common
+    standard/approach. The trend in the last few years has been that these companies
+    as well as many start-ups such as CoreOS and Docker are willing to develop technologies
+    and work together in an open manner that helps the entire industry. A big contributor
+    to this is open source software development, and many big companies are willing
+    to develop software in the open now. Obviously, commercial solutions around open
+    source technologies will continue to thrive as the industry still needs to make
+    money to survive.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Container technology and microservices are the biggest trends in the software
+    industry currently. Customers have many options and this includes both open source
+    and commercial solutions. At this point, there is a need to put together different
+    technologies/products to create a complete solution for microservices infrastructure.
+    As these technologies mature, integrated open solutions with a pluggable architecture
+    will win over the long term.
+  prefs: []
+  type: TYPE_NORMAL
+- en: References
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Registrator: [http://gliderlabs.com/registrator/latest/user/quickstart/](http://gliderlabs.com/registrator/latest/user/quickstart/)'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Ansible reference: [https://docs.ansible.com/](https://docs.ansible.com/)'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Managing CoreOS with Ansible: [https://coreos.com/blog/managing-coreos-with-ansible/](https://coreos.com/blog/managing-coreos-with-ansible/)
+    and [https://github.com/defunctzombie/ansible-coreos-bootstrap](https://github.com/defunctzombie/ansible-coreos-bootstrap)'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Ansible Docker module: [http://docs.ansible.com/ansible/docker_module.html](http://docs.ansible.com/ansible/docker_module.html)'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'CoreOS and Docker: [https://developer.rackspace.com/blog/ansible-and-docker/](https://developer.rackspace.com/blog/ansible-and-docker/)
+    and [http://opensolitude.com/2015/05/26/building-docker-images-with-ansible.html](http://opensolitude.com/2015/05/26/building-docker-images-with-ansible.html)'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'CI pipeline with Docker: [https://www.docker.com/sites/default/files/UseCase/RA_CI%20with%20Docker_08.25.2015.pdf](https://www.docker.com/sites/default/files/UseCase/RA_CI%20with%20Docker_08.25.2015.pdf)'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Containers and PaaS: [http://cloudtweaks.com/2014/12/paas-vs-docker-heated-debate/](http://cloudtweaks.com/2014/12/paas-vs-docker-heated-debate/)
+    and [http://thenewstack.io/docker-is-driving-a-new-breed-of-paas/](http://thenewstack.io/docker-is-driving-a-new-breed-of-paas/)'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Container security with SELinux and CoreOS: [https://coreos.com/blog/container-security-selinux-coreos/](https://coreos.com/blog/container-security-selinux-coreos/)'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'CoreOS Ignition: [https://github.com/coreos/ignition](https://github.com/coreos/ignition)
+    and [https://coreos.com/ignition/docs/latest/examples.html](https://coreos.com/ignition/docs/latest/examples.html)'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'CoreOS DEX: [https://github.com/coreos/dex](https://github.com/coreos/dex),
+    [https://coreos.com/blog/announcing-dex/](https://coreos.com/blog/announcing-dex/),
+    and [https://www.youtube.com/watch?v=QZgkJQiI_gE](https://www.youtube.com/watch?v=QZgkJQiI_gE)'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Clair for Container vulnerability analysis: [https://coreos.com/blog/vulnerability-analysis-for-containers/](https://coreos.com/blog/vulnerability-analysis-for-containers/)
+    and [https://github.com/coreos/clair](https://github.com/coreos/clair)'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Docker Tutum and UCP: [https://blog.docker.com/2015/11/dockercon-eu-2015-docker-universal-control-plane/](https://blog.docker.com/2015/11/dockercon-eu-2015-docker-universal-control-plane/),
+    [https://www.docker.com/tutum](https://www.docker.com/tutum), and [https://www.docker.com/universal-control-plane](https://www.docker.com/universal-control-plane)'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Mantl project: [https://github.com/CiscoCloud/microservices-infrastructure](https://github.com/CiscoCloud/microservices-infrastructure)
+    and [http://mantl.io/](http://mantl.io/)'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Further reading and tutorials
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Service discovery: [http://progrium.com/blog/2014/07/29/understanding-modern-service-discovery-with-docker/](http://progrium.com/blog/2014/07/29/understanding-modern-service-discovery-with-docker/)'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Ansible with Docker on Rancher: [http://rancher.com/using-ansible-with-docker-to-deploy-a-wordpress-service-on-rancher/](http://rancher.com/using-ansible-with-docker-to-deploy-a-wordpress-service-on-rancher/)'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Stateful Containers: [http://techcrunch.com/2015/11/21/i-want-to-run-stateful-containers-too/](http://techcrunch.com/2015/11/21/i-want-to-run-stateful-containers-too/)'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Codeship, Shippable, and CircleCI: [https://scotch.io/tutorials/speed-up-your-deployment-workflow-with-codeship-and-parallelci](https://scotch.io/tutorials/speed-up-your-deployment-workflow-with-codeship-and-parallelci),
+    [https://circleci.com/docs/docker](https://circleci.com/docs/docker), [https://blog.codeship.com/continuous-integration-and-delivery-with-docker/](https://blog.codeship.com/continuous-integration-and-delivery-with-docker/),
+    and [http://docs.shippable.com/](http://docs.shippable.com/)'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Comparing CI/CD solutions: [https://www.quora.com/What-is-the-difference-between-Bamboo-CircleCI-CIsimple-Ship-io-Codeship-Jenkins-Hudson-Semaphoreapp-Shippable-Solano-CI-TravisCI-and-Wercker](https://www.quora.com/What-is-the-difference-between-Bamboo-CircleCI-CIsimple-Ship-io-Codeship-Jenkins-Hudson-Semaphoreapp-Shippable-Solano-CI-TravisCI-and-Wercker)'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Containers and PaaS: [https://labs.ctl.io/flynn-vs-deis-the-tale-of-two-docker-micro-paas-technologies/](https://labs.ctl.io/flynn-vs-deis-the-tale-of-two-docker-micro-paas-technologies/)
+    and [https://www.youtube.com/watch?v=YydhEEgOoDg](https://www.youtube.com/watch?v=YydhEEgOoDg)'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Ignition presentation: [https://www.youtube.com/watch?v=ly3uwn0HzBI](https://www.youtube.com/watch?v=ly3uwn0HzBI)'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Jenkins Docker plugin: [https://wiki.jenkins-ci.org/display/JENKINS/Docker+Plugin](https://wiki.jenkins-ci.org/display/JENKINS/Docker+Plugin)'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Continuous delivery with Docker and Jenkins: [https://www.docker.com/sites/default/files/UseCase/RA_CI%20with%20Docker_08.25.2015.pdf](https://www.docker.com/sites/default/files/UseCase/RA_CI%20with%20Docker_08.25.2015.pdf)
+    and [https://pages.cloudbees.com/rs/083-PKZ-512/images/Docker-Jenkins-Continuous-Delivery.pdf](https://pages.cloudbees.com/rs/083-PKZ-512/images/Docker-Jenkins-Continuous-Delivery.pdf)'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL

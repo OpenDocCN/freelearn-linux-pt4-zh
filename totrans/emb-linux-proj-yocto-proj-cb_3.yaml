@@ -1,0 +1,2420 @@
+- en: Chapter 3. The Software Layer
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'In this chapter, we will cover the following recipes:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Exploring an image's contents
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Adding a new software layer
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Selecting a specific package versions and providers
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Adding supported packages
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Adding new packages
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Adding data, scripts, or configuration files
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Managing users and groups
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Using the sysvinit initialization system
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Using the systemd initialization system
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Installing package-installation scripts
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Reducing the Linux kernel image size
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Reducing the root filesystem image size
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Releasing software
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Analyzing your system for compliance
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Working with open source and proprietary code
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Introduction
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: With hardware-specific changes on their way, the next step is customizing the
+    target root filesystem; that is, the software that runs under the Linux kernel,
+    also called the Linux user space.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The usual approach to this is to start with one of the available core images
+    and both optimize and customize it as per the needs of your embedded project.
+    Usually, the images chosen as a starting point are either `core-image-minimal`
+    or `core-image-sato`, but any of them will do.
+  prefs: []
+  type: TYPE_NORMAL
+- en: This chapter will show you how to add a software layer to contain those changes,
+    and will explain some of the common customizations made, such as size optimization.
+    It will also show you how to add new packages to your root filesystem, including
+    licensing considerations.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Exploring an image's contents
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: We have already seen how to use the build history feature to obtain a list of
+    packages and files included in our image. In this recipe, we will explain how
+    the root filesystem is built so that we are able to track its components.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Getting ready
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'When packages are built, they are classified inside the working directory of
+    your project (`tmp/work`) according to their architecture. For example, on a `wandboard-quad`
+    build, we find the following directories:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`all-poky-linux`: This is used for architecture-independent packages'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`cortexa9hf-vfp-neon-poky-linux-gnueabi`: This is used for cortexa9, hard floating
+    point packages'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`wandboard_quad-poky-linux-gnueabi`: This is used for machine-specific packages;
+    in this case, `wandboard-quad`'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`x86_64-linux`: This is used for the packages that form the host `sysroot`'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: BitBake will build all the packages included in its dependency list inside its
+    own directory.
+  prefs: []
+  type: TYPE_NORMAL
+- en: How to do it...
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'To find the `build` directory for a given package, we can execute the following
+    command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE0]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Inside the `build` directory, we find some subdirectories (assuming `rm_work`
+    is not used) that the build system uses in the packaging task. These subdirectories
+    include the following:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`deploy-rpms`: This is the directory where the final packages are stored. We
+    look here for individual packages that can be locally copied to a target and installed.
+    These packages are copied to the `tmp/deploy` directory and are also used when
+    Yocto builds the root filesystem image.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`image`: This is the default destination directory where the `do_install` task
+    installs components. It can be modified by the recipe with the `D` configuration
+    variable.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`package`: This one contains the actual package contents.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`package-split`: This is where the contents are categorized in subdirectories
+    named after their final packages. Recipes can split the package contents into
+    several final packages, as specified by the `PACKAGES` variable. The default packages
+    besides the default package name are:'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`dbg`: This installs components used in debugging'
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`dev`: This installs components used in development, such as headers and libraries'
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`staticdev`: This installs libraries and headers used in static compilation'
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`doc`: This is where the documentation is placed'
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`locale`: This installs localization components'
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'The components to be installed in each package are selected using the `FILES`
+    variable. For example, to add to the default package, you could execute the following
+    command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE1]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'And to add to the development package, you could use the following:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE2]'
+  prefs: []
+  type: TYPE_PRE
+- en: How it works...
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'Once the Yocto build system has built all the individual packages in its dependency
+    list, it runs the `do_rootfs` task, which populates the `sysroot` and builds the
+    root filesystem before creating the final package images. You can find the location
+    of the root filesystem by executing:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE3]'
+  prefs: []
+  type: TYPE_PRE
+- en: Note that the `IMAGE_ROOTFS` variable is not configurable and should not be
+    changed.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The contents of this directory will later be prepared into an image according
+    to what image types are configured in the `IMAGE_FSTYPES` configuration variable.
+    If something has been installed in this directory, it will then be installed in
+    the final image.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Adding a new software layer
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: Root filesystem customization involves adding or modifying content to the base
+    image. Metadata for this content goes into one or more software layers, depending
+    on the amount of customization needed.
+  prefs: []
+  type: TYPE_NORMAL
+- en: A typical embedded project will have just one software layer containing all
+    non-hardware-specific customizations. But it is also possible to have extra layers
+    for graphical frameworks or system-wide elements.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Getting ready
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: Before starting work on a new layer, it is good practice to check whether someone
+    else provides a similar layer. Also, if you are trying to integrate an open source
+    project, check whether a layer for it already exists. There is an index of available
+    layers at [http://layers.openembedded.org/](http://layers.openembedded.org/).
+  prefs: []
+  type: TYPE_NORMAL
+- en: How to do it...
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'We can then create a new `meta-custom` layer using the `yocto-layer` command
+    as we learned in the *Creating a custom BSP layer* recipe in [Chapter 2](ch02.html
+    "Chapter 2. The BSP Layer"), *The BSP Layer*. From the `sources` directory, execute
+    the following command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE4]'
+  prefs: []
+  type: TYPE_PRE
+- en: Don't forget to add the layer to your project's `conf/bblayers.conf` file and
+    to your template's `conf` directory to make it available for all new projects.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The default `conf/layer.conf` configuration file is as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE5]'
+  prefs: []
+  type: TYPE_PRE
+- en: We have discussed all the relevant variables in this snippet in the *Creating
+    a custom BSP layer* recipe in [Chapter 2](ch02.html "Chapter 2. The BSP Layer"),
+    *The BSP Layer*.
+  prefs: []
+  type: TYPE_NORMAL
+- en: How it works...
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: When adding content to a new software layer, we need to keep in mind that our
+    layer needs to play well with other layers in the Yocto project. To this end,
+    when customizing recipes, we will always use append files, and will only override
+    existing recipes if we are completely sure there is no way to add the customization
+    required through an append file.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'To help us manage the content across several layers, we can use the following
+    `bitbake-layers` command-line utilities:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`$ bitbake-layers show-layers`: This will display the configured layers as
+    BitBake sees them. It is helpful to detect errors on your `conf/bblayer.conf`
+    file.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`$ bitbake-layers show-recipes`: This command will display all the available
+    recipes and the layers that provide them. It can be used to verify that BitBake
+    is seeing your newly created recipe. If it does not appear, verify that the filesystem
+    hierarchy corresponds to the one defined in your layer''s `BBFILES` variable in
+    `conf/layer.conf`.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`$ bitbake-layers show-overlayed`: This command will show all the recipes that
+    are overlayed by another recipe with the same name but in a higher priority layer.
+    It helps detect recipe clashes.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`$ bitbake-layers show-appends`: This command will list all available append
+    files and the recipe files they apply to. It can be used to verify that BitBake
+    is seeing your append files. Also, as before with recipes, if they don''t appear,
+    you will need to check the filesystem hierarchy and your layer''s `BBFILES` variable.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`$ bitbake-layers flatten <output_dir>`: This command will create a directory
+    with the contents of all configured layers without overlayed recipes and with
+    all the append files applied. This is how BitBake will see the metadata. This
+    flattened directory is useful to discover conflicts with your layer''s metadata.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: There's more...
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: We will sometimes add customizations that are specific to one board or machine.
+    These are not always hardware-related, so they could be found both in a BSP or
+    software layer.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'When doing so, we will try to keep our customizations as specific as possible.
+    One typical example is customizing for a specific machine or machine family. If
+    you need to add a patch for the `wandboard-quad` machine, you would use the following
+    line of code:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE6]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'And, if the patch is applicable to all i.MX6-based boards, you can use the
+    following:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE7]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'To be able to use machine families overrides, the machine configuration files
+    need to include a `SOC_FAMILY` variable, such as the one for the `wandboard-quad`
+    in `meta-fsl-arm-extra`. Refer to the following line of code:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE8]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'And for it to appear in the `MACHINEOVERRIDES` variable, the `soc-family.inc`
+    file needs to be included, as it is in `meta-fsl-arm`. Here is the relevant code
+    excerpt from the `conf/machine/include/imx-base.inc` file:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE9]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'BitBake will search a predefined path, looking for files inside the package''s
+    working directory, defined in the `FILESPATH` variable as a colon-separated list.
+    Specifically:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE10]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'In the specific case of the `wandboard-quad`, this translates to the following:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE11]'
+  prefs: []
+  type: TYPE_PRE
+- en: Here, `PN` is the package name and `PV` is the package version.
+  prefs: []
+  type: TYPE_NORMAL
+- en: It is best to place patches in the most specific of these, so `wandboard-quad`,
+    followed by `wandboard`, `mx6q`, `mx6`, `armv7a`, `arm`, and finally the generic
+    `PN-PV`, `PN`, and `files`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Note that the search path refers to the location of the BitBake recipe, so
+    append files need to always add the path when adding content. Our append files
+    can add extra folders to this search path if needed by appending or prepending
+    to the `FILESEXTRAPATHS` variable as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE12]'
+  prefs: []
+  type: TYPE_PRE
+- en: Note
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: Note the immediate operator (`:=`) that expands `THISDIR` immediately, and the
+    prepend that places your added path before any other path so that your patches
+    and files are found first in the search.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Also, we have seen the `+=` and `=+` style of operators in configuration files,
+    but they should be avoided in recipe files and the append and prepend operators
+    should be given preference, as seen in the example code explained previously to
+    avoid ordering issues.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Selecting a specific package version and providers
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'Our layers can provide recipes for different versions of the same package.
+    For example, the `meta-fsl-arm` layer contains several different types of Linux
+    sources:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`linux-imx`: This corresponds to the Freescale BSP kernel image fetched from
+    [http://git.freescale.com/git/cgit.cgi/imx/linux-2.6-imx.git/](http://git.freescale.com/git/cgit.cgi/imx/linux-2.6-imx.git/)'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`linux-fslc`: This is the mainline Linux kernel and fetched from [https://github.com/Freescale/linux-fslc](https://github.com/Freescale/linux-fslc)'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`linux-timesys`: This is a kernel with Vybrid platform support fetched from
+    [https://github.com/Timesys/linux-timesys](https://github.com/Timesys/linux-timesys)'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: As we mentioned before, all recipes provide the package name (for example, `linux-imx`
+    or `linux-fslc`) by default, but all Linux recipes must also provide the `virtual/kernel`
+    virtual package. The build system will resolve `virtual/kernel` to the most appropriate
+    Linux recipe name, taking into account the requirements of the build, such as
+    the machine it is building for.
+  prefs: []
+  type: TYPE_NORMAL
+- en: And within those recipes, `linux-imx`, for example, has both 2.6.35.3 and 3.10.17
+    recipe versions.
+  prefs: []
+  type: TYPE_NORMAL
+- en: In this recipe, we will show how to tell the Yocto build system which specific
+    package and version to build.
+  prefs: []
+  type: TYPE_NORMAL
+- en: How to do it...
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: To specify the exact package we want to build, the build system allows us to
+    specify what provider and version to use.
+  prefs: []
+  type: TYPE_NORMAL
+- en: How do we select which provider to use?
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: 'We can tell BitBake which recipe to use by using the `PREFERRED_PROVIDER` variable.
+    To set a preferred provider for the `virtual/kernel` virtual package on our Wandboard
+    machine, we would add the following to its machine configuration file:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE13]'
+  prefs: []
+  type: TYPE_PRE
+- en: How do we select which version to use?
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: 'Within a specific provider, we can also tell BitBake which version to use with
+    the `PREFERRED_VERSION` variable. For example, to set a specific `linux-imx` version
+    for all i.MX6-based machines, we would add the following to our `conf/local.conf`
+    file:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE14]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'The `%` wildcard is accepted to match any character, as we see here:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE15]'
+  prefs: []
+  type: TYPE_PRE
+- en: It is, however, more common to see this type of configuration done in machine
+    configuration files, in which case we would not use the `_mx6` append.
+  prefs: []
+  type: TYPE_NORMAL
+- en: How do we select which version not to use?
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: We can use the `DEFAULT_PREFERENCE` variable set to `-1` to specify that a version
+    is not to be used unless explicitly set by a `PREFERRED_VERSION` variable. This
+    is commonly used in development versions of packages.
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE16]'
+  prefs: []
+  type: TYPE_PRE
+- en: Adding supported packages
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: It is common to want to add new packages to an image that already has an available
+    recipe in one of the included Yocto layers.
+  prefs: []
+  type: TYPE_NORMAL
+- en: When the target image desired is very different from the supplied core images,
+    it is recommended to define a new image rather than to customize an existing one.
+  prefs: []
+  type: TYPE_NORMAL
+- en: This recipe will show how to customize an existing image by adding supported
+    packages to it, but also to create a completely new image recipe if needed.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Getting ready
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'To discover whether a package we require is included in our configured layers,
+    and what specific versions are supported, we can use `bitbake-layers` from our
+    build directory as we saw previously:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE17]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Alternatively, we can also use BitBake as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE18]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Or we can use the `find` Linux command in our `sources` directory:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE19]'
+  prefs: []
+  type: TYPE_PRE
+- en: Once we know what packages we want to include in our final images, let's see
+    how we can add them to the image.
+  prefs: []
+  type: TYPE_NORMAL
+- en: How to do it...
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'While developing, we will use our project''s `conf/local.conf` file to add
+    customizations. To add packages to all images, we can use the following line of
+    code:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE20]'
+  prefs: []
+  type: TYPE_PRE
+- en: Note
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: Note that there is a space after the first quote to separate the new package
+    from the existing ones, as the append operator does not add a space.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'We could also limit the addition to a specific image with:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE21]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Another way to easily customize is by making use of **features**. A feature
+    is a logical grouping of packages. For example, we could create a new feature
+    called `debug-utils`, which will add a whole set of debugging utilities. We could
+    define our feature in a configuration file or class as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE22]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'We could then add this feature to our image by adding an `EXTRA_IMAGE_FEATURES`
+    variable to our `conf/local.conf` file as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE23]'
+  prefs: []
+  type: TYPE_PRE
+- en: If you were to add it to an image recipe, you would use the `IMAGE_FEATURES`
+    variable instead.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Usually, features get added as a `packagegroup` recipe instead of being listed
+    as packages individually. Let''s show how to define a `packagegroup` recipe in
+    the `recipes-core/packagegroups/packagegroup-debug-utils.bb` file:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE24]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'And you would then add it to the `FEATURE_PACKAGES` variable as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE25]'
+  prefs: []
+  type: TYPE_PRE
+- en: We can use `packagegroups` to create more complex examples. Refer to the *Yocto
+    Project Development Manual* at [http://www.yoctoproject.org/docs/1.7.1/dev-manual/dev-manual.html](http://www.yoctoproject.org/docs/1.7.1/dev-manual/dev-manual.html)
+    for details.
+  prefs: []
+  type: TYPE_NORMAL
+- en: How it works...
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'The best approach to customize images is to create our own images using an
+    existing image as template. We could use `core-image-minimal.bb`, which contains
+    the following code:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE26]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'And extend it to your own version that allows for the customization of `IMAGE_FEATURES`,
+    by adding the following `meta-custom/recipes-core/images/custom-image.bb` image
+    file:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE27]'
+  prefs: []
+  type: TYPE_PRE
+- en: Of course, we can also define a new image from scratch using one of the available
+    images as a template.
+  prefs: []
+  type: TYPE_NORMAL
+- en: There's more...
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'A final way to customize images is by adding shell functions that get executed
+    once the image has been created. You do this by adding the following to your image
+    recipe or `conf/local.conf` file:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE28]'
+  prefs: []
+  type: TYPE_PRE
+- en: You can use the path to the root filesystem in your command with the `IMAGE_ROOTFS`
+    variable.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Classes would use the `IMAGE_POSTPROCESS_COMMAND` variable instead of `ROOTFS_POSTPROCESS_COMMAND`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: One example of usage can be found in the `debug-tweaks` feature in `image.bbclass`,
+    when images are tweaked to allow passwordless root logins. This method is also
+    commonly used to customize the root password of a target image.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Configuring packages
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: As we saw in the *Configuring the Linux kernel* recipe in [Chapter 2](ch02.html
+    "Chapter 2. The BSP Layer"), *The BSP Layer*, some packages, like the Linux kernel,
+    provide a configuration menu and can be configured with the `menuconfig` BitBake
+    command.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Another package worth mentioning with a configuration interface is BusyBox.
+    We will show how to configure BusyBox, for example to add `pgrep`, a tool that
+    looks up process''s IDs by name. To do so follow the next steps:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Configure BusyBox:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE29]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: In **Process utilities** choose `pgrep`.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'Compile BusyBox:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE30]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Copy the RPM package into the target:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE31]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Install the RPM package on the target:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE32]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: Note that we are forcing the update as the package version has not increased
+    with the configuration change.
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: Adding new packages
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: We have seen how to customize our image so that we can add supported packages
+    to it. When we can't find an existing recipe or we need to integrate some new
+    software we have developed, we will need to create a new Yocto recipe.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Getting ready
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'There are some questions we need to ask ourselves before starting to write
+    a new recipe:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Where is the source code stored?
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Is it source-controlled or released as a tarball?
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: What is the source code license?
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: What build system is it using?
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Does it need configuration?
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Can we cross-compile it as is or does it need to be patched?
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: What are the files that need to be deployed to the root filesystem, and where
+    do they go?
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Are there any system changes that need to happen, such as new users or `init`
+    scripts?
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Are there any dependencies that need to be installed into `sysroot` beforehand?
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Once we know the answers to these questions, we are ready to start writing our
+    recipe.
+  prefs: []
+  type: TYPE_NORMAL
+- en: How to do it...
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: It is best to start from a blank template like the one that follows than to
+    start from a similar recipe and modify it, as the result will be cleaner and contain
+    only the strictly needed instructions.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'A good starting base for a minimal recipe addition is:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE33]'
+  prefs: []
+  type: TYPE_PRE
+- en: How it works...
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: We will explain each one of the recipe sections in more detail in the following
+    sections.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Package licensing
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: 'Every recipe needs to contain a `LICENSE` variable. The `LICENSE` variable
+    allows you to specify multiple, alternative, and per-package type licenses, as
+    seen in the following examples:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'For MIT or GPLv2 alternative licenses, we will use:'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '[PRE34]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'For both ISC and MIT licenses, we will use:'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '[PRE35]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'For split packages, all of them GPLv2 except the documentation that is covered
+    under the Creative Commons, we will use:'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '[PRE36]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: Open source packages usually have the license included with the source code
+    in `README`, `COPYING`, or `LICENSE` files, and even the source code header files.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'For open source licenses, we also need to specify `LIC_FILES_CHECKSUM` for
+    all licenses so that the build system can notify us when the licenses change.
+    To add it, we locate the file or file portion that contains the license and provide
+    its relative path from the directory containing the source and a MD5 checksum
+    for it. For example:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE37]'
+  prefs: []
+  type: TYPE_PRE
+- en: Proprietary code should have the license set as `CLOSED`, and no `LIC_FILES_CHECKSUM`
+    is needed for it.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Fetching package contents
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: 'The `SRC_URI` variable lists the files to fetch. The build system will use
+    different fetchers depending on the file prefix. These can be:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Local files included with the metadata (`file://`). If the local file is a
+    patch, the `SRC_URI` variable can be extended with patch-specific arguments such
+    as:'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`striplevel`: The default patch strip level is 1 but it can be modified with
+    this argument'
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`patchdir`: This specifies the directory location to apply the patch to, with
+    the default being the source directory'
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`apply`: This argument controls whether to apply the patch or not, with the
+    default being to apply it'
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Files stored in remote servers (typically, `http(s)://`, `ftp://`, or `ssh://`).
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Files stored in remote repositories (typically, `git://`, `svn://`, `hg://`,
+    or `bzr://`). These also need a `SRCREV` variable to specify the revision.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Files stored in remote servers (not local files or remote repositories) need
+    to specify two checksums. If there are several files, they can be distinguished
+    with a `name` argument; for example:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE38]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'The source directory folder, `S`, specifies the location of the source files.
+    The repository will be checked out here, or the tarball decompressed in this location.
+    If the tarball decompresses in the standard `${PN}-${PV}` location, it can be
+    omitted as it is the default. For repositories, it needs to always be specified;
+    for example:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE39]'
+  prefs: []
+  type: TYPE_PRE
+- en: Specifying task overrides
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: 'All recipes inherit the `base.bbclass` class, which defines the following tasks:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`do_fetch`: This method fetches the source code, selecting the fetcher using
+    the `SRC_URI` variable.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`do_unpack`: This method unpacks the code in the working directory to a location
+    specified by the `S` variable.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`do_configure`: This method configures the source code if needed. It does nothing
+    by default.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`do_compile`: This method compiles the source and runs the GNU make target
+    by default.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`do_install`: This method copies the results of the build from the `build`
+    directory `B` to the destination directory `D`. It does nothing by default.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`do_package`: This method splits the deliverables into several packages. It
+    does nothing by default.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Usually, only the configuration, compilation, and installation tasks are overridden,
+    and this is mostly done implicitly by inheriting a class like `autotools`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'For a custom recipe that does not use a build system, you need to provide the
+    required instructions for configuration (if any), compilation, and installation
+    in their corresponding `do_configure`, `do_compile`, and `do_install` overrides.
+    As an example of this type of recipe, `meta-custom/recipes-example/helloworld/helloworld_1.0.bb`,
+    may be seen here:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE40]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'With the `meta-custom/recipes-example/helloworld/helloworld-1.0/helloworld.c`
+    source file being the following:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE41]'
+  prefs: []
+  type: TYPE_PRE
+- en: We will see example recipes that use the most common build systems in the next
+    chapter.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Configuring packages
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: 'The Yocto build system provides the `PACKAGECONFIG` variable to help in the
+    configuration of packages by defining a number of features. Your recipe defines
+    the individual features as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE42]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'The `PACKAGECONFIG` variable contains a space-separated list of feature names,
+    and it can be extended or overridden in `bbappend` files; have a look at the following
+    example:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE43]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'To extend or override it from a distribution or local configuration file, you
+    would use the following syntax:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE44]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Following that, we characterize each feature with four ordered arguments:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Extra configuration arguments (for `EXTRA_OECONF`) when the feature is enabled
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Extra configuration arguments (for `EXTRA_OECONF`) when the feature is disabled
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Extra build dependencies (for `DEPENDS`) when the feature is enabled
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Extra runtime dependencies (for `RDEPENDS`) when the feature is enabled
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: The four arguments are optional, but the ordering needs to be maintained by
+    leaving the surrounding commas.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'For example, the `wpa-supplicant` recipe defines two features, `gnutls` and
+    `openssl`, but only enables `gnutls` by default, as seen here:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE45]'
+  prefs: []
+  type: TYPE_PRE
+- en: Splitting into several packages
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: 'It is common to separate the recipe contents into different packages that serve
+    different needs. Typical examples are to include documentation in a `doc` package,
+    and header and/or libraries in a `dev` package. We can do this using the `FILES`
+    variable as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE46]'
+  prefs: []
+  type: TYPE_PRE
+- en: Setting machine-specific variables
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: Each recipe has a `PACKAGE_ARCH` variable that categorizes the recipe into a
+    package feed, as we saw in the *Exploring an image's contents* recipe. Most of
+    the times, they are automatically sorted out by the Yocto build system. For example,
+    if the recipe is a kernel, a kernel module recipe, or an image recipe, or even
+    if it is cross-compiling or building native applications, the Yocto build system
+    will set the package architecture accordingly.
+  prefs: []
+  type: TYPE_NORMAL
+- en: BitBake will also look at the `SRC_URI` machine overrides and adjust the package
+    architecture, and if your recipe is using the `allarch` class, it will set the
+    package architecture to `all`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'So when working on a recipe that only applies to a machine or machine family,
+    or that contains changes that are specific to a machine or machine family, we
+    need to check whether the package is categorized in the appropriate package feed,
+    and if not, specify the package architecture explicitly in the recipe itself by
+    using the following line of code:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE47]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Also, when a recipe is only to be parsed for specific machine types, we specify
+    it with the `COMPATIBLE_MACHINE` variable. For example, to make it compatible
+    only with the `mxs, mx5 and mx6 SoC families`, we would use the following:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE48]'
+  prefs: []
+  type: TYPE_PRE
+- en: Adding data, scripts, or configuration files
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: All recipes inherit the base class with the default set of tasks to run. After
+    inheriting the base class, a recipe knows how to do things like fetching and compiling.
+  prefs: []
+  type: TYPE_NORMAL
+- en: As most recipes are meant to install some sort of executable, the base class
+    knows how to build it. But sometimes all we want is to install data, scripts,
+    or configuration files into the filesystem.
+  prefs: []
+  type: TYPE_NORMAL
+- en: If the data or configuration is related to an application, the most logical
+    thing to do is to package it together with the application's recipe itself, and
+    if we think it is better to be installed separately, we could even split it into
+    its own package.
+  prefs: []
+  type: TYPE_NORMAL
+- en: But some other times, the data or configuration is unrelated to an application,
+    maybe it applies to the whole system or we just want to provide a separate recipe
+    for it. Optionally, we could even want to install some Perl or Python scripts
+    that don't need to be compiled.
+  prefs: []
+  type: TYPE_NORMAL
+- en: How to do it...
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: In those cases, our recipe should inherit the `allarch` class that is inherited
+    by recipes that do not produce architecture-specific output.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'An example of this type of recipe, `meta-custom/recipes-example/example-data/example-data_1.0.bb`,
+    may be seen here:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE49]'
+  prefs: []
+  type: TYPE_PRE
+- en: It assumes that the fictitious `examples.git` repository contains a `python-scripts`
+    folder, which we want to include in our root filesystem.
+  prefs: []
+  type: TYPE_NORMAL
+- en: A working recipe example can be found in the source that accompanies the book.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Managing users and groups
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: It is also common to need to add or modify users and groups to our filesystem.
+    This recipe explains how it is done.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Getting ready
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: The user information is stored in the `/etc/passwd` file, a text file that is
+    used as a database for the system user's information. The `passwd` file is human-readable.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Each line on it corresponds to one user in the system, and it has the following
+    format:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE50]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Let''s see each of the parameters of this format:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`username`: A unique string that identifies the user at login'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`uid`: User ID, a number that Linux uses to identify the user'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`gid`: Group ID, a number that Linux uses to identify the user''s primary group'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`comment`: Comma-separated values that describe the account, typically the
+    user''s contact details'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`home directory`: Path to the user''s home directory'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`login shell`: Shell that is started for interactive logins'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'The default `passwd` file is stored with the `base-passwd` package and looks
+    as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE51]'
+  prefs: []
+  type: TYPE_PRE
+- en: All accounts have disabled direct logins, indicated by an asterisk on the password
+    field, except for root, which has no password. This is because, by default, the
+    image is built with the `debug-tweaks` feature that enables passwordless login
+    for the root user, among other things. If the root password was enabled, we would
+    see the encrypted root password.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Note
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: Do not forget to remove the `debug-tweaks` feature from production images.
+  prefs: []
+  type: TYPE_NORMAL
+- en: There is a corresponding `/etc/group` file that is installed at the same time
+    with the information for the system groups.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The `core-image-minimal` image does not include shadow password protection,
+    but other images, such as `core-image-full-cmdline`, do. When enabled, all password
+    fields contain an *x*, and the encrypted passwords are kept on a `/etc/shadow`
+    file, which is only accessible to the super user.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Any user that is needed by the system but not included in the list we saw earlier
+    needs to be created.
+  prefs: []
+  type: TYPE_NORMAL
+- en: How to do it...
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'The standard way for a recipe to add or modify system users or groups is to
+    use the `useradd` class, which uses the following variables:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`USERADD_PACKAGES`: This variable specifies the individual packages in the
+    recipe that require users or groups to be added. For the main package, you would
+    use the following:'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '[PRE52]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: '`USERADD_PARAM`: This variable corresponds to the arguments passed to the Linux
+    `useradd` command, to add new users to the system.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`GROUPADD_PARAM`: This variable corresponds to the arguments passed to the
+    Linux `groupadd` command, to add new groups to the system.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`GROUPMEMS_PARAM`: This variable corresponds to the arguments passed to the
+    Linux `groupmems` command, which administers members of the user''s primary group.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'An example snippet of a recipe using the `useradd` class follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE53]'
+  prefs: []
+  type: TYPE_PRE
+- en: The password can be generated on your host using the `mkpasswd` Linux command-line
+    utility, installed with the `whois` Ubuntu package.
+  prefs: []
+  type: TYPE_NORMAL
+- en: There's more...
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: When generating users and groups using the `useradd` class, the `uid` and `gid`
+    values are assigned dynamically during package installation. If this is not desired,
+    there is a way to assign system-wide static `uid` and `gid` values by providing
+    your own `passwd` and group files.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'To do this, you need to define the `USERADDEXTENSION` variable in your `conf/local.conf`
+    file as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE54]'
+  prefs: []
+  type: TYPE_PRE
+- en: The build system will then search the `BBPATH` variable for `files/passwd` and
+    `files/group` files to obtain the `uid` and `gid` values. The files have the standard
+    `passwd` layout as defined previously, with the password field ignored.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The default filenames can be overridden by using the `USERADD_UID_TABLES` and
+    `USERADD_GID_TABLES` variables.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'You also need to define the following:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE55]'
+  prefs: []
+  type: TYPE_PRE
+- en: This is done so that the build system produces an error if the required `uid`
+    and `gid` values are not found in the provided files.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Note
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: Note that if you use the `useradd` class in a project that is already built,
+    you will need to remove the `tmp` directory and rebuild from the `sstate-cache`
+    directory or you will get build errors.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'There is also a way to add user and group information that is not tied to a
+    specific recipe but to an image – by using the `extrausers` class. It is configured
+    by the `EXTRA_USERS_PARAMS` variable in an image recipe and used as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE56]'
+  prefs: []
+  type: TYPE_PRE
+- en: This sets the root password to `password`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Using the sysvinit initialization manager
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: The initialization manager is an important part of the root filesystem. It is
+    the first thing the kernel executes, and it has the responsibility to start the
+    rest of the system.
+  prefs: []
+  type: TYPE_NORMAL
+- en: This recipe will introduce the `sysvinit` initialization manager.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Getting ready
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: This is the default initialization manager in Yocto and it has been used in
+    Linux since the operating system's origin. The kernel is passed an `init` command-line
+    argument, typically `/sbin/init`, which is then launched. This `init` process
+    has PID 1 and is the parent of all processes. The `init` process can either be
+    implemented by BusyBox or be an independent program installed with the `sysvinit`
+    package. Both of them work in the same way, based on the concept of **runlevel**,
+    a machine state that defines which processes to run.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The `init` process will read an `inittab` file and look for a default runlevel.
+    The default `inittab` file is installed with the `sysvinit-inittab` package and
+    is as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE57]'
+  prefs: []
+  type: TYPE_PRE
+- en: Then, `init` runs all scripts starting with `S` in the `/etc/rcS.d` directory,
+    followed by all the scripts starting with `S` in the `/etc/rcN.d` directory, where
+    `N` is the runlevel value.
+  prefs: []
+  type: TYPE_NORMAL
+- en: So the `init` process just performs the initialization and forgets about the
+    processes. If something goes wrong and the processes are killed, no one will care.
+    The system watchdog will reboot the system if it becomes unresponsive, but applications
+    built with more than one process usually need some type of process monitor that
+    can react to the health of the system, but `sysvinit` does not offer these types
+    of mechanisms.
+  prefs: []
+  type: TYPE_NORMAL
+- en: However, `sysvinit` is a well-understood and reliable initialization manager
+    and the recommendation is to keep it unless you need some extra feature.
+  prefs: []
+  type: TYPE_NORMAL
+- en: How to do it...
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: When using `sysvinit` as the initialization manager, Yocto offers the `update-rc.d`
+    class as a helper to install initialization scripts so that they are started and
+    stopped when needed.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'When using this class, you need to specify the `INITSCRIPT_NAME` variable with
+    the name of the script to install and `INITSCRIPT_PARAMS` with the options to
+    pass to the `update-rc.d` utility. You can optionally use the `INITSCRIPT_PACKAGES`
+    variable to list the packages to contain the initialization scripts. By default,
+    this contains the main package only, and if multiple packages are provided, the
+    `INITSCRIPT_NAME` and `INITSCRIPT_PARAMS` need to be specified for each using
+    overrides. An example snippet follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE58]'
+  prefs: []
+  type: TYPE_PRE
+- en: When an initialization script is not tied to a particular recipe, we can add
+    a specific recipe for it. For example, the following recipe will run a `mount.sh`
+    script in the `recipes-example/sysvinit-mount/sysvinit-mount_1.0.bb` file.
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE59]'
+  prefs: []
+  type: TYPE_PRE
+- en: Using the systemd initialization manager
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: As an alternative to `sysvinit`, you can configure your project to use `systemd`
+    as an initialization manager, although `systemd` packs many more features.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Getting ready
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'The `systemd` initialization manager is replacing `sysvinit` and other initialization
+    managers in most Linux distributions. It is based on the concepts of units, an
+    abstraction of all elements that are relevant for system startup and maintenance,
+    and targets, which group units and can be viewed as a runlevel equivalent. Some
+    of the units `systemd` defines are:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Services
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Sockets
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Devices
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Mount points
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Snapshots
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Timers
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Paths
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'The default targets and their runlevel equivalents are defined in the following
+    table:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '| Sysvinit | Runlevel | Systemd target | Notes |'
+  prefs: []
+  type: TYPE_TB
+- en: '| --- | --- | --- | --- |'
+  prefs: []
+  type: TYPE_TB
+- en: '| 0 | `runlevel0.target` | `poweroff.target` | Halt the system. |'
+  prefs: []
+  type: TYPE_TB
+- en: '| 1, s, single | `runlevel1.target` | `rescue.target` | Single user mode. |'
+  prefs: []
+  type: TYPE_TB
+- en: '| 2, 4 | `runlevel2.target`, `runlevel4.target` | `multi-user.target` | User-defined/site-specific
+    runlevels. By default, identical to `3`. |'
+  prefs: []
+  type: TYPE_TB
+- en: '| 3 | `runlevel3.target` | `multi-user.target` | Multiuser, non-graphical.
+    Users can usually log in via multiple consoles or via the network. |'
+  prefs: []
+  type: TYPE_TB
+- en: '| 5 | `runlevel5.target` | `graphical.target` | Multiuser, graphical. Usually
+    has all the services of runlevel 3 plus a graphical login. |'
+  prefs: []
+  type: TYPE_TB
+- en: '| 6 | `runlevel6.target` | `reboot.target` | Reboot the system. |'
+  prefs: []
+  type: TYPE_TB
+- en: The `systemd` initialization manager is designed to be compatible with `sysvinit`,
+    including using `sysvinit init` scripts.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Some of the features of `systemd` are:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Parallelization capabilities that allow for faster boot times
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Service initialization via sockets and D-Bus so that services are only started
+    when needed
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Process monitoring that allows for process failure recovery
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: System state snapshots and restoration
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Mount point management
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Transactional-dependency-based unit control, where units establish dependencies
+    between them
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: How to do it...
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'To configure your system to use `systemd`, you need to add the `systemd` distribution
+    feature to your project by adding the following to your distribution''s configuration
+    file, under `sources/poky/meta-yocto/conf/distro/poky.conf` for the default `poky`
+    distribution, or locally on your project''s `conf/local.conf` file:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE60]'
+  prefs: []
+  type: TYPE_PRE
+- en: Note
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: Note the space required after the starting quote.
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE61]'
+  prefs: []
+  type: TYPE_PRE
+- en: This configuration example allows you to define a main image with `systemd`
+    and a rescue image with `sysvinit`, providing it does not use the `VIRTUAL-RUNTIME_init_manager`
+    variable. Hence, the rescue image cannot use the `packagegroup-core-boot` or `packagegroup-core-full-cmdline`
+    recipes. As an example, the recipe where the image size has been reduced, which
+    we will introduce in the *Reducing the root filesystem image size* recipe in this
+    chapter, could be used as the basis for a rescue image.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'To remove `sysvinit` completely from your system, you would do the following:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE62]'
+  prefs: []
+  type: TYPE_PRE
+- en: Feature backfilling is the automatic extension of machine and distribution features
+    to keep backwards compatibility. The `sysvinit` distribution feature is automatically
+    filled in, so to remove it, we need to blacklist it by adding it to the `DISTRO_FEATURES_BACKFILL_CONSIDERED`
+    variable as shown earlier.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Tip
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: Note that if you are using an existing project and you change the `DISTRO_FEATURES`
+    variable as explained earlier, you will need to remove the `tmp` directory and
+    build with `sstate-cache` or the build will fail.
+  prefs: []
+  type: TYPE_NORMAL
+- en: There's more...
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'Not only does the root filesystem needs to be configured, but the Linux kernel
+    also needs to be specifically configured with all the features required by `systemd`.
+    There is an extensive list of kernel configuration variables in the `systemd`
+    source README file. As an example, to extend the minimal kernel configuration
+    that we will introduce in the *Reducing the Linux kernel image size* recipe later
+    on this chapter, for the Wandboard to support `systemd`, we would need to add
+    the following configuration changes in the `arch/arm/configs/wandboard-quad_minimal_defconfig`
+    file:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE63]'
+  prefs: []
+  type: TYPE_PRE
+- en: The default kernel configuration provided for the Wandboard will launch a `core-image-minimal`
+    image of `systemd` just fine.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Installing systemd unit files
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: Yocto offers the `systemd` class as a helper to install unit files. By default,
+    unit files are installed on the `${systemd_unitdir}/system` path on the destination
+    directory.
+  prefs: []
+  type: TYPE_NORMAL
+- en: When using this class, you need to specify the `SYSTEMD_SERVICE_${PN}` variable
+    with the name of the unit file to install. You can optionally use the `SYSTEMD_PACKAGES`
+    variable to list the packages to contain the unit files. By default, this is the
+    main package only, and if multiple packages are provided, the `SYSTEMD_SERVICE`
+    variable needs to be specified using overrides.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Services are configured to launch at boot by default, but this can be changed
+    with the `SYSTEMD_AUTO_ENABLE` variable.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'An example snippet follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE64]'
+  prefs: []
+  type: TYPE_PRE
+- en: Installing package-installation scripts
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: The supported package formats, RPM, ipk, and deb, support the addition of installation
+    scripts that can be run at different times during a package installation process.
+    In this recipe, we will see how to install them.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Getting ready
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'There are different types of installation scripts:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '**Preinstallation scripts** (`pkg_preinst`): These are called before the package
+    is unpacked'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**Postinstallation scripts** (`pkg_postinst`): These are called after the package
+    is unpacked, and dependencies will be configured'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**Preremoval scripts** (`pkg_prerm`): These are called with installed or at
+    least partially installed packages'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**Postremoval scripts** (`pkg_postrm`): These are called after the package''s
+    files have been removed or replaced'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: How to do it...
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'An example snippet of the installation of a preinstallation script in a recipe
+    is as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE65]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'All installation scripts work in the same way, with the exception that the
+    postinstallation scripts may be run either on the host at root filesystem image
+    creation time, on the target (for those actions that cannot be performed on the
+    host), or when a package is directly installed on the target. Have a look at the
+    following code:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE66]'
+  prefs: []
+  type: TYPE_PRE
+- en: If the postinstallation script succeeds, the package is marked as installed.
+    If the script fails, the package is marked as unpacked and the script is executed
+    when the image boots again.
+  prefs: []
+  type: TYPE_NORMAL
+- en: How it works...
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: Once the recipe defines an installation script, the class for the specific package
+    type will install it while following the packaging rules of the specific format.
+  prefs: []
+  type: TYPE_NORMAL
+- en: For postinstallation scripts, when running on the host, `D` is set to the destination
+    directory, so the comparison test will fail. But `D` will be empty when running
+    on the target.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Note
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: It is recommended to perform postinstallation scripts on the host if possible,
+    as we need to take into account that some root filesystems will be read only and
+    hence it would not be possible to perform some operations on the target.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Reducing the Linux kernel image size
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: Before or in parallel with the root filesystem customization, embedded projects
+    usually require an image size optimization that will reduce the boot time and
+    memory usage.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Smaller images mean less storage space, less transmission time, and less programming
+    time, which saves money both in manufacturing and field updates.
+  prefs: []
+  type: TYPE_NORMAL
+- en: By default, the compressed Linux kernel image (**zImage**) for the `wandboard-quad`
+    is around 5.2 MB. This recipe will show how we can reduce that.
+  prefs: []
+  type: TYPE_NORMAL
+- en: How to do it...
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'An example of a minimal kernel configuration for a Wandboard that is able to
+    boot from a microSD card root filesystem is the `arch/arm/configs/wandboard-quad_minimal_defconfig`
+    file that follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE67]'
+  prefs: []
+  type: TYPE_PRE
+- en: This configuration builds an 886 K compressed Linux kernel image (zImage).
+  prefs: []
+  type: TYPE_NORMAL
+- en: How it works...
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: Apart from hardware design considerations (such as running the Linux kernel
+    from a NOR flash and **execute in place** (**XIP**) to avoid loading the image
+    to memory), the first step in kernel size optimization is to review the kernel
+    configuration and remove all superfluous features.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'To analyze the sizes of kernel blocks, we may use:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE68]'
+  prefs: []
+  type: TYPE_PRE
+- en: Here, `vmlinux` is the Linux kernel ELF image, which can be found in the Linux
+    `build` directory.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Some of the usual things to exclude are:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Remove IPv6 (`CONFIG_IPV6`) and other superfluous networking features
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Remove block devices (`CONFIG_BLOCK`) if not needed
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Remove cryptographic features (`CONFIG_CRYPTO`) if unused
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Review the supported filesystem types and remove the unneeded ones, such as
+    flash filesystems on flashless devices
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Avoid modules and remove the module support (`CONFIG_MODULES`) from the kernel
+    if possible
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: A good strategy is to start with a minimal kernel and add the essential stuff
+    until you get a working system. Start with the `allnoconfig` GNU make target and
+    review the configuration items under `CONFIG_EXPERT` and `CONFIG_EMBEDDED` as
+    they are not included in the `allnoconfig` setting.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Some configuration changes that might not be obvious but reduce the image size
+    considerably without feature removal are listed here:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Change the default compression method from **Lempel–Ziv–Oberhumer** (**LZO**)
+    to XZ (`CONFIG_KERNEL_XZ`). The decompression speed will be a bit lower though.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Change the allocator from SLUB to **Simple List Of Blocks** (**SLOB**) (`CONFIG_SLOB`)
+    for small embedded systems with little memory.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Use no high memory (`CONFIG_HIGHMEM`) unless you have 4 GB or more memory.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'You may also want to have a different configuration for production and development
+    systems, so you may remove the following from your production images:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`printk` support (`CONFIG_PRINTK`)'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`tracing` support (`CONFIG_FTRACE`)'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: In the compilation side of things, optimize for size using `CONFIG_CC_OPTIMIZE_FOR_SIZE`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Once the basics are covered, we would need to analyze the kernel functions
+    to identify further reduction areas. You can print a sorted list of kernel symbols
+    with the following:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE69]'
+  prefs: []
+  type: TYPE_PRE
+- en: You would then need to look into the kernel source to find optimizations.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The actual space used by the uncompressed kernel in memory can be obtained
+    from a running Wandboard kernel log as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE70]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'From here, the `.text` section contains code and constant data, the `.data`
+    section contains the initialization data for variables, and the `.bss` sections
+    contains all uninitialized data. The `.init` section contains global variables
+    used during Linux initialization only, which are freed afterwards as can be seen
+    from the following Linux kernel boot message:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE71]'
+  prefs: []
+  type: TYPE_PRE
+- en: There are ongoing efforts to reduce the size of the Linux kernel, so it is expected
+    that newer kernel versions will be smaller and will allow for better customization
+    for use in embedded systems.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Reducing the root filesystem image size
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: By default, the `core-image-minimal` size for the `wandboard-quad` unpacked
+    tarball is around 45 MB, and `core-image-sato` is around 150 MB. This recipe will
+    explore methods to reduce their size.
+  prefs: []
+  type: TYPE_NORMAL
+- en: How to do it...
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'An example of a small image, `core-image-small`, that does not include the
+    `packagegroup-core-boot` recipe and can be used as the base for a root filesystem
+    image with reduced size, `recipes-core/images/core-image-small.bb`, is shown next:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE72]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'This recipe produces an image of about 6.4 MB. You can go even smaller if you
+    use the `poky-tiny` distribution by adding the following to your `conf/local.conf`
+    file:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE73]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'The `poky-tiny` distribution makes a series of size optimizations that may
+    restrict the set of packages you can include in your image. To successfully build
+    this image, you have to skip one of the sanity checks that the Yocto build system
+    performs, by adding the following:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE74]'
+  prefs: []
+  type: TYPE_PRE
+- en: With `poky-tiny`, the size of the image is further reduced to around 4 MB.
+  prefs: []
+  type: TYPE_NORMAL
+- en: There are further reductions that can be done to the image; for example, we
+    could replace `sysvinit` with `tiny-init`, but that is left as an exercise for
+    the reader.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Images with reduced sizes are also used alongside production images for tasks
+    such as rescue systems and manufacturing test processes. They are also ideal to
+    be built as `initramfs` images; that is, images that the Linux kernel mounts from
+    memory, and can even be bundled into a single Linux kernel image binary.
+  prefs: []
+  type: TYPE_NORMAL
+- en: How it works...
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'Start with an appropriate image like `core-image-minimal` and analyze the dependencies
+    as shown in the *Debugging the build system* recipe in [Chapter 1](ch01.html "Chapter 1. The
+    Build System"), *The Build System*, and decide which of them are not needed. You
+    could also use the file sizes listed in the image''s build history, as seen in
+    the *Using build history* recipe, also in [Chapter 1](ch01.html "Chapter 1. The
+    Build System"), *The Build System*, to detect the biggest files in the filesystem
+    and review them. To sort the file sizes, which appear in the fourth column of
+    the `files-in-image.txt` file, in reverse order, we could execute:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE75]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'From this, we observe that `glic` is the biggest contributor to the filesystem
+    size. Some other places where some space on a console-only system can be saved
+    are:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Use the IPK package manager, as it is the lightest, or better yet, remove the
+    `package-management` feature from your production root filesystem altogether.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Use BusyBox''s `mdev` device manager instead of `udev` by specifying it in
+    your `conf/local.conf` file as follows:'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '[PRE76]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: Note that this will only work with core images that include `packagegroup-core-boot`.
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: If we are running the root filesystem on a block device, use ext2 instead of
+    ext3 or ext4 without the journal.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Configure BusyBox with only the essential applets by providing your own configuration
+    file in `bbappend`.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Review the `glibc` configuration, which can be changed via the `DISTRO_FEATURES_LIBC`
+    distribution configuration variable. An example of its usage can be found in the
+    `poky-tiny` distribution, which is included in the `poky` source. The `poky-tiny`
+    distribution can be used as a template for the distribution customization of small
+    systems.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Consider switching to a lighter `C` library than the default `glibc`. For a
+    while, `uclibc` was being used as an alternative, but the library seems to be
+    unmaintained for the last couple of years, and the `core-image-minimal` image
+    for the Wandboard does not currently build using it.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Note
+  prefs:
+  - PREF_IND
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: 'Recently, there has been some activity with **musl** ([http://www.musl-libc.org/](http://www.musl-libc.org/)),
+    a new MIT-licensed `C` library. To enable it, you would add the following to your
+    `conf/local.conf` file:'
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: TCLIBC = "musl"
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: And you would need to add the `meta-musl` layer ([https://github.com/kraj/meta-musl](https://github.com/kraj/meta-musl))
+    to your `conf/bblayers.conf` file.
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: It currently builds `core-image-minimal` for QEMU targets, but there is still
+    work to be done to use it on real hardware like the Wandboard.
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: Compile your applications with `-Os` to optimize for size.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Releasing software
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: When releasing a product based on the Yocto project, we have to consider that
+    we are building on top of a multitude of different open source projects, each
+    with different licensing requirements.
+  prefs: []
+  type: TYPE_NORMAL
+- en: At the minimum, your embedded product will contain a bootloader (probably U-Boot),
+    the Linux kernel, and a root filesystem with one or more applications. Both U-Boot
+    and the Linux kernel are licensed under the **General Public License version 2**
+    (**GPLv2**). And the root filesystem could contain a variety of programs with
+    different licenses.
+  prefs: []
+  type: TYPE_NORMAL
+- en: All open source licenses allow you to sell a commercial product with a mixture
+    of proprietary and open licenses as long as they are independent and the product
+    complies with all the open source licenses. We will discuss open source and proprietary
+    cohabiting in the *Working with open source and proprietary code* recipe later
+    on.
+  prefs: []
+  type: TYPE_NORMAL
+- en: It is important to understand all the licensing implications before releasing
+    your product to the public. The Yocto project provides tools to make handling
+    licensing requirements an easier job.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Getting ready
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'We first need to specify what requirements we need to comply with to distribute
+    a product built with the Yocto project. For the most restrictive open source licenses,
+    this usually means:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Source code distribution, including modifications
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: License texts distributions
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Distribution of the tools used to build and run the software
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: How to do it...
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'We can use the `archiver` class to provide the deliverables that need to be
+    distributed to comply with the licenses. We can configure it to:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Provide the original unpatched source as tarballs
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Provide the patches to apply to the original source
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Provide the recipes used to build the source
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Provide the license text that must sometimes accompany the binary (according
+    to some licenses)
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'To use the `archiver` class as specified earlier, we add the following to our
+    `conf/local.conf` file:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE77]'
+  prefs: []
+  type: TYPE_PRE
+- en: The sources will be provided in the `tmp/deploy/sources` directory under a license
+    subdirectory hierarchy.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'For the `wandboard-quad`, we find the following directories under `tmp/deploy/sources`:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`allarch-poky-linux`'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`arm-poky-linux-gnueabi`'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'And looking for what''s distributed for the Linux kernel source, a GPLv2 package,
+    we find under `tmp/deploy/sources/arm-poky-linux-gnueabi/linux-wandboard-3.10.17-r0`:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`defconfig`'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`github.com.wandboard-org.linux.git.tar.gz`'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`linux-wandboard-3.10.17-r0-recipe.tar.gz`'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'So we have the kernel configuration, the source tarball, and the recipes used
+    to build it, which include:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`linux-wandboard_3.10.17.bb`'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`linux-dtb.inc`'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`linux-wandboard.inc`'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: And the license text for the root filesystem packages will also be included
+    in the root filesystem under `/usr/share/common-licenses`, in a package directory
+    hierarchy.
+  prefs: []
+  type: TYPE_NORMAL
+- en: This configuration will provide deliverables for all build packages, but what
+    we really want to do is provide them only for those whose licenses require us
+    to.
+  prefs: []
+  type: TYPE_NORMAL
+- en: For sure, we don't want to blindly distribute all the contents of the `sources`
+    directory as is, as it will also contain our proprietary source, which we most
+    likely don't want to distribute.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'We can configure the `archiver` class only to provide the source for GPL and
+    LGPL packages with the following:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE78]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'And also, for an embedded product, we are usually only concerned with the software
+    that ships in the product itself, so we can limit the recipe type to be archived
+    to target images with the following:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE79]'
+  prefs: []
+  type: TYPE_PRE
+- en: We should obtain legal advice to decide which packages have licenses that make
+    source distribution a requirement.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Other configuration options exist, such as providing the patched or configured
+    source instead of the separated original source and patches, or source `rpms`
+    instead of source tarballs. See the `archiver` class for more details.
+  prefs: []
+  type: TYPE_NORMAL
+- en: There's more…
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: We can also choose to distribute the whole of our build environment. The best
+    way to do this is usually to publish our BSP and software layers on a public Git
+    repository. Our software layer can then provide `bblayers.conf.sample` and `local.conf.sample`,
+    which can be used to set up ready-to-use `build` directories.
+  prefs: []
+  type: TYPE_NORMAL
+- en: See also
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: There are other requirements that haven't been discussed here, such as the mechanism
+    chosen for distribution. It is recommended to get legal advice before releasing
+    a product to ensure all the license obligations have been met.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Analyzing your system for compliance
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: The Yocto build system makes it easy to provide auditing information to our
+    legal advisers. This recipe will explain how.
+  prefs: []
+  type: TYPE_NORMAL
+- en: How to do it...
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: Under `tmp/deploy/licenses`, we find a directory list of packages (including
+    their corresponding licenses) and an `image` folder with a package and license
+    manifest.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'For the example image provided before, `core-image-small`, we have the following:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE80]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'And the corresponding `tmp/deploy/licenses/core-image-small-wandboard-quad-<timestamp>/license.manifest`
+    file excerpt is as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE81]'
+  prefs: []
+  type: TYPE_PRE
+- en: These files can be used to analyze all the different packages that form our
+    root filesystem. We can also audit them to make sure we comply with the licenses
+    when releasing our product to the public.
+  prefs: []
+  type: TYPE_NORMAL
+- en: There's more
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'You can instruct the Yocto build system to specifically avoid certain licenses
+    by using the `INCOMPATIBLE_LICENSE` configuration variable. The usual way to use
+    it is to avoid GPLv3-type licenses by adding the following to your `conf/local.conf`
+    file:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE82]'
+  prefs: []
+  type: TYPE_PRE
+- en: This will build `core-image-minimal` and `core-image-base` images as long as
+    no extra image features are included.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Working with open source and proprietary code
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: It is common for an embedded product to be built upon an open source system
+    like the one built by Yocto, and to include proprietary software that adds value
+    and specializes the product. This proprietary part usually is intellectual property
+    and needs to be protected, and it's important to understand how it can coexist
+    with open source.
+  prefs: []
+  type: TYPE_NORMAL
+- en: This recipe will discuss some examples of open source packages commonly found
+    on embedded products and will briefly explain how to use proprietary software
+    with them.
+  prefs: []
+  type: TYPE_NORMAL
+- en: How to do it...
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'Open source licenses can be broadly divided into two categories based on whether
+    they are:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '**Permissive**: These are similar to **Internet Software Consortium** (**ISC**),
+    MIT, and BSD licenses. They have few requirements attached to them and just require
+    us to preserve copyright notices.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**Restrictive**: These are similar to the GPL, which bind us to not only distribute
+    the source code and modifications, either with the binary itself or at a later
+    date, but also to distribute tools to build, install, and run the source.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: However, some licenses might "pollute" modifications and derivative work with
+    their own conditions, commonly referred to as *viral licenses*, while others will
+    not. For example, if you link your application to GPL-licensed code, your application
+    will be bound by the GPL too.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The virulent nature of the GPL has made some people wary of using GPL-licensed
+    software, but it's important to note that proprietary software can run alongside
+    GPL software as long as the license terms are understood and respected.
+  prefs: []
+  type: TYPE_NORMAL
+- en: For example, violating the GPLv2 license would mean losing the right to distribute
+    the GPLv2 code in the future, even if further distribution is GPLv2 compliant.
+    In this case, the only way to be able to distribute the code again would be to
+    ask the copyright holder for permission.
+  prefs: []
+  type: TYPE_NORMAL
+- en: How it works...
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: Next, we will provide guidance regarding licensing requirements for some open
+    source packages commonly used in embedded products. It does not constitute legal
+    advice, and as stated before, proper legal auditing of your product should be
+    done before public release.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The U-Boot bootloader
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: U-Boot is licensed under the GPLv2, but any program launched by it does not
+    inherit its license. So you are free to use U-Boot to launch a proprietary operating
+    system, for example. However, your final product must comply with the GPLv2 with
+    regards to U-Boot, so U-Boot source code and modifications must be provided.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The Linux kernel
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: The Linux kernel is also licensed under the GPLv2\. Any application that runs
+    in the Linux kernel user space does not inherit its license, so you can run your
+    proprietary software in Linux freely. However, Linux kernel modules are part of
+    the Linux kernel and as such must comply with the GPLv2\. Also, your final product
+    must release the Linux kernel source and modifications, including external modules
+    that run in your product.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Glibc
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: The GNU `C` library is licensed under the **Lesser General Public License**
+    (**LGPL**), which allows dynamic linking without license inheritance. So your
+    proprietary code can dynamically link with `glibc`, but of course you still have
+    to comply with the LGPL with regards to `glibc`. Note, however, that statically
+    linking your application would pollute it with the LGPL.
+  prefs: []
+  type: TYPE_NORMAL
+- en: BusyBox
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: BusyBox is also licensed under the GPLv2\. The license allows for non-related
+    software to run alongside it, so your proprietary software can run alongside BusyBox
+    freely. As before, you have to comply with the GPLv2 with regards to BusyBox and
+    distribute its source and modifications.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The Qt framework
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: Qt is licensed under three different licenses, which is common for open source
+    projects. You can choose whether you want a commercial license (in which case,
+    your proprietary application is protected), a LGPL license (which, as discussed
+    before, would also protect your proprietary software by allowing the dynamic linking
+    of your application as long as you complied with the LGPL for the Qt framework
+    itself), or the GPLv3 (which would be inherited by your application).
+  prefs: []
+  type: TYPE_NORMAL
+- en: The X Windows system
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: The `X.Org` source is licensed under permissive MIT-style licenses. As such,
+    your proprietary software is free to make any use of it as long as its use is
+    stated and copyright notices are preserved.
+  prefs: []
+  type: TYPE_NORMAL
+- en: There's more...
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'Let''s see how to integrate our proprietary-licensed code into the Yocto build
+    system. When preparing the recipe for our application, we can take several approaches
+    to licensing:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Mark `LICENSE` as closed. This is the usual case for a proprietary application.
+    We use the following:'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '[PRE83]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Mark `LICENSE` as proprietary and include some type of license agreement. This
+    is commonly done when releasing binaries with some sort of end user agreement
+    that is referenced in the recipe. For example, `meta-fsl-arm` uses this type of
+    license to comply with Freescale''s End User License Agreement. An example follows:'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '[PRE84]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Provide multiple licensing options, such as an open source license and a commercial
+    license. In this case, the `LICENSE` variable is used to specify the open licenses,
+    and the `LICENSE_FLAGS` variable is used for the commercial licenses. A typical
+    example is the `gst-plugins-ugly` package in Poky:'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '[PRE85]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'When the `LICENSE_FLAGS` variable is set on a recipe, the package will not
+    be built unless the license appears on the `LICENSE_FLAGS_WHITELIST` variable
+    too, typically defined in your `conf/local.conf` file. For the earlier example,
+    we would add:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE86]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'The `LICENSE` and `LICENSE_FLAGS_WHITELIST` variables can match exactly for
+    a very narrow match or broadly, as in the preceding example, which matches all
+    licenses that begin with the word `commercial`. For narrow matches, the package
+    name must be appended to the license name; for instance, if we only wanted to
+    whitelist the `gst-plugins-ugly` package from the earlier example but nothing
+    else, we could use the following:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE87]'
+  prefs: []
+  type: TYPE_PRE
+- en: See also
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: You should refer to the specific licenses for a complete understanding of the
+    requirements imposed by them. You can find a complete list of open source licenses
+    and their documentation at [http://spdx.org/licenses/](http://spdx.org/licenses/).
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL

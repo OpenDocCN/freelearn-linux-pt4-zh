@@ -1,0 +1,1021 @@
+- en: Migrating KVM Instances
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'In this chapter, we are going to demonstrate the following libvirt KVM migration
+    concepts:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Manual offline migration using an iSCSI storage pool
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Manual offline migration using GlusterFS shared volumes
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Online migration using the virsh command with shared storage
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Offline migration using the virsh command and local image
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Online migration using the virsh command and local image
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Introduction
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'Migrating KVM instances is the process of sending the state of the guest virtual
+    machine''s memory, CPU, and virtualized devices attached to it, to a different
+    server. Migrating KVM instances is a somewhat complicated process, depending on
+    what backend storage the VM is using (that is, directory, image file, iSCSI volume,
+    shared storage, or storage pools), the network infrastructure, and the number
+    of block devices attached to the guest. There are following the two types of migrations
+    as far as libvirt is concerned:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Offline migration involves downtime for the instance. It works by first suspending
+    the guest VM, then copying an image of the guest memory to the destination hypervisor.
+    The KVM machine is then resumed on the target host. If the filesystem of the VM
+    is not on a shared storage, then it needs to be moved to the target server as
+    well.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Live migration works by moving the instance in its current state with no perceived downtime,
+    preserving the memory and CPU register states.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Broadly speaking, the offline migration involves the following:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Stopping the instance
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Dumping its XML definition to a file
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Copying the guest filesystem image to the destination server (if not using shared
+    storage)
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Defining the instance on the destination host and starting it
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: In contrast, the online migration requires shared storage, such as NFS or GlusterFS,
+    removing the need to transfer the guest filesystem to the target server. The speed
+    of the migration depends on how often the memory of the source instance is being
+    updated/written to, the size of the memory, and the available network bandwidth
+    between the source and target hosts.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Live migration follows this process:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: The original VM continues to run while the content of its memory is being transferred
+    to the target host
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Libvirt monitors for any changes in the already transferred memory pages, and
+    if they have been updated, it retransmits them
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Once the memory content has been transferred to the destination host, the original
+    instance is suspended and the new instance on the target host is resumed
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: In this chapter, we are going to perform offline and live migrations using iSCSI
+    and GlusterFS with the help of storage pools.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Manual offline migration using an iSCSI storage pool
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: In this recipe, we are going to set up an iSCSI target, configure a storage
+    pool for it, and create a new KVM instance using the attached iSCSI block device
+    as its backend volume. Then, we are going to perform a manual offline migration
+    of the instance to a new host.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Getting ready
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'For this recipe, we are going to need the following:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Two servers with `libvirt` and `qemu` installed and configured, named `kvm1`
+    and `kvm2`. The two hosts must be able to connect to each other using SSH keys
+    and short hostname.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: A server with an available block device that will be exported as an iSCSI target
+    and reachable from both `libvirt` servers. If a block device is not available,
+    please refer to the *There's more...* section in this recipe for instructions
+    on how to create one using a regular file. The name of the iSCSI target server
+    in this recipe is `iscsi_target`.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Connectivity to a Linux repository to install the guest OS.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: How to do it...
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'To perform a manual offline migration of a KVM guest using an iSCSI storage
+    pool, follow these steps:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'On the iSCSI target host, install the `iscsitarget` package and kernel module
+    package:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE0]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Enable the target functionality:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE1]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Configure the block device to export with iSCSI:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE2]'
+  prefs: []
+  type: TYPE_PRE
+- en: Replace the `/dev/loop1` device with the block device you are exporting with
+    iSCSI.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Restart the iSCSI target service:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE3]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'On both `libvirt` hosts, install the iSCSI initiator:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE4]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'On both `libvirt` servers, enable the iSCSI initiator service and start it:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE5]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'From both `libvirt` initiator hosts, list what iSCSI volumes are available
+    by querying the iSCSI target server:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE6]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'On one of the `libvirt` servers, create a new iSCSI storage pool:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE7]'
+  prefs: []
+  type: TYPE_PRE
+- en: Make sure to replace the hostname of the iSCSI target server with what is appropriate
+    for your environment. Both a hostname and an IP address can be used when specifying
+    the iSCSI target host.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Start the new iSCIS pool:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE8]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'List the available iSCSI volumes from the pool and obtain more information
+    on it:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE9]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'List the iSCSI session and the associated block devices:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE10]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Examine the partition scheme of the iSCSI block device:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE11]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Install a new KVM guest using the iSCSI volume and pool:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE12]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Refresh the partition table list and examine the new block devices after the
+    installation:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE13]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Start the new KVM guest and ensure that it''s running, and that you can connect
+    to it using a VNC client:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE14]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'To manually migrate the instance to a new host, first stop the VM and the iSCSI
+    pool:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE15]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Dump the XML configuration of the KVM instance to a file and examine it:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE16]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Remotely create the iSCSI storage pool from the `kvm1` host to the `kvm2` host:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE17]'
+  prefs: []
+  type: TYPE_PRE
+- en: If you are not using keys for the SSH connection between both the KVM hosts,
+    you will be asked to provide a password before the `libvirt` command can proceed.
+    We recommend that you use SSH keys on the `libvirt` hosts you are migrating between.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Remotely start the iSCSI pool on the `kvm2` server and ensure that it''s running:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE18]'
+  prefs: []
+  type: TYPE_PRE
+- en: You can also SSH to the `kvm2` server and perform all of the pool and volume operations
+    locally. We do it remotely to demonstrate the concept.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Remotely list the available iSCSI volumes on the `kvm2` node from the source
+    host:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE19]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'SSH to the second KVM server and ensure that the iSCSI block devices are now
+    available on the host OS:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE20]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Complete the migration by remotely defining the KVM instance and starting it
+    on the target host:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE21]'
+  prefs: []
+  type: TYPE_PRE
+- en: How it works...
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: In this recipe, we demonstrated how to manually perform an offline migration
+    of a KVM instance from one host to another, using an iSCSI pool. In the *Online
+    migration using the virsh command* recipe later in this chapter, we are going
+    to perform a live migration using the same iSCSI pool and instance we created
+    in this recipe, using the `virsh` command, thus avoiding downtime for the instance.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Let's step through the process and explore in more detail how the manual offline
+    migration was accomplished.
+  prefs: []
+  type: TYPE_NORMAL
+- en: We start with the server that is going to be presenting the iSCSI target by
+    first installing the required iSCSI target server packages in step 1.
+  prefs: []
+  type: TYPE_NORMAL
+- en: In step 2, we enable the iSCSI target functionality, enabling the server to
+    export block devices via the iSCSI protocol.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'In step 3, we specify an identified (iSCSI qualified name) `iqn.2001-04.com.example:kvm`
+    for the iSCSI target device that the initiators are going to use. We are using
+    the `/dev/loop1` block device for this example. The iSCSI-qualified name has the
+    format **iqn.yyyy-mm.naming-authority:unique name** where:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '**iqn**: This is the iSCSI-qualified name identifier'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**yyyy-mm**: This is the year and month when the naming authority was established'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**naming-authority:** This is usually reverse syntax of the Internet domain
+    name of the naming authority or the domain name of the server'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**Unique name**: This is any name you would like to use'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: For more information about iSCSI and the naming scheme it uses, please refer
+    to [https://en.wikipedia.org/wiki/ISCSI](https://en.wikipedia.org/wiki/ISCSI).
+  prefs: []
+  type: TYPE_NORMAL
+- en: With the target definition in place, in step 4, we restart the iSCSI service
+    on the server.
+  prefs: []
+  type: TYPE_NORMAL
+- en: In steps 5 and 6, we install and configure the iSCSI initiator service on both
+    KVM nodes, and in step 7, we request all available iSCSI targets. In steps 8 and
+    9, we define and start a new iSCSI-based storage pool. The syntax of the storage
+    pool definition should look familiar if you've completed the *Working with storage
+    pools *recipe from [Chapter 2](part0068.html#20R680-c1e587dcccb14690b55c247c1809e6ce), *Using
+    libvirt to Manage KVM.*
+  prefs: []
+  type: TYPE_NORMAL
+- en: After creating the iSCSI storage pool, we proceeded to list the volumes part
+    of that pool in step 10\. Note that when we started the pool, it logged the iSCSI
+    target in, resulting in a new block device present in the `/dev/disk/by-path/`
+    directory, as we can further see in step 11\. We can now use this block device
+    locally to install a new Linux OS. In step 12, we can see that the iSCSI block
+    device presented to the host OS does not yet contain any partitions.
+  prefs: []
+  type: TYPE_NORMAL
+- en: With the new block device present, we proceed to build a new KVM instance in
+    step 13, specifying the storage pool and volume as the target for the installation.
+    After the guest OS installation completes, we can now see that there are multiple
+    partitions on the iSCSI block device in step 14\. We then proceed to start the
+    new guest in step 15.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Now that we have a running KVM instance using an iSCSI block device, we can
+    proceed with the offline manual migration from the `kvm1`  hosts to the `kvm2`
+    hosts.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'We start the migration process by first stopping the running KVM instance and
+    the associated storage pool in step 16\. We then dump the XML configuration of
+    the KVM guest to a file in step 17\. We are going to use it to define the guest
+    on the target server. We have a few options for this: we can copy the file over
+    to the target server and define the instance there or we can do that remotely
+    from the original host.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: In steps 18 and 19, we create the iSCSI storage pool remotely from the original
+    host to the target host. We could have logged in to the target host and performed
+    the same operations locally as well with the same result. The point here is that
+    we can use the `qemu+ssh` connection string to remotely connect to other qemu
+    instances over SSH. In steps 20 and 21, we ensure that the same iSCSI volume has
+    been successfully logged in to the target host.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Finally, in step 22, we define the instance on the target host using the XML
+    configuration we dumped in step 17 and then start it. Because we are using the
+    same XML definition file and the same iSCSI block device containing the guest
+    OS filesystem, we now have exactly the same instance created on the new server,
+    thus completing the offline migration.
+  prefs: []
+  type: TYPE_NORMAL
+- en: There's more...
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'If the iSCSI target server does not have any available block devices to export,
+    we can create a new block device using a regular file by following the steps outlined
+    here:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Create a new image file of a given size:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE22]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Ensure that the loop kernel module is compiled in (or load it with `modprobe
+    loop`) and find the first available loop device to use:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE23]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Associate the raw file image with the first available loop device:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE24]'
+  prefs: []
+  type: TYPE_PRE
+- en: In step 1, we create a new image file using the `truncate` command.
+  prefs: []
+  type: TYPE_NORMAL
+- en: In step 2, we list the first available block device to use and in step 3, we
+    associate it with the raw image file we created in step 1\. The result is a new
+    block device available as `/dev/loop0` that we can use to export in iSCSI.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Manual offline migration using GlusterFS shared volumes
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: In the *Manual offline migration using an iSCSI storage pool* recipe, we created
+    an iSCSI storage pool and used it while performing manual offline migration. With
+    storage pools, we can delegate the operation of a shared storage to libvirt rather
+    than manually having to log in/log out iSCSI targets, for example. This is especially
+    useful when we perform live migrations with the `virsh` command, as we are going
+    to see in the next recipe. Even though the use of storage pools is not required,
+    it simplifies and centralizes the management of backend volumes.
+  prefs: []
+  type: TYPE_NORMAL
+- en: In this recipe, we are going to use the GlusterFS network filesystem to demonstrate
+    an alternative way of manually migrating a KVM instance, this time not using storage
+    pools.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'GlusterFS has the following two components:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '**Server component**: This runs the `GlusterFS` daemon and exports local block
+    devices named **bricks** as volumes that can be mounted by the client component'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**Client component**: This connects to the GlusterFS cluster over TCP/IP and
+    can mount the exported volumes'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'There are the following three types of volumes:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '**Distributed**: These are volumes that distribute files throughout the cluster'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**Replicated**: These are volumes that replicate data across two or more nodes
+    in the storage cluster'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**Striped**: These are stripe files across multiple storage nodes'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: For high availability, we are going to use two GFS nodes using the replicated
+    volumes (two bricks containing the same data).
+  prefs: []
+  type: TYPE_NORMAL
+- en: Getting ready
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'To complete this recipe, we are going to use the following:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Two servers that will host the GlusterFS shared filesystem.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Two hosts running `libvirt` and `qemu` that will be used to migrate the KVM
+    guest.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: All servers should be able to communicate with each other using hostnames.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Both servers hosting the shared volumes should have one block device available
+    for use as GlusterFS bricks. If a block device is not available, please refer
+    to the *There's more...* section of the *Manual offline migration using an iSCSI
+    storage pool* recipe in this chapter on how to create one using a regular file.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Connectivity to a Linux repository to install the guest OS.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: How to do it...
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'To migrate a KVM guest using a shared GlusterFS backend store, run the following:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'On both servers that will host the shared volumes, install GlusterFS:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE25]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'From one of the GlusterFS nodes, probe the other in order to form a cluster:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE26]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Verify that the GlusterFS nodes are aware of each other:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE27]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'On both GlusterFS hosts, create a filesystem on the block devices that will
+    be used as GlusterFS bricks and mount them:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE28]'
+  prefs: []
+  type: TYPE_PRE
+- en: Make sure to replace the block device name with what is appropriate on your
+    system.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'From one of the GlusterFS nodes, create the replicated storage volume, using
+    the bricks from both servers and then list it:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE29]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'From one of the GlusterFS hosts, start the new volume and obtain more information
+    on it:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE30]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'On both `libvirt` nodes, install the GlusterFS client and mount the GlusterFS volume
+    that will be used to host the KVM image:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE31]'
+  prefs: []
+  type: TYPE_PRE
+- en: When mounting the GlusterFS volume, you can specify either one of the cluster
+    nodes. In the preceding example, we are mounting from the `glusterfs1` node.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'On one of the `libvirt` nodes, build a new KVM instance, using the mounted
+    GlusterFS volume:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE32]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Ensure that both `libvirt` nodes can see the guest image:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE33]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'To manually migrate the KVM instance from one `libvirt` node to the other,
+    first stop the instance and dump its XML definition:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE34]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'From the source `libvirt` node, define the instance on the target host:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE35]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Start the KVM instance on the target host to complete the migration:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE36]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'We can also start the KVM instance on the destination host from the source
+    host using the `qemu+ssh` connection as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`root@kvm1:~# virsh --connect qemu+ssh://kvm2/system start kvm_gfs`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: How it works...
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: We begin by installing the GlusterFS server-side package on both servers in
+    step 1\. Then, in step 2, we proceed to form a cluster by sending a probe from
+    the first GlusterFS node. If the probe was successful, we further obtain information
+    about the cluster in step 3\. In step 4, we prepare the block devices on both
+    GlusterFS servers for use by creating a filesystem on them, then mounting them.
+    The block device once mounted will contain the bricks that will form a virtual
+    replicated volume for GlusterFS to export.
+  prefs: []
+  type: TYPE_NORMAL
+- en: In step 5, we create the new replicated volume on one of the nodes (this will
+    affect the entire cluster and only needs to be run from one GlusterFS node). We
+    specify that the type is going to be replicated, using the TCP protocol and the
+    location of the bricks we are going to use. Once the volume is created, we start
+    it in step 6 and get more information about it. Note that from the output of the
+    volume information, we can see the number of bricks in use and their location
+    in the cluster.
+  prefs: []
+  type: TYPE_NORMAL
+- en: In step 7, we install the GlusterFS client component on both `libvirt` servers
+    and mount the GFS volume. Both KVM hosts now share the same replicated storage
+    that is physically hosted on the GlusterFS nodes. We are going to use that shared
+    storage to host the new KVM image file.
+  prefs: []
+  type: TYPE_NORMAL
+- en: In step 8, we proceed with the installation of a new KVM instance, using the
+    GlusterFS volume that we mounted in the previous step. Once the installation is
+    complete, we verify that both `libvirt` servers can see the new KVM image, in
+    step 9.
+  prefs: []
+  type: TYPE_NORMAL
+- en: We start the manual migration in step 10 by first stopping the running KVM instance,
+    then saving its configuration to the disk.  In step 11, we remotely define the
+    KVM guest using the XML dump and verify that it has been successfully defined
+    on the target host. Finally, we start the KVM instance on the target server, completing
+    the migration.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Online migration using the virsh command with shared storage
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: The `virsh` command provides a migrate parameter that we can use to migrate
+    KVM instances between hosts. In the previous two recipes, we saw how to migrate
+    instances manually with downtime. In this recipe, we are going to perform a live
+    migration on an instance that uses either the iSCSI storage pool or the GlusterFS
+    shared volumes that we used earlier in this chapter.
+  prefs: []
+  type: TYPE_NORMAL
+- en: If you recall, live migration only works when the guest filesystem resides on
+    some sort of shared media, such as NFS, iSCSI, GlusterFS, or if we first copy
+    the image file to all nodes and use the `--copy-storage-all` option with `virsh
+    migrate`, as we'll see later in this chapter.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Getting ready
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'In order to complete this recipe, we are going to need the following:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Two `libvirt` hosts with a shared storage between them. If you've completed
+    the earlier recipes in this chapter, you can either use the iSCSI storage pool
+    we created and the KVM instance that is using it or the GFS shared storage with
+    the KVM guest.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Both `libvirt` hosts should be able to communicate with each other using short
+    hostnames.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: How to do it...
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'To perform a live migration using the shared storage, perform the operations listed
+    here:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Ensure that the iSCSI KVM instance we built earlier is running on the source
+    host:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE37]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Live migrate the instance to the second `libvirt` server (the target node should
+    already have the iSCSI pool configured). If this operation errors out, please
+    consult the *There''s more...* section of this recipe for troubleshooting tips:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE38]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Ensure that the KVM instance has been stopped on the source host and started
+    on the target server:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE39]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'To migrate the instance back, from the `kvm2` node, run the following:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE40]'
+  prefs: []
+  type: TYPE_PRE
+- en: How it works...
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: When migrating a KVM instance that is using a shared storage, such as the iSCSI
+    storage pool in this example, once we initiate the migration with the `migrate
+    --live` parameter, libvirt takes care of logging out the iSCSI session from the
+    original host and logging it in to the target server, thus making the block device
+    containing the guest filesystem present on the destination server without the
+    need to copy all the data. You might have noted that the migration took only a
+    few seconds because the only data that was migrated was the memory pages of the
+    running VM on the source host.
+  prefs: []
+  type: TYPE_NORMAL
+- en: There's more...
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: Depending on your Linux distribution and the server type (on-metal or a cloud
+    instance) you are running this recipe on, you might encounter a few common errors
+    when trying to migrate the instance.
+  prefs: []
+  type: TYPE_NORMAL
+- en: '**Error**: error: Unsafe migration: Migration may lead to data corruption if
+    disks use cache != none.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '**Solution**: Edit the XML definition of the instance you are trying to migrate
+    and update the driver section of the block device to contain the `cache=none` attribute:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE41]'
+  prefs: []
+  type: TYPE_PRE
+- en: '**Error**: error: Internal error: Attempt to migrate guest to the same host
+    `02000100-0300-0400-0005-000600070008`.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '**Solution**: Some servers, usually virtualized, may return the same system
+    UUID, which causes the migration to fail. To see if this is the case, run the
+    following on both the source and target machines:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE42]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'If the UUID is the same on both servers, edit the `libvirt` configuration file
+    and assign a unique UUID, then restart `libvirt`:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE43]'
+  prefs: []
+  type: TYPE_PRE
+- en: '**Error**: error: Unable to resolve address `kvm2.localdomain` service 49152:
+    Name or service is not known.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '**Solution**: This indicates that `libvirt` is unable to resolve the hostname
+    of the instances. Make sure that the hostname does not resolve to localhost and
+    that you can ping, or SSH between the source and target servers using the hostname
+    instead of the IP address of the server. An example of a working host file for
+    both `libvirt` nodes is as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE44]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'You can find more information about the operation of an instance by examining
+    the following logs:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE45]'
+  prefs: []
+  type: TYPE_PRE
+- en: Offline migration using the virsh command and local image
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: Performing offline migration with virsh does not require a shared storage; however,
+    we are responsible for providing the guest filesystem to the new host (by coping
+    the image file and so on). The offline migration transfers the instance definition
+    without starting the guest on the destination host and without stopping it on
+    the source host. In this recipe, we are going to perform an offline migration
+    using the virsh command on a running KVM guest using an image file for its filesystem.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Getting ready
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'For this simple recipe, we are going to need the following:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Two `libvirt` hosts and a running KVM instance. If one is not present on your
+    host, you can install and start a new guest VM using a local image file:'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '[PRE46]'
+  prefs: []
+  type: TYPE_PRE
+- en: Both hosts should be able to communicate with each other using hostnames.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: How to do it...
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'To perform an offline migration using the `virsh` command, run the following:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Make sure that we have a running KVM instance:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE47]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Migrate the instance using the offline mode. If this operation errors out,
+    please consult the *There''s more...* section of the *Online migration using the
+    virsh command* recipe for troubleshooting tips:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE48]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Unlike the live migration, the source instance is still running, and the destination
+    instance is stopped:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE49]'
+  prefs: []
+  type: TYPE_PRE
+- en: How it works...
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: Offline migrations are quite simple; the `virsh` command transfers the definition
+    file from the target host to the destination and defines the instance. The original
+    KVM guest is left running. In order to start the migrated instance, its image
+    file needs to be transferred to the destination first and be present on the exact
+    same location as the one on the source server. The main difference when performing
+    an offline migration as compared with just dumping the XML file and defining it
+    on the destination host is that `libvirt` makes updates to the destination XML
+    file, such as assigning new UUIDs.
+  prefs: []
+  type: TYPE_NORMAL
+- en: In the earlier-mentioned example, the only two new flags were the offline and
+    persistent flags. The prior specifies an offline type migration, and the latter leaves
+    the domain persistent on the destination host.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Online migration using the virsh command and local image
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: In this recipe, we are going to live migrate a running instance, without shared
+    storage.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Getting ready
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'For this recipe, we are going to need the following:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Two `libvirt` servers with a running KVM instance using a local image file.
+    We are going to use the KVM guest we built in the previous recipe, *Offline migration
+    using the virsh command and local image*.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Both servers must be able to communicate with each other using their hostnames.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: How to do it...
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'To migrate an instance without shared storage, use the following steps:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Ensure that the KVM guest is running:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE50]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Find the location of the image file:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE51]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Transfer the image file to the destination host:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE52]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Migrate the instance and ensure that it''s running on the destination host:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE53]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'From the destination host, migrate the instance back, using the incremental
+    image transfer:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE54]'
+  prefs: []
+  type: TYPE_PRE
+- en: How it works...
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: After we ensure that the source instance is in a running state in step 1, we
+    transfer the image file to the destination file, in the exact same location as
+    the source in step 3\. With the image file in place, we can now perform a live
+    migration, which we do in step 4 and then back in step 5.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The two new parameters we haven't used so far are `--copy-storage-all` and `copy-storage-inc.`
+    The first one instructs `libvirt` to transfer the entire image file to the destination,
+    whereas the second performs an incremental transfer, copying only the data that
+    has changed, reducing the transfer time.
+  prefs: []
+  type: TYPE_NORMAL

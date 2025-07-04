@@ -1,0 +1,806 @@
+- en: Chapter 11. A Wireless Home Controller with Z-Wave
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'In this project, we''ll see how to implement a little wireless home controller
+    by using a Z-Wave controller connected with our BeagleBone Black and two Z-Wave
+    devices: a wall plug and a multisensor device. With the former, we''ll be able
+    to turn on and off every household appliance connected to it, and, at the same
+    time, measure its power consumption. With the latter, we''ll be able to measure
+    several environment variables like temperature, humidity, and luminance (and have
+    a motion detector capability too).'
+  prefs: []
+  type: TYPE_NORMAL
+- en: The Z-Wave communication protocol allows us to manage several home automation
+    sensors and actuators wirelessly, so we don't need to modify our pre-existing
+    plant. Also, we can easily add a power consumption measuring system or several
+    environment sensors with a minor impact on the actual home layout.
+  prefs: []
+  type: TYPE_NORMAL
+- en: As a last step, to keep the code simple, but in order to allow the user to easily
+    manage the system, we'll write a simple web interface written in Python to easily
+    manage the prototype.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The basics of functioning
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: This time, the project is a bit more complex than before, but all the complexity
+    is not in the hardware (the connections are very simple, just plug in a USB dongle
+    and the trick is done!,) but in the software! In fact, the management software
+    to set up and control these devices needs some skills. Also, due to the fact that
+    the Z-Wave world is really huge, and the lack of space for it in this book (I
+    suppose I can ask my editor to write a dedicated book just to explain how to use
+    the Z-Wave for the home automation projects!), I'm just going to present the very
+    basics of the Z-Wave protocol, showing a minimal application that you can expand
+    on your own.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'As stated before, we''re going to use a Z-Wave controller connected to the
+    BeagleBone Black''s USB host port to manage two Z-Wave devices: one used to measure
+    some environment data, and one to turn on and off a connected device. So, what
+    we have to do is to write some software to be able to send and receive messages
+    to/from these devices via the controller in order to exchange data and commands
+    between the BeagleBone Black and the two slave devices. The code we''re going
+    to write should have a part to manage the Z-Wave messages and a part to interact
+    with the user. Regarding this last part, I decided to use a web interface written
+    in Python with a little code in HTML and JavaScript.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Setting up the hardware
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: The Z-Wave technology, which is oriented to the residential control and automation
+    market, is designed to be suitable for battery-operated devices. In fact, one
+    of its main goals is to minimize the power consumption. Despite this fact, it
+    provides reliable and low-latency transmission of small data packets at data rates
+    of up to 100 kbps, and a simple yet reliable method to wirelessly manage sensors
+    and control lights and appliances in a house.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Note
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: For more information on Z-Wave, a good starting point is at [https://en.wikipedia.org/wiki/Z-Wave](https://en.wikipedia.org/wiki/Z-Wave).
+  prefs: []
+  type: TYPE_NORMAL
+- en: In our project, we're going to use a Z-Wave controller on a USB dongle, one
+    slave device powered by the same plug where it's connected to, and one multisensor
+    device that can be powered by batteries or via an external USB connection.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Setting up the Z-Wave controller
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'The Z-Wave controller I used in this prototype is shown in the following image:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Setting up the Z-Wave controller](img/B00255_11_01.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Note
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: 'The device can be purchased at the following link (or by surfing the Internet):
+    [http://www.cosino.io/product/usb-z-wave-controller](http://www.cosino.io/product/usb-z-wave-controller).'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'A reference design is available here:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[http://z-wave.sigmadesigns.com/docs/brochures/UZB_br.pdf](http://z-wave.sigmadesigns.com/docs/brochures/UZB_br.pdf).'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Once connected with the BeagleBone Black''s USB host port by using the `lsusb`
+    command, we should get the following output:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE0]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Also we should see the following kernel activity:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE1]'
+  prefs: []
+  type: TYPE_PRE
+- en: Looking at the last but fourth line, we can discover that the Z-Wave controller
+    has been connected to the `/dev/ttyACM0` device file. So, the device is correctly
+    connected. But to really test it, we need to install a proper management software.
+    To do so, we can use an open source implementation of the Z-Wave protocol named
+    **Open Z-Wave**, where we can find a lot of suitable software to test a Z-Wave
+    network.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Note
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: The home page of the Open Z-Wave project is at [http://www.openzwave.com](http://www.openzwave.com).
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'With the following command, we can download the code we need into our prototype:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE2]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Then, we need some extra packages to compile the needed tools. So, let''s install
+    them with the following command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE3]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Now, just enter into the `openzwave` directory, and simply use the `make` command
+    as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE4]'
+  prefs: []
+  type: TYPE_PRE
+- en: Tip
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: The compilation is quite slow, so be patient.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'When finished, we need to download another repository into the current directory
+    with the following command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE5]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Then, after the download, we have to install an extra package to proceed with
+    the compilation. So, let''s use the `aptitude` command again, as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE6]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Now, as the last step, enter into the `openzwave-control-panel` directory and
+    rerun the `make` command with the following command lines:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE7]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'When the compilation is finished, the `ozwcp` program should be available.
+    So, let''s execute it by using the following command lines:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE8]'
+  prefs: []
+  type: TYPE_PRE
+- en: Tip
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: Note that the `ln` command is just used once to create a proper link with the
+    Open Z-Wave configuration directory `config`, which is located in the upper directory.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'If you get the following error while executing the program, it means that most
+    probably your web server is holding port `8080`, so you have to disable it:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE9]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Now, we should point the web browser on our host PC to the address `http://192.168.7.2:8080/`
+    to get what is shown in the following screenshot:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Setting up the Z-Wave controller](img/B00255_11_02.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'Okay, now we have to enter the `/dev/ttyACM0` path name into the **Device name**
+    field, and then press the **Initialize** button to start the communication. If
+    everything works well, you should see that a new device is listed in the **Devices**
+    tab, as shown in the following screenshot:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Setting up the Z-Wave controller](img/B00255_11_03.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Now, the controller is up and running, so, we can continue installing the Z-Wave
+    slaves.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Setting up the Z-Wave wall plug
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'The first Z-Wave slave is the wall plug shown in the following image:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Setting up the Z-Wave wall plug](img/B00255_11_04.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Note
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: 'The device can be purchased at the following link (or by surfing the Internet):
+    [http://www.cosino.io/product/z-wave-wall-plug](http://www.cosino.io/product/z-wave-wall-plug).'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'A reference manual is available here:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[http://www.fibaro.com/manuals/en/FGWPx-101/FGWPx-101-EN-A-v1.00.pdf](http://www.fibaro.com/manuals/en/FGWPx-101/FGWPx-101-EN-A-v1.00.pdf).'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The device is wireless and, once connected with a powered plug, it''s self-powered;
+    so, we don''t need special connections to set it up. However, we need some home
+    appliance connected to it, as shown in the following image, for the power consumption
+    measurements:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Setting up the Z-Wave wall plug](img/B00255_11_05.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'Now, to test this device and its communication with the controller, we can
+    use the `ozwcp` program again. Just click on the **Select an operation** menu
+    entry in the **Controller** tab and select the **Add Device** entry and then press
+    the **Go** button. On the left, you should see the **Add Device: waiting for a
+    user action** message. So, let''s power up the device by putting it into a wall
+    plug and then strike the button on the device in order to start the pairing procedure
+    (just as a Bluetooth device does).'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Tip
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: Note that newer version of this device doesn't require you to press the button
+    to start the pairing procedure—it just starts automatically after the first plug.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'If everything works well, a new device should appear in the **Devices** tab
+    as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Setting up the Z-Wave wall plug](img/B00255_11_06.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'Now, we can change some of the device''s settings by selecting the new device
+    and then clicking on the **Configuration** option under the **Devices** listing
+    tab. A panel setting similar to the following screenshot should appear:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Setting up the Z-Wave wall plug](img/B00255_11_07.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Now, we can change the **Standard power load reporting** entry by writing the
+    new value in the related field and then pressing the **Submit** button. In this
+    manner, we can define a lower value by how much power load must change (in percentage)
+    to be reported to the main controller (I used the value `5`).
+  prefs: []
+  type: TYPE_NORMAL
+- en: Setting up the Z-Wave multisensor
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'The second Z-Wave slave is the multisensor shown in the following image:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Setting up the Z-Wave multisensor](img/B00255_11_08.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Note
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: 'The device can be purchased at the following link (or by surfing the Internet):
+    [http://www.cosino.io/product/z-wave-multi-sensor](http://www.cosino.io/product/z-wave-multi-sensor).'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'A reference manual is available here:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[http://aeotec.com/z-wave-sensor/47-multisensor-manual.html](http://aeotec.com/z-wave-sensor/47-multisensor-manual.html).'
+  prefs: []
+  type: TYPE_NORMAL
+- en: To power the device, we can use 4 batteries or a USB cable connected as in the
+    following image. Then, to test the device and its communication with the controller,
+    we can use the `ozwcp` program again. So, just click on the **Select an operation**
+    menu entry in the **Controller** tab and select the **Add Device** entry. Then,
+    press the **Go** button in order to repeat a pairing procedure again (the pairing
+    button is the black button near the sensitivity regulator under the battery pack
+    cover pack cover. In the image below it is located in the top-right corner).
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Setting up the Z-Wave multisensor](img/B00255_11_09.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'Again, if everything works well, a new device should appear in the **Devices**
+    tab as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Setting up the Z-Wave multisensor](img/B00255_11_10.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Now, as before, we can change the default settings. In particular, we can set
+    up the environment report's frequencies and the report's content by changing the
+    **Group 1 Reports** entry to `224` and the **Group 2 Reports** entry to `1`, then
+    **Group 1 Interval** to `10` and **Group 2 Interval** to `60`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'These special settings will instruct the multisensor to enable bits 7 (luminosity),
+    6 (humidity), and 5 (temperature) into group 1, and bit 0 (battery level) into
+    group 2, and to repeat them every 10 seconds for group 1 and every 60 seconds
+    for group 2 (see the following screenshot):'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Setting up the Z-Wave multisensor](img/B00255_11_11.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Ok, now all the devices are ready to operate! So, we can stop the `ozwcp` program
+    by pressing the *CTRL* + *C* key sequence and go forward to the next sections.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The final picture
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: The following is the image that shows the prototype I realized to implement
+    this project and to test the software.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Nothing special to say here; just the BeagleBone Black with the Z-Wave controller
+    USB dongle and the two Z-Wave devices described before.
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![The final picture](img/B00255_11_12.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Setting up the software
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: As already stated, the more complex part of this prototype is the software.
+    We need to install several software packages into our BeagleBone Black, and the
+    software we have to write by ourselves needs some skills. However, don't worry,
+    I'm going to explain all needed steps one at a time!
+  prefs: []
+  type: TYPE_NORMAL
+- en: Setting up the Python bindings
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'Installing the **Python** bindings is quite complex since the software package
+    named `python-openzwave` still seems in hard development, and it depends on tons
+    of **Python** packages! However, I did it by getting a specific version of the
+    project with the following command line:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE10]'
+  prefs: []
+  type: TYPE_PRE
+- en: Note
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: Other versions of the `python-openzwave` package are available at [http://bibi21000.no-ip.biz/python-openzwave/](http://bibi21000.no-ip.biz/python-openzwave/).
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Now, to explore the archive file, we can use the following command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE11]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'A new directory, `python-openzwave-0.3.0b5`, is now created; however, to successfully
+    compile the code, we need to install some Python packages by using the following
+    command line several times:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE12]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Here, with **<package>**, I used the following names: `Louie`, `urwid`, `Flask-SocketIO`,
+    `versiontools`, `gevent-socketio`, `WebOb`, `Flask-Themes`, and `Flask-Babel`.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Tip
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: In reality, the `pip install` command accepts more packages at once separated
+    by spaces, so you can use a single command to install all the needed packages
+    at once.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Note also that to install the `urwid` package, I needed to use a different
+    command to update the already installed package. The command is as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE13]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Meanwhile, to install the `Flask-WTF` package at version 0.9.5, the command
+    I used is as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE14]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'However, on my system I cannot successfully execute it, so I used a *dirty-trick*
+    by applying the following patch to the `setup-web.py` file in the `python-openzwave-0.3.0b5`
+    directory:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE15]'
+  prefs: []
+  type: TYPE_PRE
+- en: Luckily, the code works correctly, even when using a newer version than 0.9.5!
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'After all dependencies have been installed, just move to the `python-openzwave-0.3.0b5`
+    directory and use the `make` command to do the job, as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE16]'
+  prefs: []
+  type: TYPE_PRE
+- en: Tip
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: Again, the compilation is quite slow, so be patient!
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'When finished, we have to install the new code by using the following command
+    line:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE17]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'We did it! To test our new code, we can now use the provided examples by going
+    into the `examples` directory, and then executing the following command lines:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE18]'
+  prefs: []
+  type: TYPE_PRE
+- en: Tip
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: Note that, for better readability in the output lines of the `test_lib.py` command,
+    all timing references have been removed.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Also, for all the next Python codes, you can safely ignore all the warning
+    messages in the following form:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE19]'
+  prefs: []
+  type: TYPE_PRE
+- en: The output of the preceding command is really long and, due to lack of space,
+    I cannot report it here completely, so I'm going to report only the relevant parts.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'In the first lines, we get some basic information messages, as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE20]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Here, there is some information regarding the software release and the device
+    we''re getting access to (that is `/dev/ttyACM0`). Then, there is a list of the
+    queued commands to be executed, as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE21]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Here, are some first answers:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE22]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Then, a lot of messages regarding the probing of all available **Z-Wave** nodes
+    follow:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE23]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Then, the system starts adding the new discovered nodes. The reader is first,
+    as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE24]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Then, there is the wall plug, as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE25]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'And, in the end, there is the multisensor, as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE26]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'After the probing stage, the system asks for device information, and a lot
+    of it is returned! You can see current values, labels, units of measurement, read-only
+    statuses, and so on:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE27]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'As you can see in these examples, the protocol is really powerful and quite
+    complex too! So, to have a better model of our new Z-Wave network, we can use
+    another tool, as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE28]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Again, we get tons of messages, but this time, near the end, we can read the
+    following output:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE29]'
+  prefs: []
+  type: TYPE_PRE
+- en: In this output, it's easier to find all the relative information about our slaves;
+    that is, the wall plug at node 9 (that can work as a normal switch and can return
+    some energy consumption information) and the multisensor at node 10 (that can
+    return the temperature, humidity, and environment luminance and motion activity).
+  prefs: []
+  type: TYPE_NORMAL
+- en: Ok, the Python support is now fully functional! So, let's go to the next section
+    to see how to write the code for our Z-Wave prototype!
+  prefs: []
+  type: TYPE_NORMAL
+- en: The Z-Wave manager
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: After installing the Python binding to manage Z-Wave devices, we have to write
+    our own code to implement the prototype's software.
+  prefs: []
+  type: TYPE_NORMAL
+- en: As already stated, we need to implement a controller that can record the incoming
+    messages from the sensors, can send some commands to the actuators, and, at the
+    same time, can interact with the user. While the former part is Z-Wave-related,
+    the latter can be implemented by using a web interface created in Python plus
+    some extra HTML/JavaScript and CSS files.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Let's now take a look at the Python code. The whole code is quite long, so I'm
+    going to show the relevant parts only, but you can get the complete code in the
+    `chapter_11/zwmanager.py` file in the book's example code repository.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'At the very beginning, we have to declare the code to import:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE30]'
+  prefs: []
+  type: TYPE_PRE
+- en: As you can see, we need several inclusions from the `openzwave` package, while
+    `BaseHTTPServer`, `json`, and `cgi` are used to manage the web interface.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Then, some default settings follow:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE31]'
+  prefs: []
+  type: TYPE_PRE
+- en: Here, the most important thing is the `values` variable, where we're going to
+    store all devices' statuses.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Then, the Z-Wave-related functions are defined, as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE32]'
+  prefs: []
+  type: TYPE_PRE
+- en: The relevant functions are the `louie_network_ready()` function, which installs
+    a new dispatcher when the Z-Wave network is ready, and the `louie_value()` function,
+    which reads all device notifications and stores them in the `values` variable.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Tip
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: Note that this code is very far from perfect since we suppose that only one
+    multisensor device and one wall plug are present at a time! If you wish to manage
+    more devices, you have to completely review these functions.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Then, the HTTP-related functions follow:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE33]'
+  prefs: []
+  type: TYPE_PRE
+- en: The preceding code implements a web server where we just need to manage the
+    `GET` and `POST` HTTP requests to do the job. The `GET` requests are managed by
+    the `do_GET()` method that simply tries to serve a normal file to the client apart
+    from when the special path `/get` is used in the URL. In this special case, the
+    server returns the content of the `values` variable in a JSON format.
+  prefs: []
+  type: TYPE_NORMAL
+- en: As an opposite function, when the `POST` request is received, it is passed to
+    the `do_PUT()` method that, in turn, returns an error code if the special path
+    `/set` is not used; if so, the system parses the data posted by client and then
+    switches the wall plug status.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Tip
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: Note that we suppose again that only one wall plug is present! So, you have
+    to rewrite the code if you wish to manage more than one wall plug device.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Now, we have to show how the system is set up. After some sanity checks to
+    the command line, we start setting up the Z-Wave network:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE34]'
+  prefs: []
+  type: TYPE_PRE
+- en: The `ZwaveOption()` function is used to set up the network's options, and then
+    the `ZwaveNetwork()` function actually does the job according to the selected
+    options. Then, we set up the callbacks to be called each time a Z-Wave signal
+    arrives, and we have to manage it by using the `dispatcher.connect()` method.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Ok, everything is in place now and we have just to wait for the Z-Wave driver
+    to start. When done, we print some network information. Now, the next step is
+    to wait for the network to be up and running, so we can pass to detect the wall
+    plug device and store its relevant node''s information with the following code:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE35]'
+  prefs: []
+  type: TYPE_PRE
+- en: The `get_switches()` method is used to get all the nodes that can act as a switch,
+    so we use it to detect our wall plug and then to store its information into the
+    `sw_node` and `sw_val` variables in order to be used later in the `do_POST()`
+    method to turn on/off the switch based on the user request.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Tip
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: Here, it is really clear that the code is written for only one wall plug at
+    a time in the network!
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Now, we only have to define the web server to finish the job, and we can do
+    it with the following code:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE36]'
+  prefs: []
+  type: TYPE_PRE
+- en: The main function is the `HTTPServer()` function that starts the internal web
+    server listening at the `8080` port.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Now, to complete the software presentation, I need to show how the `house.html`
+    file works. This is the file that is served by the web server each time a new
+    client gets connected to it.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Note
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: Again, as before, I'm going to show the relevant parts only, but you can get
+    the complete code in the `chapter_11/house.html` file in the book's example code
+    repository.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'In the head part, I define the CSS file name and the JavaScript code to use:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE37]'
+  prefs: []
+  type: TYPE_PRE
+- en: In this code, we used the same technique used in [Chapter 7](ch07.html "Chapter 7. Facebook
+    Plant Monitor"), *Facebook Plant Monitor*, where I installed a polling function
+    that executes several `GET` requests on the server, one per second, to update
+    the displayed data returned in the `JSON` format. Also, each time a button is
+    pressed, we do a `POST` request to the server, passing the button ID to it to
+    manage.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'In the body part of the `house.html` file, we define the table to show our
+    data in a nice manner:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE38]'
+  prefs: []
+  type: TYPE_PRE
+- en: Regarding the CSS file, there is nothing important to say (it's just a CSS file!),
+    while the `jquery-1.9.1.js` file is the one already used in the *The final test*,
+    section in [Chapter 7](ch07.html "Chapter 7. Facebook Plant Monitor"), *Facebook
+    Plant Monitor*; so, just refer to that section in order to know how to get and
+    install it.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The final test
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'Now, to test the prototype, I connected the wall plug with my printer (the
+    power load) and powered the multi-sensor with a USB port of my PC (just to avoid
+    using the batteries). Then, I started the `zwmanager.py` program as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE39]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Next, I connected my browser to the `192.168.7.2:8080` URL, but before doing
+    it, I waited for a while, looking at some messages from the sensors:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE40]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Then, when I started the browser, I got the following messages:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE41]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'As expected, the main HTML file, the CSS file, and the JavaScript file are
+    served to the client that showed me something, as shown in the following screenshot:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![The final test](img/B00255_11_13.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'Now, I can try turning on the printer connected to the wall plug by pressing
+    the **switch** button. I got the following messages from the `zwmanager.py` program:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE42]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Meanwhile, the web panel changed as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![The final test](img/B00255_11_14.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Summary
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: In this chapter, we discovered how to implement a basic home management system
+    with a web interface that controls two Z-Wave devices to monitor some environment
+    data and control a wall plug.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The presented code, even if a bit complex, can be easily extended to support
+    more Z-Wave devices to manage a really complex network.
+  prefs: []
+  type: TYPE_NORMAL

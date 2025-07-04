@@ -1,0 +1,1450 @@
+- en: Chapter 4. Windows Patching
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'In this chapter, we will cover the following recipes:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Configuring VCM to use Microsoft updates
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: An introduction to automated patching
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Creating a patch assessment template
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Windows patching – on demand
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Windows patching – scheduled
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Patching machines in multi-domain environments and workgroups
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Patching VM templates
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Patching reports
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Introduction
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: So far, we have covered how to deploy VCM on one or multiple tiers, how to configure
+    it, and how to deploy agents on the machines we want to manage. In this chapter,
+    we will have a look at patching Windows servers and desktops.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Even though all products go through rigorous quality tests, there are always
+    some bugs left that can be exploited if they aren't fixed. Patch management comes
+    into the picture to do this job. With the help of VCM, we can perform an automated,
+    scheduled analysis of the infrastructure for missing patches and then deploy them
+    as necessary. There are many tools in the market, such as Microsoft System Center
+    Configuration Manager or BMC BSA, that can do this job, but the benefit of using
+    VCM is that it's an integral part of the vRealize Operation suite, so you don't
+    need to pay extra for VCM. It can not only patch Windows and Linux but can also
+    be used to patch Unix and Mac OS. We can schedule the patching job, and VCM will
+    perform the patching and update the status on the central console.
+  prefs: []
+  type: TYPE_NORMAL
+- en: With the help of vRealize Automation and vRealize Orchestrator, we can automate
+    the deployment of Windows patching. We can create a registry entry in the VM that
+    will be captured by VCM while performing the collection, and based on that registry
+    entry, the VM will be placed in the correct machine group, which is created for
+    the sole purpose of patching the VMs on the same schedule.
+  prefs: []
+  type: TYPE_NORMAL
+- en: In order to perform scheduled patching, we need to configure at least four jobs.
+    The first one is the initial collection, which will collect status details against
+    the **Patching - Windows Security Bulletins** filter set. Once those details are
+    in the VCM database, another job will start the initial assessment and check which
+    patches are missing on the server. Once VCM has the details of which patches from
+    the patch assessment template are missing on the server, it will start the actual
+    patching job. After each patching job is finished, VCM starts its own data collection
+    job to obtain the updated status of the server. Finally, we need to schedule a
+    final assessment, which will update the patch status of the after patch deployment.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Configuring VCM to use Microsoft updates
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: In this recipe, we will configure VCM to synchronize patch metadata with Microsoft
+    so that we can select one or more patches and check the compliance of our infrastructure.
+    If VCM detects non-compliance, we can deploy the patches.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Getting ready
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: We will need a fully deployed VCM server to work on this recipe. In order to
+    use VCM for patching, we need Internet access to download patches from Microsoft
+    onto the VCM Collector server. We should have proxy details available, such as
+    IP address, port name, and user credentials. If you are on a secure network, make
+    sure you have Internet access, at least to [https://www.microsoft.com/](https://www.microsoft.com/) and
+    [http://www.vmware.com/](http://www.vmware.com/).
+  prefs: []
+  type: TYPE_NORMAL
+- en: Firewall requirements are discussed in the *vRealize Configuration Manager port
+    and protocol summary* section of [Chapter 1](ch01.html "Chapter 1. Installing
+    VCM"), *Installing VCM*.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Note
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: Note that before you patch Windows Server 2008 and Windows 7 machines, you need
+    to verify that the Windows Update service is running, which means that it is set
+    to something other than **Disabled**.
+  prefs: []
+  type: TYPE_NORMAL
+- en: How to do it...
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: To prepare for Microsoft patching, we will break the recipe into several steps.
+    The proxy steps only need to be performed if you are using a proxy to access the
+    Internet.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Configuring a proxy
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: 'In a real-life scenario, the VCM server would need a proxy to access patching
+    sites on the Internet; we need to update those settings in vRealize Configuration
+    Manager. We can do that by following these steps:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Log in to VCM with admin privileges.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Go to **Administration** | **Settings** | **General Settings** | **Patching**
+    | **Internet**.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Select **HTTP Proxy Server** and **Logon** individually. Hit the **Edit** button
+    at the top and provide the proxy details.![Configuring a proxy](img/image_04_001.jpg)
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Enter the credentials acquired in the **Getting Ready** stage.![Configuring
+    a proxy](img/image_04_002.jpg)
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Hit **Next** and then **Finish**.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Once we have filled in the proxy options, VCM can connect to the Internet and
+    download Microsoft patches.
+  prefs: []
+  type: TYPE_NORMAL
+- en: If you have direct access to the Internet, you don't need to fill in these details.
+    You can skip this section. Once the proxy has been configured, we can set the
+    frequency with which to check for updates and the languages we need to download
+    the patches.
+  prefs: []
+  type: TYPE_NORMAL
+- en: VCM will not download any patch on the collector unless it is required while
+    deploying it on the managed machine and the administrator opts to download it.
+    VCM only syncs metadata for Windows and Linux/Unix machines from [http://www.vmware.com/](http://www.vmware.com/),
+    and then, those details are presented to the VCM administrator as available patches
+    for distribution.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Downloading settings
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: The download settings are where we define the synchronization schedule and additional
+    languages if required. Patches are available in various languages for the operating
+    systems we have installed; here, we can choose the language required by our infrastructure.
+    Microsoft patches are released every second Tuesday, also known as *Patch Tuesday*,
+    but there are patches that can be released out of band, so we can set the schedule
+    to daily to make sure we don't miss those out-of-band patch details.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'To configure download settings, follow these steps:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Go to **Administration** | **Settings** | **General Settings** | **Patching**
+    | **Windows** | **Bulletin and Updates**.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Change the schedule to suit your needs, or go with the defaults.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '**Superseded Patches**'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Some of these updates might *supersede* previously installed updates, that is,
+    Microsoft might re-release a patch or release a patch that supersedes/replaces
+    a previous patch. The new version of the patch is the only one that needs to be
+    installed.
+  prefs: []
+  type: TYPE_NORMAL
+- en: An example would be Patch MS15-024 superseding Patch MS15-016, which in turn
+    supersedes Patch MS14-085\. This would mean that only Patch MS15-024 needs to
+    be downloaded.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Microsoft''s supersedence information can be found in the **Updates Replaced**
+    column of the **Affected Software** table at the top of the security bulletins:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Downloading settings](img/image_04_003.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: The network authority account
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: As explained in the *Service accounts* subsection of [Chapter 1](ch01.html "Chapter 1. Installing
+    VCM"), *Installing VCM*, we need the network authority account. Now, we will associate
+    those accounts with either machine groups or domains.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Start by following these steps:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Go to **Administration** | **Settings** | **Network Authority**.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'We now have the following options:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '**Available Domains Identified**'
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: We added domains when we installed VCM. Have a look at step 19 of the *Installing
+    VCM – two-tier deployment* recipe from [Chapter 1](ch01.html "Chapter 1. Installing
+    VCM"), *Installing VCM *for more details.
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: '**Available Accounts**'
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: We assigned one network authority account during VCM deployment; have a look
+    at step 17 of the *Installing VCM – two-tier deployment* recipe from [Chapter
+    1](ch01.html "Chapter 1. Installing VCM"), *Installing VCM* for more details.
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: '**Assigned Accounts**'
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: For this recipe, we will chose **Assigned Accounts**.
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: To make it possible to patch machines in multiple domains, we need to assign
+    available accounts to available domains or machine groups. To do this, go to **Assigned
+    Accounts** | **By Domain** | **Active Directory**.
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: 'The following screenshot shows the assigned network authority account for the
+    `study.local` Active Directory domain:'
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: '![The network authority account](img/image_04_004.jpg)'
+  prefs:
+  - PREF_IND
+  type: TYPE_IMG
+- en: Synchronizing patches with Microsoft
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: 'Once we have an Internet connection (either natively or using a proxy), we
+    can synchronize patch metadata with Microsoft by following these steps:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Go to **Patching **| **Windows **| **Bulletins **| **By Bulletin** and click
+    on **Check for Update**.![Synchronizing patches with Microsoft](img/image_04_005.jpg)
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: To monitor the status of the sync, go to **Patching **| **Job Management** | **Windows **| **Job
+    Manager** | **Running**.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Once the job is done, you can look at the bulletins under **Patching **| **Windows** | **Bulletins **| **By
+    Bulletin**, which can be used to create a patch assessment template.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'You will be able to see the patch details on the right-hand side now:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Synchronizing patches with Microsoft](img/image_04_006.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'In earlier releases of VCM, there was an issue with synchronization. Patches
+    were not visible even after synchronization was complete. Here is the *Knowledge
+    Base* article for the resolution: [http://kb.vmware.com/selfservice/microsites/search.do?language=en_US&cmd=displayKC&externalId=2053975](http://kb.vmware.com/selfservice/microsites/search.do?language=en_US&cmd=displayKC&externalId=2053975)
+    . Fortunately, we don''t need to do this in the latest version of VCM.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: How it works...
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: We are performing necessary initial configuration so that VCM can reach the
+    Internet and synchronize patch metadata that can be used to check which patches
+    are missing and which are not required on the machines in the infrastructure.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The proxy configuration in VCM is for the synchronization and downloading of
+    patches once we start deploying them; they are downloaded to the collector server
+    from the Internet.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The download directory
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: The default download directory is `X:\Program Files (x86)VMware\VCM\WebConsole\L1033\Files\SUM
+    Downloads`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: This directory is shared as `\\collector_name\cmfiles$\SUM Downloads`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Note that if no Internet access is available, you must obtain the patches manually
+    and store them in `\\collector_name\cmfiles$\SUM Downloads` on the VCM Collector.
+  prefs: []
+  type: TYPE_NORMAL
+- en: See also
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: More details about the network authority account can be found in the *Adding
+    a network authority account to manage machines in multiple domains* recipe from
+    [Chapter 2](ch02.html "Chapter 2. Configuring VCM to Manage Your Infrastructure"), *Configuring
+    VCM to Manage Your Infrastructure*
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: An introduction to automated patching
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: Once we are finished with the preparation, we will have a look at how we can
+    use VCM to automatically populate specific machine groups so that they can be
+    patched automatically on a schedule. As discussed in the introduction of the chapter,
+    if you are using vRealize Automation and vRealize Orchestrator to deploy new VMs,
+    you can use them to create a registry entry that will be captured by VCM during
+    the initial data collection. Based on that registry entry, individual VMs will
+    be placed in their respective machine groups, which will be used for automated
+    patching.
+  prefs: []
+  type: TYPE_NORMAL
+- en: If you are not using an automated deploy tool to create registry entries, you
+    have to devise a way to manually populate the machine groups every time a new
+    machine/server is deployed.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Getting ready
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: Get help from a vRA and vRO expert, who will present an option on the portal
+    for users when they request a machine; otherwise, create scripts that will add
+    required registry entries to the managed machines.
+  prefs: []
+  type: TYPE_NORMAL
+- en: For this recipe, we will do it manually in order to simulate the process.
+  prefs: []
+  type: TYPE_NORMAL
+- en: How to do it...
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: An explanation of utilizing vRA and vRO for automated patching is out of the
+    scope of this book; get in touch with your vRA and vRO experts for that.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'An example script that can be used to add a registry entry is as follows. Each
+    line represents a single script and will add required registry entry:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE0]'
+  prefs: []
+  type: TYPE_PRE
+- en: You can use any tool to do this, or run them manually on each machine. We had
+    a look at how this can be used to create a machine group in the *Creating machine
+    groups* recipe in [Chapter 2](ch02.html "Chapter 2. Configuring VCM to Manage
+    Your Infrastructure"), *Configuring VCM to Manage Your Infrastructure*.
+  prefs: []
+  type: TYPE_NORMAL
+- en: How it works...
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: It gives us a variable that will be used to create filters in machine groups,
+    and then, those filters will make sure the machines in the respective machine
+    groups can be patched on a schedule. To create a machine group based on this captured
+    registry entry, have a look at the *Creating machine groups* recipe in [Chapter
+    2](ch02.html "Chapter 2. Configuring VCM to Manage Your Infrastructure"), *Configuring
+    VCM to Manage Your Infrastructure*.
+  prefs: []
+  type: TYPE_NORMAL
+- en: See also
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: As mentioned in the recipe, have a look at *Creating machine groups* recipe
+    in [Chapter 2](ch02.html "Chapter 2. Configuring VCM to Manage Your Infrastructure"), *Configuring
+    VCM to Manage Your Infrastructure*
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: For setting up scheduled patching, go through the *Windows patching – scheduled*
+    recipe later in this chapter
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Creating a patch assessment template
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: A patch assessment template is basically a list of patches grouped together,
+    for example, all patches for Windows Server 2008, all security patches for a specific
+    month, or only security updates for all Windows operating systems. We can create
+    either a static template or a dynamic template. In a static template, we choose
+    patches manually, while in a dynamic template, we define criteria based on the
+    patch release date, severity of the patch, product, and so on.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Getting ready
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: Before starting this recipe, we need a fully functional VCM setup and to follow
+    the steps mentioned in *Configuring VCM to use Microsoft updates*.
+  prefs: []
+  type: TYPE_NORMAL
+- en: How to do it...
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: You are tasked with implementing your organization's patch policy for Windows
+    servers, and your security team will test and provide you with a list of approved
+    patches on a monthly basis. You need to create a patch template and make sure
+    all your servers are patched according to approved patches.
+  prefs: []
+  type: TYPE_NORMAL
+- en: To start with, you need to create a patch template and update it on a monthly
+    basis. As you will get a list of approved patches, it's better you create a static
+    template and keep adding patches every month.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'To create the patch assessment template, follow this process:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: After logging in to VCM, go to **Patching** | **Windows** | **Assessment Template**
+    and click on **Add**. This will launch the wizard.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Give a name, proper description, and, depending on your requirements, select
+    **Dynamic Template** or **Static Template**.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: In our case, we need to select **Static Template**.![How to do it...](img/image_04_007.jpg)
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: For **Static Template**, select the required patches and save the template.
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '![How to do it...](img/image_04_008.jpg)'
+  prefs:
+  - PREF_IND
+  type: TYPE_IMG
+- en: For **Dynamic Template**, define criteria; VCM will then populate the patches
+    on that basis.
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '![How to do it...](img/image_04_009.jpg)'
+  prefs:
+  - PREF_IND
+  type: TYPE_IMG
+- en: Note
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: Note that once a template type is selected and saved, it cannot be changed to
+    another type.
+  prefs: []
+  type: TYPE_NORMAL
+- en: How it works...
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: We cannot deploy patches without creating assessment templates; these will be
+    used for assessing the status of the machines, checking missing patches, and then
+    deploying them.
+  prefs: []
+  type: TYPE_NORMAL
+- en: As explained, you can create a dynamic monthly template to assess and update
+    Windows templates in vCenter, as those will be patched monthly and we don't need
+    them to be assessed with a big, long assessment template.
+  prefs: []
+  type: TYPE_NORMAL
+- en: We can create a big assessment template that can be used to scan and check the
+    entire infrastructure with live machines and will include only those patches that
+    are approved by the company's security team.
+  prefs: []
+  type: TYPE_NORMAL
+- en: You should note that if some users with administrative access uninstall a patch,
+    then this big assessment template comes in handy, as it will have the uninstalled
+    patch listed, and then VCM will reinstall the patch.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Here is a comparison of the template types:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '**Dynamic template**: This updates the patch list based on the conditions we
+    provide while creating it. Refer to the previous screenshot: we have options to
+    filter patches based on parameters such as **Bulletin Name** or **Last X Days**,
+    so we can have a monthly assessment template ready for the current month; or by
+    severity, so we can have security patches only.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '**Static template**: This template does not update itself on its own; the administrator
+    needs to log in to VCM to add/remove the patches from the list. If your security
+    team releases a list of approved patches every month, you can create a master
+    template and keep adding new patches, removing patches that are superseded, and
+    keep an updated assessment template ready for deployment.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Every template has a unique ID associated with it in the VCM database; if we
+    create a template, use it in deployment, delete it, and then recreate a template
+    with the same name, then this newly created template will be treated as a different
+    template by VCM and will not be used automatically in the deployment that had
+    been using the old template.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Windows patching – on demand
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: Once the patch assessment template is ready, we need to first assess machines
+    for missing patches and then use that to patch them. The assessment will also
+    be used to check patch compliance in the form of reports, which we will cover
+    at the end of this chapter.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Getting ready
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: We will need the VCM server connected to the Internet and configured as in the
+    *Configuring VCM to use Microsoft updates* and *Creating a patch assessment template* recipes.
+    We can either use the default machine groups created by VCM or create groups as
+    necessary; the process was explained in the *Creating machine groups* recipe in
+    [Chapter 2](ch02.html "Chapter 2. Configuring VCM to Manage Your Infrastructure"), *Configuring
+    VCM to Manage Your Infrastructure*.
+  prefs: []
+  type: TYPE_NORMAL
+- en: How to do it...
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'We will use the default machine groups listed in the recipe just mentioned
+    and will not create any new ones for now. So, we will start by logging in to VCM
+    and following these steps:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Go to **Patching **| **Windows **| **Assessment Template**.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Select the assessment template, making sure the proper machine group is selected
+    at the top (machine groups are used to filter selected machines instead of showing
+    all the machines managed by VCM).
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: If you click on the data grid, you will be able to see the status of all the
+    machines on which the VCM agent is installed and which are a part of the selected
+    machine group. If **Data Age** is **N/A**, then we need to perform a data collection
+    for those machines. The following screenshot shows the **Suggested Patch** value
+    as **Must reassess - Machine Added After Assessment run** for the `dc01` machine:![How
+    to do it...](img/image_04_010.jpg)
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Simply select the machine(s) and click on **Collect** in the top-left corner.
+    This will launch a wizard; make sure all the required machine(s) are part of the
+    **Selected** box on the right-hand side.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Select **Select a collection Filter set to apply to those machines** and **do
+    not Limit collection to Deltas**; any priority is fine, so go with the default.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Under **Filter Sets**, select **Patching - Windows Security Bulletins**.![How
+    to do it...](img/image_04_011.jpg)
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Make sure the job is completed successfully; it will take 10 minutes to add
+    the details to the VCM database.
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: Once the collection is complete, click on **Assess**. This will check the patch
+    status of each machine. The content of the assessment template will be checked
+    against the managed machine's patch status. The results will then be presented
+    with details of missing or installed patches.![How to do it...](img/image_04_012.jpg)
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: After the assessment, you will be given options such as **I****nstalling the
+    missing patches** or **No Affected Product Installed**. To install missing patches,
+    select them and click on **Deploy**. This will again launch a wizard.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: On the first page, select the patches you want to deploy.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'In the next step, it will try to find the location of the patches. It will
+    report whether the patch was found and include the bulletin number:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '***Found on Collector*** : The Windows patch file was found in the download
+    directory.'
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**Found on the Internet**: The Windows patch file was found on the download
+    site and must be downloaded.'
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**Not Found**: The Windows patch file was not found on the Collector or the
+    Internet.'
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'We need to download a patch before installing, so select **Download Now**:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '***Download at run time*** : This pulls the patch down to the default download
+    directory or the alternate local patch path when the patch is deployed. Because
+    the deployment can be scheduled, you can run the deployment and download the files
+    when heavy loads do not occur on your network.'
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '***Download now*** : This pulls the patch files down to the default download
+    directory or the alternate local patch path immediately. Depending on your network
+    load and the number of files to download, you can download the patch files immediately.'
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: As this is on-demand patching, select **Copy patches to target machines during
+    deployment** and **Run Action now**.![How to do it...](img/image_04_013.jpg)
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Select **Reboot Options** as required.![How to do it...](img/image_04_014.jpg)
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Download the patches, and the deployment will start.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: The deployment can be monitored at **Patching** | **Job Management** | **Windows**
+    | **Job Manager** | **Running**.
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: '![How to do it...](img/image_04_015.jpg)'
+  prefs:
+  - PREF_IND
+  type: TYPE_IMG
+- en: 'Once the patches are deployed on the target machine, it will display a message
+    like this:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '![How to do it...](img/image_04_016.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: After we have started the deployment, we probably want to monitor how it's going.
+    To do so, click on **Jobs** on the VCM console and follow the **Patching** job.
+    Once the patch has been deployed, we need to check the status being updated in
+    VCM console, that is, earlier under **Suggested Patch**, it showed **Install the
+    Patch**, and now, it should show **None (Patch Already Applied)**. For that, go
+    back to **Patching** | **Windows** | **Assessment Template** | <The patch template
+    you used at the start> and start the collection. Once the collection is complete,
+    perform an assessment (click on **Assess** in the top menu), and a refresh will
+    give you the desired result, that is, the status of the managed machines–whether
+    the patch was deployed or the machine failed or is still waiting for a reboot
+    (if not, set to reboot when deploying patches).
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following screenshot shows the status after running the assessment on a
+    managed machine after patch deployment, reboot, and data collection:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![How to do it...](img/image_04_017.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Note
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: 'Note that VCM runs **Job Summary: Patching Automated Collection - Patching
+    - Windows Security Bulletins** to run a collection after patching, but it sometimes
+    takes a while to run this collection. We can run the collection the same way we
+    did at the start of the recipe and perform an assessment.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: How it works...
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: After the initial assessment, VCM identifies which patches are missing on the
+    server, based on which it gives you the Suggested Patch advice, such as installing
+    missing patches. You can choose to install missing patches. Now, VCM tries to
+    find out whether the patch is available on the Collector server–downloaded for
+    installation on another server–or is available on Internet; this is where proxy
+    configuration comes in handy. If the patch is not available on the Collector server,
+    it offers to download the patch.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Once the patch download is complete, it stages the patch on the managed machine
+    and starts installing it. Once the patch installation is over and if the patch
+    requires a reboot, depending upon the options we have selected, it will reboot
+    the server. After the server is rebooted, it performs a post-patch collection
+    and then updates the status to VCM regarding the patch we installed. If we perform
+    another assessment after the patching and data collection, we can check the current
+    status of the patch: it must be installed.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Windows patching – scheduled
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: In the previous recipe, we deployed a patch on demand and found we need to run
+    a few tasks to finish the job. We cannot afford to wait in front of the server
+    every time to perform an on-demand patching; hence, what we can do is schedule
+    patch deployment. Because the assessment is run only against data in the VCM database,
+    we must collect patching data from managed machines before and after we run an
+    assessment.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Getting ready
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: We will need a VCM server that has an Internet connection and has been through
+    the earlier recipes, such as *Prepare VCM for Windows patching* and *Creating
+    a patch assessment template*. For scheduled patches, it is recommended to have
+    machine groups created before we start the process.
+  prefs: []
+  type: TYPE_NORMAL
+- en: How to do it...
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: As seen in the previous recipe, we need to follow four steps to completely perform
+    the patching job; hence, we will schedule four tasks for completing one single
+    patch maintenance window.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The tasks will be as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '**Initial collection**: Collecting patch status data from machines before patching'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**Initial assessment**: Comparing collected data against the assessment template
+    before patching'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**Deploying patches**: Installing patches according to schedule'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**Final assessment**: Comparing collected data against the assessment template
+    after patching'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'This is a planned schedule that will look like this:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '| **Sr. no.** | **Name** | **Schedule** | **Reason** |'
+  prefs: []
+  type: TYPE_TB
+- en: '| **1** | Initial collection  | First Sunday at 08:00 am | 12 hours before
+    the actual patch |'
+  prefs: []
+  type: TYPE_TB
+- en: '| **2** | Initial assessment  | First Sunday at 02:00 pm | 6 hours before the
+    actual patch |'
+  prefs: []
+  type: TYPE_TB
+- en: '| **3** | Deploy patch | First Sunday at 08:00 pm | Scheduled patch maintenance
+    window |'
+  prefs: []
+  type: TYPE_TB
+- en: '| **4** | Final assessment | First Sunday at 11:00 pm | 3 hours after patching
+    to give time for automated collection (happens after 30 minutes of patching and
+    reboot) |'
+  prefs: []
+  type: TYPE_TB
+- en: Initial collection
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: We can't install a patch unless VCM knows whether it is required; in the initial
+    collection, we will update the VCM database with this information. VCM creates
+    a filter set called **Patching - Windows Security Bulletins** and updates it after
+    each new patch released by Microsoft.
+  prefs: []
+  type: TYPE_NORMAL
+- en: In this example, we will use a machine group called `VCM-CookBook-MW01`, which
+    we have created for this demonstration.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Follow these steps to start automatic Windows patch deployment configuration:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: To perform initial collection, we need to log in to VCM with admin privileges
+    and go to **Administration** | **Job Manager** | **Scheduled**, click on **Add**,
+    and select **Collection***.*
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Provide a proper name and add description.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Make sure you select **Patching - Windows Security Bulletins** as the **Filter
+    Set**.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Select the correct machine group for this scheduled maintenance window.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Provide a proper schedule, as described in the table at the start of this recipe.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Once the initial collection against the required filter set has been scheduled,
+    we can move to the next step, initial assessment*.*
+  prefs: []
+  type: TYPE_NORMAL
+- en: Initial assessment
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: 'The initial assessment involves checking the status of patches against the
+    machines whose data has been collected in the previous step. We are giving 6 hours
+    to VCM to properly collect the data from all the machines; hence, this job can
+    be scheduled after 6 hours of initial data collection and 6 hours before actual
+    patch time. Follow these steps:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Navigate to **Patching** | **Job Management** | **Windows** | **Scheduled** | **Assessment**
+    and click on **Add**.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Provide a proper job name related to the maintenance window and a proper description.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Select the correct template.![Initial assessment](img/image_04_018.jpg)
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Select an associated machine group.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Select an appropriate schedule, as discussed at the start of this recipe.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Deploying patches
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: 'At this moment, the VCM server has information about which patches are missing
+    on the machines that are a part of the machine group, and now, we can schedule
+    the actual patch deployment task by following these steps:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Navigate to **Patching** | **Windows** | **Automatic Deployment**. Click on
+    **Add**.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Select the correct machine group responding to the maintenance window.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Select the required assessment template.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: On this page, select **Scheduled Automatic Deployment**** Run** and, if your
+    company policy approves, select **Reboot immediately after deployment**.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: For **Threshold Data Age**, we can go ahead with the default of `2`, as we have
+    already scheduled jobs to collect data and perform the assessment 12 hours before
+    the actual patch time.![Deploying patches](img/image_04_019.jpg)
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Finally, select the schedule we decided on at the start of the recipe and click
+    on **Next**.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: We will be done with the third step once we click on **OK**.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Final assessment
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: 'So far, we have scheduled data collection and assessment and then done the
+    actual patching. Now, we will schedule a task that will update the VCM database
+    with these updates. In the previous recipe, we learned that after performing a
+    patch deployment, when the machine reboots, VCM starts a collection job to collect
+    details of the machine after patch installation. So, we just need to schedule
+    an assessment the same way we did in the initial assessment step; we just need
+    to make sure the name and description indicate that this is the final assessment
+    and it is scheduled some time after the patch installation (3 hours, as decided
+    at the start) to give some time to the VCM server to finish the job. Follow these
+    steps:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Navigate to **Patching** | **Job Management** | **Windows** | **Scheduled** | **Assessment**
+    and click on **Add**.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Provide a proper job name related to the maintenance window and a proper description.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Select the correct template.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Select the associated machine group.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Select the appropriate schedule, as discussed at the start.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Once we are done with the final assessment, VCM will update the current details
+    on the user interface and in the reports.
+  prefs: []
+  type: TYPE_NORMAL
+- en: How it works...
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: This makes life much easier for the admins, who are responsible for patching.
+    All the activities required for patching can be and are scheduled so that admins
+    don't need to sit in front of the VCM console and push patches.
+  prefs: []
+  type: TYPE_NORMAL
+- en: We scheduled an initial collection, which used the **Patching - Windows Security
+    Bulletins** filter set, which made sure we have the latest details of the managed
+    servers in the VCM database. Based on the data collected, we performed an initial
+    assessment. This performed a check against the patching template and provided
+    us with information about the patch requirements.
+  prefs: []
+  type: TYPE_NORMAL
+- en: This is followed by actual patches being downloaded from the Internet if missing
+    on the collector server and then being staged on the managed machine. Once the
+    time is right, the VCM agent installs the patches and performs a reboot as configured.
+    After the patches are installed, VCM initiates the data collection again using
+    the same filter set, **Patching - Windows Security Bulletins**, but this time,
+    we have updated details as the patches have been installed now.
+  prefs: []
+  type: TYPE_NORMAL
+- en: This updated information is added to the VCM database and used in the final
+    assessment to obtain the status of the current patch.
+  prefs: []
+  type: TYPE_NORMAL
+- en: There's more...
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: Apart from the regular options, there are some additional settings that you
+    should pay attention to if you plan to manage a medium-to-large infrastructure.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Here are the details you need to configure your infrastructure. You need to
+    log in with VCM admin privilege and go to **Administration** | **General Settings** | **Patching**
+    | **Windows** | **Additional Settings**.
+  prefs: []
+  type: TYPE_NORMAL
+- en: '| **Sr. no.** | **Setting** | **Explanation** |'
+  prefs: []
+  type: TYPE_TB
+- en: '| **1** | Automatic patch deployment - the threshold data age (days) | This
+    sets the automatic patch deployment to trigger based on the threshold data age.
+    When the data age of the patch bulletin is greater than the threshold data age,
+    VCM does not deploy the patches. To update the data age for the patch bulletin,
+    you must run a new collection and assessment.The default is `2` days, which you
+    can modify if required. |'
+  prefs: []
+  type: TYPE_TB
+- en: '| **2** | The timeout in minutes for the entire patch deployment job | The
+    time for which to run the patch deployment job before the process times out.The
+    default is `60`; if you have large number of machines getting patched in one go,
+    then this needs to be changed to a higher value, such as `120` or `180`, depending
+    upon how many machines you have and the approved maintenance window. |'
+  prefs: []
+  type: TYPE_TB
+- en: '| **3** | The wait time (in minutes) before performing the post collection,
+    for patches that require a reboot | This determines how long VCM will wait before
+    collecting patch status data from rebooted managed machines after the patch deployment
+    is finished.The default is `30` minutes; if you think this is too much or too
+    little, you can change it. |'
+  prefs: []
+  type: TYPE_TB
+- en: '![There''s more...](img/image_04_020.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: You need to log in with VCM admin privileges and go to **Administration** | **General
+    Settings** | **Patching** | **Windows** | **Deployments**.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Change the value of the maximum concurrent agent installs from `21` to a higher
+    value.
+  prefs: []
+  type: TYPE_NORMAL
+- en: If in the additional settings you have selected `60` minutes as the timeout
+    in minutes for the entire patch deployment job and you have this maximum concurrent
+    set to the default `21`, then there are chances that some machines might get a
+    timeout and not get the patches deployed if you have a very large assessment template.
+    This can create some issues, as we might have some machines without patches in
+    a month.
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![There''s more...](img/image_04_021.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Patching machines in multi-domain environments and workgroups
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: Typically, in medium-to-large organizations, more than one Active Directory
+    domain exists. We can use VCM to patch servers in multiple domains. Here is what
+    you need to do that.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Apart from multiple domains, there are machines that are part of none, or they
+    are in a workgroup. To manage and patch the machines in a workgroup, you need
+    a network authority account assigned to a machine group populated with machines
+    in a workgroup.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Getting ready
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: We need to follow the *Adding a network authority account to manage machines
+    in multiple domains* recipe in [Chapter 2](ch02.html "Chapter 2. Configuring VCM
+    to Manage Your Infrastructure"), *Configuring VCM to Manage Your Infrastructure*,
+    with correct domains and their respective NAA accounts for patching multi-domain
+    servers.
+  prefs: []
+  type: TYPE_NORMAL
+- en: For patching machines in a workgroup, we need to create a machine group with
+    static memberships and add all machines that are not in the domain.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Open the necessary ports between the VCM server and the managed servers either
+    in a workgroup or in another domain.
+  prefs: []
+  type: TYPE_NORMAL
+- en: How to do it...
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'We will approach this recipe in two ways:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: First, we will discuss multiple domains.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The first thing we need to do is configure all the required **Network Access
+    Account** (**NAA**) accounts as per the *Adding a network authority account to
+    manage machines in multiple domains* recipe from [Chapter 2](ch02.html "Chapter 2. Configuring
+    VCM to Manage Your Infrastructure"), *Configuring VCM to Manage Your Infrastructure*.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Then, you can follow the *Windows patching – on demand* recipe from this chapter
+    for on-demand patching or the *Windows patching – scheduled* recipe for scheduled
+    patching.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The second way is for workgroup servers.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'We need to add an available account with a `.` (dot) domain and a username
+    and password common to the workgroup machines. Follow these steps:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Go to **Administration** | **Settings** | **Network Authority**, under **Available
+    Accounts** and click on **Add**.![How to do it...](img/image_04_022.jpg)
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Once the accounts have been added, we need to associate them with the machine
+    group created for workgroup machines.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: If there are no common accounts available, then we can add one account per server
+    in following format. Here, **Domain** is the name of the machine:![How to do it...](img/image_04_023.jpg)
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: So now, go to **Assigned Accounts** by **Machine Group**, select a machine group
+    for the workgroup machines, and assign the accounts added earlier.![How to do
+    it...](img/image_04_024.jpg)
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: As explained in the previous recipe, VCM tries all the accounts until it finds
+    a working account; there is no problem in assigning all the accounts to the machine
+    group.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Note
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: Note that we cannot have multiple accounts with the same account name and domain,
+    so for the `.` (dot) domain, we can't have more than one administrator as a user
+    registered in the available accounts.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'There is another alternative: if, for some reason, you do not wish to assign
+    all the accounts to the machine group, you can create network authority accounts
+    and then assign one account to each machine, making sure that when adding the
+    available account, the domain is defined as the machine name.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Once you have added the required accounts, go to **Administration **| **Licensed
+    Machines** | **Licensed Windows Machines**.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Select the machine whose network authority account needs to be changed; click
+    on the ![How to do it...](img/image_04_025.jpg)symbol in the menu, and it will
+    launch the wizard.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Make sure the machine whose NAA we are changing is available under **Selected**.![How
+    to do it...](img/image_04_026.jpg)
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Select the associated network authority account for this machine.![How to do
+    it...](img/image_04_027.jpg)
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Click on **Next** and then complete the wizard.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: To make sure the account has been changed correctly, scroll to the extreme right
+    and validate under the **Network Authority** column for the machine.![How to do
+    it...](img/image_04_028.jpg)
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: After this change, we can successfully manage the machine from VCM, which includes
+    collecting data, installing software and patches, and checking and enforcing compliance.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Then, you can follow either the *Windows patching – on demand* or *Windows patching
+    – scheduled* recipes, based on your requirements.
+  prefs: []
+  type: TYPE_NORMAL
+- en: How it works...
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: The defined network authority account will be used by VCM to manage the patching
+    of the machines in the workgroup.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Patching VM templates
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: It is essential that when VMs are first provisioned, the virtual machine template
+    to be used is up to date. This will reduce the downtime for the end consumer of
+    the VM when they come to patch, and reduce system-wide vulnerabilities.
+  prefs: []
+  type: TYPE_NORMAL
+- en: How to do it...
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'Follow these steps to patch a VM template:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: To patch a VM template, convert it into a VM, provide an IP, and make sure it
+    can reach the VCM server.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: The agent installer should be available on each template.
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: Once the agent has been installed, license the machine in VCM and perform a
+    collection.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: The machine should be a part of a machine group called **Template Patching**. Perform
+    on-demand patching.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: After patches have been installed and the VM rebooted and validated by VCM for
+    the patch status, uninstall the agent.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Purge the VM in VCM.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Convert the VM back into a template.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: How it works
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: This is a completely manual process, where we convert the template in to a virtual
+    machine, install the agent, and then install patches. After patching is over,
+    we purge the machine from the VCM console after uninstalling the agent and finally
+    convert the machine to a vCenter template.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Patching reports
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: Once the infrastructure has been patched, what we need are fancy reports to
+    show to the management that we are all green in terms of patching. VCM does not
+    disappoint you when it comes to reports–there are multiple preconfigured reports,
+    which can be either scheduled or run on demand and exported to multiple formats
+    such as `.xls`, `.doc`, `.csv`, and `.pd`f.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Getting ready
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: We must have a compliance template ready before we can begin with the recipe.
+  prefs: []
+  type: TYPE_NORMAL
+- en: How to do it...
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: Once logged in to VCM, go to the reporting section.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Navigate to **Reports **| **Machine Group Reports** | **VCM Patching**.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'These are the default reports available in VCM for Windows patching:'
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: '| **Ser** | **Name** | **Description** |'
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+- en: '| **1** | VCM Patching Assessment Based | These reports use data generated
+    by VCM patching assessments (on the VCM Patching slider) to generate their patch
+    status results |'
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+- en: '| **2** | Patch Status Summary | This displays the patching status across the
+    enterprise for Windows and Unix |'
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+- en: '| **3** | VCVP Windows Patch Status Details | This displays details of virtualization
+    machines'' Windows patch statuses |'
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+- en: '| **4** | Windows Patch Assessment by Bulletin Information | This enables VCM
+    patching by bulletin |'
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+- en: '| **5** | Windows Patch Assessment by Product Information | This enables VCM
+    patching by product information |'
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+- en: '| **6** | Windows Patch Assessment Results Details | This displays the details
+    of the VCM patching assessment by machine, bulletin, or template |'
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+- en: '| **7** | Windows Patch Assessment Results Details By Bulletin | This displays
+    Windows patch assessment results details grouped by bulletin |'
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+- en: '| **8** | Windows Patch Assessment Results Details By Machine | This displays
+    Windows patch assessment results details grouped by machine |'
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+- en: '| **9** | Windows Patch Assessment Results Details By Template | This displays
+    Windows patch assessment results details grouped by template |'
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+- en: '| **10** | Windows Patch Assessment Results Trends | This displays the trends
+    for VCM patching assessment templates by day, week, month, or quarter |'
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+- en: '| **11** | Windows Patch Assessment Trends | This displays the trends for VCM
+    patching assessments by day, week, month, or quarter |'
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+- en: '| **12** | Windows Patch Status | This displays the Windows patch status |'
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+- en: '| **13** | Windows Patch Status by Template Details | This provides the VCM
+    patching patch status by template details |'
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+- en: '| **14** | Windows Patch Status by Template Summary | This provides the VCM
+    patching patch status by template summary |'
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+- en: '| **15** | Windows Patch Status Details | This provides Windows patch status
+    details |'
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+- en: From the VCM console, select the report you want to run, and click on **Run**;
+    the wizard will start. Once the details are filled in, it will show the report.
+    As discussed, the report can be exported into multiple formats to be used by the
+    administrator.![How to do it...](img/image_04_029.jpg)
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: The important thing we need to remember here is the machine group selection
+    on the top; this filters the machines that will be included in the report.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: We can schedule reports as well. We will have more details about that in [Chapter
+    8](ch08.html "Chapter 8. Integration with vROps and Scheduling"), *Integration
+    with vROps and Scheduling*, in the *Scheduling reports* recipe.![How to do it...](img/image_04_030.jpg)
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: How it works...
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: There is a big list of existing reports that we can run and export. We can even
+    schedule those reports, and then, they can be either exported to a location or
+    mailed to a specified e-mail id if working SMTP is configured.
+  prefs: []
+  type: TYPE_NORMAL
+- en: There's more...
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: You can have a look at scheduling reports in the *Scheduling patching reports*
+    recipe of [Chapter 8](ch08.html "Chapter 8. Integration with vROps and Scheduling"),
+    *Integration with vROps and Scheduling*.
+  prefs: []
+  type: TYPE_NORMAL

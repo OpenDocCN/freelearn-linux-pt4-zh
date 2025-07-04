@@ -1,0 +1,2047 @@
+- en: Building and Optimizing the Virtual Desktop OS
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: Having built the Horizon View infrastructure and its components in the previous
+    chapters of this book, in this chapter, we will focus our attention on virtual
+    desktops. We are going to look at how to create and configure the virtual hardware
+    elements of virtual desktop machines, install a desktop operating system based
+    on best practices for virtual desktop machines, and then configure that operating
+    system to run at its optimum performance levels.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The steps involved in building the core operating system for a virtual desktop
+    machine are not too dissimilar from the process of building a physical desktop
+    machine. However, there are some additional tasks and software components that
+    we need to install within the operating system to turn it into a true virtual
+    desktop machine that''s fit for a Horizon View environment, and more importantly
+    for the end users. This chapter will cover each of these steps in more detail
+    and also build several OS images along the way. We will use the example lab to
+    do so. The build process is shown in the following diagram:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/17b74d44-d743-4ae3-abd1-931e6efe7afe.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: We will build a virtual desktop machine for a Windows 7 desktop. It will be
+    configured with a floating-desktop assignment, built using linked clones, and
+    a second virtual desktop machine running Windows 7, which will be configured with
+    a dedicated assignment and built from a full clone. Finally, we will also look
+    at creating an Instant Clone Windows 10-based desktop, before finishing this chapter
+    with a look at delivering a Linux-based virtual desktop machine.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following topics will be covered in this chapter:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Creating a Windows 7 virtual desktop machine
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Creating a Windows 10 virtual desktop machine
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Creating a GPU-enabled virtual desktop machine
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Creating a Linux virtual desktop machine
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Preparing virtual desktops for delivery
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Best practices for building virtual desktop images
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: In this section, we are going to discuss some of the best practices and processes
+    for building your virtual desktop machine images.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'In a physical desktop environment, there are a number of ways in which the
+    operating system can be built and deployed. For example, you could use the **Microsoft
+    Deployment Toolkit** (**MDT**) or maybe the Microsoft **System Center Configuration
+    Manager** (**SCCM**). Both of these options can be used along with all the other
+    tools that are available to build desktop images, including VMware''s own Mirage
+    product, of course. So, we just talked about a couple of options that you can
+    use to build your desktop images, but let''s just highlight the one that you should
+    not use: the **physical-to-virtual tool** (**P2V**), which turns your physical
+    image into a virtual one.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: A best practice is to build a new virtual desktop image from scratch, so it
+    starts off life as being designed to be a virtual machine from day one. After
+    all, you would potentially build a new image for a new hardware platform, and
+    that's what you are doing in reality. There are a few reasons to not use your
+    physical image to create your virtual desktop image, though. One of the reasons
+    is the size of the image, which more than likely will have become bloated, with
+    numerous patches and updates being applied over the last year or so. You want
+    your VDI image to be lean and fresh, with just the most recent and relevant software
+    installed.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Another reason is that there might be some hardware drivers or other hardware-based
+    software elements within the image, such as a desktop hardware management solution
+    like Intel **Active Management Technology** (**AMT**), which relies on firmware
+    and other components that are built into the chipset of the physical machine.
+    As you are now using a virtual desktop machine, this type of hardware is not present
+    and, therefore, you do not require it to be installed.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The worst-case scenario is having this type of solution installed, because it
+    will affect the performance of your virtual desktop machine.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Technical requirements
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'Before we get into the build process, we need to look at the specifications
+    of the virtual desktop machine from a virtual hardware perspective and what we
+    need to configure it. The following screenshot lists the virtual desktop machine
+    requirements:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/0fcdb73e-cfcf-4226-9247-7c9c06ea24f4.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: You should be able to work out the requirements for your particular environment
+    by using the assessment data that you captured at the start of the project. One
+    thing to bear in mind is that you can quite easily change the configuration should
+    you need to when fine-tuning the performance and the end user experience.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Another important factor when configuring the size of virtual desktop machines
+    is not to fall into the trap of over-sizing. For example, if you only need one
+    CPU, then only give the virtual desktop machine one CPU. Don't be tempted to add
+    unnecessary resources, as you will ultimately end up lowering the number of virtual
+    desktop machines that you can host on your server infrastructure, thus increasing
+    costs and management with the extra hardware. You could also potentially make
+    the virtual desktop performance slower. As we mentioned previously, this is why
+    your assessment data is critical.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The VDI desktop should be configured using the guidelines for the hardware specifications
+    that were outlined in the previous table.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Creating a Windows 7 virtual desktop machine
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: In this section, we are going to build a virtual desktop machine with Windows
+    7\. This will be as the operating system to use as the master image that we will
+    create virtual desktops from. We will follow the steps that were outlined in the
+    diagram at the very start of this chapter and the first diagram to optimize and
+    prepare the image that's going to be used as a floating-assigned, linked-clone
+    virtual desktop machine.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Creating the virtual desktop machine container
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'The first thing we need to do is build and configure the actual virtual desktop
+    machine on our vCenter server. This will define the virtual hardware configuration.
+    To define the configuration, follow these steps:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Open a browser and log into the vSphere web client for the vCenter `vcs1.pvolab.com`,
+    as follows:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '![](img/4cb3ffb4-1882-4cd6-99ea-d317adc20469.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'Once logged in, you will see the vSphere Client home page, as shown in the
+    following screenshot:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/eb71271c-48ae-492e-8e62-3fd56c93b5e7.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'From the navigation shortcuts on the left-hand side of the screen, click on
+    VMs and Templates (**1**), as shown in the following screenshot:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '![](img/ab004f20-061e-46fb-8071-5c0626ea66e3.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'Expand the vCenter `vcs2.pvolab.com`, and then click to highlight the datacenter
+    name of where you want to create the virtual desktop machine. In the example lab,
+    the data center is called PVO''s Datacenter (**2**). Right-click it, and from
+    the contextual menu, click the option for New Virtual Machine... (**3**). You
+    will now see the New Virtual Machine configuration box, as shown in the following
+    screenshot:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '![](img/877c4057-c290-4c26-8830-ac5f838d2d99.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'The first task is to Select a creation type. From the list of options, click
+    to highlight Create a new virtual machine (**4**), and then click the NEXT button
+    to continue. You will now see the Select a name and folder screen, as shown in
+    the following screenshot:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '![](img/33258b19-9eb1-4d90-8daf-2c4f35566cfa.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: In the Virtual machine name box (**5**), type in a name for the new virtual
+    desktop machine. In the example lab, this is called `Windows 7 Gold Image`.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Then, in the Select a location for the virtual machine section, click to highlight
+    the datacenter where you want this virtual machine to be created. In the example
+    lab, this machine is going to be created in the datacenter called PVO's Datacenter
+    (**6**).
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'Click the **NEXT** button to continue. You will now see the Select a compute
+    resource screen, as shown in the following screenshot:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '![](img/98c0af4d-f0f0-49c2-8509-ae377639dddf.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: Expand the datacenter called PVO's Datacente**r** and then click on the ESX
+    server you want to host this virtual desktop. In the example lab, 192.168.1.131
+    (**7**) is the IP address of the host server we are going to use to host this
+    virtual desktop machine.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: As this is going to be our gold/master image or parent virtual desktop machine,
+    it's probably not as important in regards to the location compared to the live
+    production virtual desktop machines. So, for the example lab, we will use the
+    management block to host this virtual desktop machine.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Click the NEXT button to continue. You will now see the Select storage screen,
+    as shown in the following screenshot:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '![](img/a6fac8ad-43a4-4394-8160-38efe57e1f2b.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: Select the datastore where this virtual desktop machine will be stored. In the
+    example lab, the virtual desktop machine is stored on the default datastore called
+    VM Datastore (**8**). Click the NEXT button to continue.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: You will now see the Select compatibility screen. This is where we will choose
+    the virtual machine version for our virtual desktop machine. As it states, for
+    the best performance, you should use version 13, which means using vSphere 6.5
+    or later as the hosting platform. If you are using a different hosting platform,
+    then select the one that is relevant to your environment. However, be aware that
+    some features may not be available depending on the version you choose. For example,
+    you will need at least vSphere 6 if you want support for features such as instant
+    clones and vGPU.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'From the dropdown menu (**9**), select ESXi 6.5 and later, as shown in the
+    following screenshot:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '![](img/549aab80-a038-414b-9e9d-1c17e9dbaf89.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'Click the NEXT button to continue. You will now see the Select a guest OS screen,
+    as shown in the following screenshot:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '![](img/1db62ebe-05f1-4506-8486-d539ab595fe7.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: The next step is to choose the operating system for the virtual desktop machine.
+    In our example, this is the first virtual desktop machine that will be used as
+    the gold image template for Windows 7.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: From the Guest OS Family box, click the arrow for the dropdown menu (**10**)
+    and select Windows. Then, from the Guest OS Version box, click the arrow for the
+    dropdown menu (**11**) and select Microsoft Windows 7 (64-bit). The guest OS selection
+    is important to get right, as it determines which drivers get installed when VMware
+    Tools is installed on the virtual desktop machine.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Click the NEXT button to continue.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'You will now see the Customize Hardware screen where you can configure the
+    virtual hardware specification for the virtual desktop machine, as shown in the
+    following screenshot:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '![](img/dffc1c04-9486-432d-99bf-aa5a7a4492d3.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: There are a couple of things to change on this configuration screen. First,
+    this virtual desktop machine is going to have two vCPUs. In the CPU box, click
+    the down arrow (**12**) and select 2 from the dropdown menu (**13**) to configure
+    two vCPUs for this virtual desktop machine.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'Next, expand the New Network option by clicking the arrow (**14**), and then
+    on the Adapter Type box, click the down arrow (**15**) and select the option for
+    VMXNET 3 (**16**), as shown in the following screenshot:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '![](img/ec4c17e9-1891-4a02-a374-4fa9a5151df2.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'Because we are building a new virtual desktop machine we will need to install
+    the operating system. To do this, we are going to attach the install media to
+    the virtual desktop machine so that it can boot from it and start the install.
+    Scroll down to the New CD/DVD Drive option, as shown in the following screenshot:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '![](img/58546dfa-a199-4759-8cd3-3271240e53b0.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: Click on the down arrow (**17**), and from the list of options that are displayed,
+    click on Datastore ISO File (**18**). In the example lab, we have already uploaded
+    the ISO images for the installation media to a datastore on the host servers.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'You will now see the Select File screen displayed, as shown in the following
+    screenshot:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '![](img/58e5503c-cb48-4aaa-98c9-613bc1067e42.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: Expand the datastore (**19**) and then click on the `ISO Images` folder (**20**).
+    Then, click to select the OS that is going to be installed on this virtual desktop
+    machine. In this example, we are going to install Windows 7, so click on the en_windows_7_professional_with_sp1_x64_dvd
+    option (**21**). You may have your ISO images stored in a different location,
+    so just follow this as a guide using your folder locations.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Click the OK button to return to the virtual hardware screen.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'One final thing to ensure on this screen is that the ISO file you have just
+    added is connected as a New CD/DVD Drive. To do this, check the Connected box
+    (**22**), as shown in the following screenshot:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '![](img/aacb60c9-ab99-40ff-ae5a-8eb49e2d1c1e.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: In the last part of the hardware configuration, you need to change one of the
+    boot options so that the next time the virtual desktop machine powers on and boots,
+    it goes straight into the BIOS setup screen. You could, of course, open a console
+    to the virtual desktop machine and press the *F2* key as it boots; however, that
+    screen can flash past so quickly that you might miss it, so the former option
+    is much easier. The reason you need to select this option and go into the BIOS
+    setup screen is that we need to change some of the configuration settings so that
+    this virtual desktop machine behaves as a virtual machine, rather than as a physical
+    desktop PC. We will cover this a bit later when we power on the newly created
+    virtual desktop machine for the first time.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'To configure the boot options, click the VM Options tab (**23**), and then
+    expand the arrow for Boot Options (**24**). Check the tick box for Force BIOS
+    setup (**25**). This is shown in the following screenshot:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '![](img/1caa5521-246c-41e2-a1c2-8aea8344900c.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'Once you have completed the configuration, click the NEXT button to continue.
+    You will now see the Ready to complete screen, as shown in the following screenshot:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '![](img/9543cfde-c94c-4e72-97f3-62355077be4a.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: Once you are happy with the configuration details, click the FINISH button to
+    complete the configuration.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'If you now check the Recent Tasks box, you will see that the virtual desktop
+    machine has been successfully created, as shown in the following screenshot:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '![](img/0b7b7ac5-d81c-491d-ba9b-2a493b212948.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: With the virtual desktop machine now built and configured, it's time to power
+    it on and continue the build process. Navigate to the virtual desktop machine
+    in the inventory. You should see an entry called Windows 7 Gold Image.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'Highlight the virtual desktop machine Windows 7 Gold Image (**26**), right-click
+    it, and from the contextual menu that''s shown, click on Power (**27**) and then
+    click on Power On (**28**), as shown in the following screenshot:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '![](img/40be7869-8fd3-482d-bf6e-dece7959b00a.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: The virtual desktop machine will now power on and boot into the BIOS setup screen,
+    as that's what we configured to happen on the next boot. Any subsequent bootups
+    will boot as normal into the operating system once it's installed.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: In the next section, we will make configuration changes to the virtual desktop
+    machine's BIOS settings.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Updating the virtual desktop machine BIOS
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'With the virtual desktop machine now powered on and booted into the BIOS setup
+    screen, we are going to launch a remote console screen to it so that you can perform
+    the configuration steps. To do this, perform the following steps:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Highlight the Windows 7 Gold Image virtual desktop machine in the Inventory
+    section, and then under the Summary tab, click the Launch Remote Console link
+    (**1**), as shown in the following screenshot:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '![](img/e858c880-1e49-4ab0-88a1-5898badaa742.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'You will now see the PhoenixBIOS Setup Utility screen of the virtual desktop
+    machine, as shown in the following screenshot:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '![](img/c76a096b-ba3e-42dd-9ea0-90f09ea08d4a.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'The first thing you need to do is disable the floppy drive. On the Main section
+    of the BIOS setup screen, use the cursor keys to move down, highlight the option
+    for Legacy Diskette A: (**2**), and then press *Enter*.'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: You will now see a popup box displaying the diskette options. Again, use the
+    cursor keys to highlight the Disabled option (**3**) and then press *Enter*.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'Next, you need to navigate to the Advanced section of the BIOS setup screen.
+    To do this, press the right arrow cursor key to move across the tabs along the
+    top until the Advanced tab is highlighted (**4**), as shown in the following screenshot:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '![](img/bb17b77d-898e-4e78-a36b-b321c0260ee6.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'Using the down-arrow cursor, move down to the option for I/O Device Configuration
+    (**5**) and press *Enter*. You will now see the Advanced configuration screen,
+    as shown in the following screenshot:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '![](img/5bbef2d6-2250-4f15-92f3-82bb82ccff39.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'Move the cursor to the entry for Serial port A: and press *Enter*. From the
+    popup box, select the option for Disabled (**6**).'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'Follow the same procedure to disable the options for Serial port B:, Parallel
+    port:, and the Floppy disk controller: until all of the options have been set
+    to Disabled. Once you have completed these configuration changes, press the *F10*
+    key to save and exit. You will see the Setup Confirmation box, as shown in the
+    following screenshot:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '![](img/d5b14624-59bb-4a30-b4d2-fcd81ca86505.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: Confirm the configuration changes by selecting Yes (**7**), and then press *Enter*.
+    The BIOS changes are now saved, and the virtual desktop machine will be rebooted
+    automatically.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: You have successfully configured the BIOS. The next step is to install the operating
+    system.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Operating system installation options
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: There are a couple of options you can use to build the operating system for
+    the virtual desktop machines. The first option is to use something such as MDT,
+    SCCM, or VMware's own Mirage product (used for Full Clone desktops), to deploy
+    an image you have already built for VDI, but for the example lab, we will use
+    a different option, which is to build the image manually by using the installation
+    media to show the different tasks you need to perform to optimize the image for
+    VDI.
+  prefs: []
+  type: TYPE_NORMAL
+- en: This build process is no different than how you build any other virtual machine
+    on vSphere, so we will briefly cover some of this as a quick reminder for those
+    who are already familiar with working on the vSphere platform, and in enough detail
+    so that those that are new to the technology can quickly get their first virtual
+    desktop machine image built.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Installing the guest operating system
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: Since we connected an ISO image as part of the the virtual desktop machine configuration
+    when we built it, as the virtual desktop machine starts up, the ISO image will
+    be mounted, and the Windows 7 installation will automatically start.
+  prefs: []
+  type: TYPE_NORMAL
+- en: We are not going to cover how to install Windows 7, so carry on with a basic
+    install, or how you want to configure the OS for the end users. Once the installation
+    is complete, make sure you apply any Windows updates and patches and then join
+    the virtual desktop machine to the domain.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The reason you need to join the VDI desktop to the domain—even though this machine
+    is effectively the template—is so that all the software components, DLL files,
+    and so on, that are needed on the machine for it to be domain-joined are present.
+    Otherwise, when you create the linked clones from this parent image and try to
+    join them to the domain, the virtual desktop machines will ask for the installation
+    media to be inserted. That's OK for one or two desktops and when testing, but
+    not for thousands in production.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Once you are happy that the operating system for the parent image has been patched
+    and is joined to the domain, you can start installing some of the VMware-specific
+    virtual machine tools and Horizon View components, starting with VMware Tools.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Installing VMware Tools
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'VMware Tools enhances the usability of the virtual desktop machine. It installs
+    VMware-specific device drivers that allow it to run as a virtual desktop machine,
+    replacing the physical hardware equivalents. The installation of VMware Tools
+    is initiated from the vSphere Client:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'From the Windows 7 Gold Image virtual machine and its Summary tab, click on
+    Install VMware Tools (**1**), as follows:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '![](img/8fc0b4e0-7548-4a5a-a12b-b5a38c33bf58.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'Initiating the installation from the vSphere Web Client effectively mounts
+    the VMware Tools installation media as a virtual CD drive on the virtual desktop
+    machine. You will see the following Install VMware Tools dialog box pop up, as
+    shown in the following screenshot:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '![](img/bf9d71c4-3c53-4127-8cd1-79a93493dc14.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: Click the MOUNT button (**2**) to mount the VMware Tools installation media,
+    and then switch back to the console of the virtual desktop machine.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'You will now see the AutoPlay dialog box showing that the VMware Tools DVD
+    drive has been mounted and that the installation program is available to launch,
+    as shown in the following screenshot:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '![](img/32fd91af-3f2b-4a96-82d9-ae89b53ba8ff.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: Click Run setup64.exe (**3**) to launch the VMware Tools installer.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: If you see the User Account Control box pop up warning you about making changes
+    to the computer, ignore it by clicking on the Yes button.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: You will now see the Welcome to the installation wizard for VMware Tools dialog
+    box.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'Click the Next > button to continue the installation. You will now see the
+    Choose Setup Type dialog box, as shown in the following screenshot:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '![](img/b24c862c-3577-4b62-9def-2bbb9339c8ad.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'Click the radio button for Custom (**4**), and then click the Next > button
+    to continue. You can also choose the Typical option, which installs a standard
+    set of drivers; however, for the purposes of this book, and to describe all the
+    available options, we are going to look at a custom install. You will now see
+    the Custom setup dialog box, as shown in the following screenshot:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '![](img/73aa2727-e43a-4221-9d70-512a3b7c3e8e.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'VMware Tools will install the following VMware device drivers, depending on
+    whether they are selected. By default, all are selected, excluding the VMCI Drivers.
+    The drivers and their functions are described here:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'Paravirtual SCSI: This is for PVSCSI adapters to enhance the performance of
+    virtualized applications.'
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Memory Control Driver: This allows memory management of the virtual desktop
+    machine when running on an ESXi host.'
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'PS2/USB Mouse Driver: This virtual mouse driver improves the performance of
+    the mouse in a virtual desktop machine.'
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'SVGA Driver: This enables 32-bit displays, high resolution, and faster graphics
+    performance. It installs a virtual SVGA driver that replaces the standard VGA
+    driver. On Windows Vista and later versions, the VMware SVGA 3D (Microsoft – WDDM)
+    driver is also installed, adding support for Windows Aero.'
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**Audio Driver**: This is required for all 64-bit guest operating systems,
+    since it enables sound capabilities.'
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'VMXNET3 NIC Driver: This improves network performance and is recommended for
+    virtual desktop machines.'
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Volume Shadow Copy Services: This allows you to take backup copies or snapshots
+    of the virtual desktop machine.'
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'VMCI Driver: This allows faster communication between virtual machines.'
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'NSX File Introspection Driver: This installs the agent so that you can use
+    antivirus offload scanning.'
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: The other options in this dialog box are for Browse..., which allows you to
+    change where VMware tools are installed, and Disk Usage, to check the disk space
+    requirements so that you can check the amount of disk space that VMware Tools
+    will need to install your chosen options.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Click the Next > button to continue. You will now see the Ready to install VMware
+    Tools dialog box. Click the Install button to start the install process.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Once completed, you will see the Completed the VMware Tools Setup Wizard dialog
+    box. Click on the Finish button to complete the installation process.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: You will now be prompted to restart the virtual desktop machine so that you
+    can start the VMware Tools services. From the dialog box, click the Yes button
+    to reboot.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'Once the virtual desktop machine has restarted, check that the VMware Tools
+    services are up and running by clicking on the taskbar and checking for the VM
+    icon (**5**), as shown in the following screenshot:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '![](img/82c18ada-7386-4e2a-a900-a549b83b24e8.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'You can also launch the Services console from the virtual desktop machine and
+    check that the service is running from there, as shown in the following screenshot:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/185dc77d-ed49-4ea6-a598-c1810fb5a87d.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: You have successfully installed VMware Tools. The next step is to install any
+    core applications that you want to include as part of the parent image.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Installing applications for the parent image
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: The next stage is to install any applications that you want to have as part
+    of your parent image. These are typically applications that will be used by every
+    user in your organization. You could also deliver applications using other technologies,
+    such as ThinApp or App Volumes, as, ideally, you would want to try to deliver
+    applications on demand, rather than install them into operating system images,
+    as this would make them harder to manage.
+  prefs: []
+  type: TYPE_NORMAL
+- en: In the example lab, we have installed Adobe Reader in the gold image.
+  prefs: []
+  type: TYPE_NORMAL
+- en: In the next section, we are going to install the Horizon Agent so that the virtual
+    desktop machine is registered with the Horizon environment and the connection
+    server.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Installing the Horizon Agent
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: The Horizon Agent is installed on each virtual desktop machine and is used for
+    communication between the Horizon View Client and the virtual desktop machine.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'It also adds components for things such as View Persona Management and USB
+    redirection. We will cover these different components in more detail in this section
+    as we install the agent on the virtual desktop machine. To install the Horizon
+    Agent, follow these steps:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Open a console to the Windows 7 Gold Image virtual desktop machine, and from
+    the desktop, navigate to the installation file for the Horizon Agent. For simplicity,
+    we have created a shared folder on the domain controller so that we can save all
+    the installation media on it.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Launch the `VMware-Horizon-Agent-x86_64-7.6.0-9539447` file to start the installation,
+    and if you see the Open File - Security Warning message, click the Run button
+    to continue. You will now see the Welcome to the Installation Wizard for VMware
+    Horizon Agent screen.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'Click the Next > button to continue. You will now see the License Agreement
+    page, as shown in the following screenshot:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '![](img/d5d4d543-54f4-4a3d-9d74-8d3deb01d659.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: Click on the radio button for I accept the terms in the license agreement (**1**).
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'Click the Next > button to continue. You will now see the Network protocol
+    configuration dialog box, as shown in the following screenshot:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '![](img/8b299d25-f1ea-4bc2-ae13-91caf13ba7ff.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'As this lab is using IPv4, from the options box, click it to highlight IPv4
+    (**2**), and then click the Next > button to continue. You will now see the Custom
+    Setup page. On the Custom Setup page, you can choose the features and functions
+    of the Horizon Agent that you want to install. Not all of these features are installed
+    by default, so on this screen, you might want to review some of them and select/deselect
+    them from the installation process, as you might not want to use some of the features.
+    You can always install them again later if need be. Features that are not installed
+    by default are marked with a red X. These features are shown in the following
+    screenshot:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '![](img/988e9776-568a-4fc9-a138-820014042dbd.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'You can choose to install the following features. Note that some of the features
+    are OS dependent and therefore may not show as available options:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '3D RDSH: This enables hardware-based 3D rendering in RDSH sessions.'
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'USB Redirection: This allows a USB device to be plugged into the endpoint device
+    and then redirects the USB traffic to the virtual desktop machine.'
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'VMware Virtualization Pack for Skype for Business: This allows end users to
+    make optimized audio and video calls with Skype for Business, running inside a
+    virtual desktop machine.'
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'VMware Horizon View Composer Agent: This allows the virtual desktop machine
+    to be run as a linked-clone desktop.'
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Real-Time Audio-Video: This allows you to redirect locally connected audio
+    and video devices (such as USB webcams) to your virtual desktop machine.'
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'VMware Horizon Instant Clone Agent: This allows the virtual desktop machine
+    to be run as an Instant Clone desktop.'
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Client Drive Redirection: This allows View Clients to share local drives with
+    remote desktops and applications (IPv4 only).'
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Virtual Printing: This allows users to print to printers without the need to
+    install print drivers.'
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'vRealize Operations Manager Agent: This allows the virtual desktop machine
+    to be monitored by the vRealize Operations Manager for Horizon View.'
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'VMware Horizon 7 Persona Management: This synchronizes a user''s profile from
+    the virtual desktop machine to a repository on a central server, meaning that
+    a profile can be delivered to a floating assigned desktop so that you can personalize
+    it for that user so that they can access their profile.'
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Scanner Redirection: This allows you to redirect a local scanner to the virtual
+    desktop machine.'
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Smartcard Redirection: This allows users to use a smart card for authentication.'
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Serial Port Redirection: This allows users to redirect the local serial port
+    to the virtual desktop machine.'
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'VMware Audio: This enables sound on the local device.'
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Flash Redirection: This offloads the processing of Flash-based content to the
+    local device.'
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'HTML5 Multimedia Redirection: This redirects HTML5 multimedia content in a
+    Chrome or Edge browser to the client, and is used for performance optimization.'
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Device Bridge BAS Plugin: This enables fingerprint readers that are supported
+    by the BAS system.'
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'SDO Sensor Redirection: This enables the **Simple Device Orientation** (**SDO**)
+    sensor redirection feature.'
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Geolocation Redirection: This enables the redirection of the client''s geolocation
+    to the remote desktop.'
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Horizon Performance Tracker: This enables the Horizon performance tracker.
+    This utility runs inside a remote desktop and monitors the performance of the
+    display protocols and the system resource usage.'
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 3D RDSH option is not shown but will be available when installing on an RDSH
+    host server.
+  prefs: []
+  type: TYPE_NORMAL
+- en: When you are happy with the features you have chosen to install, click on the
+    Next > button to continue.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'On the next screen you will see the Remote Desktop Protocol Configuration dialog
+    box. You need remote desktop support enabled for the View Agent to work. You could
+    always enable this using a Group Policy:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '![](img/048babe2-0d69-43cc-a030-4418631cdc75.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: Click on the radio button to Enable the Remote Desktop capability on this computer
+    (**3**), as shown in the preceding screenshot.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Click on the Next > button to continue.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'You will now see the Register with Horizon 7 Connection Server dialog box,
+    as shown in the following screenshot:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '![](img/50105f44-62d2-4ff0-9244-f4bacaf165f3.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: In the (hostname or IP address) box (**4**), enter the name of the connection
+    server you want to register this virtual desktop machine with. In the example
+    lab, this is our first connection server, called `hzn7-cs1.pvolab.com`.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: In the Authentication section, click the radio button for Specify administrator
+    credentials (**5**).
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: In the Username section (**6**), enter the administrator username. In the example
+    lab, this is `administrator`. Note that you need to enter the details in the format
+    Domain\User, so in our example, you would type `pvolab\administrator`.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Now, enter the administrator password in the Password box.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Click Next > to continue. You will now see the Ready to Install the Program
+    screen.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Click the Install button to start the installation.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Once the installation has finished, you will see the Installer Completed screen.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Click on the Finish button to close the installer.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Finally, you will be prompted to reboot the virtual desktop machine. Click on
+    the Yes button to reboot. You will have successfully installed the Horizon Agent.
+  prefs: []
+  type: TYPE_NORMAL
+- en: In the next section, we will start optimizing the parent image to run as a virtual
+    desktop machine.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Optimizing the guest operating system
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: There are various automated tools and manual processes to optimize the virtual
+    desktop operating systems.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Previously, the optimization process was delivered via a set of scripts that
+    you would manually execute on the virtual desktop machine that was being used
+    to create the gold image. However, in this chapter, we will take a look at the
+    GUI-based **VMware Optimization Tool**, as this is available to download as a
+    **fling**.
+  prefs: []
+  type: TYPE_NORMAL
+- en: A *fling*, in VMware terms, is a free piece of software for end users to try
+    out and provide feedback to VMware on. Often, these products make it into production
+    as products in their own right, or they form part of a new feature of an already
+    existing product. The only thing to bear in mind, should you choose to use them
+    in your production environment, is that these product flings don't have any official
+    support; however, you will find a number of blogs that may help you with this.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Download the optimization tool and save it in the shared folder. You can download
+    the tool from the following link:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[https://labs.vmware.com/flings/vmware-os-optimization-tool](https://labs.vmware.com/flings/vmware-os-optimization-tool).'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Once downloaded, we are going to run the optimization tool on the newly built
+    Windows 7 Gold Image virtual desktop machine. Follow these steps to do so:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'From the Windows 7 Gold Image virtual desktop machine being used to create
+    the parent image, navigate to the shared software folder and locate the VMware
+    OS Optimization Tool application, as shown in the following screenshot:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '![](img/72d65f4f-1699-4c5a-a535-5ca1124b015c.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'Launch the `VMwareOSOptimizationTool` file to launch the optimization tool.
+    if you see the Open File - Security Warning message, click the Run button to continue.
+    You will now see the tool launch, as shown in the following screenshot:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '![](img/0ab8bb84-2930-4e1f-a940-6c311a9ce0a0.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: At the top of the screen (**1**), you can see the details of the virtual desktop
+    machine's operating system and hardware configuration.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: The next section is Template (**2**), and this is where you choose the template
+    you want to use for the optimization. From the dropdown menu, select the relevant
+    operating system template that you want to apply to this image. You have the ability
+    to create new templates using this tool by clicking on the Template tab from the
+    list of tabs across the top of the screen.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: To start this process, the tool analyzes the differences between the current
+    virtual machine state and the optimizations contained within the chosen template.
+    Click on the Analyze button (**3**) to start the process.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: The tool will run the analysis and then come back with a report showing the
+    components that need to be optimized (**4**). At this stage, you can select or
+    deselect options before you actually run the optimization. Scroll through the
+    analysis results to understand what is going to be changed.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'When you are happy with the options, click the Optimize button (**5**) to start
+    the optimization process. The image will now be optimized as per the settings
+    and configuration details contained within the template that you chose. The progress
+    of the optimization is shown in the following screenshot:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '![](img/e57f929c-4ab0-41d6-bb0f-eeb37fafa102.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'Once the optimization process has completed, you will automatically see the
+    Optimize tab and the results of the optimization, as shown in the following screenshot:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '![](img/a89f9ab2-cbe1-46ec-bcb9-5e45c1a630a5.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'For more detailed information on how to optimize the desktop operating system
+    for running in a virtual environment, have a look at the following link, which
+    will take you to the VMware Windows Operating System Optimization Tool Guide:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[https://www.vmware.com/content/dam/digitalmarketing/vmware/en/pdf/techpaper/vmware-view-virtual-desktops-windows-optimization.pdf](https://www.vmware.com/content/dam/digitalmarketing/vmware/en/pdf/techpaper/vmware-view-virtual-desktops-windows-optimization.pdf).'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Once you have completed the optimization process, exit the tool. In the next
+    section, we will look at what's next for the example lab-based virtual desktop
+    machine.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Post-optimization tasks
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'One of the final things to do is to release the IP address if you have been
+    using DHCP so that when the new virtual desktop machines are created from this
+    parent image, they don''t have a duplicate IP address and, therefore, will obtain
+    a new IP address:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Open a command prompt window by pressing the Windows key and *R*, and then in
+    the Run dialog box, type `cmd`.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'In the command prompt window that opens, type in the following command:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE0]'
+  prefs: []
+  type: TYPE_PRE
+- en: Before shutting down the virtual desktop and completing the image build, there
+    are just a few other housekeeping tasks to perform.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The key one is not to forget to tidy up after yourself. For example, empty the
+    recycle bin and delete any browser history or temporary files. Basically, delete
+    everything that is not part of that parent image. Once you are happy that the
+    image is optimized to your specific requirements, you can shut down the virtual
+    desktop machine.
+  prefs: []
+  type: TYPE_NORMAL
+- en: With the image build for Windows 7 now complete, we will finalize the preparation
+    of this image so that it's ready for delivery.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Creating a Windows 10 virtual desktop machine
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: For the example lab, we will repeat the build and optimization process to build
+    a second parent image but, this time, we are going to build a Windows 10 virtual
+    desktop machine.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Once built, this Windows 10 parent image will then be used to create an Instant
+    Clone virtual desktop machine pool.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Rather than go through every step again screen by screen, we will list the steps
+    we followed when creating the Windows 7 parent image and then just show some screenshots
+    to highlight the differences. You can refer to the previous section to get more
+    details.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Creating the virtual desktop machine container
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'Like with creating the previous virtual desktop machine, the first thing we
+    need to do is build and configure the actual virtual desktop machine on the vCenter
+    server. This will define the virtual hardware configuration. As we mentioned previously,
+    the process is identical to the one we followed for Windows 7, and so we are going
+    to cover the tasks and just highlight specific screenshots that are different:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Follow the steps we described previously for the Windows 7 build up to the
+    point where you get to Select a name and folder, as shown in the following screenshot:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '![](img/7584c5cd-2b91-4584-85e6-ceaa7d58f0a7.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: In the Virtual machine name box (**1**), type in a name for the new virtual
+    desktop machine. In the example lab, this is called `Windows 10 Gold Image`.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Then, in the Select a location for the virtual machine section, click to highlight
+    the datacenter where you want this virtual machine to be created. In the example
+    lab, this machine is going to be created in the datacenter called PVO's Datacenter
+    (**2**).
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'Click the NEXT button to continue. Continue with the steps that were described
+    in the Windows 7 build until you get to the **S**elect a guest OS screen, as shown
+    in the following screenshot:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '![](img/977dd26e-f51a-4c16-8933-1068076f5480.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: The next step is to choose the operating system for the virtual desktop machine.
+    In the example, this is the second virtual desktop machine that will be used as
+    the gold image template for Windows 10.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: From the Guest OS Family box, click the arrow for the dropdown menu (**10**),
+    and select Windows. Then, from the Guest OS Version box, click the arrow for the
+    dropdown menu (**11**) and select Microsoft Windows 10 (64-bit). The guest OS
+    selection is important to get right, as it determines which drivers get installed
+    when VMware Tools is installed on the virtual desktop machine.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'Click the NEXT button to continue with the steps that were described in the
+    Windows 7 build process until you get to the Select File screen being displayed,
+    as shown in the following screenshot:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '![](img/15ea4af5-7662-460c-8cbe-d7f70a759ba4.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: Expand the datastore (**5**) and then click on the `ISO Images` folder (**6**).
+    Then, click to select the OS that is going to be installed on this virtual desktop
+    machine. In this example, we are going to install Windows 10, so click on the
+    engb_windows_10_enterprise_version_1511_x64_DVD_7224923.iso option (**7**). You
+    may have your ISO images stored in a different location, so just follow this as
+    a guide by using your folder locations.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Click the OK button to return to the virtual hardware screen, and then continue
+    with the steps that were described in the Windows 7 build process.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: With the virtual desktop machine now built and configured, it's time to power
+    it on and continue the build process. Navigate to the virtual desktop machine
+    in the inventory. You should see an entry called Windows 10 Gold Image.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Highlight the virtual desktop machine Windows 10 Gold Image, right-click it,
+    and from the contextual menu now shown, click on Power and then click on Power
+    On.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: The virtual desktop machine will now power on and boot into the BIOS setup screen,
+    as that's what we configured to happen on the next boot. Any subsequent bootups
+    will boot as normal into the operating system once it's installed.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: In the next section, we will make the configuration changes to the virtual desktop
+    machine.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Completing the Windows 10 build
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'Like with the Windows 7 virtual desktop machine, you need to power on the newly
+    created Windows 10 virtual desktop machine and finish the configuration. This
+    consists of the following tasks that need to be completed:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Updating the virtual desktop machine BIOS
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Installing the guest operating system (Windows 10)
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Installing VMware Tools
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Installing applications for the parent image
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Installing the Horizon Agent
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Optimizing the guest operating system
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Completing post-optimization tasks
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Now that we have completed all the build tasks, all that remains is releasing
+    the IP address and then clearing up any temporary files, browser history, and
+    so on. Once we have finished doing this, power off the virtual desktop machine,
+    which is ready for us to prepare the image as our virtual desktop machine template.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Creating a GPU-enabled virtual desktop machine
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: In this section, we are going to build a second Windows 10 virtual desktop machine,
+    but this time for using with a dedicated hardware-based NVIDIA GPU card. As we
+    discussed previously, there are three models for delivering high-end graphics.
+    In the next example, we will set up a virtual desktop machine to use NVIDIA GRID
+    vGPU.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Creating the virtual desktop machine container
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: The first step, as with the build process we covered previously for Windows
+    10, is to build the virtual machine itself. We will follow the steps that were
+    previously described in this chapter to build a Windows 10 virtual desktop machine,
+    up to the point where we configure the virtual hardware differently, as we need
+    to add in the NVIDIA GRID vGPU at this point.
+  prefs: []
+  type: TYPE_NORMAL
+- en: At the time of writing this book, and since we are using vSphere 6.5 as the
+    hosting platform, you will also need to use the older Flash-based vSphere client
+    for configuring the vGPU settings.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Follow the steps to build a Windows 10 machine as described in the previous
+    section, *Creating a Windows 10 Virtual Desktop Machine*, until you get to the
+    Customize Hardware section, as shown in the following screenshot:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '![](img/7d6eb34e-0d11-48ae-821f-2c8f9146f3e3.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: Under the Virtual Hardware tab, click on the dropdown arrow for Memory (**1**),
+    and check the box for Reserve all guest memory (All locked) (**2**).
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: If you do not configure memory reservation, then the virtual desktop machine
+    will fail to power on, as it can't guarantee that the memory will be available.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Next, at the bottom of the box, in the New device section, click the dropdown
+    arrow (**3**), and from the list of options, click on Shared PCI Device (**4**),
+    as shown in the following screenshot:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '![](img/4c298783-640d-4ace-a91e-0f32fbaa2af6.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'Now, click the Add button (**5**) to add the new PCI device, as shown in the
+    following screenshot:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '![](img/46ef9960-d157-49af-8846-d320787eeae5.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'You will now see that the NVIDIA GRID vGPU has been added as a device (**6**).
+    This device was configured for PCI pass-through when the ESXi host server was
+    configured in [Chapter 4](a85150f1-1f32-4c91-87f0-1e8c700b9b96.xhtml), *Installing
+    and Configuring Horizon 7 – Part 1*. This is shown in the following screenshot:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '![](img/440f748e-c50c-452e-ba1c-ba9769a7f309.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'If you click the down arrow on the GPU Profile box (**7**), you will see a
+    list of the supported GRID profiles you can apply to this desktop. You can select
+    the required profile from the list, based on the graphics requirements of the
+    virtual desktop machines, and the users that will use it:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '![](img/8c816dea-52f0-4c2e-bc6d-85e06e6fd0d8.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: With these steps complete, you can now complete the build steps to update the
+    BIOS settings before we move on to installing the guest operating system and optimizing
+    it.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Installing the operating system for GPU-enabled desktops
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: In the example lab, we are going to build a Windows 10 virtual desktop machine
+    to deliver high-end graphics. To install the operating system, follow the steps
+    described in the *Installing the guest operating system* section under the *Creating
+    a Windows 10 Virtual Desktop Machine* section of this chapter, but with one difference.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'After you have installed the Horizon Agent, you need to install the NVIDIA
+    drivers on the virtual desktop machine. The drivers can be downloaded from the
+    following link: [https://www.nvidia.com/Download/index.aspx?lang=en-us](https://www.nvidia.com/Download/index.aspx?lang=en-us).'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'From here, you can select the correct graphics card for your needs, as shown
+    in the following screenshot:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/6cb0c92c-5998-437a-a2be-70a1028ef2c6.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: One thing to note is that when you install the NVIDIA driver software, make
+    sure that you select all the components to be installed and don't use the express
+    option. Express will miss out some of the key components that need to be run in
+    a virtual desktop machine.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Once you have the drivers installed, completed the operating system setup by
+    installing any additional applications, and then performed the optimization steps,
+    it''s probably worth checking that the graphics card has been installed correctly.
+    Do this by checking the device manager of the virtual desktop machine, as shown
+    in the following screenshot:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/6a7e7cb9-1655-45aa-9fae-f6d3015b558f.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: You should now have a GPU-enabled virtual desktop image ready to be prepared
+    for delivery to end users.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Completing the GPU-enabled desktop build
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'With the operating system now built and the NVIDIA components installed, you
+    can follow the remaining tasks to complete the build. These are all covered in
+    the previous section and are listed as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Installing VMware Tools
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Installing applications for the parent image
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Installing the Horizon View Agent
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Optimizing the guest operating system
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Post-optimization tasks
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Once these tasks are complete, you will now have three virtual desktop machines
+    built to use as the parent image, ready to create new virtual desktop machines
+    to deliver to your end users.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Before we look at the final preparation steps, we are going to create one final
+    virtual desktop machine, this time using a Linux-based operating system.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Creating a Linux virtual desktop machine
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: The final virtual desktop that we are going to build is for a Linux operating
+    system, and for this example, CentOS is going to be the Linux distribution that
+    is used.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The process is almost the same as for installing a Windows-based operating system;
+    however, there are some differences when it comes to installing the Horizon Agent.
+    The process starts with creating the virtual desktop machine itself.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Like with creating the previous virtual desktop machine, the first thing we
+    need to do is build and configure the actual virtual desktop machine on the vCenter
+    server. This will define the virtual hardware configuration.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'As we mentioned previously, the process is identical to the one we followed
+    for Windows 7 and Windows 10, and so we are going to cover the tasks and just
+    highlight specific screenshots that are different:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Follow the steps we described previously for the Windows 7 build, up to the
+    point where you get to Select a name and folder, as shown in the following screenshot:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '![](img/e3a18c75-bbd0-468e-b204-84431cd23f5d.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: In the Virtual machine name box (**1**), type in a name for the new virtual
+    desktop machine. In the example lab, this is called `CentOS Linux Desktop`.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Then, in the Select a location for the virtual machine section, click to highlight
+    the datacenter where you want this virtual machine to be created. In the example
+    lab, this machine is going to be created in the datacenter called PVO's Datacenter
+    (**2**).
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'Click the NEXT button to continue with the build process, as described in the
+    Windows 7 build, until you get to the **S****elect a guest OS** screen, as shown
+    in the following screenshot:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '![](img/409dc135-6349-4338-b99a-d9a09db8e712.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: The next step is to choose the operating system for the virtual desktop machine.
+    In the example, this is the second virtual desktop machine that will be used as
+    the gold image template for Windows 10.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: From the Guest OS Family box, click the arrow for the dropdown menu (**10**)
+    and select Linux. Then, from the Guest OS Version box, click the arrow for the
+    dropdown menu (**11**) and select CentOS 7 (64-bit). The guest OS selection is
+    important to get right as it determines which drivers get installed when VMware
+    Tools is installed on the virtual desktop.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'Click the NEXT button to continue with the build, process as described in the
+    Windows 7 build, until you get to the Select File screen, as shown in the following
+    screenshot:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '![](img/f8312a4e-62b9-4693-986a-ff15f2750900.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: Expand the datastore1 (**5**), and then click on the `ISO Images` folder (**6**).
+    Then, click to select the OS that is going to be installed on this virtual desktop
+    machine. In this example, we are going to install Windows 10, so click on the
+    CentOS-7-x86_64-DVD-1511.iso option (**7**). You may have your ISO images stored
+    in a different location, so just follow this as a guide while using your folder
+    locations.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Click the OK button to return to the virtual hardware screen and continue with
+    the build process, as we described previously. With the virtual desktop machine
+    now built and configured, it's time to power it on and continue the build process.
+    Navigate to the virtual desktop machine in the inventory. You should see an entry
+    called CentOS Linux Desktop.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Highlight the virtual desktop machine called CentOS Linux Desktop, right-click
+    it, and from the contextual menu that's now shown, click on Power and then click
+    on Power On.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: The virtual desktop machine will now power on and boot into the BIOS setup screen,
+    as that's what we configured to happen on the next boot. Any subsequent bootups
+    will boot as normal into the operating system once it's installed.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: In the next section, we will make the configuration changes to the virtual desktop
+    machines.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Completing the Linux virtual desktop build
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'Like with the Windows 7 and Windows 10 virtual desktop machine, you need to
+    power on the newly created Linux virtual desktop machine and finish the configuration.
+    This consists of the following tasks:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Updating the virtual desktop machine BIOS
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Installing the guest operating system (Windows 10)
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Installing VMware Tools
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Installing applications for the parent image
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Installing the Horizon Agent (see the following)
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Optimizing the guest operating system
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Completing post-optimization tasks
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Now that we have completed all the build tasks, all that remains is releasing
+    the IP address and then clearing up any temporary files, browser history, and
+    so on. Once we have finished these, power off the virtual desktop machine, which
+    is ready so that we can prepare the image as our virtual desktop machine template.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Installing the Horizon Agent
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'Now, we can install the Horizon View Agent. The installation process is a little
+    different than previous installations, as this is a Linux-based operating system:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: You can either download the Horizon Agent for the Linux installer from the VMware
+    download website by using the Linux desktop or from the example lab since the
+    installer was copied onto the Linux desktop using WinSCP.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'The `.tar` file called `VMware-horizonagent-linux-x86_64-7.0.0-3617131.tar.gz`
+    (**1**) is copied and then extracted to get the installer, as shown in the following
+    screenshot:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '![](img/1c07e942-5ea5-4e1c-8663-a603e7f9f11d.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: With the software extracted, the next task is to run the installer script.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'From the desktop of the Linux virtual desktop, open a Terminal session by clicking
+    Applications (**3**), Favourites (**4**), and then Terminal (**5**), as shown
+    in the following screenshot:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '![](img/6048c9f4-142e-4457-b486-a6f5f034ced8.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'Once you have an open terminal session, change to the directory of where the
+    VMware Agent software was extracted to, as shown in the following screenshot:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '![](img/bd9d0c5a-7103-4a8c-9e78-c1714981f040.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'Next, launch the installer script using the following syntax and options:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE1]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'The switch options are as follows:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '`-b`: The fully qualified name of the connection server for the agent to register
+    with'
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`-d:` The name of your domain'
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`-u`: The username of the account that has privileges to register with the
+    connection server'
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`-p`: The password for the account'
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'When the installer script launches, you will first see the EULA message. At
+    the bottom of the screen, you will see the `Are you sure you want to install linux
+    agent y/n?` prompt, as shown in the following screenshot:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '![](img/d56af974-cc4a-4d97-b511-843228b1cdbc.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'Type *Y* and then press *Enter*. Once completed, you will see the following
+    screenshot:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '![](img/5ba4dcfd-c4d9-40d2-83de-ba797f6de012.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: The Horizon Agent for Linux has now been successfully installed. Restart the
+    virtual desktop machine to complete the installation.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Optimizing the guest operating system
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: Unlike Windows-based operating systems, there is no automated optimization tool
+    available; however, you should still look at optimizing the image by switching
+    off any tasks or applications that take up unnecessary resources, such as disk
+    I/O or CPU cycles. You also need to ensure that you configure the operating system
+    to work with the Active Directory authentication.
+  prefs: []
+  type: TYPE_NORMAL
+- en: With the desktop images now built, we can now prepare them so that we can deliver
+    them to the end users.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Preparing virtual desktops for delivery
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: Now that we have our fully optimized virtual desktop machine parent images that
+    can be used by Horizon View, the next stage of the process is to prepare them
+    for delivery to the end users.
+  prefs: []
+  type: TYPE_NORMAL
+- en: There are two different ways in which a desktop needs to be prepared, depending
+    on whether you are using a Full Clone desktop or a Linked/Instant Clone desktop.
+    Full Clones will use a VM template to create virtual desktop machines, while Linked/Instant
+    Clones will use a snapshot to create virtual desktop machines.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Pool design – a quick overview
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: We will cover creating desktop pools in more detail in [Chapter 8](d44c9a7b-bcae-4758-a857-197be388a4be.xhtml),
+    *Configuring and Managing Desktop Pools – Part 1*, but, for now, let's just have
+    a quick overview of the basics around pool design and where the images that we
+    created in this chapter are going to be used.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'You will typically have a desktop pool for each type of virtual desktop machine
+    you want to deliver, probably categorized by use case or department. In this chapter,
+    we have built several different types of virtual desktop machines that will be
+    used in the following desktop pools:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '**Windows 7**: This is to be used as a non-persistent, linked clone-built desktop'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**Windows 10**: This is to be used as a dedicated full clone with a hardware-enabled
+    GPU'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**Windows 10**: This is to be used as a non-persistent instant clone-built
+    desktop'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**CentOS 7:** This is to be used as a persistent Linux desktop'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: As we have Linked Clone, Full Clone, and Instant Clone desktops, the preparation
+    method for each is different. We will cover this in the following sections.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Creating a snapshot for linked clones
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'The first virtual desktop machine we are going to prepare for delivery is for
+    the Windows 7 non-persistent, linked clone virtual desktop machine. To prepare
+    this image for delivery, we will need to take a snapshot of the virtual desktop
+    machine using vCenter and the vSphere web client. Once you have taken the snapshot,
+    it can then be used by the View Administrator to create a new desktop pool for
+    virtual desktop machines, which is built using Linked Clones. It will be used
+    to create the replica in View Composer:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: To create the snapshot, log into the vSphere Web Client and navigate to the
+    Windows 7 Gold Image virtual desktop machine (**1)**, ensuring that it's powered
+    off before you do this.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'Click on the virtual desktop machine to highlight it, right-click it, and from
+    the menu that pops up, click on Snapshots (**2**), and then select the option
+    for Take Snapshot… (**3**), as shown in the following screenshot:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '![](img/6b0049d8-ecc1-444f-84d7-fa0beabfeaf4.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'You will now see the Take VM Snapshot for Windows 7 Gold Image dialog box,
+    as shown in the following screenshot:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '![](img/ec4202c0-a47e-4aa3-96b8-fd2444172cde.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: Type in a name for this snapshot in the Name box (**4**). In the example lab,
+    we have called this Windows 7 Gold Image. It's a best practice to call it something
+    that you easily recognize, as you will search for this snapshot in the View administrator
+    when configuring desktop pools. In the Description box (**5**), type in a description
+    to describe the purpose of the snapshot in more detail.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Click the OK button when you are ready to create the snapshot.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: To check that the snapshot has been taken, navigate to the snapshot manager.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'To do this, from the vSphere Web Client, highlight the Windows 7 Gold Image
+    virtual desktop machine (**6**). Right-click it, and from the menu that pops ups,
+    click on Snapshots (**7**), and then select the option for Manage Snapshots (**8**),
+    as shown in the following screenshot:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '![](img/33acff0b-af1e-4f70-a5ec-6ca56a1898f1.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'You will now see the Manage Snapshots for the Windows 7 Gold Image dialog box,
+    where you will be able to see the snapshot that was just taken, as shown in the
+    following screenshot:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '![](img/f06a6f65-99fa-470d-9911-c9acb35ea181.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: You will also be able to see how many snapshots have been taken and also when
+    they were created. This will help with version control of your parent images.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Click on DONE to close the Manage Snapshots screen.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: You have now successfully taken a snapshot that can be used as the base image
+    for all virtual desktop machines that are created from it. We will see how this
+    snapshot is used to deliver the linked clone virtual desktop machines in [Chapter
+    8](d44c9a7b-bcae-4758-a857-197be388a4be.xhtml), *Configuring and Managing Desktop
+    Pools – Part 1*.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Creating a snapshot for instant clones
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: The next image to prepare for delivery is the Windows 10 image. As this is going
+    to be used with an Instant Clone desktop pool, then the base image again starts
+    off life as a snapshot of the parent image.
+  prefs: []
+  type: TYPE_NORMAL
+- en: To create the snapshot, follow the process as we described in the previous section
+    to create a new snapshot, but this time use the Windows 10 Gold Image virtual
+    desktop machine to create the snapshot.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Creating a template for full clones
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: For the second Windows 10 virtual desktop machine (with GPU-enabled), and the
+    CentOS Linux virtual desktop machines, we are going to create persistent full
+    clone virtual desktop machines. To do this, we are going to follow the tasks that
+    were described in this section.
+  prefs: []
+  type: TYPE_NORMAL
+- en: To use these virtual desktop machines as parent virtual desktop machines for
+    full clone virtual desktops, you will first need to convert them into a virtual
+    machine template or use the clone-to- template feature using vCenter and the vSphere
+    Client.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Once that's completed, you can then use View Administrator to create new desktop
+    pools (one for Linux and one for Windows 7 GPU), based on the virtual desktop
+    machines, using these templates for each desktop pool.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'In the example lab, we will use the Windows 7 image. The process for creating
+    the Linux virtual desktop machine is exactly the same, so repeat these instructions
+    to create the template for that particular operating system. However, the pool
+    configuration will be different for each one, as we will see in [Chapter 8](d44c9a7b-bcae-4758-a857-197be388a4be.xhtml),
+    *Configuring and Managing Desktop Pools - Part 1*:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: To create the snapshot, log into the vSphere Web Client and navigate to the
+    Windows 10 Gold Image virtual desktop machine (**1**), ensuring that it's powered
+    off.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'Click on the virtual desktop machine to highlight it, right-click it, and from
+    the menu that pops ups, click on Clone (**2**), and then select the option for
+    Clone to Template… (**3**), as shown in the following screenshot:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '![](img/70f36549-cc27-4f88-b754-4deb984329ea.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: You will now see the Windows 10 Gold Image – Clone Virtual Machine to Template
+    configuration dialog box.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: In the VM template name box (**4**), type in a name for the template. In the
+    example lab, this is called Windows 10 Gold Image Template.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'Then, in the Select a location for the template section, click to highlight
+    the datacenter where you want this virtual machine to be created (**6**). In the
+    example lab, this machine is going to be created in the datacenter called PVO''s
+    Datacenter, as shown in the following screenshot:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '![](img/29de83ab-2701-4079-a755-dc2341a779a6.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: Click the NEXT button to continue.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: You will now see the Select a compute resource screen. Expand the datacenter
+    called PVO's Datacenter and then click on the ESXi host server you want to host
+    this template on. In the example lab, `esx-1.pvolab.com` is going to be the host
+    server.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Click the NEXT button to continue.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: You will now see the Select storage screen. Select the datastore where this
+    template will be stored. In the example lab, the template is stored on VM Datastore.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Click the NEXT button to continue. You will now see the Ready to complete screen.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Click the FINISH button to complete the configuration and create the virtual
+    desktop machine template for Windows 10.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'You have successfully created a template that can be used as the parent image
+    to create a new virtual desktop machine. Repeat the same process and create a
+    template for the Linux desktop virtual machine, and call the template CentOS Linux
+    Desktop Template. Once completed, if you navigate to the VMs and templates view
+    in vCenter, you will see the following:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/ebaba054-2cb8-4f3a-9fde-f4a53a19b5d5.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: We will use these templates in [Chapter 8](d44c9a7b-bcae-4758-a857-197be388a4be.xhtml),
+    *Configuring and Managing Desktop Pools – Part 1*, when we create the desktop
+    pools.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Summary
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: In this chapter, we have built several virtual desktop machine images that will
+    act as the parent images from which all the virtual desktop machines in the environment
+    will be created from.
+  prefs: []
+  type: TYPE_NORMAL
+- en: To build and configure the virtual desktop machines, we outlined and followed
+    a process. This process is started by creating the virtual hardware containers,
+    installing the guest operating systems, installing the Horizon-specific components,
+    optimizing them to run as Horizon virtual desktop machines, and then finally preparing
+    them by creating either templates or snapshots that are ready to be used to create
+    virtual desktop machines that are going to be delivered to the end users.
+  prefs: []
+  type: TYPE_NORMAL
+- en: In the next chapter, we are going to start looking at how to configure and manage
+    desktop pools.
+  prefs: []
+  type: TYPE_NORMAL

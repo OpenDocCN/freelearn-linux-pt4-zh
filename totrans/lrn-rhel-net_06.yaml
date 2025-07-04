@@ -1,0 +1,1123 @@
+- en: Chapter 6. File Sharing with NFS
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'File sharing with **Network File System** (**NFS**) is the traditional way
+    on Unix and Linux for remote hosts to be able to mount filesystems over a network
+    and interact with them as if they were mounted locally. Although RHEL 7 supports
+    both NFSv3 and NFSv4, there is no longer any support for NFSv2\. The RHEL 7 client
+    will default to NFSv4 and falls back to NFSv3 if a connection cannot be established.
+    Using NFSv4 simplifies location of services behind a firewall with only the TCP
+    port `2049` required for client access; however, we will demonstrate both the
+    NFSv4 and v3 firewall configurations. During this chapter, the following topics
+    will be covered:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Overview of NFS
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Overview of the lab environment
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: The NFS server configuration
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Using `exportfs`
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Hosting NFSv4 behind a firewall
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Hosting NFSv3 behind a firewall
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: The NFS client configuration
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Auto-mounting NFS with `autofs`
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: An overview of NFS
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: We have been used to NFSv4 being included with Red Hat Enterprise Linux 6\.
+    RHEL 7 includes additional support for `pNFS` (Parallel NFS) with NFSv4.1\. `pNFS`,
+    providing security and performance enhancements, which allow more efficient connections
+    to clients behind firewalls and **Network Address Translation** (**NAT**) routers.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Support for NFSv2 is no longer available, which is no great loss, as it did
+    not support file sizes above 2 GB and was not as robust as version 3 and 4.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Using NFSv4, mounting and locking protocols are incorporated in a *batteries
+    included* philosophy. This allows the use of just the one TCP port: `2049`. However,
+    with NFSv3, we have to use `rpcbind` and set static ports for additional services
+    so that a firewall can be configured. This simplifies the firewall configuration,
+    which you will see later, as access only to the TCP port `2049` is required.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Both the server and client tools are installed together from the `nfs-utils`
+    package. This package includes tools for both the NFSv4 and V3 protocols. It also
+    includes other useful tools such as `nfsiostat` that can be used to monitor NFS
+    shares usage on an NFS server. To list the contents of an installed package, you
+    can use the `rpm` command, as shown in the following command lines that can be
+    run as a standard user:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE0]'
+  prefs: []
+  type: TYPE_PRE
+- en: Overview of the lab environment
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: For demonstrations is this chapter, we will use two virtual machines running
+    in an **Oracle VirtualBox** virtualization environment. VirtualBox can be downloaded
+    from [https://www.virtualbox.org/](https://www.virtualbox.org/) free of charge
+    and is available for Windows, Mac OS X, Linux, and Solaris hosts.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The NFS Server will be configured on the RHEL 7.1 host with the IP address of
+    `192.168.10.10` and the hostname of `nfshost`. The NFS client will be configured
+    on the RHEL 7.1 host with the IP address of `192.168.10.11` and the hostname of
+    `nfsclient`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Both machines were installed with a minimal configuration; we have installed
+    the `nfs-utils` package on both hosts, as shown in the following code:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE1]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Additionally, on the `nfshost` host, we have installed the net-tools package
+    so that we can display open ports with the `netstat` command. The command to install
+    `net-tools` is as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE2]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'The firewall is running the default setup and is managed with the `firewall-cmd`
+    command. To allow NFSv4 connections to `nfshost`, we have additionally opened
+    the TCP port `2049` using the following commands:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE3]'
+  prefs: []
+  type: TYPE_PRE
+- en: Tip
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: We will cover more on firewall on RHEL 7 later in this chapter and also look
+    at how to use the`firewall-cmd` and `firewalld` service in detail in [Chapter
+    11](part0090.xhtml#aid-2LQIK1 "Chapter 11. Network Security with firewalld"),
+    *Network Security with firewalld*, of this book.
+  prefs: []
+  type: TYPE_NORMAL
+- en: NFS not only uses a firewall to protect the server, but also supports TCP wrappers
+    to control access. The rights to access a service can be determined by the use
+    of the `/etc/hosts.allow` and `/etc/hosts.deny` files.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The NFS server configuration
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: To configure the NFS server, we choose which directories we want to share. The
+    terminology used in NFS to share a directory is *to export* the directory; therefore,
+    shared directories are known as **exports**.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'To permanently export a directory, we add the configuration to the /`etc/exports`
+    file. This file exists, but will be empty on a new system. The `nfs-server` service
+    will read this file on startup to determine which directories should be available
+    to the network client. If `/etc/exports` is changed, reloading the `nfs-server`
+    service will force the service to reread the file, as shown in the following command
+    line:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE4]'
+  prefs: []
+  type: TYPE_PRE
+- en: To display the current exports on the server, we can use the `exportfs` or `showmount`
+    command. We will now take a little time to start the required services and create
+    our first simple export.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Firstly, we will need to start the required services. We can start and enable
+    each service independently, but in the spirit of automation, we will write a simple
+    loop at Command Prompt to save some typing and time. We will use `sudo`; your
+    user account will need to be listed within the `sudoers` file. Once you are sure
+    that you have access to `sudo`, the command will be executed as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE5]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'If it makes the syntax clearer to you, the following screenshot shows the command
+    as executed on `nfshost`:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![The NFS server configuration](img/image00254.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Simple exports
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'Without editing the `/etc/exports` file, we cannot export anything on the filesystem.
+    As a result, there will be no output when we display the local exports using `exportfs`,
+    as shown in the following command line:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE6]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'We will have little luck with the `showmount` command, as shown in the following
+    screenshot:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Simple exports](img/image00255.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: As you can see, the `showmount` command will show the export list heading, but,
+    of course, the list is empty until we explicitly define some exported directories.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Tip
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: The `showmount` command can be used on remote hosts, such as the `nfsclient`,
+    to list exported directories, but this will depend on additional services. So,
+    the firewall on `nfshost` will need to be configured for NFSv3\. We will discuss
+    this later in this chapter.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'I accept that sharing nothing, nada, zilch is not the most exciting feature
+    that you will find in this book, at least we have discovered some useful tools
+    such as `exportfs` and `showmount`. We will now export an existing directory just
+    to get used to NFS. To do this, we will need to edit as root the `/etc/exports`
+    file; we can do this using `sudo`. You can log in as root directly or with the
+    `su` command. We will add the following line to export or share the `/usr/share/doc`
+    directory. This is just a simple test. We will add our own directories and content
+    later. For our demonstration, we will stick to using `vi` in order to edit the
+    file; however, you are welcome to use your favorite editor:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE7]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'With the file open and without the contents on a new NFS server, we can add
+    the following line to export the `/usr/share/doc` directory:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE8]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Using the `cat` command, we can show the filename that we should be editing
+    and the files'' content once the edit is complete, as shown in the following screenshot:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Simple exports](img/image00256.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Having exported a directory, we should be able to see this using `exportfs`
+    or `showmount`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Tip
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: The `exportfs` command requires administrative access, whereas `showmount` does
+    not.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'However, before we get ahead of ourselves, we need to recall that the `nfs-server`
+    service reads this file when it starts up and is currently running. We can restart
+    this service, but it will be better to reload the service. In this way, there
+    is no need to bring the service down if the remote hosts currently have mounted
+    exports. Running the following command will reload the service and then display
+    the exports directory or directories:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE9]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'The output from both commands previously listed is now displayed in the following
+    screenshot:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Simple exports](img/image00257.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: When we defined exports, we exported a directory to all hosts denoted with an
+    asterix symbol; any options for the export are included within parenthesis. We
+    specified the export as read only with the inclusion of the `ro` option.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'As a simple test, we can now use the `nfsclient` host to access this export.
+    From the console of the `nfsclient`, we can access the exported directory and
+    mount it to the local `/mnt` directory on the `nfsclient` using the following
+    command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE10]'
+  prefs: []
+  type: TYPE_PRE
+- en: We can use either the IP address or the hostname of the server as long as the
+    hostname is resolvable via DNS, **mDNS** (**Multicast DNS**), or the localhost's
+    file. The end of the server hostname or IP address must be denoted with a colon.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'We can easily list the contents of the exported directory using the standard
+    `ls` command against the `/mnt` directory. The truncated output from the ls command
+    is shown in the following screenshot:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Simple exports](img/image00258.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Advanced exports
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: We have seen how simple life can be for a Linux system administrator if only
+    simple exporting of directories is all that is needed. However, although this
+    option may fit some directory exports and servers, others may require a little
+    more time and effort.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The basic directive within the `/etc/exports` file is as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE11]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'The structure of these variables is as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`export`: This is the directory on the NFS server being exported or shared'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`host`: This is the host or network to which the exported directory is shared'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`options`: These are specific options to be used by a host or network that
+    proceeds the parenthesis'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'It''s also possible to write a single entry to share one export with different
+    options to different hosts or networks, as shown in the following example code:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE12]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Expanding this to actual values in place of the variables a working example
+    to allow read/write access to `192.168.10.11` but read-only access to all other
+    hosts, we can examine the following code:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE13]'
+  prefs: []
+  type: TYPE_PRE
+- en: Options are comma-separated, and we have additionally added the `sync` option
+    in the options for the `nfsclient 192.168.10.11`. The `sync` option will ensure
+    that writes to this export are written to disk on demand, rather than waiting
+    for write-buffers to be flushed to the disk. Linux uses a system of buffering
+    that promotes the use of dirty-cache buffers. These are written to disk as numbers
+    grow. The `sync` option ensures that these buffers are written to the disk immediately.
+    This has a negative impact on performance, but can be more reliable as connections
+    are not always maintained.
+  prefs: []
+  type: TYPE_NORMAL
+- en: If a single line in the `/etc/exports` file becomes too long, then it can be
+    wrapped using the backslash (`\`) character. Within a file, each export must be
+    represented with its own individual line. Additional blank lines are ignored and
+    can be added for readability. Lines may be configured to be ignored by the server
+    if they are commented with the line starting with the hash (`#`) character.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Tip
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: If the read/write access is granted to the export and the filesystem is read
+    only to the user, they still have read-only access. If the export is set to read
+    only and the filesystem would normally allow read and write access to the user,
+    they still have read-only access. Quite simply, when combining file and export
+    permissions, the most restrictive permission is effective.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'If we are to be 100 percent accurate, the options for an export are optional.
+    If an option is not set, the default option will apply. We can then rewrite the
+    previous example making use of the defaults as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE14]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'From the modified example, you should be able to guess correctly that the `ro`
+    and `sync` default options are no longer explicitly set, but they will still be
+    effective. The effective options for an exported directory can be seen using the
+    `exportfs` command with the `-v` option, as show in the following command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE15]'
+  prefs: []
+  type: TYPE_PRE
+- en: If an option is not set and displayed in the output of the previous command,
+    then you will see the default option.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The default options for the NFS server include the following; more details
+    can be found on the `man` page:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`ro`: This makes the exported filesystem as read only on the remote host.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`sync`: The NFS server writes changes to the disk before responding to new
+    requests.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`wdelay`: This is used with the `sync` option; the NFS server will delay writing
+    to the disk and more writes are anticipated imminently.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`root_squash`:The remote users connecting as root or `UID 0` are changed to
+    `nfsnobody` and as such, we will only be able to collect permissions granted to
+    others. This effectively squashes the permissions of root access remotes, preventing
+    unauthorized root access to exported filesystems.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'We will now amend the `/etc/exports` file to represent two sets of hosts that
+    we will export to and verify that we can connect from the designated host `192.168.10.11`.
+    The export is set to `rw`, which supersedes the `ro` option set to all hosts with
+    `*`. We will use `echo` to overwrite the `exports` file so that you can see the
+    edit being made through to the file along with other commands. These commands
+    are listed in the following example with a supporting screenshot to display export
+    options:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE16]'
+  prefs: []
+  type: TYPE_PRE
+- en: '![Advanced exports](img/image00259.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: From the preceding screenshot, we can see that the `192.168.10.11` host has
+    read/write access, whereas `<world>` or all other hosts have read-only access.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Tip
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: '**Be cautious with spaces**'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The format of the `/etc/exports` file is very precise and no spaces should
+    precede the host/network before the options for that host. The following entries
+    have very different meanings:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE17]'
+  prefs: []
+  type: TYPE_PRE
+- en: Pseudo-root
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: As you can see in the `/usr/share/doc` current export, it's normal for the complete
+    path of the exported directory to be used when accessing it on the server. It's
+    possible to simplify paths that are needed to access exported directories using
+    a pseudo-root directory on the server. This is only an option for NFSv4 servers
+    and clients. With the pseudo-root directory in place, we can mount other directories
+    to that path. Let's take a look at this on our `nfshost`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: We will clear the current exported directory. This time, we will set up sharing
+    from scratch with a little thought and planning.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Firstly, we will create a new directory on `nfshost` that will act as the pseudo-root
+    directory:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE18]'
+  prefs: []
+  type: TYPE_PRE
+- en: We can create this directory and set mode or permissions at the same time. Here,
+    we set permissions to all users and include the sticky bit so that users can only
+    delete the files that they own.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Next, we will overwrite the current exports within the `/etc/exports` file
+    with the newly created directory:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE19]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'These commands are run on `nfshost` and shown in the following screenshot:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Pseudo-root](img/image00260.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'There are two new options that we implement here:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`fsid=0`: This sets the directory as the root directory of the server when
+    accessed over NFS. In this way, the `/var/export` directory is accessed from the
+    remote client as `192.168.10.10:/`.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`crossmnt`: This is the clever option that we need in order to allow access
+    to directories that are mounted underneath this mount point. To mount directories
+    to this export, we will use the `mount --bind` command. This will be covered very
+    shortly.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Setting the export option as read/write enables us to control access using file
+    permissions on the `nfshost`. Any user will have full permission to the export
+    when accessing from the `nfsclient`, so restrictions will need to be made in the
+    filesystem.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'With the NFS root in place, we can make any directory within the filesystem
+    available after this entry point. We will need to create subdirectories as mount
+    points within the `/var/exports` directory and then mount the local targets to
+    these mount points. We will add a central shared directory called `/home/marketing`
+    and mount this and the existing `/usr/share/doc` directory after the newly created
+    `exports` directory. The commands to achieve this are shown in the following command
+    lines:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE20]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'The following bullet points explain the preceding command line steps:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: After working through the list of commands, we first create the central shared
+    directory that we will add after the `/home` structure. This may be desired due
+    to partitioning and quota settings that dictate that the marketing directory should
+    be on the `/home` partition.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: We add a document to this directory so that we are able to view some content.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: The third command in the list creates both the doc and marketing directories.
+    We will use these directories as mount points. These directories are created in
+    the `/var/exports` NFS root.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: The final two commands mount the local directories to their export mount points.
+    In this way, we can easily add any directory to be available directly after /var/exports.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Listing the contents on the `/var/exports/marketing` directory should show
+    the file we created in the `/home/marketing` directory. Refer to the following
+    screenshot:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Pseudo-root](img/image00261.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: In the same way, looking at the contents of `/var/exports/doc` should show the
+    contents of `/usr/share/doc`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'For permanency of local mounts, we will need to add them to the `/etc/fstab`
+    file in the following format:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE21]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'We will now edit the `fstab` file as root and add these two lines to the end
+    of the file to ensure that the mount points are populated during boot:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE22]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'When you return to the `nfsclient` system, you will be able test both exports
+    and permissions. The original `/home/marketing` directory is writable, whereas
+    the `/usr/share/doc` directory is not:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'From the `nfsclient` system we can issue the following commands:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE23]'
+  prefs: []
+  type: TYPE_PRE
+- en: Now the file path is simpler, being able to access both folders with a single
+    path from the server's NFS root. We should also note that although the exported
+    directory is read/ write, we can write to the `marketing` directory using the
+    first `touch` command, but the second `touch` command will fail as the target
+    filesystem is read only.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Using exportfs to create temporary exports
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'It''s not always desirable to create permanent exports within the `/etc/exports`
+    file. Should you want to define a new export temporarily, you can use the `exportfs`
+    command. As we have already defined the NFS root to be `/var/exports`, all directories
+    that we export must be after that structure. Let''s temporarily export `/var/export/doc`
+    to all hosts. We can do so using the following command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE24]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'On the next restart of `nfs-server`, this export will be lost; however, if
+    you need to delete it ahead of this, you can implement the following command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE25]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Should you need to include export options with the temporary export, use the
+    `-o` option in a similar manner, as shown in the following command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE26]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'To display the current exports, you can run `exportfs` by itself:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE27]'
+  prefs: []
+  type: TYPE_PRE
+- en: Hosting NFSv4 behind a firewall
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: When you access the NFS server using v4 of the protocol on both the client and
+    server, the firewall configuration is quite simple with only the TCP port `2049`
+    required to be opened. The default firewall daemon on RHEL 7 is `firewalld` and
+    is managed from the command line using `firewall-cmd`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: We have been running the standard firewall for our demonstrations thus far just
+    opening the one additional port `2049`, as detailed in the lab overview earlier
+    in this section.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'We can list the current firewall configuration using the following command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE28]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'The output is shown in the following screenshot:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Hosting NFSv4 behind a firewall](img/image00262.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'Should you need to remove the port setting that we added, this can be done
+    using the following commands:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE29]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Of course, a client can no longer access the NFS exports. We have the choice
+    of adding ports or service entries. To add a service entry, the port and associated
+    service needs to be defined in the `/etc/services` file. This can be easily checked
+    using the `grep` command. An example is shown in the following command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE30]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'We do have an entry for the port `2049` and the service is called `nfs`. To
+    use the service name in the firewall configuration, you may use the following
+    command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE31]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'This is illustrated with the following screenshot:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Hosting NFSv4 behind a firewall](img/image00263.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: With the service now allowed in all firewall rules, we can continue to access
+    the NFS export from `nfsclient`. If you want to use tools like `showmount` remotely
+    or if you have NFSv3 clients, you will need to open more ports and set some ports
+    statically.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Hosting NFSv3 behind a firewall
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'If we try to use the `showmount` command from the `nfsclient`, we should be
+    able to list exports on the remote NFS server. The syntax will be as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE32]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'The command and the corresponding error are shown in the following screenshot:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Hosting NFSv3 behind a firewall](img/image00264.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'At this stage, we can choose from the following options:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Pack our bags and go home, perhaps it will be better tomorrow
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Google the error
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Debug the error ourselves
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Diagnosing NFSv3 issues
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'Now, Google is often really good at helping us, but you fail to learn fault-finding
+    techniques, so let''s opt out of option 3 and install the `tcpdump` command-line
+    packet analyzer so that we can see what is happening. This can be installed on
+    `nfsclient` using `yum` as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE33]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'To capture network traffic between the `nfsclient` and the `nfshost` and to
+    print port numbers that are being accessed, we can use the following command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE34]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'The options to `tcpdump` used here are listed as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`-nn`: This shows the host IP addresses and port numbers and not their names.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`-i`: This is the interface to be used. You will need to use the correct interface
+    name, where we have used `enp0s8` as the interface we need to listen on.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`host 192.168.10.10`: This displays traffic to and from this host. This is
+    the IP address for the `nfshost`.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'From another console or the SSH session, try the `showmount` command again.
+    While viewing the console where `tcpdump` is running, we should try to access
+    the UDP port `111` on the server twice and report the error. The output is shown
+    from my system in the following screenshot:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Diagnosing NFSv3 issues](img/image00265.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: The UDP Port `111` is not open in the firewall configuration of `nfshost`. If
+    you recall, we have just displayed the allowed services and ports for the firewall
+    and `111` was not among them.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Port `111` is held open by the `portmapper` service run by `rpcbind` and shows
+    as the `sunrpc` service in the `/etc/services` file. We can check this by running
+    `netstat` on the `nfshost` as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE35]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'The options to `netstat` used here are listed as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`-a`: This shows all and by all; by this we mean listening and established
+    ports'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`-u`: This displays UDP ports only'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`-n`: This displays port and network numbers rather than resolving them to
+    names'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`-p`: This displays the process name holding the port or connection open'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: To use the `-p` option, we must run as root (using `sudo`); otherwise, the process
+    column will be left blank.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The theory behind the `rpcbind` service is that it will return the port address
+    so that the required service is running to the requesting client. This is how
+    NFSv3 works and the `showmount` command still makes use of this old protocol.
+    The incoming request from `showmount` from the remote client asks for the address
+    of the NFS Mount Daemon. This is the service running as the process: `rpc.mountd`.
+    These services can run on dynamically-assigned ports. As such, it requires further
+    configuration to reliably have them allowed through your firewall on a long term
+    basis.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The pictorial process of what should be happening with `showmount` starts with
+    the request for the `rpc.mountd` port, as shown in the following screenshot:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Diagnosing NFSv3 issues](img/image00266.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'We can start by allowing the `rpcbind` traffic from the firewall to the `nfshost`:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE36]'
+  prefs: []
+  type: TYPE_PRE
+- en: Tip
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: Don't forget to reload the firewall once you have added the port. It's all too
+    easy to forget to complete this.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Now that we can connect to the `rpcbind portmapper` service running on the
+    UDP port `111`, we should go a little further. Remember that we are really trying
+    to debug the process and learn some useful `tcpdump` analysis tricks. We can repeat
+    the previous exercise running `tcpdump` on one console and `showmount` on the
+    other (both consoles running on the `nfsclient`). The error reported from the
+    `showmount` command should be slightly different now. To illustrate this, the
+    following screenshot shows the current error, where we have the UDP port `111`
+    open:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Diagnosing NFSv3 issues](img/image00267.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: So, the error is slightly different now, we now no longer have the error number;
+    however, we can see from the `tcpdump` output that we received the reply from
+    the `nfshost`. Subsequently, we then try to make a TCP connection back to the
+    host on the port `20048`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'To identify the purpose of this port, we can again use `netstat`, but this
+    time, we will replace `-u` with `-t` because we want to show the TCP ports. As
+    we only need to see listening ports, we can replace `-a` with `-l`:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE37]'
+  prefs: []
+  type: TYPE_PRE
+- en: We should see that the port we are trying to connect to is being held open by
+    `rpc.mountd`. Of course, this is not allowed through the firewall.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Tip
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: The port that `rpc.mountd` listens on may well be different to the port used
+    on your system, so adjust the exercises to work with your `rpc.mountd` port and
+    the port that is being used by your client.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The output from `tcpdump` is shown in the following screenshot. We can identify
+    it as TCP traffic by additional properties, such as the sequence (`seq`) and window
+    size (`win`), which we have highlighted in the following screenshot:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Diagnosing NFSv3 issues](img/image00268.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'So now we can see that we also require the TCP port `20048` to be opened through
+    the firewall on the NFS server; remember that the port may not be the same on
+    your `nfshost`; we can remedy this very quickly using `firewall-cmd` from `nfshos`t
+    again as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE38]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Now, we can return to the `nfsclient` as the `showmount` command should work
+    correctly now, as shown in the following screenshot:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Diagnosing NFSv3 issues](img/image00269.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Using static ports for NFSv3
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: The `portmapper` service is required for services that operate on non-static
+    ports, which include the `rpc.mountd` and other NFSv3-based services. While configuring
+    NFSv4 is simple because we only require access to the TCP port `2049` as the only
+    requisite to the firewall, we still need access to more ports with v3 and most
+    of these ports are non-static. Help is at hand though with the `/etc/sysconfig/nfs`
+    file, where we can add entries enabling static ports for these services. The configuration
+    is different on the RHEL 6 configuration. This is where search engines can often
+    let you down with outdated documentations. This also includes the RHEL 7 documentation
+    that is not up to date. Here, we show the correct settings that you will need
+    in the `/etc/sysconfig/nfs` file to set static ports.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'When you work on `nfshost` as root and use a text editor of your choice, you
+    will need to edit the following lines:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE39]'
+  prefs: []
+  type: TYPE_PRE
+- en: The ports used are nominal and you should choose ports that are not in use on
+    your system. You can see that some services take the `-p` option to specify a
+    port. The `rpc.lockd` utility has an actual port configuration. This was the RHEL
+    6 way of configuring all ports, but has changed on RHEL 7.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'We will need to restart our services, and we can restart them individually
+    or revisit the `for` loop that we used earlier. The edited loop is shown in the
+    following code:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE40]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'We have now configured `nfshost` to use the static ports for these NFS services
+    that will normally cause us an issue with dynamic ports. We still need the UDP
+    port `111` configured in the firewall rules to allow access to `portmapper`, but
+    we now know the ports that will be returned for other services and that they can
+    be added. The final firewall configuration for NFSv3 using ports that we have
+    configured are listed in the following command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE41]'
+  prefs: []
+  type: TYPE_PRE
+- en: If we want to test the configuration fully with NFSv4, you will need to remove
+    the `crossmnt` and `fsid` options from the exiting export definition because these
+    are v4 options.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Configuring the NFS client
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'When mounting filesystems from a client, the default protocol implemented is
+    NFSv4 on RHEL 7\. We can explicitly set the protocol to v3 or v4, using the `-t`
+    option to the mount command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE42]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'In the following screenshot, you can see that we are able to connect from `nfsclient`
+    using NFSv4 or NFSv3:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Configuring the NFS client](img/image00270.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'Other mount options can be applied with the `-o` option to the mount command.
+    You may consider the following command options:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`bg`: This backgrounds the mount process'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`rsize=xxxx`: This specifies the maximum read size request in bytes'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`wsize=xxxx`: This specifies the maximum write buffer size in bytes'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'For more NFSv3 and NFSv4 mount options, these can be read in detail from the
+    appropriate man page, as shown in the following command line:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE43]'
+  prefs: []
+  type: TYPE_PRE
+- en: Auto-mounting NFS with autofs
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'There is a client-side service called `autofs` that acts as an auto-mount service
+    for both local and remote filesystems. This works with a kernel module and the
+    user space service; as you enter a directory, the mount is created automatically.
+    The `autofs` package needs to be installed along with the `nfs-utils` package
+    if NFS mounts are to be made. The auto-mounting feature can work with other remote
+    filesystems, not just NFS. To install `autofs`, use the following command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE44]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'With this installed, the default behavior is to use the `/net` directory point
+    for the network hosts. We can then access shares or exports on any host that we
+    have access to, and enter a directory that matches the server name or IP address
+    after the `/net` directory. We only need to create top level directories and do
+    not need to create subdirectories. We can just change the directories to `/net/192.168.10.10`
+    and this directory will be created. Listing the contents of the directory will
+    list the root level of the exports on the `nfshost`. This may sound too good to
+    be true, so let''s see this in action. First, we will create the directory and
+    then start the service and enable it, as shown in the following command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE45]'
+  prefs: []
+  type: TYPE_PRE
+- en: With this in place, we can simply list the contents of the `/net/192.168.10.10`
+    directory. We should see the top level of the export configuration. For us, this
+    is currently the `/var` directory and the export directory is `/var/export`. If
+    we have more top level directories exported, they too will show. The `/net/192.168.10.10`
+    directory is created automatically and the default timeout for `autofs` is 300
+    seconds or 5 minutes. After 5 minutes of inactivity, a filesystem that is mounted
+    will be automatically unmounted and the directory will disappear until it's needed
+    again. This is a typical safe value; however, a specific timeout can be configured.
+    We will see this later.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following screenshot shows the four commands executed in order and the
+    listing of the the temporary automount directory:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Auto-mounting NFS with autofs](img/image00271.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Auto-mounting directories on the client as they are required reduces the overhead
+    on both the client and server, which is a really effective way of generating mounts.
+    To define our own mounts points, we can edit the `/etc/auto.master` configuration
+    file. We will add a top level directory as before.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'In `/etc/auto.master` file, we will add the following command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE46]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'This setting in the `auto.master` file tells the `autofs` service that when
+    entering the `/corp` directory, the configuration can be read from the `/etc/auto.corp`
+    file. Additionally, we have doubled the default timeout to 10 minutes for this
+    auto-mount. We will need to create the top-level directory as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE47]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'The configuration file for this directory should look similar to this in our
+    case:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE48]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'With this entry, we will be able to see the contents of the server export while
+    entering the `/corp/redhat` directory. We do not create the `redhat` subdirectory.
+    Before testing, you will need to restart the `autofs` service:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE49]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Now, we can access the `/corp` directory and it will be empty. This is shown
+    in the following screenshot:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Auto-mounting NFS with autofs](img/image00272.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'If we now access the `redhat` directory, this does not show yet; we will be
+    able to list the contents of the server''s export. This is shown in the following
+    screenshot:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Auto-mounting NFS with autofs](img/image00273.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: I have been using this for years; it's still one of the most magical experiences
+    on Linux.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Summary
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: I hope that you have found this chapter both intense and useful. There has been
+    a lot of content to cover that has been made complicated by the need to cover
+    both NFSv4 and NFSv3\. Similar to most technologies, legacy clients need to be
+    supported for some time. The great advantage this gave us was diagnosing firewall
+    issues and using `tcpdump` in anger.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The main point with NFS and firewalling is to use NFSv4 wherever possible because
+    we then only need to open the one static port: the TCP port `2049`. For NFSv3,
+    we need to assign static ports and often need to open both UDP and TCP ports to
+    each protocol, depending on the client that connects.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Finishing the chapter on `autofs` is a real high note because this is so simple
+    and effective to use, auto-creating directories and mounting them as required.
+    What more could we wish for!
+  prefs: []
+  type: TYPE_NORMAL
+- en: In the next chapter, we will stay with file sharing, but investigate sharing
+    to Windows systems using Samba 4.
+  prefs: []
+  type: TYPE_NORMAL

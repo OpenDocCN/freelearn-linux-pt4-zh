@@ -1,0 +1,1168 @@
+- en: Chapter 10. CoreOS and Containers – Troubleshooting and Debugging
+  prefs: []
+  type: TYPE_NORMAL
+- en: Both CoreOS and Containers pose some special challenges in troubleshooting and
+    there are ways to overcome this problem. CoreOS, being a Container-optimized OS,
+    does not support a package manager, and this prevents the installation of some
+    of the Linux debugging tools. This can be overcome by running the Linux tools
+    in a Container with a tool called Toolbox provided by CoreOS. Containers run in
+    their own namespaces, and the regular Linux tools do not give enough information
+    to debug Containers. This problem is solved by tools such as `cadvisor` and `sysdig`.
+    Logging is another important tool to debug system-level issues, and there are
+    a few vendors such as LogEntries trying to solve this problem for Containers.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'In this chapter, we will cover the following topics:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Using CoreOS Toolbox and other CoreOS utilities to debug the CoreOS system
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Monitoring a Container using `sysdig` and `cadvisor`
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Docker remote API support
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Docker logging drivers
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Using LogEntries to do central Container log monitoring
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: CoreOS Toolbox
+  prefs: []
+  type: TYPE_NORMAL
+- en: As CoreOS does not support a package manager, it is difficult to install custom
+    tools for debugging problems, such as tcpdump, strace, and others. CoreOS provides
+    you with a toolbox script that can start a Ubuntu or Fedora container with system-level
+    privileges on top of which we can run Linux system tools, such as tcpdump to monitor
+    and debug the CoreOS host.
+  prefs: []
+  type: TYPE_NORMAL
+- en: To start Toolbox, run `/usr/bin/toolbox` from the CoreOS shell.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following process output in the CoreOS host system shows that Toolbox has
+    started with system-level privileges:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00359.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'Toolbox by default uses the Fedora image. The following output shows you Fedora
+    inside the Toolbox container:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00361.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Tcpdump is not present in the default Fedora image. I was able to install `tcpdump`
+    using `yum` and monitor the `eth0` interface from inside the Toolbox container.
+    This shows one example of how Toolbox can be used.
+  prefs: []
+  type: TYPE_NORMAL
+- en: To change the default Linux image that CoreOS Toolbox uses, we can specify a
+    custom image in `~/.toolboxrc`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following is an example `.toolboxrc`, where we are asking Toolbox to use
+    a Ubuntu image:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`TOOLBOX_DOCKER_IMAGE=ubuntu TOOLBOX_DOCKER_TAG=14.04`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'If we start Toolbox after the preceding change, Toolbox will start a Ubuntu
+    image with system-level privileges. The following is the Ubuntu image running
+    as part of starting Toolbox:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00363.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'We can specify the image selection in the `cloud-config` so that `.toolboxrc`
+    is automatically written as part of the Container startup. The following is a
+    sample `cloud-config` section where we specified `.toolboxrc` with Ubuntu as the
+    default Toolbox Container image:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`-write_files:   - path: /home/core/.toolboxrc     owner: core     content: |
+          TOOLBOX_DOCKER_IMAGE=ubuntu       TOOLBOX_DOCKER_TAG=14.04`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Other CoreOS debugging tools
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'We covered basic CoreOS debugging in [Chapter 2](index_split_048.html#filepos153225),
+    Setting Up the CoreOS Lab in the Basic debugging section. The following are a
+    few utilities that can be used:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: The `journalctl` utility can be used to check the logs of all systemd services
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: The `systemctl` utility can be used to check the status of all the services
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: The `cloud-config` validator tool can be used to validate the `cloud-config`
+    before using it with CoreOS
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Utilities such as Etcd, Fleet, Flannel, and Locksmith have their own debugging
+    capabilities that can be turned on if necessary
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Container monitoring
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'As Containers run in their own namespaces, traditional Linux monitoring tools
+    such as top, ps, tcpdump, and lsof from the host system do not help monitor the
+    activity happening within a Container or between Containers. This makes it complex
+    to troubleshoot Containers. Before we discuss tools available for Container monitoring,
+    let''s see the major items that we need to monitor:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: The CPU usage by a Container and processes running inside a Container
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: The memory usage by a Container and processes running inside a Container
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Network access for both incoming and outgoing connections
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: File I/O performed by Containers
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'The following are some approaches to monitor Containers:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Install monitoring software in the Container: This defeats the Container model
+    where a Container runs a single microservice and is also not scalable.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Install monitoring software in the host machine where the Container runs: This
+    approach makes it difficult to install specialized software on a cluster OS like
+    CoreOS as they allow only applications to run as Containers and not allow installing
+    software in the base OS.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Install monitoring software as a Container with system-level privileges: This
+    is the most preferred approach.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Docker provides you with the `docker stats` command that provides basic CPU,
+    memory, and I/O usage on a per Container basis. We covered `docker stats` in [Chapter
+    7](index_split_164.html#filepos509414), Container Integration with CoreOS – Docker
+    and Rkt. The data provided by Docker commands is very basic. There are many open
+    source and commercial Container monitoring tools, such as cadvisor, sysdig, Data
+    dog, newrelic, Prometheus, and Scout that provide more visibility in Containers.
+    In this chapter, we will cover cadvisor and sysdig.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Sysdig
+  prefs: []
+  type: TYPE_NORMAL
+- en: Sysdig is an open source project that provides Linux system-level visibility
+    with built-in native support for Containers. Sysdig can be used for host monitoring
+    as well as Container monitoring.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following diagram shows the Sysdig architecture:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00297.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'The following are some notes on the Sysdig architecture:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Sysdig can monitor the host system, VM, and Containers.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Sysdig can monitor different Container runtime like Docker, Rkt and LXC.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: The Sysdig documentation calls sysdig as `strace + tcpdump + htop + iftop +
+    lsof + awesome sauce`.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: The Sysdig probe is a kernel module that needs to be installed in the host machine
+    to do the monitoring. Sysdig has made the installation of this module very simple,
+    and it works in regular Linux systems as well as in Container-based OSes, such
+    as CoreOS and Rancher.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Since sysdig directly monitors all Kernel system calls, sysdig provides more
+    detailed monitoring data compared to other monitoring tools.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: A Sysdig container can be run on the host system and monitors the host processes
+    as well as Containers running in the host system.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Sysdig can monitor CPU, memory, network IO, and file IO. Sysdig provides various
+    options to fine-tune the monitor query to provide relevant data.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: The Sysdig open source version has the sysdig CLI and csysdig, which has an
+    ncurses-based interface. Csysdig is similar to htop, where we get an interactive
+    text-based interface.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: The Sysdig cloud is the commercial version of Sysdig where data from multiple
+    hosts and Containers are aggregated in a single location in the cloud and can
+    be accessed as a SaaS application. The Sysdig cloud can be accessed from the cloud
+    or installed on-premise.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Sysdig can be started as a Container. The following command shows you how to
+    start the sysdig container:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`docker run -i -t --name sysdig --privileged -v /var/run/docker.sock:/host/var/run/docker.sock -v /dev:/host/dev -v /proc:/host/proc:ro sysdig/sysdig`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'For more details on Sysdig installation, please refer [http://www.sysdig.org/install/](http://www.sysdig.org/install/).
+    The following command shows you a running sysdig container in a CoreOS system:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00367.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Examples of Sysdig
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following output shows you a list of Containers running in a CoreOS system
+    on which we will try out some simple sysdig commands:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00369.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'The following command shows the top processes consuming the CPU. The output
+    lists the PID in the host machine as well as the container. The `topprocs_cpu`
+    utility is a chisel. In sysdig terms, each chisel is a script with some predefined
+    task:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`sysdig -pc -c topprocs_cpu`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following screenshot is the output of the preceding command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00371.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'The following command lists the top containers using network IO:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`sysdig -pc -c topcontainers_net`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following screenshot is the output of the preceding command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00373.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'The following command lists the top containers using file IO:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`sysdig -c topcontainers_file`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following screenshot is the output of the preceding command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00375.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'The Sysdig spy command is useful to monitor all the external interactions to
+    the host or Container. The following output shows the command executed in an nginx
+    container when we used the exec command and performed `ps` in the container:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`sysdig -pc -c spy_users`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following screenshot is the output of the preceding command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00378.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: The preceding output shows that the `docker exec` and `ps` commands were executed.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Csysdig
+  prefs: []
+  type: TYPE_NORMAL
+- en: Csysdig is a text based UI for Sysdig. Csysdig is implemented as a customizable
+    Curses UI. All operations that can be done through sysdig can also be done with
+    csysdig. The csysdig user interface can be customized to show different views
+    and the output can be filtered based on different user inputs.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Csysdig can be started using the following command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`Cssysdig –pc (pc option gives container details)`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following output shows different views possible in csysdig:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00381.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'The following output lists the containers running in the host. This is available
+    in the Container view:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00391.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'Once we select a specific container, the following output shows the processes
+    running in the container:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00387.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: The Sysdig cloud
+  prefs: []
+  type: TYPE_NORMAL
+- en: The sysdig cloud is a commercial solution from Sysdig where the sysdig data
+    from the host machine is sent to a central server where the container and host
+    monitoring data are collated from different hosts. The sysdig cloud can either
+    be run on Sysdig's servers or as an on-premise solution.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The sysdig cloud is available on a 15-day trial period. I tried out the Sysdig
+    cloud trial version and installed Sysdig in a CoreOS cluster running in AWS.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following are the steps to install the Sysdig cloud and how to use it:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Register and create on online account in the Sysdig cloud. As part of registration,
+    Sysdig will provide an access key.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: The access key provided by Sysdig needs to be used in the host machine. Sysdig
+    will use the access key to associate the hosts that are part of the same account.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: When sysdig is started on the host machine, the sysdig agent will talk to the
+    Sysdig server in the cloud and export the monitoring data.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: The Sysdig cloud can also integrate with AWS. If we provide the AWS access key,
+    Sysdig can automatically pull in AWS VM monitoring data as well.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'The following is the CoreOS service unit file to start the sysdig-agent service
+    in the host machine, which talks to the Sysdig cloud. The access key needs to
+    be filled in appropriately. This unit starts the sysdig cloud agent in all the
+    nodes of the CoreOS cluster as the `Global` option is set in X-Fleet:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`[Unit] Description=Sysdig Cloud Agent After=docker.service Requires=docker.service  [Service]
+    TimeoutStartSec=0 ExecStartPre=-/usr/bin/docker kill sysdig-agent ExecStartPre=-/usr/bin/docker rm sysdig-agent
+    ExecStartPre=/usr/bin/docker pull sysdig/agent ExecStart=/usr/bin/docker run --name sysdig-agent --privileged --net host --pid host -e ACCESS_KEY=<access key> -e TAGS=[role:web,location:bangalore] -v /var/run/docker.sock:/host/var/run/docker.sock -v /dev:/host/dev -v /proc:/host/proc:ro -v /boot:/host/boot:ro sysdig/agent
+    ExecStop=/usr/bin/docker stop sysdig-agent  [X-Fleet] Global=true`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following is my three-node CoreOS cluster:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00389.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'The following command can be used to start the sysdig agent on the CoreOS machine:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`fleetctl start docker-sysdig.service`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following output shows the running sysdig-agent container in one of the
+    CoreOS nodes:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00392.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'The following output in the Sysdig cloud shows the registered hosts along with
+    the running containers. Here, we can see the three hosts and the Containers running
+    in each host along with their CPU, memory, network IO, and file IO:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00394.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'The following output shows the summary view:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00396.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'The following output shows the dashboard output for a single Container with
+    its associated processes. We have picked the sysdig container for the following
+    output:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00398.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Kubernetes integration
+  prefs: []
+  type: TYPE_NORMAL
+- en: Sysdig recently added a feature to integrate with Kubernetes, where Sysdig is
+    aware of Kubernetes logical constructs, such as the master node, minion node,
+    Pods, replication controllers, labels, and so on. Sysdig gets this awareness by
+    querying the Kubernetes API server. By combining the data collected from Containers
+    and the Kubernetes API server, Sysdig and the Sysdig cloud can group information
+    at Kubernetes' level. For example, we can view the CPU and memory usage either
+    on the Kubernetes pod or replication controller basis. Sysdig has plans to integrate
+    with other orchestration engines such as Mesos and Swarm in the future. Sysdig
+    also has plans to integrate with other Container runtime such as Rkt.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Cadvisor
+  prefs: []
+  type: TYPE_NORMAL
+- en: Cadvisor is an open source tool from Google to monitor Containers as well as
+    the host system on which the Container is running. Google developed cadvisor for
+    its own Container system and later extended its support to Docker containers.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following are some notes on cadvisor:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: It monitors CPU, memory, network, and file I/O for both the host system as well
+    as Containers.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: It can work with Docker and other Container runtimes.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: It can be started as a Container in the host system with no special changes
+    necessary in the host system.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: The cadvisor container starts a simple web server, using which we can access
+    the dashboards using a simple GUI.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: It provides REST API for programmatic access.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Cadvisor stores the history for only a small duration. It is necessary to use
+    cadvisor with backends such as InfluxDB ([https://influxdata.com/](https://influxdata.com/))
+    and Prometheus ([https://prometheus.io/](https://prometheus.io/)) to maintain
+    the history.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'The following command can be used to start the Docker cadvisor Container:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`docker run \``  --volume=/:/rootfs:ro \``  --volume=/var/run:/var/run:rw \``  --volume=/sys:/sys:ro \``  --volume=/var/lib/docker/:/var/lib/docker:ro \``  --publish=8080:8080 \``  --detach=true \``  --name=cadvisor \``  google/cadvisor:latest`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following output shows a running cadvisor container in the CoreOS system:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00400.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'The following screenshot is a GUI snapshot showing processes and the CPU usage
+    for a container:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00012.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'The following output shows the REST API subtypes supported by cadvisor:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00405.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: The following are some examples of a REST API provided by cadvisor with the
+    details that they provide. This link, [https://github.com/google/cadvisor/blob/master/docs/api.md](https://github.com/google/cadvisor/blob/master/docs/api.md),
+    gives the details of all the supported REST APIs. All the following commands return
+    output in the JSON format.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following command gives the host detail:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`curl -X GET http://172.17.8.102:8080/api/v1.3/machine | jq .`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following command gives the Container performance detail:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`curl -X GET http://172.17.8.102:8080/api/v1.3/containers/ | jq .`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following command gives the Docker container nginx performance detail:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`curl -X GET http://172.17.8.102:8080/api/v1.3/docker/nginx | jq .`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Cadvisor provides you with limited information compared to sysdig as cadvisor
+    relies mainly on Docker-provided statistics. Additionally, cadvisor provides only
+    limited history on statistics, and so it is necessary to integrate cadvisor with
+    other tools such as Influxdb to maintain a longer history.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The Docker remote API
+  prefs: []
+  type: TYPE_NORMAL
+- en: The Docker remote API can be used to access the Docker engine with the REST
+    API. This can be used for programmatic access to Docker.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following section of CoreOS `cloud-config` can be used to enable the Docker
+    remote API listening on TCP port `2375`:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`    - name: docker-tcp.socket       command: start       enable: true       content: |
+            [Unit]         Description=Docker Socket for the API         [Socket]
+            ListenStream=2375         Service=docker.service         BindIPv6Only=both
+            [Install]         WantedBy=sockets.target`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following are some examples of accessing the Docker remote API:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'List the running Containers:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`docker -H tcp://172.17.8.102:2375 ps`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following screenshot is the output of the preceding command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00407.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'List the Container images:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following command can be used to list Container images in the JSON format:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`curl -X GET http://172.17.8.101:2375/images/json | jq .`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following screenshot is the output of the preceding command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00410.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'List Docker engine details:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following command is equivalent to `docker info`:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`curl -X GET http://172.17.8.101:2375/info | jq .`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'List particular Container statistics:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`curl -X GET http://172.17.8.101:2375/containers/26b225ec6a8e/stats | jq .`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'List the Docker version:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`curl -X GET http://172.17.8.102:2375/version | jq .`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'List the Docker events:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`curl -X GET http://172.17.8.102:2375/events`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following command deletes the specific `busybox` container:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`curl -X DELETE http://172.17.8.102:2375/images/busybox`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following screenshot is the output of the preceding command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00412.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'List specific Container logs sent to stdout:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The Container ID is specified as an argument for the following command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`curl -X GET http://172.17.8.101:2375/containers/5ab9abb4787e/logs?stdout=1`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: If we need secure access to the Docker remote API, we can do it using TLS, and
+    the Docker daemon supports this.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Container logging
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'When Containers send the output to stdout or stderr, it needs to be logged.
+    This is useful to monitor errors and events and also to maintain the history of
+    the Container application. With Containers, there are some special challenges
+    with respect to logging:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Typically, Containers run a microservice, and we don't want the logging process
+    running inside a container as this defeats the Container model.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: With microservices, a single application can be split into multiple containers
+    running across different hosts. It is necessary to collate logs from multiple
+    containers to make meaningful conclusions. This enforces the need to have a central
+    logging server rather than doing container monitoring on the host where the container
+    is running.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: We covered Container monitoring in the previous section. When Container logs
+    are correlated with the Container monitoring data, we can get a better understanding
+    of the system and easily narrow down any system wide issues.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'I found the following two approaches widely used for centralized Container
+    logging:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'ELK stack (Elastic search, Logstash, and Kibana): Elastic search is used as
+    a central log repository, Logstash is used as an agent to export Container data,
+    and Kibana is used as a logging GUI frontend. I have not covered the ELK stack
+    in this chapter. The links in the references section provide details on setting
+    up the ELK stack for Container logging.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'LogEntries: LogEntries combines the Container agent, frontend, and central
+    logging server for a single integrated solution.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: There are also other tools such as AWS Cloudwatch ([https://aws.amazon.com/cloudwatch/](https://aws.amazon.com/cloudwatch/)),
+    Loggly ([https://www.loggly.com](https://www.loggly.com)), Elastic ([http://www.elastic.io/](http://www.elastic.io/)),
+    and Sematext Logsene ([https://sematext.com/logsene/](https://sematext.com/logsene/))
+    that provide logging capability for Containers. When using AWS cloudwatch for
+    Container monitoring, we get custom hooks based on the AWS environment, and it
+    also integrates well with their other cloud monitoring options.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Docker logging drivers
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Docker supports the following log drivers as of Docker 1.7:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`None`: No logging.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`Json-file`: Logs are stored as a file in the JSON format. This is the default
+    logging option.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`Syslog`: Logs are sent to the syslog server.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`Journald`: Logs are sent to the journald daemon. Journald is integrated with
+    systemd.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`Gelf`: This writes log messages to the GELF endpoint, such as Graylog or Logstash.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`Fluentd`: This writes log messages to fluentd.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`Awslogs`: This is the Amazon cloudwatch logging driver.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: The JSON-file driver
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following command starts a Docker container with the json-file log driver
+    with the maximum number of files limited to 100, each file not exceeding 1 MB:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`docker run --name busyboxjsonlogger --log-driver=json-file --log-opt max-size=1m --log-opt max-file=100 -d busybox /bin/sh -c "while true; do echo hello world ; sleep 5 ; done"`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'In the preceding `busyboxjsonlogger` Container, we are continuously sending
+    `hello world` output to stdout. The following output shows the `docker logs` output
+    for `busyboxjsonlogger`, where we can see the `hello world` output:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00414.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'The following command can be executed to find out the location of the json
+    log file:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00416.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'Using the preceding path, we can directly dump the json logs, which gives additional
+    information such as timestamp, stream type, and so on:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00418.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: The Syslog driver
+  prefs: []
+  type: TYPE_NORMAL
+- en: The Syslog driver is useful to collate messages from multiple containers into
+    a single server running the syslog daemon.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following command can be used to start the syslog server as a container.
+    This command exposes the syslog server to port `5514` in the host machine:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`docker run -d -v /tmp:/var/log/syslog -p 5514:514/udp  --name rsyslog voxxit/rsyslog`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following command can be used to start a container with the syslog driver
+    option that sends the logs to the syslog server specified earlier:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`docker run --log-driver=syslog --log-opt syslog-address=udp://127.0.0.1:5514 --log-opt syslog-facility=daemon --log-opt tag="mylog" --name busyboxsysloglogger -d busybox /bin/sh -c "while true; do echo hello world ; sleep 5 ; done"`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following output shows the syslog from the syslog server:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`docker exec rsyslog tail –f /var/log/messages`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following screenshot is the output of the preceding command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00008.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: The journald driver
+  prefs: []
+  type: TYPE_NORMAL
+- en: The journald logging driver sends container logs to the systemd journal. Log
+    entries can be retrieved using the `journalctl` command. This works well in a
+    CoreOS environment where journald is used for all the other logging.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following command starts a container with the journal driver:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`docker run --name busyboxjournallogger --log-driver=journald -d busybox /bin/sh -c "while true; do echo hello world ; sleep 5 ; done"`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following command shows the logs from journalctl with `CONTAINER_NAME`
+    used as a filter:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`journalctl CONTAINER_NAME=busyboxjournallogger`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following screenshot is the output of the preceding command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00360.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'The following command shows the journalctl logs in the JSON format:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`journalctl -o json CONTAINER_NAME=busyboxjournallogger --no-pager`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following screenshot is the output of the preceding command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00377.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Logentries
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'LogEntries can be used to collect logs from the host system running containers,
+    export them to the central logging server, and analyze logs from a central server.
+    The following diagram describes the components of the LogEntries Container architecture:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00368.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'The following are some notes on the LogEntries Container architecture:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: The LogEntries container runs in the host system. It uses the Docker API to
+    collect Container statistics, logs, and events, and transports them to a central
+    server.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: The token-based system can be used to aggregate Container logs from multiple
+    hosts. For a Container dataset belonging to a single domain, we can create a token
+    from LogEntries and use this token in every individual host of the domain. The
+    LogEntries agent in each host talks to the LogEntries server with this token.
+    LogEntries aggregates log sets based on the token.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: As LogEntries collects Container statistics, it also displays some Container
+    monitoring data in addition to logs.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: LogEntries provides extensions using Community packs. Community packs provide
+    a way to share Search Queries, Tags, Alerts, and Widgets easily. Community packs
+    follow a JSON structure and can be easily imported in the Logentries account via
+    the LogEntries UI.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: LogEntries has both free and paid subscriptions. A paid subscription gives additional
+    storage and enterprise-level features.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Exporting CoreOS journal logs
+  prefs: []
+  type: TYPE_NORMAL
+- en: CoreOS uses journalctl to store logs from all services. The following Container
+    ([https://github.com/kelseyhightower/journal-2-logentries](https://github.com/kelseyhightower/journal-2-logentries))
+    can be used to send journal entries to the LogEntries server using SSL.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following are the steps necessary to export journalctl logs from CoreOS
+    nodes:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Create a token from logentries.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Use the token either in a service file or inside a `cloud-config` as an option
+    while starting the `journal-2-logentries` container. An alternate option is to
+    update the token in etcd, which all the nodes in a CoreOS cluster can use.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Update the token in etcd (for example, `etcdctl set /logentries.com/token <token>`).
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'The following service file can be used to start the `journal-2-logentries`
+    container in all the CoreOS nodes of the cluster:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`[Unit] Description=Forward Systemd Journal to logentries.com  [Service] TimeoutStartSec=0
+    ExecStartPre=-/usr/bin/docker kill journal-2-logentries ExecStartPre=-/usr/bin/docker rm journal-2-logentries
+    ExecStartPre=/usr/bin/docker pull quay.io/kelseyhightower/journal-2-logentries
+    ExecStart=/usr/bin/bash -c \ "/usr/bin/docker run --name journal-2-logentries \
+    -v /run/journald.sock:/run/journald.sock \ -e LOGENTRIES_TOKEN=$(etcdctl get /logentries.com/token) \
+    quay.io/kelseyhightower/journal-2-logentries"  [X-Fleet] Global=true`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'As the logentries container uses `journald.sock`, it is necessary to export
+    that socket using the following unit in the `cloud-config`:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`    - name: systemd-journal-gatewayd.socket       command: start       enable: yes
+          content: |          [Unit]          Description=Journal Gateway Service Socket
+             [Socket]          ListenStream=/var/run/journald.sock          Service=systemd-journal-gatewayd.service
+             [Install]          WantedBy=sockets.target`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following output shows the `journal-2-logentries` service running in all
+    the CoreOS nodes of the cluster:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00157.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'The following output shows the `journal-2-logentries` Container running in
+    one of the nodes:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00376.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'The following screenshot shows the LogEntries server frontend with journal
+    logs from CoreOS nodes:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00409.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Container logs
+  prefs: []
+  type: TYPE_NORMAL
+- en: LogEntries can be used to export Container logs, events, and statistics. Container
+    events could be container start, create, stop, and die events. Container logs
+    are the stdout and stderr logs. Container statistics are CPU, memory, file, and
+    network IO related details.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following are the steps necessary to export Container statistics and logs
+    from CoreOS nodes:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Create a token from Logentries.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Use the token either in a service file or as an option while starting the docker-logentries
+    container. An alternate option is to update the token in etcd, which all the nodes
+    in the CoreOS cluster can use.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Update the token in etcd (for example, `etcdctl set /logentries.com/token <token>`).
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: To view Docker container statistics, it is necessary to use the Docker community
+    pack. This is a JSON file and can be downloaded from [https://community.logentries.com/packs/](https://community.logentries.com/packs/).
+    The following instructions ([https://logentries.com/doc/community-packs/](https://logentries.com/doc/community-packs/))
+    can be used to import the Docker community pack in logentries.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'The following command can be used to start the `docker-logentries` container:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`docker run -v /var/run/docker.sock:/var/run/docker.sock logentries/docker-logentries -t <token>`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following service file can be used to start the `docker-logentries` container
+    in all CoreOS nodes:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`[Unit] Description=Forward Forward Container logs/stats to logentries.com  [Service]
+    TimeoutStartSec=0 ExecStartPre=-/usr/bin/docker kill docker-logentries ExecStartPre=-/usr/bin/docker rm docker-logentries
+    ExecStartPre=/usr/bin/docker pull logentries/docker-logentries ExecStart=/usr/bin/bash -c \
+    "/usr/bin/docker run --name docker-logentries \ -v /var/run/docker.sock:/var/run/docker.sock \
+    -e LOGENTRIES_TOKEN=$(etcdctl get /logentries.com/token) \ logentries/docker-logentries"  [X-Fleet]
+    Global=true`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following output shows the `docker-logentries` service running on all CoreOS
+    nodes:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00388.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'The following output shows the `docker-logentries` container running on one
+    of the nodes:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00187.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: I created a bunch of Containers, and stopped and deleted a few to generate different
+    Container events and logs.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following output shows the Dashboard output that''s received from the Docker
+    community pack. The dashboard shows a summary of Container events along with Container
+    monitoring data:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00397.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'The following output shows the log set view, which also shows the specific
+    containers created with each Container create event. In the following picture,
+    we can see the create events for the Redis, WordPress, and MySQL containers:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00029.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'To show the logging capability of LogEntries, I started the following container,
+    which keeps sending `hello world` to stdout periodically:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`docker run -d busybox /bin/sh -c "while true; do echo hello world; sleep 5; done"`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following output shows logs filtered by the `busybox` container name where
+    we can see the stdout:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00406.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Summary
+  prefs: []
+  type: TYPE_NORMAL
+- en: In this chapter, we covered ways to monitor and debug CoreOS systems as well
+    as Docker Containers. Rather than approaching Containers and the host system as
+    two separate entities, monitoring tools need to approach Containers and the host
+    system as one entity and be able to provide both Container view as well as system
+    view and correlate between the data. As Containers get deployed in hundreds and
+    thousands across hosts, monitoring solutions need to be very scalable. There are
+    a lot of developments happening with debugging and troubleshooting CoreOS systems
+    and Docker Containers; multiple companies are trying to solve this problem. Companies
+    such as Sysdig and Logentries have nice solutions to solve monitoring and logging
+    problems. In the next chapter, we will cover production considerations for CoreOS,
+    Docker Containers, and microservices.
+  prefs: []
+  type: TYPE_NORMAL
+- en: References
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'CoreOS Toolbox: [https://github.com/coreos/toolbox](https://github.com/coreos/toolbox)
+    and [http://thepracticalsysadmin.com/change-coreos-default-toolbox/](http://thepracticalsysadmin.com/change-coreos-default-toolbox/)'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Cadvisor: [https://github.com/google/cadvisor](https://github.com/google/cadvisor)'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Comparing Container monitoring options: [http://rancher.com/comparing-monitoring-options-for-docker-deployments/](http://rancher.com/comparing-monitoring-options-for-docker-deployments/)'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Sysdig: [https://sysdig.com/coreos-sysdig-part-1-digging-into-coreos-environments/](https://sysdig.com/coreos-sysdig-part-1-digging-into-coreos-environments/),
+    [https://sysdig.com/sysdig-coreos-part-2-troubleshooting-flannel-networking-confd/](https://sysdig.com/sysdig-coreos-part-2-troubleshooting-flannel-networking-confd/),
+    [http://www.sysdig.org/](http://www.sysdig.org/), and [https://github.com/draios/sysdig](https://github.com/draios/sysdig)'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Sysdig and Kubernetes integration: [https://sysdig.com/monitoring-kubernetes-with-sysdig-cloud/](https://sysdig.com/monitoring-kubernetes-with-sysdig-cloud/)
+    and [https://sysdig.com/digging-into-kubernetes-with-sysdig/](https://sysdig.com/digging-into-kubernetes-with-sysdig/)'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Customizing the Docker remote API: [https://coreos.com/os/docs/latest/customizing-docker.html](https://coreos.com/os/docs/latest/customizing-docker.html)'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'The Docker logging driver: [http://docs.docker.com/engine/reference/logging/overview/](http://docs.docker.com/engine/reference/logging/overview/)'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: LogEntries:[https://logentries.com](https://logentries.com)
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Docker logging with ELK: [http://technologyconversations.com/2015/05/18/centralized-system-and-docker-logging-with-elk-stack/](http://technologyconversations.com/2015/05/18/centralized-system-and-docker-logging-with-elk-stack/)
+    and [http://evanhazlett.com/2014/11/Logging-with-ELK-and-Docker/](http://evanhazlett.com/2014/11/Logging-with-ELK-and-Docker/)'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Docker logging with JSON and Syslog: [https://medium.com/@yoanis_gil/logging-with-docker-part-1-b23ef1443aac#.ehjyv77n7](https://medium.com/@yoanis_gil/logging-with-docker-part-1-b23ef1443aac#.ehjyv77n7)'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Further reading and tutorials
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Centralizing logs from a CoreOS cluster: [https://blog.logentries.com/2015/03/how-to-centralize-logs-from-coreos-clusters/](https://blog.logentries.com/2015/03/how-to-centralize-logs-from-coreos-clusters/)'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Docker logging enhancements with 1.7: [https://blog.logentries.com/2015/06/the-state-of-logging-on-docker-whats-new-with-1-7/](https://blog.logentries.com/2015/06/the-state-of-logging-on-docker-whats-new-with-1-7/)'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Logging on Docker webinar: [https://vimeo.com/123341629](https://vimeo.com/123341629)'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'The dark arts of Container monitoring: [https://www.youtube.com/watch?v=exna5ntTCpY](https://www.youtube.com/watch?v=exna5ntTCpY)'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Sysdig and Logentries webinar: [https://www.youtube.com/watch?v=wNxteOCv5eE](https://www.youtube.com/watch?v=wNxteOCv5eE)'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Docker stats API: [https://blog.logentries.com/2015/02/what-is-the-docker-stats-api/](https://blog.logentries.com/2015/02/what-is-the-docker-stats-api/)
+    and [http://blog.scoutapp.com/articles/2015/06/22/monitoring-docker-containers-from-scratch](http://blog.scoutapp.com/articles/2015/06/22/monitoring-docker-containers-from-scratch)'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Sysdig Container visibility: [https://sysdig.com/let-light-sysdig-adds-container-visibility/](https://sysdig.com/let-light-sysdig-adds-container-visibility/)'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'The Docker remote API: [http://blog.flux7.com/blogs/docker/docker-tutorial-series-part-8-docker-remote-api](http://blog.flux7.com/blogs/docker/docker-tutorial-series-part-8-docker-remote-api)
+    and [http://blog.flux7.com/blogs/docker/docker-tutorial-series-part-9-10-docker-remote-api-commands-for-images](http://blog.flux7.com/blogs/docker/docker-tutorial-series-part-9-10-docker-remote-api-commands-for-images)'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Protecting the Docker daemon: [https://docs.docker.com/engine/articles/https/](https://docs.docker.com/engine/articles/https/)'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL

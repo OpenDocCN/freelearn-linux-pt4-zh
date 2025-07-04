@@ -1,0 +1,1491 @@
+- en: Chapter 4. Service Scheduling and Management Frameworks
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'This chapter introduces several Mesos-based scheduling and management frameworks
+    or applications that are required for the easy deployment, discovery, load balancing,
+    and failure handling of long-running services. These so-called metaframeworks
+    take care of the *housekeeping* activities of other frameworks and applications,
+    such as **service discovery** (that is, keeping track of the instances on which
+    a particular service is running) and **load balancing** (ensuring an equitable
+    workload distribution among the instances), apart from **configuration management**,
+    **automated** **job scheduling**, **application** **scaling**, and **failure handling**.
+    The frameworks that we''ll explore here include:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '**Marathon**: This is used to launch and manage long-running applications on
+    Mesos'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**Chronos**: This is a cluster scheduler'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**Apache** Aurora: This is a framework for long-running services and cron jobs'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**Singularity**: This is a platform-as-a-service (PaaS) for running services'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**Marathoner**: This conducts service discovery for Marathon'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**Consul**: This carries out service discovery and orchestration'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**HAProxy**: This is used for load balancing'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**Bamboo**: This is used to automatically configure HAProxy for Mesos and Marathon'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: In addition, we'll briefly touch upon two very recent open source frameworks,
+    namely **Netflix Fenzo** (a task scheduler) and **Yelp's PaaSTA** (a PaaS for
+    running services).
+  prefs: []
+  type: TYPE_NORMAL
+- en: Using Marathon to launch and manage long-running applications on Mesos
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: Marathon is a commonly used Mesos framework for long-running applications. It
+    can be considered a replacement for `init` or `upstart` in traditional systems
+    or as the `init.d` of your system.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Marathon has many features, such as controlling a high availability environment,
+    checking the applications' health, and so on. It also comes with **Representational
+    State Transfer** (**REST**), such as endpoint, which you can use to start, stop,
+    and scale your applications. It can be used to scale up and down the cluster based
+    on the load, which means that it should be able to start a new instance just in
+    case an available one goes down. Marathon is also designed to run other frameworks
+    on it, such as **Hadoop**, **Kafka**, **Storm**, **Chronos**, and so on. Marathon
+    makes sure that every application that is started through it keeps running even
+    if a slave node goes down.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Marathon runs in a highly available fashion, which implies that there can be
+    multiple schedulers running in the cluster, but at any given point of time, there
+    is only one leader. Whenever an application requests a nonleader, the request
+    will be proxied to the active leader. You can also use HAProxy (explained later
+    in this chapter) for service discovery and load balancing.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Marathon also supports basic authentication mechanisms and uses SSL to encrypt
+    connections.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Installing Marathon
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: Visit [https://mesosphere.github.io/marathon/](https://mesosphere.github.io/marathon/)
+    to download the latest Marathon release. At the time of writing this book, the
+    latest version is 0.13.0.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Marathon can be downloaded as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE0]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'After downloading, extract the files as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE1]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'You can see the following files once you extract Marathon:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Installing Marathon](img/B05186_04_01.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: There is a development mode for Marathon in which you don't need a distributed
+    Mesos setup. This is called the Marathon local mode. The local mode is for experimental
+    purposes only, and it is not recommended to run it in any production environment.
+    ZooKeeper is required alongside Marathon to store the state.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Installing ZooKeeper to store the state
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'Marathon requires you to have an Apache ZooKeeper instance up and running for
+    it to be able to save a state. Perform the following steps to install and work
+    with ZooKeeper:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Visit [https://zookeeper.apache.org](https://zookeeper.apache.org) to download
+    the latest version of ZooKeeper. At the time of writing this book, the current
+    version is 3.4.7.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'Download ZooKeeper as follows:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE2]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'After downloading, extract the archive as given here:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE3]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'The next step is to configure ZooKeeper. This can be done as follows:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'Edit the file `conf/zoo.cfg` with the following contents:'
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: '[PRE4]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Then, run the following command to start ZooKeeper:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE5]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'You can see the following messages once you start it successfully:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Installing ZooKeeper to store the state](img/B05186_04_02.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Launching Marathon in local mode
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'The following command launches Marathon in local mode:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE6]'
+  prefs: []
+  type: TYPE_PRE
+- en: '![Launching Marathon in local mode](img/B05186_04_03.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Once it is up and running, the Marathon UI can be seen by pointing your browser
+    to the `8080` port on the server.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Multi-node Marathon cluster setup
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: To set this up, a high availability Mesos cluster needs to be set up, which
+    will be explained in detail in [Chapter 5](ch05.html "Chapter 5. Mesos Cluster
+    Deployment"), *Mesos Cluster Deployment*. For the time being, we assume that you
+    already have a high availability Mesos cluster up and running. We'll now take
+    a look at how to install Marathon on all the master machines in the cluster.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Log in to all the Mesos master machines and type in the following commands to
+    set up Marathon.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'On *Debain*/*Ubuntu* machines, run the following command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE7]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'On *RedHat*/*CentOS* machines, execute the following command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE8]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'You can now head to any one of the master machine''s `8080` port in the browser
+    and take a look at the Marathon UI:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Multi-node Marathon cluster setup](img/B05186_04_04.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Launching a test application from the UI
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'An application in Mesos is normally a long-running service that can be scaled
+    to run on multiple instances. Now, we will look at the steps to launch a test
+    application from the user interface:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Launching a test application from the UI](img/B05186_04_05.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Click on the **+ Create** button in the upper-left corner.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: The **ID** can be used to identify the job. Let's name it `marathon-test`.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Mention the number of CPUs that are required for the job—say, `1`.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Memory is given in MBs, so we will give it `16` MB (which is also the default).
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: The number of instances can be given as 1 for our test application.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'Write the following bash script in the text box under the command:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE9]'
+  prefs: []
+  type: TYPE_PRE
+- en: If everything is correct, you can see the **marathon-test** test application
+    first with the **Deployed** status, which will finally change to **Running**.
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Launching a test application from the UI](img/B05186_04_06.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Scaling the application
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: At the time of creation, we gave `1` as the instance. We can modify the number
+    of instances by clicking on the Scale Application button from the UI. The application
+    will be scaled by launching it on the number of instances specified.
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Scaling the application](img/B05186_04_07.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Terminating the application
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: We can now terminate our marathon-test application by clicking on the application
+    name from the Applications list and then hitting the **Destroy** button.
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Terminating the application](img/B05186_04_08.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Destroying the application is an irreversible process and cannot be undone.
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Terminating the application](img/B05186_04_09.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Chronos as a cluster scheduler
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: One can consider Chronos as a time-based job scheduler, such as **cron** in
+    the typical Unix environment. Chronos is distributed and fully fault-tolerant,
+    and it runs on top of Apache Mesos.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Just like cron, Chronos executes the shell scripts (combined with Linux commands)
+    by default and also supports Mesos executors.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Chronos can interact with systems such as Hadoop or Kafka even if the Mesos
+    worker machine, on which the real execution happens, does not have the system
+    installed. You can use Chronos to start a service or run a script on a remote
+    machine in the background. The wrapper script can have an asynchronous callback
+    to alert Chronos to the job status, such as whether it is completed or failed
+    and so on. For the most part, people use Chronos to run dockerized applications.
+    A detailed explanation of *dockerized applications* is provided in [Chapter 7](ch07.html
+    "Chapter 7. Mesos Containerizers"), *Mesos Containerizers*.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Chronos comes with a Web UI in which you can see the job status, statistics
+    of the job's history, job configurations, and retries.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Installing Chronos
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: Log in to any of the machines (let's say, one of the Mesos master machines)
+    and type in the following commands to set up Chronos.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'On *Debain*/*Ubuntu* machines, run the following:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE10]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'On *RedHat*/*CentOS* machines, execute the following code:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE11]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Once the installation is complete, you can point the browser to the machine''s
+    `4400` port to see the Chronos UI, as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Installing Chronos](img/B05186_04_10.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Scheduling a new job
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'Let''s follow the steps mentioned here to schedule a new job:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Click on the **+ New Job** button, as seen in the previous screenshot.![Scheduling
+    a new job](img/B05186_04_11.jpg)
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Now, fill in the **NAME** and **DESCRIPTION** fields.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '**COMMAND** is the actual job that will be scheduled to run on the executors.
+    For the sake of simplicity, we will simply run the `sleep` command.'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: In the **OWNER(S)** field, we can fill in the name and e-mail address to which
+    Chronos will send an alert mail in the case of any job failure.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Under **SCHEDULE**, we can put in the scheduling frequency at which the job
+    should run. By default, it is empty and infinity. We can set it to any numeric
+    value. For instance, the number of repetitions when the value is set to 0 is only
+    one.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'Once the job is created, we can see the summary of the job through the UI,
+    as shown in the following screenshot:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Scheduling a new job](img/B05186_04_12.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'The state of the job can also be seen as in the following screenshot. In this
+    case, we can note that the **chronos-test** job is in the **running** state:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Scheduling a new job](img/B05186_04_13.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: We can head to the Mesos UI (running on the port `5050`) and actually see the
+    task being spawned by Chronos.
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Scheduling a new job](img/B05186_04_14.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Chronos plus Marathon
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: The combination of Chronos and Marathon can be utilized as building blocks to
+    create production-ready distributed applications. You already know that Chronos
+    can be used to fire up tasks at scheduled intervals; cron and Marathon let your
+    jobs run continuously, such as `init` or `upstart`, in typical Linux environments.
+    As mentioned before, both the schedulers come with a REST endpoint that allows
+    the user to manage the jobs. You can use this endpoint to start, manage, and terminate
+    the running jobs. We will now take a look at how this is achieved.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The Chronos REST API endpoint
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'As mentioned before, you can communicate with Chronos using the REST JSON API
+    over HTTP. By default, those nodes that have Chronos up and running listen at
+    the `8080` port for API requests. This section covers how to perform the following
+    tasks using the REST endpoint:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Listing the running jobs
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Manually starting a job
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Adding a scheduled job
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Deleting a job
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: For more information, visit [http://mesos.github.io/chronos/docs/api.html](http://mesos.github.io/chronos/docs/api.html).
+  prefs: []
+  type: TYPE_NORMAL
+- en: Listing the running jobs
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: Using the `HTTP GET` method on `/scheduler/jobs` will return a list of currently
+    running jobs in the JSON format.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Here''s an example:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE12]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'The following data is present in the response:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`successCount`'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`errorCount`'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`lastSuccess`'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`lastError`'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`executor`'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`parents`'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Manually starting a job
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: To start a job manually, send an `HTTP PUT` request to `/scheduler/job` with
+    optional parameters that can be added at the end of the command.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Take a look at the following example:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE13]'
+  prefs: []
+  type: TYPE_PRE
+- en: Adding a scheduled job
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: 'You can send an `HTTP POST` request to `/scheduler/iso8601` with the JSON data
+    to schedule a job. The JSON data that you post to Chronos must contain the following
+    fields:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: name
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: command
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: schedule
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: The number of times to repeat the job;
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Start time of the job in ISO 8601 format;
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Standard ISO 8601 date time format
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: scheduleTimeZone
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: epsilon
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: owner
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: async
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Take a look at the following example:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE14]'
+  prefs: []
+  type: TYPE_PRE
+- en: Deleting a job
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: To delete jobs, you can use `HTTP DELETE` on `/scheduler/job/<jobName>`, where
+    `jobName` can be obtained from the list of running jobs.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Here''s an example:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE15]'
+  prefs: []
+  type: TYPE_PRE
+- en: Deleting all the tasks of a job
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: To delete all the tasks of a given job, you can use the `HTTP DELETE` request
+    on `/scheduler/task/kill/<jobName>`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Take a look at the following example:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE16]'
+  prefs: []
+  type: TYPE_PRE
+- en: The Marathon REST API endpoint
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'This section will cover the REST endpoint of Marathon. The following tasks
+    can be performed:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Listing the running applications.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Adding an application.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Changing the configuration.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Deleting an application.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Listing the running applications
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: You can hit the `/v2/apps` endpoint with the `HTTP GET` request to list the
+    running applications that are deployed on Marathon. It also supports a filter
+    that helps you limit the listing to a particular application.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following are the parameters that the endpoint takes:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`cmd`: This filters the apps that contain the given command'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`embed`: This can be used to specify multiple values multiple times, and it
+    embeds the nested resources that match the supplied path'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Here''s an example:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE17]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'You can take a look at the response in a JSON format similar to the following:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE18]'
+  prefs: []
+  type: TYPE_PRE
+- en: Adding an application
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: 'To create and start an application from the REST endpoint, you can use the
+    `/v2/apps` endpoint with an `HTTP POST` request. It takes JSON data as the input,
+    which contains information about the application. The following are the parameters
+    that are required for this call:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`id`: This is the name of the application'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`cmd`: This is the command to be executed'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`args`: These are optional arguments of the application'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`cpus`: This is the number of CPU cores to be allocated for this application'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`mem`: This is the amount of memory to be allocated for the application'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`ports`: This is to be reserved for the application'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`instances`: This is the number of instances to deploy the application'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'The following example shows how to launch a simple Python HTTP server as an
+    application in Marathon:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE19]'
+  prefs: []
+  type: TYPE_PRE
+- en: Also, note that if the given ID of the application already exists in Marathon,
+    it will throw a duplication error and won't launch the application at all.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Changing the configuration of an application
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: You can send an `HTTP PUT` request to the `/v2/apps/<appId>` endpoint to change
+    the configuration of the given application. The `appId` value can be obtained
+    using the previous method to list the running applications. Once the request is
+    fired, the currently running tasks will be restarted with this new configuration.
+  prefs: []
+  type: TYPE_NORMAL
+- en: It takes the `force` parameter, a Boolean value which is false by default. Making
+    it true will override the current deployment if the application's state is affected.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Consider the following example:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE20]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Once the update succeeds, it will give us a JSON response containing the following:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE21]'
+  prefs: []
+  type: TYPE_PRE
+- en: Deleting the application
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: You can use the `HTTP DELETE` request in `/v2/apps/<appId>` to destroy the application
+    and the data associated with it.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Take a look at the following example:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE22]'
+  prefs: []
+  type: TYPE_PRE
+- en: Introduction to Apache Aurora
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: Apache Aurora is a powerful Mesos framework for long-running services, cron
+    jobs, and ad hoc jobs. It was originally designed at Twitter and was later open
+    sourced under the Apache license. You can turn your Mesos cluster to a private
+    cloud using Aurora. Unlike Marathon, Aurora is responsible for keeping jobs running
+    across a shared pool of resources over a long duration. If any of the machines
+    in the pool fails, then Aurora can intelligently reschedule those jobs on other
+    healthy machines in the pool.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Aurora is not useful if you try to build an application with specific requirements
+    for scheduling or if the job itself is a scheduler.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Managing long-running applications is one of the key features of Aurora. Apart
+    from this, Aurora can be used to provide coarse-grained (that is, fixed) resources
+    for your job so that at any point of time, the job always has a specified amount
+    of resources. It also supports multiple users, and the configuration is templated
+    with **DSL** (**Domain Specific Language**) to avoid redundancy in the configurations.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Installing Aurora
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'Aurora jobs can be interacted with through the Aurora Web UI and the Aurora
+    command-line utility. To install Aurora, we require the installation of `vagrant`.
+    You can install `vagrant` with the following command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE23]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Log in to any of the machines on the cluster and clone the Aurora repository
+    with the following command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE24]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Change the working directory to Aurora, as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE25]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Then, type in the following command to install Aurora on this machine:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE26]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'The `vagrant` command will use the configurations shipped with the Aurora distribution
+    to install and start the Aurora services on the virtual machines. It will:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Download the corresponding Linux virtual machine image
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Configure and start the VM
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Install Mesos and ZooKeeper on the VM along with the build tools
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Compile the Aurora source and build it on the VM
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Start the Aurora services on the VM
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'This process may take a couple of minutes to complete. If the command fails
+    and complains about VirtualBox not being present on the machine, you can install
+    it with the following command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE27]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'If everything goes well, you will see the following output on the Terminal:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Installing Aurora](img/B05186_04_15.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Introduction to Singularity
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: Singularity was originally designed at HubSpot and later open sourced under
+    the Apache license. Singularity acts as an API and web application that can be
+    used to launch and schedule long-running Mesos processes, scheduled jobs, and
+    tasks. One can consider Singularity and the components that come with it as a
+    **PaaS** (**Platform as a Service**) to the end users. A novice user can use Singularity
+    to deploy tasks on Mesos without having to understand Mesos in detail.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Singularity takes advantages of Apache Mesos features such as fault tolerance,
+    scalability, and resource allocation, and runs as a task scheduler for Mesos frameworks.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Installing Singularity
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: Before installing Singularity, make sure you have Docker installed on your machine.
+    If you haven't installed it yet, you can do so by following the steps mentioned
+    in the official website at [https://docs.docker.com](https://docs.docker.com).
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The first step is to clone the Singularity repository, which can be done as
+    follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE28]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Now, change the working directory to Singularity, as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE29]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Once you have Docker and Docker Compose installed successfully, you can use
+    the Docker Compose `pull` and `up` commands to try Singularity. The commands will
+    set up the following in the container for you:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: The Mesos master and slave
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: ZooKeeper
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Singularity
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: The Baragon service and Agent
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'If you wish to install singularity without Docker, the following steps can
+    help you do so:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE30]'
+  prefs: []
+  type: TYPE_PRE
+- en: Once this is done, you can see the Singularity jars being created under the
+    `SingularityService/target` directory.
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Installing Singularity](img/B05186_04_16.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: We will use **SingularityService-0.4.6-SNAPSHOT-shaded.jar** to run Singularity.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Creating a Singularity configuration file
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: Singularity configurations are kept in a YAML file. A sample YAML configuration
+    file is explained here.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The port `7099` is used to run `SingulartiyService`, and the logs will be kept
+    in `/var/log/singularity-access.log`. Take a look at the following code:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE31]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Save the preceding configuration as `singularity_config.yaml` and use the following
+    command to start Singularity:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE32]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'If everything goes well, you will see the Singularity framework appearing in
+    the Mesos UI under the frameworks tab, as in the following screenshot:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Creating a Singularity configuration file](img/B05186_04_17.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: You can point the browser to the following URL to access the Singularity UI
+    to `http://ServerIPAddress:7099/singularity/`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Creating a Singularity configuration file](img/B05186_04_18.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Service discovery using Marathoner
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: Modern distributed applications require a way to communicate with each other,
+    which means that one application should know the presence of the other application
+    when they are on the same network. This is called service discovery. In this section,
+    we will take a look at the service discovery of web services that run on Marathon.
+    One can adopt this approach for most of the stateless applications running on
+    top of Marathon.
+  prefs: []
+  type: TYPE_NORMAL
+- en: We will use the combination of the popular HAProxy TCP/HTTP load balancer along
+    with Marathon's REST API script, which was covered in the previous topics, to
+    regenerate the configuration file of HAProxy for the service discovery of Marathon
+    applications. When a task is spawned on one of the Mesos slaves, they are configured
+    to bind the port to an arbitrary one within the default range of 31,000-32,000.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Service discovery lets the applications running on Marathon communicate with
+    others running alongside Marathon through their configured Marathon application
+    port. For example, you can consider a Python web application that runs on port
+    80, which can communicate with its Java backend running on port `8080` by connecting
+    to `localhost:8080`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: HAProxy can route the request that it gets to the actual port and host where
+    the instance of the service is running. If, for some reason, it fails to connect
+    to the given host and port, it will try to connect to the next instance where
+    it is configured to run the service.
+  prefs: []
+  type: TYPE_NORMAL
+- en: We will use the HAProxy-Marathon-bridge shell script, which is provided with
+    Marathon, to connect to Marathon and retrieve the hostnames, the ports that the
+    running applications are bound to, and the configured application ports. This
+    script is scheduled to run every 60 seconds through a cron. The script basically
+    checks whether the configuration it generated in the previous run differs from
+    the current configuration and reloads the new configuration in HAProxy if it detects
+    a change. Note that we don't have to restart HAProxy.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The following is a graphical representation of two services, SVC1 and SVC2,
+    running in a cluster, in which they are configured with the applications to run
+    on ports 1111 and 2222, respectively. The Mesos-allocated tasks ports are `31100`
+    and `31200`, respectively. Note that it is the responsibility of HAProxy to route
+    the requests between the user-configured application port and the Mesos-allocated
+    task ports.
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Service discovery using Marathoner](img/B05186_04_19.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: If, for example, SVC2 on Slave 2 tries to connect to SVC1 through `localhost:2222`,
+    HAProxy will route the request to the configured SVC1 instance—that is, the one
+    running on Slave1.
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Service discovery using Marathoner](img/B05186_04_20.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: In case Slave 1 goes down, then requests to `localhost:2222` will be routed
+    to Slave 2.
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Service discovery using Marathoner](img/B05186_04_21.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Service discovery using Consul
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: Mesos-consul is used to register and deregister services that run as Mesos tasks.
+  prefs: []
+  type: TYPE_NORMAL
+- en: For example, if you have a Mesos task called `myapp`, then this program will
+    register the application in Consul, which will expose DNS as `myapp.service.consul`.
+    Consul also does the Mesos leader discovery through the `leader.Mesos.service.consul`
+    DNS, which points to the active leader.
+  prefs: []
+  type: TYPE_NORMAL
+- en: How is this different from other service discovery software?
+  prefs: []
+  type: TYPE_NORMAL
+- en: Mesos-dns is a project similar to Consul. In Mesos-dns, it polls Mesos to get
+    information about the tasks, whereas with Consul, instead of exposing this information
+    via a built-in DNS server, it populates the Consul Service discovery with this
+    information. The services are then exposed by Consul through DNS and its REST
+    endpoint.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Running Consul
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: You will have to change the values of the environment if your ZooKeeper and
+    Marathon services are not registered in Consul. You can dockerize Consul, and
+    it can be run via Marathon as well.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Consul can be run in the following manner:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE33]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'The preceding code is an `HTTP POST` request hitting the Consul API endpoint
+    with the following JSON data in the `Mesos-consul.json` file:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE34]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Given in the following table are the options supported with the command-line
+    Mesos-consul utility:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '| Option | Description |'
+  prefs: []
+  type: TYPE_TB
+- en: '| --- | --- |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `version` | This prints the Mesos-consul version. |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `refresh` | This refers to the time between the refreshes of Mesos tasks.
+    |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `Mesos-ip-order` | This is a comma-separated list that controls the order
+    in which [github.com/CiscoCloud/Mesos-consul](http://github.com/CiscoCloud/Mesos-consul)
+    searches for a task''s IP address. The valid options are `netinfo`, `Mesos`, `Docker`,
+    and `host` (the default is `netinfo,Mesos,host`). |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `healthcheck` | This is used to enable health checks for an HTTP endpoint.
+    When this flag is enabled, it serves the health status on `127.0.0.1:24476`. |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `healthcheck-ip` | This is the IP for the Health check service interface
+    (the default is `127.0.0.1`). |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `healthcheck-port` | This is a port for the Health check service (the default
+    is `24476`). |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `consul-auth` | This is the authentication username and password (optional)
+    separated by a colon. |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `consul-ssl` | This uses HTTPS while communicating with the registry. |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `consul-ssl-verify` | This verifies certificates when connecting through
+    SSL. |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `consul-ssl-cert` | Provides the path to an SSL certificate, which it can
+    use to authenticate the registry server. |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `consul-ssl-cacert` | This provides the path to a CA certificate file that
+    contains one or more CA certificates, which it can use to validate the registry
+    server certificate. |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `consul-token` | This is a token for registry ACL. |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `heartbeats-before-remove` | This is the number of times that registration
+    needs to fail before the task is removed from Consul (the default is `1`). |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `zk*` | This refers to the Mesos path location in ZooKeeper, the default
+    being `zk://127.0.0.1:2181/Mesos`. |'
+  prefs: []
+  type: TYPE_TB
+- en: Load balancing with HAProxy
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: The HAProxy-Marathon-bridge script is shipped with the Marathon installation.
+    You can also use Marathon-lb for the same. Both of these create a configuration
+    file for HAProxy and a lightweight TCP/HTTP proxy by looking up the running tasks
+    from Marathon's REST API.
+  prefs: []
+  type: TYPE_NORMAL
+- en: HAProxy-Marathon-bridge is a simple script providing a minimum set of functionalities
+    and is easier to understand for novice users. The latter one, Marathon-lb, supports
+    advanced features such as SSL offloading, load balancing based on the VHost, and
+    sticky connections.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Creating the bridge between HAProxy and Marathon
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'First, you need to create an HAProxy configuration from the running Marathon
+    instance, which, by default, runs on port `8080` of the machine. You can use the
+    HAProxy-Marathon-bridge script for this through the following syntax:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE35]'
+  prefs: []
+  type: TYPE_PRE
+- en: Note that here we specified `localhost:8080` because we ran the Marathon instance
+    and HAProxy on the same machine.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Once you generate the HAProxy configuration, you can simply reload HAProxy
+    without interrupting the existing connections by running the following command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE36]'
+  prefs: []
+  type: TYPE_PRE
+- en: You can automate the configuration generation and reloading process using a
+    typical cron job. If, for any reason, one of the nodes goes down during the reload
+    process, HAProxy's health check will detect it and stop sending further traffic
+    to this particular node.
+  prefs: []
+  type: TYPE_NORMAL
+- en: You don't have to create the trigger to reload the HAProxy configuration. The
+    HAProxy-Marathon-bridge script already does this for you. It has HAProxy and a
+    cron job that is triggered every minute to pull the configuration from Marathon
+    servers and refresh HAProxy if it detects any changes from the previous version.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'You can use the following command to do so:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE37]'
+  prefs: []
+  type: TYPE_PRE
+- en: It will add the pings to Marathon per line in the `/etc/haproxy-Marathon-bridge/Marathons`
+    file and the script will be installed at `/usr/local/bin/haproxy-Marathon-bridge`.
+    You can find the cron job being installed under `/etc/cron.d/haproxy-Marathon-bridge`
+    which will be triggered as root.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Bamboo - Automatically configuring HAProxy for Mesos plus Marathon
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: Bamboo runs as a web daemon and automatically configures HAProxy for the web
+    services deployed on Mesos and Marathon.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Bamboo comes with the following:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: A Web UI to configure HAProxy **Access Control Limit** (**ACL**) rules for each
+    of the Marathon applications
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: A REST endpoint to do the same
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: A preconfigured HAProxy configuration file based on your template, with which
+    you can customize your own template to enable SSL and interface for HAProxy stats
+    or configure strategies for load balancing
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: A Healthcheck endpoint if the Marathon application is configured with Healthchecks
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: A stateless daemon, which enables scalability and horizontal replication
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: No additional dependencies (as it is developed in Golang)
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Integration with StatsD to monitor configuration reload events
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Bamboo can be deployed on each of the Mesos slaves with HAProxy. As Bamboo is
+    primarily used for web services deployed on Mesos, the service discovery is as
+    simple as connecting to the localhost or domain you assigned with the ACL rules.
+    However, you can also deploy HAProxy and Bamboo on different machines, which means
+    that you will have to load balance the HAProxy cluster.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following screenshot shows Bamboo and HAProxy interacting with the Mesos
+    cluster through Marathon:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Bamboo - Automatically configuring HAProxy for Mesos plus Marathon](img/B05186_04_22.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'You can install Bamboo with the following commands:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE38]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Once you are done with the installation, point your browser to any of the machines
+    where you installed Bamboo on the port `8000`, and you will be able see the Web
+    UI as shown in the following screenshot:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Bamboo - Automatically configuring HAProxy for Mesos plus Marathon](img/B05186_04_23.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: You can configure the ACLs by clicking on the edit icon at the right-hand side
+    end of your Marathon application.
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Bamboo - Automatically configuring HAProxy for Mesos plus Marathon](img/B05186_04_24.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'The Bamboo command line accepts a `--config` switch to specify the JSON application
+    configuration file''s location. You can find example configuration file templates
+    under the config directory; `config/production.example.json` and `config/haproxy_template.cfg`
+    are two of these. Now, take a look at the following code:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE39]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Bamboo maps the following environment variables to the corresponding Bamboo
+    configurations. You can use these in the `production.json` file:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '| Environment Variable | Corresponds To |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `MARATHON_ENDPOINT` | Marathon.Endpoint |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `MARATHON_USER` | Marathon.User |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `MARATHON_PASSWORD` | Marathon.Password |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `BAMBOO_ENDPOINT` | Bamboo.Endpoint |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `BAMBOO_ZK_HOST` | Bamboo.Zookeeper.Host |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `BAMBOO_ZK_PATH` | Bamboo.Zookeeper.Path |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `HAPROXY_TEMPLATE_PATH` | HAProxy.TemplatePath |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `HAPROXY_OUTPUT_PATH` | HAProxy.OutputPath |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `HAPROXY_RELOAD_CMD` | HAProxy.ReloadCommand |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `BAMBOO_DOCKER_AUTO_HOST` | This sets the `BAMBOO_ENDPOINT` to `$HOST` when
+    Bamboo container starts and can be any value |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `STATSD_ENABLED` | StatsD.Enabled |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `STATSD_PREFIX` | StatsD.Prefix |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `STATSD_HOST` | StatsD.Host |'
+  prefs: []
+  type: TYPE_TB
+- en: Introduction to Netflix Fenzo
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'Netflix recently open sourced their scheduler library written in Java for Apache
+    Mesos frameworks that supports scheduling optimizations and cluster autoscaling.
+    At the time of writing the book, Fenzo is open sourced and is available in the
+    official Netflix OSS suite repository, which can be found at the following URL:
+    [https://github.com/Netflix/Fenzo](https://github.com/Netflix/Fenzo)'
+  prefs: []
+  type: TYPE_NORMAL
+- en: There are basically two motivations for developing a framework such as Fenzo.
+    Unlike other schedulers and frameworks discussed earlier, the reasons for building
+    Fenzo are scheduling optimizations and autoscaling the cluster based on the usage.
+  prefs: []
+  type: TYPE_NORMAL
+- en: When there is a huge variation in the amount of data that your cluster handles
+    from time to time, provisioning the cluster for peak usage seems wasteful as most
+    of the time, the resources will be idle. This is the main reason behind autoscaling
+    the application depending on the load—that is, providing more machines to increase
+    the cluster resources when there is peak usage and shutting down these machines
+    when they are idle.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Scaling the cluster up is an easier task. You can have monitoring tools to watch
+    the resource utilization, and when it crosses a threshold, you can go ahead and
+    add more resources to the cluster. On the other hand, while scaling down the cluster,
+    you need to identify whether there are long-running tasks on the machines that
+    you are about to terminate and also whether it will have any impact on the running
+    tasks if you terminate the machine.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Currently, autoscaling in Fenzo is based on the following two strategies:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: The threshold
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Resource shortfall analysis
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: In threshold-based autoscaling, users can specify rules as per the host group,
+    such as EC2 Auto Scaling, GCE Auto Scaling, and so on. These can be considered
+    as creating host groups to compute intensive, network-intensive, and other workloads.
+    These rules let the new jobs be launched quickly on the preconfigured number of
+    idle hosts.
+  prefs: []
+  type: TYPE_NORMAL
+- en: In the case of resource shortfall analysis, it first calculates the number of
+    hosts that are required to complete the pending workloads. One can also consider
+    this as a predictive autoscaling system that can analyze the workload and spawn
+    up new hosts to satisfy pending workloads. An example of such a system is the
+    Netflix website's Scryer.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The following is a diagram showing how Fenzo can be used by an Apache Mesos
+    framework. Fenzo itself contains a task scheduler that provides the scheduling
+    core without really interacting with Mesos. The framework interfaces with Mesos
+    to get new resource offers and pull task status updates.
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Introduction to Netflix Fenzo](img/B05186_04_25.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Introduction to PaaSTA
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'The Yelp''s Platform-as-a-service distributed system PaaSTA is highly available
+    and used to build, deploy, and run services using containers such as Docker and
+    Apache Mesos. PaaSTA is designed and developed by Yelp and has been recently open
+    sourced. You can take a look at the open sourced repository at the following URL:
+    [https://github.com/yelp/paasta](https://github.com/yelp/paasta)'
+  prefs: []
+  type: TYPE_NORMAL
+- en: This is a suite for developers to specify how they want their code from their
+    Git repository to be built, deployed, routed, and monitored. Yelp has used PaaSTA
+    for more than a year to power its production-level services. PaaSTA is best suited
+    if you have a strict production environment, such as Yelp, which requires many
+    tiny microservices and where rolling out a new piece of code should be seamless
+    and not disturb production systems. PaaSTA helps automate this entire process.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'It comprises the following existing open source components:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '**Docker**: This is used to containerize the code'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**Apache Mesos**: This is used for execution and scheduling'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**Marathon**: This is used to manage long-running applications'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**Chronos**: This is used for scheduling purposes'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**SmartStack**: This is used for service discovery and registration'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**Sensu**: This is used to monitor and alert'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**Jenkins**: This is used for continuous build and deployment (this is optional)'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: One of the many reasons to have all these components in one place is reusability.
+    You can reuse any of these components to solve different problems in your distributed
+    environment.
+  prefs: []
+  type: TYPE_NORMAL
+- en: A comparative analysis of different Scheduling/Management frameworks
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: This section will give you a brief comparison and use cases for the different
+    scheduling frameworks that we discussed in this chapter.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Marathon is a PaaS built on Mesos to make sure the job will run forever even
+    if few machines in the cluster go down. It can seamlessly handle the hardware
+    and software failures and ensure the application is always running. These types
+    of frameworks are useful in production environments where your application should
+    always be running and available all the time—for example, a web server hosting
+    a website. In such cases, you can deploy it as a Marathon application that will
+    take care of all these aspects.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Chronos can be considered as a distributed fault-tolerant replacement of the
+    typical Linux cron jobs that are used to fire up scheduled jobs, take periodic
+    backups, check the health of the system, and so on. Both Chronos and Marathon
+    come with a Web UI and a REST endpoint for the management of jobs. We can write
+    wrapper scripts around this and automate the application deployment and job scheduling
+    rather than just using the Web UI.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Aurora and Marathon are very similar in nature in the sense that both are service
+    schedulers. All you have to do is tell Aurora or Marathon how to deploy the application,
+    and they will keep them up and running without failures. Aurora, on the other
+    hand, is a bit difficult to install and work with for a beginner. Unlike Marathon,
+    it doesn't officially support a REST endpoint, which will be available soon. At
+    this time, Aurora exposes a thrift API to make the communication, which means
+    that there is an additional overhead of having to install thrift libraries on
+    the server.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Apache Aurora is designed to handle large-scale infrastructure, such as a datacenter.
+    A typical example is the clusters running on Twitter that consist of thousands
+    of machines and hundreds of engineers accessing and using them for development
+    and production purposes.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Summary
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: In this chapter, we dived deep into some of the most important frameworks for
+    Mesos that make job scheduling and load balancing much easier and efficient. Frameworks
+    such as Marathon and Chronos and their REST endpoints along with some other tools,
+    such as HAProxy, Consul, Marathoner, Bamboo, Fenzo, and PaaSTA, were explained.
+  prefs: []
+  type: TYPE_NORMAL
+- en: In the next chapter, we'll discuss how system administrators and DevOps professionals
+    can deploy a Mesos cluster using standard tools such as Ansible, Chef, Puppet,
+    Salt, Terraform, and Cloud formation along with monitoring it using Nagios and
+    Satellite.
+  prefs: []
+  type: TYPE_NORMAL

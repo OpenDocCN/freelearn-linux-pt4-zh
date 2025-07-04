@@ -1,0 +1,2344 @@
+- en: Chapter 7. Clustering
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'In this chapter, we will cover:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Installing a high-availability load balancer
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Installing a distributed filesystem
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Creating a super computer
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Introduction
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: The recipes in this chapter are for network clusters of Raspberry Pis.
+  prefs: []
+  type: TYPE_NORMAL
+- en: A network cluster is more than one computer networked together as a single system.
+    Computers are clustered for scaling and high availability. Clusters are used to
+    scale performance by distributing the workload of the system across all of the
+    computers in the cluster. In a highly available system, the network cluster continues
+    to function even if one of the computers in the cluster goes down.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Clusters of Raspberry Pis can be used to keep a website up and running, even
+    if one of the Raspberry Pis used to host the website fails. Raspberry Pi clusters
+    can also be used to distribute processing and data storage across a number of
+    Raspberry Pis to create a Raspberry Pi supercomputer.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The recipes in this chapter are not specific to the Raspberry Pi. They can be
+    repeated on most (Debian-based) Linux operating systems. The recipes are included
+    in the book to demonstrate the possibilities of clustering Raspberry Pi computers.
+  prefs: []
+  type: TYPE_NORMAL
+- en: After completing the recipes in this chapter, you will have used load balancers
+    to keep a website highly available, distributed files and data over the combined
+    storage in a cluster of Raspberry Pis, and created a Raspberry Pi supercomputer.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Installing a high-availability load balancer
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: This recipe turns four Raspberry Pis into a highly available website cluster.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Two Raspberry Pis are used as web servers sharing the load of hosting the website.
+    The other two Raspberry Pis are load balancers and they distribute the load of
+    the incoming web requests across the two web servers.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Only one load balancer is required to balance the load. The second is configured
+    to replace the first, if the first load balancer should fail.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The web servers in this recipe use the Apache HTTP server to serve simple stateless
+    websites that demonstrate load balancing in action.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The load balancers in this recipe use HA Proxy to balance web requests between
+    the two web servers and **Keepalived** to create a virtual IP address for the
+    website that will be automatically redirected to the backup load balancer, if
+    the current load balancer fails.
+  prefs: []
+  type: TYPE_NORMAL
+- en: After completing this recipe, you will have created a highly available website.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Getting ready
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'These are the ingredients for this recipe:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Four basic networking setups for the Raspberry Pi all connected to the same
+    network switch
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Five available IP addresses on the local network
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: This recipe does not require the desktop GUI and could either be run from the
+    text-based console or from within an LXTerminal.
+  prefs: []
+  type: TYPE_NORMAL
+- en: With the Secure Shell server running on each Raspberry Pi, this recipe can be
+    completed remotely using a Secure Shell client. Websites are typically managed
+    remotely.
+  prefs: []
+  type: TYPE_NORMAL
+- en: How to do it...
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'The steps to building a highly available Raspberry Pi website cluster are:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Log in to each Raspberry Pi. Set its hostname and IP address. Name the two load
+    balancers `lb1` and `lb2`. Name the two web servers `web1` and `web2`. Use IP
+    addresses from your network.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'The following hostnames and IP addresses are used in this recipe: `lb1` – 192.168.2.101;
+    `lb2` – 192.168.2.102; `web1` – 192.168.2.111, and `web2` – 192.168.2.112.'
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: Note
+  prefs:
+  - PREF_IND
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: The `raspi-config` command can be used to change the hostname of your Raspberry
+    Pi. [Chapter 2](ch02.html "Chapter 2. Administration"), *Administration*, has
+    recipes for configuring the Raspberry Pi that use the `raspi-config` command.
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: '[Chapter 5](ch05.html "Chapter 5. Advanced Networking"), *Advanced Networking*,
+    has a recipe for changing the static IP address.'
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: 'Next, we''ll set up the web servers. Log in to each of the web servers: `web1`
+    and `web2`.'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Note
+  prefs:
+  - PREF_IND
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: 'Repeat the following steps on both of the web servers: `web1` and `web2`.'
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: Now, we'll install Apache2 on each web server. Use the `apt-get install` command
+    to install the Apache web server daemon (Apache2).
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE0]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: Create unique test pages for each web server.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Change the directories (`cd`) to the web server root `(/var/www/html`).
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE1]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: Use the `chown` command to give the user `pi` ownership to the directory (`.`)
+    and all of the files in it (`*`).
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE2]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: Create a web page for the web server using the `echo` command.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE3]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: Note
+  prefs:
+  - PREF_IND
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: During normal operation, both web servers will be serving identical content.
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: For testing, the page contents, `<body>web1</body>`, should be unique for each
+    web server. Use `<body>web2</body>` for web server `web2`.
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: Use the `touch` command to create a file (`lb-check.txt`) that can be used by
+    the load balancers to validate that the web server is running.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE4]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Now, test the web servers. Use a web browser to test the web servers. Test
+    both their hostnames: `http://web1.local/` and `http://web2.local/`, as well as
+    their IP addresses: `http://192.168.2.111/` and `http://192.168.2.112/`.![How
+    to do it...](img/B04745_07_01.jpg)'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Set up the load balancers. Log in to each of the load balancers, `lb1` and `lb2`.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Note
+  prefs:
+  - PREF_IND
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: Repeat the following steps on both `lb1` and `lb2`.
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: Install HAProxy and Keepalived on each load balancer. Use the `apt-get install`
+    command to download and install the `haproxy` and `keepalived` packages.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE5]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: Configure HAProxy for each load balancer. Use the `cat` command to add the `listen
+    stats` and `listen webfarm` sections to the bottom of the `/etc/haproxy/haproxy.cfg`
+    configuration file.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE6]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: Use the `systemctl restart` command to restart `haproxy.service`.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE7]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: Enable listening on virtual IP addresses for both load balancers. Add the configuration
+    parameter `net.ipv4.ip_nonlocal_bind=1` to the bottom of the `sysctl.conf` configuration
+    file.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE8]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: Use the `sysctl –p` command to load the updated configuration.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE9]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: Configure Keepalived for both load balancers.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'Use the `cat` command to create the `keepalived.conf` configuration file that
+    defines the following: a function to check the status of the HAProxy daemon (`chk_haproxy`);
+    the network interface `eth0` to listen on; the load balancer''s priority (the
+    highest is the master load balancer); and the virtual IP address (192.168.2.100)
+    that the load balancers share.'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Note
+  prefs:
+  - PREF_IND
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: It is important that the load balancers have different priorities.
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: On load balancer `lb1`, use `priority 101` (as shown next).
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: On load balancer `lb2`, use `priority 100`.
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: '[PRE10]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: Use the `systemctl restart` command to restart `keepalived.service`.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE11]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: Test the cluster. Use a web browser to test the cluster. Browse to the cluster's
+    virtual IP address (`http://192.168.2.100`).
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Notice that with each refresh of the browser, the web page displayed alternates
+    between the web page from web server `web1` and the web page from `web2`. The
+    cluster is working!
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Note
+  prefs:
+  - PREF_IND
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: For an actual website, the web servers `web1` and `web2` should be serving the
+    same content, stateless copies of the same website, or the same web service.
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: Test web server failure. Log in to `web1` and use the `poweroff` command to
+    shut it down.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE12]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: Use a web browser to validate that the virtual IP address of the cluster (192.1682.1.00)
+    is still working.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Notice that with every refresh of the browser, the web page displayed is from
+    the only running web server, `web2`.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Use a web browser to check the status of the HA Proxy on `lb1` (`http://lb1.local:8880`).![How
+    to do it...](img/B04745_07_02.jpg)
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Notice that the status of web server `web1` is displayed in red indicating that
+    it is down. The status of `web2` is green because it is still running.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Restart the web server, `web1`.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Refresh the HAProxy status page (`http://lb1.local:8880`) and notice that the
+    status of web server `web1` is once again green.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Continually refresh the virtual IP address of the cluster (`http://192.168.2.100`)
+    and notice that the web page displayed once again alternates between the web page
+    from web server `web1` and the web page from web server `web2`.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: The cluster runs even if one web server fails!
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Test load balancer failure. Log in to the master load balancer, `lb1`.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Use the `ip addr` command to show the IP addresses that share the network interface
+    `eth0`.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE13]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: Notice that there are two IPv4 (`inet`) addresses including the cluster's virtual
+    IP address (`http://192.168.2.100`) assigned to network interface `eth0`.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Now, log in to the failover load balancer `lb2`.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Use the `ip addr` command to show the IP addresses that share the network interface
+    `eth0` on load balancer `lb2`.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE14]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: Notice that there is only one IPv4 (`inet`) address assigned to the network
+    interface `eth0` on load balancer `lb2` and it is not the cluster's virtual IP
+    address.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Remove the master load balancer `lb1` from the cluster by disconnecting its
+    network cable.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Use the `ip addr` command once again to show the IP addresses that are sharing
+    the network interface `eth0` on load balancer `lb2`.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE15]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: Notice that there are now two IPv4 (`inet`) addresses including the cluster's
+    virtual IP address (`http://192.168.2.100`) assigned to network interface `eth0`
+    on `lb2`.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Notice by continuously refreshing the cluster's virtual IP address (`http://192.168.2.100`)
+    that load balancing still works—that the web page still alternates between `web1`
+    and `web2`.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: The cluster runs even if one load balancer fails!
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Now, let's restore normal operation. Add `lb1` back to the cluster by connecting
+    its network cable.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Use the `ip addr` command on load balancer `lb2` to show that the cluster's
+    virtual IP address (192.168.2.100) is no longer assigned to network interface
+    `eth0` on load balancer `lb2` (see step *32*).
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Use the `ip addr` command on load balancer `lb1` to show that load balancer
+    `lb1` once again has the cluster's virtual IP address assigned to its network
+    interface `eth0` (see step *29*).
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: The highly available website cluster is up and running!
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: How it works...
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: The recipe begins by setting up four Raspberry Pis with new hostnames and IP
+    addresses so that they can be used more effectively in a cluster.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The load balancers are named `lb1` and `lb2`; and their IP addresses are respectively
+    set to 192.168.2.101 and 192.168.2.102\.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The web servers are named `web1` and `web2` with their respective IP addresses
+    set to 192.168.2.111 and 192.168.112.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The `raspi-config` command can be used to change the Raspberry Pi hostname (examples
+    of using the `raspi-config` command can be found in [Chapter 2](ch02.html "Chapter 2. Administration"),
+    *Administration*).
+  prefs: []
+  type: TYPE_NORMAL
+- en: A recipe for *Configuring a static IP address* can be found in [Chapter 5](ch05.html
+    "Chapter 5. Advanced Networking"), *Advanced Networking*.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Setting up the web servers
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: After each Raspberry Pi is properly named and addressed, the Apache HTTP daemon
+    is set up on each of the two web servers, `web1` and `web2`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Installing Apache2 on each web server
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+- en: The `apt-get install` command is used to install the `apache2` package on each
+    web server.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Installation includes starting the Apache HTTP server and restarting it with
+    each boot.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Note
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: '[Chapter 5](ch05.html "Chapter 5. Advanced Networking"), *Advanced Networking*,
+    has a recipe for installing a web server with more detailed instructions on setting
+    up a web server.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Creating unique test web pages for each web server
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+- en: 'The `cd` command is used to change the web server''s root directory, `/var/www/html`,
+    where two files will be created: the default web page, `index.html`, and a file
+    for the load balancers to check periodically to ensure that the web server is
+    still running, `lb-check.txt`.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: The `chown` command is used to change the ownership of the root directory (`.`)
+    and all the files in it (`*`) to the user `pi`. After changing ownership, the
+    user `pi` can create and delete files in the web server's root directory.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Two files are created on each web server: `index.html` and `lb-check.txt`.
+    The `lb-check.txt` file can be empty. It just needs to exist.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: The `echo` command is used to write the very simple `index.html` file, and the
+    `touch` command is used to create an empty `lb-check.txt` file.
+  prefs: []
+  type: TYPE_NORMAL
+- en: This recipe intentionally uses unique `index.html` files on each web server
+    to demonstrate load balancing in action. On web server `web1`, the body of the
+    web page is `web1` and on web server `web2` the `body` is `web2`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: During the normal operation of a website cluster, clients of the website should
+    see the same web page regardless of which web server the load balancer has selected.
+  prefs: []
+  type: TYPE_NORMAL
+- en: During the normal operation of a website cluster, each of the cluster's web
+    servers will be identical. They will either have identical `index.html` files
+    or they will be configured to serve the same web application.
+  prefs: []
+  type: TYPE_NORMAL
+- en: This recipe uses two different `index.html` files to demonstrate load balancing.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Testing the web servers
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+- en: 'A web browser is used to test that each web server is up and running.     The hostname and IP address of both web servers are tested:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE16]'
+  prefs: []
+  type: TYPE_PRE
+- en: Setting up the load balancers
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: After the web servers have been installed and tested, HA Proxy and Keepalived
+    are set up on the two load balancers, **lb1** and **lb2**. HA Proxy is the load
+    balancer service, and Keepalived is the failover service. HA Proxy distributes
+    web requests between the two web servers and Keepalived replaces the master load
+    balancer with another, if it fails.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Install haproxy and keepalived on each load balancer
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+- en: The `apt-get install` command is used to install the HAProxy and Keepalived
+    software distribution packages on each load balancer.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Installation includes starting and restarting both HAProxy and Keepalived with
+    each boot. However, HAProxy and Keepalived still need to be configured.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Configuring HAProxy for each load balancer
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+- en: 'The default HAProxy configuration file `(/etc/haproxy/haproxy.cfg`) needs two
+    new sections: `listen stats` and `listen webfarm`.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: The `listen stats` section creates a protected single-page web server on port
+    `8880` for all network interfaces of the load balancer (0.0.0.0) including the
+    virtual network interface for the cluster (192.168.2.100). The statistics web
+    server is protected (`stats auth`) by a username (`pi`) and a password (`raspberry`).
+  prefs: []
+  type: TYPE_NORMAL
+- en: The `listen webfarm` section defines the collection of web servers (server `web1`,
+    server `web2`) that the HAProxy will load balance using the roundrobin load-balancing
+    algorithm, as well as the method (`httpchk HEAD`) and URL (`/lb-check.txt`) that
+    are used to test if the web servers are still running.
+  prefs: []
+  type: TYPE_NORMAL
+- en: A secure shell (`sudo bash`) is used to update the HAProxy's configuration file
+    (`/etc/haproxy/haproxy.cfg`).
+  prefs: []
+  type: TYPE_NORMAL
+- en: Within the Secure Shell, the `cat` command is used to append the lines following
+    the `cat` command up to the end of data mark (`<<EOD`) to the bottom of the file
+    (`>>haproxy.cfg`).
+  prefs: []
+  type: TYPE_NORMAL
+- en: The Secure Shell is released (`exit`) after the file is updated.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The `systemctl` command is used to restart the HAProxy service (`happroxy.service`)
+    on each load balancer, so that the service on each load balancer can update its
+    configuration.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Enable listening on virtual IP addresses for both load balancers
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+- en: The Raspberry Pi's Linux kernel is not by default configured to listen on the
+    virtual IP addresses used by Keepalived. The system kernel configuration file
+    (`/etc/sysctl.conf`) needs to be updated to permit non-local network binding.
+  prefs: []
+  type: TYPE_NORMAL
+- en: A secure shell (`sudo bash`) is used to update the system kernel configuration
+    file (`sysctl.conf`).
+  prefs: []
+  type: TYPE_NORMAL
+- en: Within the Secure Shell, the `echo` command is used to enable virtual IP addresses
+    by appending the statement `net.ipv4.ip_nonlocal_bind=1` to the bottom of the
+    system kernel configuration file (`systctl.conf`) (`>>`).
+  prefs: []
+  type: TYPE_NORMAL
+- en: The Secure Shell is released (`exit`) after the file is updated.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The `sysctl –p` command is used to load the updated kernel configuration.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Configuring Keepalived for both load balancers
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+- en: Although Keepalived is installed and ready, it has not been configured.
+  prefs: []
+  type: TYPE_NORMAL
+- en: A secure shell (`sudo bash`) is used to create a Keepalived configuration file
+    (`/etc/keepalived/keepalived.conf`).
+  prefs: []
+  type: TYPE_NORMAL
+- en: Within the secure shell, the `cat` command is used to create the configuration
+    file by copying the lines following the `cat` command up to the end of data mark
+    (`<<EOD`) to the configuration file (`>keepalived.conf`).
+  prefs: []
+  type: TYPE_NORMAL
+- en: The Secure Shell is released (`exit`) after the file is updated.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Keepalived configuration has two sections: `vrrp_script chk_haproxy` and `vrrp_instance
+    VI_1`.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: The `vrrp_script chk_haproxy` section defines a script (`killall -0 haproxy`)
+    that will complete with an OK status so long as a process named `haproxy` is running.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The command name `killall` is misleading; the `-0` parameter tells the command
+    to do nothing more than exit with an OK status. The `killall` command can also
+    be used to `kill` processes; however, that is not its purpose here.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The `vrrp_instance VI_1` section defines the `virtual_ipaddress` that is shared
+    by the two load balancers (192.168.2.100). This section also defines the network
+    interface (`eth0`) that is used to bind the virtual IP address, the `track_script`
+    (`chk_haproxy`) that is used to keep track of the `haproxy` process, and a priority
+    that is used to determine which of the load balancers is the `MASTER`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Note
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: The `priority` parameter should be different on the two load balancers.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The master load balancer, `lb1`, should have a higher priority (priority `101`)
+    than the failover load balancer, `lb2` (priority `100`).
+  prefs: []
+  type: TYPE_NORMAL
+- en: The priority should be different on each of the load balancers. In this recipe,
+    load balancer `lb1` has the priority `101` and load balancer `lb2` has the priority
+    `100`. The load balancer with the highest priority (`lb1`) is used as the master
+    and the other load balancer (`lb2`) is used as a failover slave.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Only the master load balancer (`lb1`) listens on the defined virtual network
+    address (192.168.2.100). The failover load balancer (`lb2`) does not.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The HAProxy running on the master load balancer (`lb1`) is the service used
+    by the cluster to balance web requests between the web servers. The HAProxy on
+    the failover load balancer (`lb2`) is still running, but it is not used by the
+    cluster because the failover load balancer (`lb2`) is not listening on the cluster's
+    virtual IP address (192.168.2.100).
+  prefs: []
+  type: TYPE_NORMAL
+- en: If the master load balancer (`lb1`) does fail, the load balancer with the next
+    highest priority (`lb2`) becomes the master.
+  prefs: []
+  type: TYPE_NORMAL
+- en: If the master `track_script` reports of load balancer (`lb1`) indicates that
+    the master's `haproxy` process is no longer running, the master transfers control
+    of the virtual IP address (192.168.2.100) to the failover load balancer (`lb2`).
+  prefs: []
+  type: TYPE_NORMAL
+- en: If the failover load balancer (`lb2`) can no longer connect to the master load
+    balancer (`lb1`), the failover load balancer (`lb2`) will attempt to take over
+    the virtual IP address.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The `virtual_router_id` parameter defines a unique ID (`51`) that is used by
+    the load balancers keeping the same virtual IP address up and running.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The Secure Shell is released (`exit`) after the file is created.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The `systemctl` command is used to restart the Keepalived service (`keepalived.service`)
+    on both load balancers, so that the service on each load balancer can update its
+    configuration.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Testing the cluster
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+- en: A web browser is used to validate that the website cluster is up and running
+    on the defined virtual IP address (192.168.2.100).
+  prefs: []
+  type: TYPE_NORMAL
+- en: When the website URL (`http://192.168.2.100/`) is refreshed in the browser,
+    the page displayed in the browser alternates between the default web page (`index.html`)
+    from web server `web1` and the default page from web server `web2`. The master
+    load balancer (`lb1`) is alternating web requests (round robin) between the two
+    web servers.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The cluster is working!
+  prefs: []
+  type: TYPE_NORMAL
+- en: Testing web server failure
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: In order to test that the website cluster's virtual IP address still responds
+    to web requests after the failure of a single web server, web server `web1` is
+    shut down using the `poweroff` command.
+  prefs: []
+  type: TYPE_NORMAL
+- en: After web server `web1` has been shut down, a web browser is used to validate
+    that the website cluster is still up and running on the defined virtual IP address
+    (`192.168.2.100`).
+  prefs: []
+  type: TYPE_NORMAL
+- en: When the website URL (`http://192.168.2.100/`) is refreshed in the browser,
+    the web page displayed in the browser no longer alternates between the two web
+    servers. Now, only the default page (`index.html`) from web server `web2` is displayed.
+    The master load balancer (`lb1`) is still running but can only serve web requests
+    from web server web2.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Then, the web browser is used to browse the URL of the HAProxy statistics page
+    (`http://lb1.local:8880/`) of the master load balancer (`lb1`). The statistics
+    page shows that web server `web1` is no longer available by displaying the statistics
+    for the web server with a red background color. Web server `web2` is still running,
+    so its statistics are displayed with a green background color.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The website continues to work properly, even if one web server is down.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Next, web server `web1` is restarted.
+  prefs: []
+  type: TYPE_NORMAL
+- en: After web server `web1` has restarted, the master load balancer (`lb1`) detects
+    the availability of the web server's tracking file (`http://lb1.local/chk_haproxy.txt`)
+    and web server `web1` is added back to the load balancer's `webfarm`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: A refresh of the HAProxy statistics page shows that the statistics from web
+    server `web1` are once again green, and continually refreshing the website's virtual
+    URL (`http://192.168.2.100/`) once again alternates between `web1` and `web2`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The website is protected from web server failure and web servers can be added
+    on demand to handle more requests!
+  prefs: []
+  type: TYPE_NORMAL
+- en: Testing load balancer failure
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+- en: Removing the master load balancer (`lb1`) from the network by disconnecting
+    its network cable tests the failover of the master load balancer.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Before the master load balancer (`lb1`) is disconnected from the network, the
+    `ip addr` command is used to show that the website cluster's virtual IP address
+    (`192.168.2.100`) is bound to the master load balancer's network interface (`eth0`).
+    The `ip addr` command is also used on the failover load balancer (`lb2`) to show
+    that it does not have the cluster's virtual IP address bound to its network interface
+    (`eth0`).
+  prefs: []
+  type: TYPE_NORMAL
+- en: After the master load balancer (`lb1`) has been disconnected from the network,
+    the `ip addr` command is run again on the failover load balancer (`lb2`). Now
+    that the master load balancer (`lb1`) is disconnected from the network, the failover
+    load balancer (`lb2`) has taken over the cluster's virtual IP address (`192.168.2.100`).
+  prefs: []
+  type: TYPE_NORMAL
+- en: While the master load balancer (`lb1`) is disconnected from the network, a web
+    browser is used to validate that the website cluster is still up and running on
+    the defined virtual IP address (`192.168.2.100`).
+  prefs: []
+  type: TYPE_NORMAL
+- en: When the website URL (`http://192.168.2.100/`) is refreshed in the browser,
+    the web page displayed in the browser continues to alternate between the two web
+    servers. Load balancing still works even though the master load balancer (`lb1`)
+    is offline. The failover load balancer (`lb2`) has taken over load balancing successfully!
+  prefs: []
+  type: TYPE_NORMAL
+- en: The website cluster continues to work properly, even if one load balancer is
+    down!
+  prefs: []
+  type: TYPE_NORMAL
+- en: Restoring normal operation
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+- en: Normal operation is restored to the website cluster by reconnecting the master
+    load balancer (`lb1`) to the network.
+  prefs: []
+  type: TYPE_NORMAL
+- en: After the master load balancer (`lb1`) has been reconnected, the `ip addr` command
+    is again run on each load balancer. The master load balancer (`lb1`) once again
+    has the cluster's virtual IP address (`192.168.2.100`) bound to its network interface
+    (`eth0`) and the failover load balancer (`lb2`) no longer has the virtual IP address
+    bound to its network interface.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The highly available website cluster is up and running!
+  prefs: []
+  type: TYPE_NORMAL
+- en: There's more…
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: This recipe is a very simple example of a highly available website cluster that
+    can be used to serve any stateless website such as a collection of static web
+    pages or a website created with a website generator like **Jekyll** ([http://jekyllrb.com/](http://jekyllrb.com/)).
+  prefs: []
+  type: TYPE_NORMAL
+- en: Scaling horizontally by adding more web servers
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: A cluster is scaled horizontally by adding more servers.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The website cluster in this recipe can be scaled horizontally by adding more
+    Raspberry Pi web servers. Each additional web server added to the cluster should
+    be configured exactly the same as the existing web servers (see steps *2* through
+    *8*).
+  prefs: []
+  type: TYPE_NORMAL
+- en: Scaling a Raspberry Pi cluster vertically is limited by the amount of memory
+    available in a Raspberry Pi. The memory allocated by the GPU can be reduced freeing
+    more memory for use by services; however, the physical memory of a Raspberry Pi
+    cannot be increased.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The fixed memory size of the Raspberry Pi puts limits on scaling Raspberry Pi
+    clusters. They can be easily scaled horizontally, but not vertically.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Session cookies
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: Many websites are stateful, not stateless. Stateful websites use session cookies
+    to create unique sessions that require a login. The HAProxy configuration in this
+    recipe is for stateless websites and does not recognize session cookies.
+  prefs: []
+  type: TYPE_NORMAL
+- en: A user session is stored in a web application server and the session cookie
+    is a unique key that is used to identify each unique user session in the web server.
+    In most situations, sessions cannot be shared across web servers. The load balancer
+    needs to ensure that once a user starts a session with one web server, all requests
+    to the website cluster are directed to that web server and not to any other.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Web application servers and frameworks like Apache Tomcat and PHP depend on
+    session cookies. Apache Tomcat uses the session cookie `JSESSIONID`, and PHP uses
+    the `PHPSESSID` session cookie.
+  prefs: []
+  type: TYPE_NORMAL
+- en: For websites that depend on session cookies, the load balancer for the website
+    cluster needs to ensure that web requests from the same unique user (as identified
+    by the session cookie) are always sent to the same web server because only that
+    web server has the user's session.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'To enable the HAProxy servers in this recipe to recognize session cookies for
+    Apache Tomcat (or other Java application servers), replace the two server configuration
+    parameters in the HAProxy configuration file (`/etc/haproxy/haproxy.cfg`) with
+    the following three lines:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE17]'
+  prefs: []
+  type: TYPE_PRE
+- en: The first line turns on the cookie tracking option using the `JSESSIONID` cookie
+    plus a unique prefix for each web server. The two server configuration parameters
+    have been updated to set a unique `cookie` prefix for each server (`web1` and
+    `web2`).
+  prefs: []
+  type: TYPE_NORMAL
+- en: After restarting the HAProxy service (`systemctl restart haproxy.service`),
+    the cluster will recognize session cookies.
+  prefs: []
+  type: TYPE_NORMAL
+- en: See also
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: '**Computer cluster** ([https://en.wikipedia.org/wiki/Computer_cluster](https://en.wikipedia.org/wiki/Computer_cluster)):
+    This Wikipedia article describes the concepts and history of computer clusters.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**Keepalived** ([http://www.keepalived.org/](http://www.keepalived.org/)):
+    The main goal of this project is to provide simple and robust facilities for load
+    balancing and high availability to a Linux system and Linux-based infrastructures.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**HAProxy** ([http://www.haproxy.org/](http://www.haproxy.org/)): HAProxy is
+    a free, very fast, and reliable solution offering high availability, load balancing,
+    and proxying for TCP and HTTP-based applications.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**systemctl – control the systemd system and service manager** ([http://manpages.debian.org/cgi-bin/man.cgi?query=systemctl](http://manpages.debian.org/cgi-bin/man.cgi?query=systemctl)):
+    The Debian manual page for `systemctl` describes the command and its options.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**sysctl – read/write system parameters** ([http://manpages.debian.org/cgi-bin/man.cgi?query=sysctl&sektion=8](http://manpages.debian.org/cgi-bin/man.cgi?query=sysctl&sektion=8)):
+    The Debian manual page for `sysctl` describes the command and its options.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**killall – kill processes by name** ([http://manpages.debian.org/cgi-bin/man.cgi?query=killall](http://manpages.debian.org/cgi-bin/man.cgi?query=killall)):
+    The Debian manual page for `killall` describes the command and its options.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**Jekyll** ([http://jekyllrb.com/](http://jekyllrb.com/)): Transform your plain
+    text into static websites and blogs.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**Scalability** ([https://en.wikipedia.org/wiki/Scalability](https://en.wikipedia.org/wiki/Scalability)):
+    This Wikipedia article defines scalability, both horizontal and vertical.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**Session cookie** ([https://en.wikipedia.org/wiki/HTTP_cookie#Session_cookie](https://en.wikipedia.org/wiki/HTTP_cookie#Session_cookie)):
+    This Wikipedia article about HTTP cookies also defines session cookies.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Installing a distributed filesystem
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: This recipe turns four Raspberry Pis into a highly available distributed filesystem
+    using GlusterFS.
+  prefs: []
+  type: TYPE_NORMAL
+- en: GlusterFS is a scalable network filesystem suitable for data-intensive tasks
+    such as cloud storage and media streaming. GlusterFS is free and open source software
+    and can utilize common off-the-shelf hardware like the Raspberry Pi.
+  prefs: []
+  type: TYPE_NORMAL
+- en: After completing this recipe, you will have clustered four Raspberry Pis to
+    create a highly available distributed filesystem.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Getting ready
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'Here are the ingredients for this recipe:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Four basic networking setups for the Raspberry Pi
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Four available IP addresses on the local network
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: This recipe does not require the desktop GUI and could either be run from the
+    text-based console or from within an LXTerminal.
+  prefs: []
+  type: TYPE_NORMAL
+- en: With the Secure Shell server running on each Raspberry Pi, this recipe can be
+    completed remotely using a Secure Shell client. A distributed filesystem is typically
+    managed remotely.
+  prefs: []
+  type: TYPE_NORMAL
+- en: How to do it...
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'The steps to building a highly available Raspberry Pi distributed filesystem
+    are:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Log in to each of the four Raspberry Pis and set their hostnames. Name the Raspberry
+    Pis `gluster1`, `gluster2`, `gluster3`, and `gluster4`.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Note
+  prefs:
+  - PREF_IND
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: The `raspi-config` command can be used to change the hostname of your Raspberry
+    Pi. [Chapter 2](ch02.html "Chapter 2. Administration"), *Administration*, has
+    recipes for configuring the Raspberry Pi that use the `raspi-config` command.
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: Installing the GlusterFS server on each Raspberry Pi
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: 'Log in to each of the four Raspberry Pis: `gluster1`, `gluster2`, `gluster3`,
+    and `gluster4`.'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Use the `apt-get install` command to install the GlusterFS server (`glusterfs-server`).
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE18]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: Note
+  prefs:
+  - PREF_IND
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: 'Repeat the installation of `glusterfs-server` on each of the four Raspberry
+    Pis: `gluster1`, `gluster2`, `gluster3`, and `glsuter4`.'
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: Now, let's create a trusted storage pool. After each of the Raspberry Pis has
+    had GlusterFS installed, log in to `gluster1` and use the `gluster peer probe`
+    command to link the other three Raspberry Pis into a single trusted storage pool.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE19]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: Use the `gluster` `peer status` command to check that the storage pool has been
+    created successfully.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE20]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: Also use the `gluster peer status` from another peer in the storage pool (`gluster2`)
+    to validate the storage pool.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE21]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: Notice that the `Hostname` displayed for `gluster1` is an IP address (`192.168.2.12`).
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Use the `gluster peer probe` command on any other peer (`gluster2`) to add the
+    hostname of `gluster1` to the storage pool.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Note
+  prefs:
+  - PREF_IND
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: Do not use the `gluster peer probe` command to add itself to the trusted server
+    pool! *A storage peer cannot add itself to the pool!*
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: Any attempt for a peer to add itself could damage the entire storage pool.
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: '[PRE22]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: It's time to create a striped replicated volume from the trusted storage pool.
+    From any peer in the trusted storage pool (`gluster1`), use the `gluster volume
+    create` command to create a distributed striped replicated volume (`stripe 2 replica
+    2`) using the four peers of the trusted storage pool (`gluster1`, `gluster2`,
+    `gluster3`, and `gluster4`). On each peer, the `/srv/vol0` directory is used to
+    store the GlusterFS configuration and data for the new volume (`vol0`).
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE23]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: Use the `gluster volume start` command to start the newly created volume (`vol0`).
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE24]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: Now, let's mount the distributed striped replicated volume. Use the `mount`
+    command to mount the `glusterfs` volume `vol0` from the peer, `gluster1.local`,
+    on the local mount point, `/mnt`.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE25]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: Test the striped replicated volume. Use the `cp` command to copy a large file
+    (`/boot/kernel.img`) to the local mount point (`/mnt`) of the newly created distributed
+    striped replicated volume (`vol0`).
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE26]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: Notice that the copied file (`/mnt/kernel.img`) has the same size (`4056224`)
+    and checksum (`d5e64…35ec`) as the original file.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Use the `ls -la` command to display the entire contents of the GlusterFS storage
+    directory for the distributed volume (`/srv/vol0`).
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE27]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: Notice that only part of the data from the large file (`kernel.img`) is stored
+    on this peer (`gluster1`). The size of the file (`2090144`) in the storage directory
+    (`/srv/vol0`) is significantly smaller than the size (`4056224`) of the original
+    file (`/boot/kernel.img`).
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Log in to each of the other three peers (`gluster2`, `gluster3`, and `gluster4`)
+    and use the `ls –l` command to check the size of the files in each of the other
+    storage directories for the volume (`/srv/vol0`).
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[log in to peer `gluster2`]'
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: '[PRE28]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: Notice that there are two different file sizes (`2090144` and `1966080`) for
+    the data storage file (`/srv/vol0/kernel.img`) on each of the peers.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Notice that the data storage files (`/srv/vol0/kernel.img`) on peers `gluster1`
+    and `gluster2` have the same size; and that the data storage files on peers `gluster3`
+    and `gluster4` also have the same size. This is an example of how a replicated
+    volume duplicates storage across replicated peers in case one of the replicated
+    peers goes down.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Notice that the sum of the two file sizes is equal to the size of the original
+    file (`4056224`). This is an example of how a striped volume divides the data
+    of large files across striped peers.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Test the high availability of the cluster. Remove one of the Raspberry Pis (`gluster4`)
+    from the network by disconnecting its network cable.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Use the `gluster` peer status command on one of the remaining peers (`gluster1`)
+    to check the status of the distributed filesystem's secure storage pool.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE29]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Notice that `Hostname: gluster4.local` is shown as `Disconnected`.'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Use the `sha1sum` command on `gluster1` to validate the large file stored in
+    the filesystem (`/mnt/kernel.img`) has not changed.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE30]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: Notice that the checksum (`d5e64…35ec`) is still the same.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: The distributed filesystem functions, even if one peer is down!
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Test the healing of replicated peers. While `gluster4` is still disconnected
+    from the cluster, use the `cp` command to copy another large file (`/boot/kernel7.img`)
+    to the self-healing distributed striped replicated filesystem.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE31]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: Use the `ls` and `sha1sum` commands to check that the copied file (`/mnt/kernel7.img`)
+    is identical to the original file (`/boot/kernel7.img`).
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE32]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: Use the `ls –l` command to check the file sizes in the storage directory (`/srv/vol0`)
+    of each peer to validate that the newly copied file (`kernel7.img`) is also striped
+    and replicated.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[log in to peer `gluster1`]'
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: '[PRE33]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: '[log in to peer `gluster2`]'
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: '[PRE34]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: '[log in to peer `gluster3`]'
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: '[PRE35]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: Notice that the data storage file (`/srv/vol0/kernel7.img`) on peers `gluster1`
+    and `gluster2` has the same size and that the total size of the striped files
+    (`2066464 + 1966080`) is equal to the size of the original file (`4032544`). The
+    distributed filesystem continues to stripe and replicate files even if one peer
+    is down!
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Reconnect peer `gluster4` to the network.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Immediately use the `ls –l` command to check the files in the data storage directory
+    (`/srv/vol0`) on reconnected peer `gluster4`.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE36]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: Notice that the newly copied file (`kernel7.img`) has been created in the data
+    storage directory (`/srv/vol0`), but the file size is empty (`0`).
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: After waiting five minutes, use the `ls –l` command to once again check the
+    data storage directory on `gluster4`.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE37]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: Notice that the storage file `kernel7.img` is no longer empty. The data storage
+    file (`kernel7.img`) on `gluster4` is now the same size (`1966080`) as the storage
+    file on peer `gluster3`.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: The distributed filesystem has healed itself!
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: This cluster of four Raspberry Pis is now a highly available distributed filesystem!
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: How it works...
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: The recipe begins by changing the hostnames of four Raspberry Pis that are linked
+    together on the same network. The new hostnames of the Raspberry Pis are `gluster1`,
+    `gluster2`, `gluster3`, and `gluster4`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Installing the GlusterFS server on each Raspberry Pi
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: After the Raspberry Pis are renamed, the `apt-get install` command is used on
+    each of the Raspberry Pis to install the GlusterFS server software distribution
+    package (`glusterfs-server`).
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The installation of the `glusterfs-server` package includes starting the GlusterFS
+    server on each of the Raspberry Pis: `gluster1`, `gluster2`, `gluster3`, and `gluster4`.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: The `gluster peer probe` command is used from the `gluster1` Raspberry Pi to
+    link the other Raspberry Pis (`gluster2`, `gluster3`, and `gluster4`) into a trusted
+    peer relationship.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The first peer in the storage pool (`gluster1`) establishes the trusted peer
+    relationship with the other storage pool peers (`gluster2`, `gluster3`, `gluster4`).
+    However, once the trusted relationship is established, any peer can be used as
+    the storage pool master—to manage storage volumes, to manage the trusted peer
+    relationships, or to be mounted as the distributed filesystem's network attachable
+    endpoint.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The `gluster peer status` command is used on both `gluster1` and `gluster2`
+    to validate the trusted storage pool is up and running. On both peers, the other
+    three storage pool peers are displayed as being part of the storage pool.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The `gluster peer status` command on `gluster2`, however, displays an IP address
+    for the `Hostname` field of the first peer, `gluster1`. So, the `gluster peer`
+    command is used on `gluster2` to add the hostname of `gluster1` to the metadata
+    of the storage pool.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Note
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: Do not have a peer add itself to the trusted storage pool!
+  prefs: []
+  type: TYPE_NORMAL
+- en: A peer using the command `gluster peer probe` with its own hostname could damage
+    the trusted storage pool!
+  prefs: []
+  type: TYPE_NORMAL
+- en: Creating a striped replicated volume in the trusted storage pool
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: The `cluster volume create` command is used from `gluster1` to create a new
+    striped replicated volume that is distributed across the four storage pool peers
+    (`gluster1.local`, `gluster2.local`, `gluster3.local`, `gluster4.local`).
+  prefs: []
+  type: TYPE_NORMAL
+- en: The new volume is named `vol0`. It has two stripes (`stripe 2`) and two replicas
+    (replica 2). It uses the same storage directory (`/srv/vol0`) on each of the storage
+    pool peers (`gluster1.local`, `gluster2.local`, `gluster3.local`, and `gluster4.local`).
+  prefs: []
+  type: TYPE_NORMAL
+- en: Using a storage directory on a peer's root filesystem (`/`) is not recommended,
+    nor is it allowed by default. The `force` keyword is used to override the default
+    behavior.
+  prefs: []
+  type: TYPE_NORMAL
+- en: This recipe uses the root filesystem to keep the recipe simple. For a more robust,
+    reliable distributed filesystem with higher performance, attach a high-speed external
+    USB disk to each Raspberry Pi and configure the storage directory for the volume
+    to be on the external disk instead of on the root filesystem. [Chapter 4](ch04.html
+    "Chapter 4. File Sharing"), *File Sharing*, has more than one recipe for mounting
+    an external USB disk on a Raspberry Pi.
+  prefs: []
+  type: TYPE_NORMAL
+- en: After the volume (`vol0`) is created, the `gluster volume start` command is
+    used to start sharing the newly created volume with GlusterFS clients. The `gluster
+    volume start` command could be run from any peer in the cluster. In this case,
+    it is run from `gluster1`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Mount the distributed striped replicated volume
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: Now that the distributed striped replicated volume (`vol0`) has been created
+    and started, it is time for a GlusterFS client to mount the newly created volume.
+  prefs: []
+  type: TYPE_NORMAL
+- en: To keep this recipe simple, `gluster1` is used as the client. However, any computer
+    on the local network with the GlusterFS client software installed should now be
+    able to mount the distributed volume (`vol0`) from any trusted peer in the GlusterFS
+    storage pool.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The `mount –t glusterfs` command is used from `gluster1` to mount the distributed
+    volume (`vol0`) from the trusted storage peer `gluster1.local` on its local directory,
+    `/mnt`. The Raspberry Pi named `gluster1` is both the client and the server of
+    the distributed volume (`vol0`).
+  prefs: []
+  type: TYPE_NORMAL
+- en: Testing the striped replicated volume
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: The `cp` command is used to copy a large file from the local filesystem (`/boot/kernel.img`)
+    to the distributed striped replicated volume mounted at `/mnt`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The `ls –l` command and the `sha1sum` command are used to validate that the
+    copied file (`/mnt/kernel.img`) has been copied successfully by checking that
+    its size (`4056224`) and checksum (`d5e64…35ec`) are the same as the original
+    file (`/boot/kernel.img`).
+  prefs: []
+  type: TYPE_NORMAL
+- en: The `ls –la` command is used on each peer of the storage pool (`gluster1`, `gluster2`,
+    `gluster3`, and `gluster4`) to display the contents of the peer's storage directory
+    (`/srv/vol0`).
+  prefs: []
+  type: TYPE_NORMAL
+- en: None of the peer's storage directories has a file (`/srv/kernel.img`) as large
+    as the original file (`/boot/kernel.img`).
+  prefs: []
+  type: TYPE_NORMAL
+- en: Replication
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+- en: There are two sets of storage files (`/srv/kernel.img`) with the same size.
+    The first set of storage files with the same size (`2090144`) can be found on
+    peers `gluster1` and `gluster2`. The second set of peers, `gluster3` and `gluster4`,
+    also have storage files that are the same size (`1966080`). The peers `gluster1`
+    and `gluster2` are replicas of each other; `gluster3` and `gluster4` are also
+    replicas.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Data replication is used to keep the distributed volume highly available. If
+    one of the trusted storage peers goes down or is disconnected from the network,
+    a replica of the unavailable peer's stored data is still available. If `gluster1`
+    were to go down, `gluster2` would still have a replica of the stored data. If
+    `gluster4` were disconnected from the network, `gluster3` would still have a replica
+    of its data.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Striping
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: The sum of the two different file sizes (`2090144` and `1966080`) equals the
+    size of the original file (`4056224`). The original file has been distributed
+    (striped) across the trusted storage peers. The trusted storage peers `gluster1`
+    and `gluster2` are replicating one part (`2090144`) of the large file (`kernel.img`),
+    and the trusted peers `gluster3` and `gluster4` are storing replicas of the other
+    part (`1966080`).
+  prefs: []
+  type: TYPE_NORMAL
+- en: Data striping is a technique for distributing large files across multiple storage
+    peers. Parts of the file (stripes) are distributed evenly across the striped storage
+    peers so that sequentially reading (or writing) a large amount of data from a
+    single large file does not continuously put a load on only one of the trusted
+    storage peers. Striping a file distributes the load to access the file across
+    the striped storage peers by distributing the data across the peers. Striping
+    increases the data transfer rate of the distributed volume.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Testing the high availability of the cluster
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: In order to test the cluster's ability to remain available when one of the trusted
+    data storage peers goes down, the trusted data storage peer `gluster4.local` is
+    removed from the cluster by disconnecting its network cable.
+  prefs: []
+  type: TYPE_NORMAL
+- en: After the network cable has been removed from `gluster4`, the `gluster peer
+    status` command is used (on any remaining peer) to show that trusted storage peer
+    `gluster4.local` has been `Disconnected` from the cluster.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The `sha1sum` command is used to validate that the checksum (`d5e64…35ec`) of
+    the distributed file (`/mnt/kernel.img`) still matches the checksum of the original
+    file (`/boot/kernel.img`).
+  prefs: []
+  type: TYPE_NORMAL
+- en: The GlusterFS distributed filesystem still functions properly when one peer
+    is removed from the storage pool! The cluster is highly available!
+  prefs: []
+  type: TYPE_NORMAL
+- en: Testing the healing of replicated peers
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: While the trusted storage peer `gluster4` is still disconnected from the cluster,
+    the `cp` command is used to copy another large file (`/boot/kernel7.img`) to the
+    distributed storage volume (`vol0`) mounted locally on `gluster1` at `/mnt`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The checksum of the copied file (`/mnt/kernel7.img`) is compared to the checksum
+    of the original file (`/boot/kernel7.img`) using the `sha1sum` command. The files
+    are identical.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The `ls –la` command is used on each of the remaining trusted storage peers
+    (`gluster1`, `gluster2`, and `gluster3`) to validate that the new large file (`kermel7.img`)
+    has also been striped and replicated across the storage directories (`/srv/vol0`)
+    of the distributed volume. The trusted storage peers `gluster1` and `gluster2`
+    have replicas of one portion of the file while peer `gluster3` has the other portion
+    of the file.
+  prefs: []
+  type: TYPE_NORMAL
+- en: After the new large file has been striped and replicated across the distributed
+    volume, the trusted peer `gluster4` is once again connected to the cluster.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Immediately after the peer `gluster4` has been reconnected to the cluster, the
+    `ls –la` command is used to display the contents of the data storage directory
+    (`/srv/vol0`) on `gluster4`. The file copied to the distributed volume (`vol0`)
+    while `gluster4` was disconnected from the cluster (`kernel7.img`) has been created
+    in the data storage directory; however, the file is empty (`0`).
+  prefs: []
+  type: TYPE_NORMAL
+- en: After waiting a few minutes for the GlusterFS healing service to finish replicating
+    the striped portion of the new large file (`kernel7.img`) from peer `gluster3`
+    to peer `gluster4`, the `ls –la` command is used once again to validate that peer
+    `gluster4` has replicated its portion of the striped file and that the distributed
+    volume (`vol0`) has been healed.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The four Raspberry Pis are now a self-healing highly available distributed filesystem.
+  prefs: []
+  type: TYPE_NORMAL
+- en: There's more …
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: GlusterFS is a peer-based distributed filesystem. There is no master server
+    in a GlusterFS trusted storage pool. In this recipe, `gluster1` was the first
+    peer in the trusted storage pool and invited the other trusted peers to join the
+    pool. Even though it was the first peer in the storage pool, `gluster1` is still
+    an equal peer and not the master.
+  prefs: []
+  type: TYPE_NORMAL
+- en: On the other hand, the current recipe only allows a GlusterFS client to mount
+    a filesystem endpoint from one of the trusted storage pool peers (`gluster1`,
+    `gluster2`, `gluster3`, or `gluster4`). In this recipe, `gluster1` was the peer
+    providing the distributed filesystem endpoint.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Should the mounted peer (`gluster1`) go down, the client would not be able to
+    access the distributed filesystem even if the other peers in the cluster have
+    kept the filesystem available. In the recipe, `gluster1` was also the client,
+    so this issue was not possible.
+  prefs: []
+  type: TYPE_NORMAL
+- en: A GlusterFS distributed filesystem is normally accessed from outside the cluster,
+    not from a trusted storage peer within the cluster. Mounting the distributed filesystem
+    from one of the storage peers directly defeats the high availability of the cluster
+    by making the client dependent on a single trusted peer instead of being dependent
+    on the cluster as a whole.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Using Keepalived to create a virtual filesystem endpoint
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: The virtual IP address service Keepalived can be used to create a distributed
+    filesystem endpoint that is kept alive by all peers of the trusted storage pool.
+    The previous recipe, *Installing a high-availability load balancer*, shows how
+    to install and configure Keepalived for use with the HA Proxy.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Keepalived can also be used with GlusterFS to create a virtual IP for accessing
+    the distributed filesystem that will remain available so long as the distributed
+    filesystem remains available.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Using Keepalived, a virtual endpoint (IP address) is created for the distributed
+    filesystem. Clients will mount the virtual endpoint of the filesystem instead
+    of mounting the endpoint directly from a trusted storage peer.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Even though the trusted storage peer currently serving the virtual filesystem
+    endpoint may fail, the virtual endpoint provided by Keepalived will not fail;
+    instead, another trusted storage peer will be selected to replace the peer that
+    did fail. The virtual filesystem endpoint will remain alive no matter which trusted
+    peer goes down.
+  prefs: []
+  type: TYPE_NORMAL
+- en: To use Keepalived with this recipe, first enable (`=1`) the kernel parameter
+    that permits listening for virtual IP addresses (`net.ipv4.ip_nonlocal_bind`)
+    on each of the trusted storage peers in the cluster (`gluster1`, `gluster2`, `gluster3`,
+    and `gluster4`).
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE38]'
+  prefs: []
+  type: TYPE_PRE
+- en: Next, install the `keepalived` software distribution package using the `apt-get
+    install` command.
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE39]'
+  prefs: []
+  type: TYPE_PRE
+- en: Use a configuration for Keepalived that allows any of the trusted storage peers
+    (`gluster1`, `gluster2`, `gluster3`, or `gluster4`) to take over the cluster's
+    virtual IP address whenever the current peer serving the virtual IP address fails.
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE40]'
+  prefs: []
+  type: TYPE_PRE
+- en: Finally, restart the Keepalived service.
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE41]'
+  prefs: []
+  type: TYPE_PRE
+- en: Now, the virtual endpoint can be mounted instead of a trusted peer.
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE42]'
+  prefs: []
+  type: TYPE_PRE
+- en: See also
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: '**GlusterFS** ([http://www.glusterfs.org/](http://www.glusterfs.org/)): GlusterFS
+    is a scalable network filesystem. Using common off-the-shelf hardware, you can
+    create large, distributed storage solutions for media streaming, data analysis,
+    and other data and bandwidth-intensive tasks. GlusterFS is free and open source
+    software.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**GlusterFS** ([https://en.wikipedia.org/wiki/GlusterFS](https://en.wikipedia.org/wiki/GlusterFS)):
+    This Wikipedia article describes the GlusterFS design.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Creating a supercomputer
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: This recipe turns four Raspberry Pis into a super computer using Apache Spark.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Apache Spark is a fast and general engine for large-scale data processing. In
+    this recipe, Apache Spark is installed on four Raspberry Pis that have been networked
+    into a small computer cluster. The cluster is then used to demonstrate the speed
+    of super computing by calculating the value of pi using a Monte Carlo algorithm.
+  prefs: []
+  type: TYPE_NORMAL
+- en: After completing this recipe, you will have a Raspberry Pi super computer.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Getting ready
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'The following ingredients are required to create a supercomputer:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Four basic networking setups for the Raspberry Pi
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: A high-speed network switch
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: This recipe does not require the desktop GUI and could either be run from the
+    text-based console or from within LXTerminal.
+  prefs: []
+  type: TYPE_NORMAL
+- en: With the Secure Shell server running on each Raspberry Pi, this recipe can be
+    completed remotely using a Secure Shell client. Typically, a website is managed
+    remotely.
+  prefs: []
+  type: TYPE_NORMAL
+- en: All the Raspberry Pis should be connected directly to the same network switch.
+  prefs: []
+  type: TYPE_NORMAL
+- en: How to do it...
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'Perform the following steps to build a Raspberry Pi supercomputer:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Log in to each Raspberry Pi and set its hostname. One Raspberry Pi will be the
+    Spark master server, and the other three will be Spark slaves. Name the four Raspberry
+    Pis `spark-master`, `spark-slave-a`, `spark-slave-b`, and `spark-slave-c`.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Now, let's set up secure communication between master and slaves. Use the `ssh-keygen`
+    command on `spark-master` to generate a pair of SSH keys. Press `<enter>` to accept
+    the default file location (`/home/pi/.ssh/id_rsa`). Then, press `<enter>` twice
+    to use an empty passphrase (the Spark automation requires an empty passphrase).
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE43]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: Use the `ssh-copy-id` command to copy the newly created public key from `spark-master`
+    to each of the Spark slaves (`spark-slave-a`, `spark-slave-b`, and `spark-slave-c)`.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE44]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: Note
+  prefs:
+  - PREF_IND
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: 'Repeat step *3* for each of the slaves: `spark-slave-a`, `spark-slave-b`, and
+    `spark-slave-c`.'
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: 'Note that a secure shell login (`ssh`) from `spark-master` to the slaves no
+    longer requires a password for authentication:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE45]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: Now, it's about downloading the Apache Spark software distribution. Use a web
+    browser to locate the correct Apache Spark software distribution package on the
+    Apache Spark website's download page ([http://spark.apache.org/downloads.html](http://spark.apache.org/downloads.html)),
+    which is shown in the following screenshot:![How to do it...](img/B04745_07_03.jpg)
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'On the download page, use the following drop-down options:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '**Choose a Spark release:** **1.5.1 (Oct 02 2015)**'
+  prefs:
+  - PREF_IND
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '**Choose a package type:** Pre-built for Hadoop 2.6 and later'
+  prefs:
+  - PREF_IND
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '**Choose a download type**: Select Apache Mirror'
+  prefs:
+  - PREF_IND
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Once the correct choices have been made for **1**, **2**, and **3**, click on
+    the link (`spark-1.5.1-bin-haddop2.6.tgz`) that appears at **4**. Download Spark.
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: '![How to do it...](img/B04745_07_04.jpg)'
+  prefs:
+  - PREF_IND
+  type: TYPE_IMG
+- en: Note that the next web page displays the actual download link for the correct
+    Apache Spark software distribution package ([http://www.eu.apache.org/dist/spark/spark-1.5.1/spark-1.5.1-bin-hadoop2.6.tgz](http://www.eu.apache.org/dist/spark/spark-1.5.1/spark-1.5.1-bin-hadoop2.6.tgz)).
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'Use the `wget` command on `spark-master` to download the Apache Spark software
+    distribution page, as follows:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE46]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Use the `tar` command to unpack the Apache Spark software distribution on each
+    Raspberry Pi (`spark-master`, `spark-slave-a`, `spark-slave-b`, and `spark-slave-c`),
+    as follows:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE47]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Use the `tar` command to unpack the Apache Spark software distribution on each
+    Raspberry Pi (`spark-master`, `spark-slave-a`, `spark-slave-b`, and `spark-slave-c`),
+    as follows:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE48]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: Note
+  prefs:
+  - PREF_IND
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: Repeat step *10* on each Raspberry Pi, namely `spark-master`, `spark-slave-a`,
+    `spark-slave-b`, and `spark-slave-c`.
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: 'Use the `mv` command to move the Apache Spark installation directory (`spark-1.5.1-bin-hadoop2.6`)
+    to a more convenient location on each Raspberry Pi (`/opt/spark`), as follows:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE49]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Now, configure the Spark master. Use the `cat` command on `spark-master` to
+    create a list of slaves, as follows:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE50]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Use the `scp` command on `spark-master` to copy the Spark execution environment
+    configuration file (`spark-env.sh`) to each Spark slave (`spark-slave-a`, `spark-slave-b`,
+    and `spark-slave-c`), as follows:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE51]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Use the `scp` command on `spark-master` to copy the Spark execution environment
+    configuration file (`spark-env.sh`) to each Spark slave (`spark-slave-a`, `spark-slave-b`,
+    and `spark-slave-c`), as follows:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE52]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Use the `echo` command on `spark-master` to append an additional memory constraint
+    (`SPARK_DRIVER_MEMORY=512m`) to the execution environment (`spark-env.sh`) of
+    the Spark master server (`spark-master`) so that enough memory remains free on
+    the master server to run spark jobs, as follows:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE53]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Use the `echo` command on `spark-master` to append the local IP address (`SPARK_LOCAL_IP`)
+    to the execution environment (`spark-env.sh`). This reduces the warnings in the
+    output from Spark jobs:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE54]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: Use the `sed` command to change the logging level of Spark jobs from `INFO`
+    (which produces a lot of informational output) to `WARN` (which produces a lot
+    less output).
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE55]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: At this point, the Spark cluster is ready to start.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Note
+  prefs:
+  - PREF_IND
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: The next steps calculate pi both with and without the Spark cluster so that
+    the duration of the two calculation methods can be compared.
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: 'Now, calculate pi without using the Spark cluster. Use the `cat` command on
+    `spark-master` to create a simple Python script to calculate pi without using
+    the Spark cluster, as follows:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE56]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: Use the `python` command on `spark-master` to run the script for calculating
+    pi (`pi.py`) without a Spark cluster.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE57]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: Note that it took one Raspberry Pi (`spark-master`) more than 13 seconds (`13.430613`
+    seconds) to calculate pi without using Spark.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'Now, calculate pi using the Spark cluster. Use the `cat` command on `spark-master`
+    to create a simple Python script that parallelizes the calculation of pi for use
+    on the Spark cluster, as follows:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE58]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: Use the `start-all.sh` shell script on `spark-master` to start the Apache Spark
+    cluster. Starting the cluster may take 30 seconds.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE59]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: Use a web browser to view the status of the cluster by browsing to the cluster
+    status page at `http://spark-master.local:8080/`.![How to do it...](img/B04745_07_05.jpg)
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Wait until the Spark master server and all three slaves have started. Three
+    worker IDs will be displayed on the status page when the cluster is ready to compute.
+    Refresh the page, if necessary.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'Submit the Python script (`pi-spark.py`) that is used to calculate pi to the
+    Spark cluster, as follows:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE60]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: Notice that it took the Spark cluster less than a second (`0.720023 seconds`)
+    to calculate pi. That's more than 185 times faster!!
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: The Raspberry Pi super computer is working!
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: How it works...
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'This recipe has the following six parts:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Setting up secure communication between the master and slaves
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Downloading the Apache Spark software distribution
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Installing Apache Spark on each Raspberry Pi in the cluster
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Configuring the Spark master
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Calculating pi without using the Spark cluster
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Calculating pi using the Spark cluster
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: The recipe begins by setting the hostnames of the four Raspberry Pi computers.
+    One Raspberry Pi is selected as the Spark master (`spark-master`), the other three
+    Raspberry Pis are the Spark slaves (`spark-slave-a`, `spark-slave-b`, and `spark-slave-c`).
+  prefs: []
+  type: TYPE_NORMAL
+- en: Setting up secure communication between master and slaves
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: After the hostnames have been set, the `ssh-keygen` and `ssh-copy-id` commands
+    are used to establish a secure communication link between the Spark master (`spark-master`)
+    and each of its slaves (`spark-slave-a`, `spark-slave-b`, and `spark-slave-c`).
+  prefs: []
+  type: TYPE_NORMAL
+- en: The `ssh-keygen` command is used to create a secure key pair (`/home/pi/.ssh/id_rsa`
+    and `/home/pi/.ssh/id_rsa.pub`). The `ssh-copy-id` command is used to copy the
+    public key (`id_rsa.pub`) from `spark-master` to each of the slaves.
+  prefs: []
+  type: TYPE_NORMAL
+- en: After the public key of `spark-master` has been copied to each slave, it is
+    possible to log in from `spark-master` to each slave without using a password.
+    Having a secure login from a master to a slave without a password is a requirement
+    for the automation of the startup of the cluster.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Downloading the Apache Spark software distribution
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: The Apache Spark download page ([http://spark.apache.org/downloads.html](http://spark.apache.org/downloads.html))
+    presents a number of choices that are used to determine the correct software distribution.
+  prefs: []
+  type: TYPE_NORMAL
+- en: This recipe uses the 1.5.1 (Oct 02 2015) release of Spark that has been pre-built
+    for Hadoop 2.6 and later. Once the correct choices have been made, a link is presented
+    (`spark-1.5.1-bin-hadoop2.6.tgz`), which leads to the actual download page.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The `wget` command is used to download the Spark software distribution from
+    the actual download page to `spark-master` using the link presented on the actual
+    download page ([http://www.us.apache.org/dist/spark/spark-1.5.1/spark-1.5.1-bin-hadoop2.6.tgz](http://www.us.apache.org/dist/spark/spark-1.5.1/spark-1.5.1-bin-hadoop2.6.tgz)).
+  prefs: []
+  type: TYPE_NORMAL
+- en: The software distribution has a size of 280 MB. It will take a while to download.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Once the Spark software distribution (`spark-1.5.1-bin-hadoop2.6.tgz`) is downloaded
+    to `spark-master`, it is then copied using the `scp` command to the three slaves
+    (`spark-slave-a`, `spark-slave-b`, and `spark-slave-c`).
+  prefs: []
+  type: TYPE_NORMAL
+- en: Installing Apache Spark on each Raspberry Pi in the cluster
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: The `tar` command is use to unpack the Apache Spark software distribution (`spark-1.5.1-bin-hadoop2.6.tgz`)
+    on each Raspberry Pi in the cluster (`spark-master`, `spark-slave-a`, `spark-slave-b`,
+    and `spark-slave-c`).
+  prefs: []
+  type: TYPE_NORMAL
+- en: After the software distribution has been unpacked in the home directory of the
+    user, `pi`, it is moved by using the `mv` command to a more central location (`/opt/spark`).
+  prefs: []
+  type: TYPE_NORMAL
+- en: Configuring the Spark master
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: The `cat` command is used to create a list of slaves (`/opt/spark/conf/slaves`).
+    This list is used during the cluster startup to automatically start the slaves
+    when `spark-master` is started. All the lines after the `cat` command up to the
+    **end-of-data** (**EOD**) mark are copied to the list of slaves.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The `echo` command is used to create the Spark runtime environment file (`spark-env.sh`
+    under `/opt/spark/conf/`) with one environment variable (`SPARK_MASTER_IP`) that
+    is set to the IP address of `spark-master` (`hostname –I`).
+  prefs: []
+  type: TYPE_NORMAL
+- en: The Spark runtime environment configuration file, `spark-env.sh`, is then copied
+    from the `spark-master` to each slave (`spark-slave-a`, `spark-slave-b`, and `spark-slave-c`).
+  prefs: []
+  type: TYPE_NORMAL
+- en: After the configuration file (`spark-env.sh`) has been copied to the slaves,
+    two additional configuration parameters specific to `spark-master` are added to
+    the file.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The `echo` command is used to append (`>>`) the `SPARK_DRIVER_MEMORY` parameter
+    to the bottom of the configuration file. This parameter is used to limit the amount
+    of memory used by the `spark-master` to `512m` (512 MB). This leaves room in the
+    `spark-master` memory pool to run the Spark jobs.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The `echo` command is also used to append the `SPARK_LOCAL_IP` parameter to
+    the bottom of the configuration file (`spark-env.sh`). This parameter is set to
+    the IP address of the `spark-master` (`hostname –I`). Setting this parameter eliminates
+    some of the warning messages that occur when running the Spark jobs.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The `sed` command is used to modify the logging parameters of `spark-master`.
+    The `log4j.properties` file is changed so that `INFO` messages are no longer displayed.
+    Only warning messages (`WARN`) and error messages are displayed. This greatly
+    reduces the output of the Spark jobs.
+  prefs: []
+  type: TYPE_NORMAL
+- en: At this point, the Spark cluster is fully configured and ready to start.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Calculating pi without using the Spark cluster
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: Before the Spark cluster is started, a simple Python script (`pi.py`) is created
+    using the `cat` command to calculate pi without using the Spark cluster.
+  prefs: []
+  type: TYPE_NORMAL
+- en: This script (`pi.py`) uses the Monte Carlo method to estimate the value of pi
+    by randomly generating 1 million data points and testing each data point for inclusion
+    in a circle. The ratio of points inside the circle to the total number of points
+    will be approximately equal to *Pi/4*.
+  prefs: []
+  type: TYPE_NORMAL
+- en: More information on calculating the value of Pi, including how to use the Monte
+    Carlo method, can be found on Wikipedia ([https://en.wikipedia.org/wiki/Pi](https://en.wikipedia.org/wiki/Pi)).
+  prefs: []
+  type: TYPE_NORMAL
+- en: The Python script that is used to estimate the value of pi takes more than 13
+    seconds to run on a single standalone Raspberry Pi.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Calculating pi using the Spark cluster
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: Another Python script (`pi-spark.py`) is created using the `cat` command.
+  prefs: []
+  type: TYPE_NORMAL
+- en: This new script (`pi-spark.py`) uses the same Monte Carlo method to estimate
+    the value of pi using 1 million random data points. However, this script uses
+    the `SparkContext` (`sc`) to create a **resilient distributed dataset** (**RDD**)
+    that parallelizes the million data points (`range( 1, n + 1 )`) so that they can
+    be distributed among the slaves for the actual calculation (`f`).
+  prefs: []
+  type: TYPE_NORMAL
+- en: After the script is created, the Spark cluster is started (`/opt/spark/sbin/start-all.sh`).
+    The startup script (`start-all.sh`) uses the contents of the `/opt/conf/slaves`
+    file to locate and start the Spark slaves (`spark-slave-a`, `spark-slave-b`, and
+    `spark-slave-c`).
+  prefs: []
+  type: TYPE_NORMAL
+- en: A web browser is used to validate that all the slaves have started properly.
+    The `spark-master` produces a small website (`http://spark-master.local:8080/`)
+    that displays the status of the cluster. The Spark cluster's status page is not
+    refreshed automatically, so you will need to continually refresh the page until
+    all the workers have started.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Each Spark slave is given a Worker ID when it connects to `spark-master`. You
+    will need to wait until there are three workers before you can submit the Spark
+    jobs, with one worker for each slave (`spark-slave-a`, `spark-slave-b`, and `spark-slave-c`).
+  prefs: []
+  type: TYPE_NORMAL
+- en: Once all the slaves (workers) have started, the `pi-spark.py` Python script
+    can be submitted to the cluster using the `spark-submit` command.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The `spark-submit` command passes two parameters, namely `$SPARK_MASTER_URL`
+    and `24`, to the `pi-spark.py` script.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The value of the `SPARK_MASTER_URL` is used to configure (`SparkConf conf`)
+    the location of the Spark master (`conf.setMaster( master )`).
+  prefs: []
+  type: TYPE_NORMAL
+- en: The second parameter of the `pi-spark.py` script (`24`) determines the number
+    of compute partitions that are used to parallelize the calculations. Partitions
+    divide the total number of calculations into compute groups (24 distinct groups).
+  prefs: []
+  type: TYPE_NORMAL
+- en: The number of partitions should be a factor of the number of available computer
+    cores. Here, we are using 2 partitions for each available computer core (24 =
+    2 x 12). There are twelve cores available—four cores in each of three Raspberry
+    Pi slaves.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The `SPARK_MASTER_URL` and `PATH` environment variables are updated to simplify
+    the `spark-submit` command line.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The `SPARK_MASTER_URL` is set to the IP address of the `spark-master` using
+    the `hostname –I` command. The `tr` command is used to strip (`-d`) the trailing
+    space (`[:space:]`) from the output of the `hostname –I` command.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The location of the Spark command directory (`/opt/spark/bin`) is prepended
+    to the front of the `PATH` environment variable so that the Spark commands can
+    be used without requiring their complete path.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Submitting the `pi-spark.py` script to the cluster for calculation takes a few
+    seconds. However, once the calculation is distributed among the workers (slaves),
+    it takes less than a second (`0.720023` seconds) to estimate the value of pi.
+    The Spark cluster is more than 185 times faster than a standalone Raspberry Pi.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The Raspberry Pi supercomputer is running!
+  prefs: []
+  type: TYPE_NORMAL
+- en: There's more...
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: This recipe only begins to explore the possibility of creating a supercomputer
+    from low-cost Raspberry Pi computers. For Spark (and Hadoop, on which Spark is
+    built), there are numerous packages for statistical calculation and data visualization.
+    More information on supercomputing using Spark (and Hadoop) can be found on the
+    Apache Software Foundation website ([http://www.apache.org](http://www.apache.org)).
+  prefs: []
+  type: TYPE_NORMAL
+- en: See Also
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: '**Apache Spark** ([http://spark.apache.org/](http://spark.apache.org/)): Apache
+    Spark™ is a fast and general engine for large-scale data processing.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**Apache Hadoop (**[http://hadoop.apache.org/](http://hadoop.apache.org/)):
+    The Apache™ Hadoop^® project develops open-source software for reliable, scalable,
+    and distributed computing.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**ssh-copy-id** ([http://manpages.debian.org/cgi-bin/man.cgi?query=ssh-copy-id](http://manpages.debian.org/cgi-bin/man.cgi?query=ssh-copy-id)):
+    Uses locally available keys to authorize logins on a remote machine. The Debian
+    man page for `ssh-copy-id` describes the command and its options.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**tr** ([http://manpages.debian.org/cgi-bin/man.cgi?query=tr](http://manpages.debian.org/cgi-bin/man.cgi?query=tr)):
+    This is used to translate or delete characters. The Debian man page for tr describes
+    the command and its options.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**Monte Carlo methods for estimating pi** ([https://en.wikipedia.org/wiki/Pi#Monte_Carlo_methods](https://en.wikipedia.org/wiki/Pi#Monte_Carlo_methods)):
+    This Wikipedia article on pi describes a number of ways to calculate pi, including
+    the Monte Carlo method.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL

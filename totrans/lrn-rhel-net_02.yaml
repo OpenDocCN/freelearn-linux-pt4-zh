@@ -1,0 +1,1122 @@
+- en: Chapter 2. Configuring Network Settings
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'Sitting here feverishly typing away at the keyboard, I am reasonably hopeful
+    that the title of this chapter may allude in some way to what we will cover. So,
+    I am eager that it will not be too much of a shock when I reveal that we will
+    discover how to configure networking on your RHEL 7 system in this chapter. However,
+    breaking this down a little, we will look at a little more than just networking.
+    Firstly, we will make sure that you are up to speed with how to gain administrative
+    rights in Linux. Although, this has nothing to do with networking, gaining administrative
+    rights becomes the ground for much of what we will do in the book. Once we have
+    finished with the initial rights section, we will then quickly move on to investigate
+    how networking is configured on RHEL 7\. In this chapter, we will cover the following
+    topics:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Elevating privileges
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Using `ip` and `hostnamectl`
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: NetworkManager and network scripts
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Interacting with NetworkManager
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Using the Control Center
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Using the `nmtui` menu
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Interacting with `nmcli`
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Elevating privileges
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'As an administrator of the RHEL server or desktop system, there will be times
+    when root access will be required. The `root` user or user ID `0` is the local
+    administrator on the system. Although it''s possible to log in to the system as
+    a `root` user, as with most systems, it''s preferred that `root` access is gained
+    as required. There are two mechanisms that can be used:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: The substitute user or the `su` command
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Using the `sudo` command
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: First, we will look at the `su` command.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The su command
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'When a user issues the `su` command without specifying a username, they will
+    be prompted for the root password. If authentication is successful, they will
+    be presented with a root shell. The following are the valid mechanisms to gain
+    root privileges with `su`:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`su -l`: This presents a full login shell for root; all environment variables
+    are set for root. The working directory of a user is changed to become the home
+    directory of the root user, which is usually `/root`.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`su`: This is the same as `su -l`.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`su`: This presents a nonlogin shell, where the full profile or environment
+    of the root user is not loaded. The result is that some variables—such as `$USER`—are
+    not reset and the current directory remains unchanged. Although presented with
+    the nonlogin shell, the correct root password is still required for authentication.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Using the `su` command is a simple way to gain rights. This may be a convenient
+    option for an administrator. For a small environment, this may be acceptable;
+    however, within an enterprise environment, this is not often viable because auditing
+    is limited. It's possible to trace who used the `su` command to gain rights; this
+    will be recorded in the `/var/log/secure` log file. As all activities from this
+    point forward will be logged as `root`, we have no granularity to understand which
+    administrator ran any particular command. The other big downside with this method
+    is that the user will need to know the root password. This again is a big security
+    issue and a complete no-no as far as I am concerned.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Although we want to use the `su` command, we can control who has access to
+    `su` using **PAM** (**Pluggable Authentication Modules**) in conjunction with
+    the `wheel` group. By adding users to the special administrative group: `wheel`,
+    we can limit access to the `su` command to members of that group.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: To add users to the `wheel` group, you will need to run `# usermod -a -G wheel
+    <username>` as root user, where `<username>` is the login name of the account
+    that should be added to the `wheel` group. The `-a` option is used to append a
+    group to the user's current group membership list.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'To ensure that only members of the `wheel` group use the `su` command, you
+    must, as `root`, edit the `/etc/pam.d/su` PAM configuration file. Open the file
+    in your desired text editor—such as `vi` or `nano`—and uncomment the following
+    line by deleting the `#` character from the start of the line:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE0]'
+  prefs: []
+  type: TYPE_PRE
+- en: With this change in effect, only members of the `wheel` administrative group
+    will be able to use the `su` command in order to switch to another user ID.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Should you so wish, you can make a second change to the `/etc/pam.d/su` PAM
+    file in order to ensure easy access to `su` for members of the `wheel` group.
+    The recommendation for this file will be limited to systems—such as classroom
+    or lab machines—where security is not an issue.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Edit the `/etc/pam.d/su` file and uncomment the following line by deleting
+    the `#` character from the start of the line:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE1]'
+  prefs: []
+  type: TYPE_PRE
+- en: With this change in place, members of the `wheel` group are not required to
+    authenticate with a password while using `su`; this is the default behavior of
+    root.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Tip
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: 'Both these PAM edits are consistent across Red Hat variants that we have discussed:
+    RHEL 7, CentOS 7, and Fedora 21\. Additionally, by default, the `root` user is
+    part of the `wheel` group.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Delegating with the sudo command
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: In my opinion, using the `sudo` system is another approach and a more secure
+    way of delegating administrative privileges. This system serves as a mechanism
+    of preceding administrative commands with `sudo` and fine-grained delegation through
+    the `/etc/sudoers` file.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Once users are trusted and tasks are delegated to them in the `/etc/sudoers`
+    file, they can then run commands trusted to them using `sudo`. The basic command
+    syntax is as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE2]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'In the preceding example, `<command>` will be replaced by the administrative
+    command normally reserved for root user, as shown in the following command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE3]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'The command string listed previously allows a trusted user to create a new
+    user account: `bob`. It will be normal for a user to be prompted for their password
+    when a command with `sudo` is first run. The system defaults to cache their credentials
+    for 5 minutes. In this way, should they need to run several commands as a root
+    user using `sudo` over a short time period, they will be prompted just once for
+    their password.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: With `sudo`, we do not need to divulge the root user's password to our administrators
+    or delegate a specific command or group of commands to individuals or groups.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'To delegate rights for a user called `sally` to be able to run the `useradd`
+    command along with the `passwd` command, an entry can be added to the `/etc/sudoers`
+    file. We can also prevent `sally` from changing the root password within the same
+    entry. This will be similar to the following command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE4]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Editing should be implemented as `root` using the `visudo` command. In this
+    way, changes are verified before they are saved (preventing corruption of the
+    file). More detailed configuration examples can be obtained by consulting the
+    `man` pages:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE5]'
+  prefs: []
+  type: TYPE_PRE
+- en: By default, with `sudo`, members of the `wheel` administrative group are permitted
+    to run all commands without any additional administrative effort.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'To elevate security in order to acquire the password of the user to be entered
+    for each `sudo` command and overwrite the default timeout of 5 minutes, use `visudo`
+    and add the following line to the `/etc/sudoers` file:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE6]'
+  prefs: []
+  type: TYPE_PRE
+- en: For the rest of the book, administrative commands will be run as a standard
+    user and prefixed with the `sudo` command. The user will be a member of the `wheel`
+    group. In this manner, we hope to set best practice with security at the heart
+    of your thinking.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Using ip and hostnamectl
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: Many administrators on Linux have become used to using the `ifconfig` command
+    in order to display and set IP addresses on Linux hosts. Although the `ifconfig`
+    command is still valid, it's marked as obsolete in favor of the `ip` command.
+    For Microsoft Windows administrators who move to Linux, the use of `ifconfig`
+    becomes the obvious choice. As `ipconfig` closely resembles the Windows command
+    line, I encourage you to learn the ongoing `ip` command and all that it has to
+    offer. Using either the `ifconfig` or `ip` command on RHEL 7 will also introduce
+    new, consistent device names. This may come as a little shock to those used to
+    `/dev/eth0`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Finally, we will look at something very new to RHEL using the `hostnamectl`
+    command. This can be used to set the `hostname` for the current session and persistently
+    in a single shot, rather than using the `hostname` command and editing the `/etc/hostname`
+    file.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Consistent naming for network devices
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: With the hardware that we have on servers and desktops, we now see far more
+    use of multiport interface cards and **LOM** (**LAN on motherboard**) interfaces.
+    If you rely on the more traditional `eth0` and `eth1` naming scheme, all this
+    will lead to inconsistent network device naming.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Within RHEL 7 and the related family of similar distributions, `udev` supports
+    a number of different naming schemes for network devices. This defaults to the
+    assignment of fixed names based on firmware, topology, and location information
+    returned from the device itself. In this way, the naming is related to the physical
+    device itself and remains consistent and predictable even in the advent of failed
+    hardware that is replaced. What we need to achieve is the avoidance of any possibility
+    of the `eth0` device becoming `eth1` and vice versa. The disadvantage is that
+    the name can be longer and less easily remembered. With reference to the RHEL
+    7.1 system that we will use throughout the course of this book, the single Ethernet
+    interface on the VMWare hosted system is named as `eno16777736`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The naming aspect is managed by `systemd`, the new initialization daemon, and
+    supports the following naming schemes when detecting hardware during the boot
+    phase:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '**Scheme 1**: This scheme specifies names that can incorporate firmware or
+    the BIOS information returned from onboard devices. These names can take the form
+    of `enoxxx` (letter `o` as in onboard). If this fails, the naming system falls
+    back to scheme 2.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**Scheme 2**: This scheme specifies names that can incorporate firmware or
+    the BIOS information returned from PCI Express slot cards. These names can take
+    the form of `ensxxx`. If this fails, the naming system falls back to scheme 3.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**Scheme 3**: This scheme specifies names that can incorporate the physical
+    location of the connector—such as the slot address—on the motherboard. These names
+    can take the form of `enpxxx`. If this fails, the naming system falls back to
+    scheme 5 (note that scheme 4 is optional).'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**Scheme 4**: This scheme identifies names based on the **MAC** (**Media Access
+    Control**) address of the **NIC** (**Network Interface Card**) and selected by
+    the administrator by setting the `HWADDR` (hardware address) attribute in the
+    network configuration file. These names take the form of the name supplied within
+    the interface configuration file''s `DEVICE` attribute. For example, if you want
+    to rename a LOM interface card from `eno16777736` to `internal`, working as root,
+    you will edit the `/etc/sysconfig/network-scripts/ifcfg-eno16777736` file. You
+    will be required to add the `HWADDR` attribute and edit the `DEVICE` attribute
+    so that the file reads similar to the following extract:'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '[PRE7]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: '**Scheme 5**: If all else fails, the naming system will fall back to the traditional
+    kernel unpredictable naming scheme, such as `eth0`, `eth1`, and so on.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'To summarize, each interface device will normally have a two character prefix.
+    This denotes the protocol type of the NIC. The following list illustrates these
+    prefixes:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`en`: This denotes Ethernet'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`wl`: This denotes wireless LAN'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`ww`: This denotes Wide Area Wireless'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'The character that follows the prefix denotes the naming scheme used and the
+    type of hardware detected, as shown in the following table:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '| Position 3 of device name | Description |'
+  prefs: []
+  type: TYPE_TB
+- en: '| --- | --- |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `o` | This is the onboard device |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `s` | This is the hot-plug slot |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `p` | This is the PCI or USB device |'
+  prefs: []
+  type: TYPE_TB
+- en: A real-life network device naming example
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'In order to show you the consistent network device naming system on a physical
+    machine and a virtual machine we have been using so far, we will venture out to
+    my Dell laptop that runs on the Fedora 21 workstation. This has a wired network
+    card (which is not currently connected) and a wireless port (which is the active
+    connection). Using the `ip address show` command, we can see two physical interfaces
+    and the local or the `loopback` interface:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![A real-life network device naming example](img/image00192.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'When we look at device names and ignore the local interface: `lo`, we see interface
+    `2` as `enp9s0` and interface `3` as `wlp12s0`.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '**For Interface 2**:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: The wired Ethernet is `en`
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: The PCI bus address is `p9`
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: The slot number is `s0`
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'We can view this PCI device using the `lspci` command; the command and output
+    is as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE8]'
+  prefs: []
+  type: TYPE_PRE
+- en: We can see this does relate to the physical device mentioned in the naming scheme
+    (PCI Bus `9` and slot `0` in the Ethernet card).
+  prefs: []
+  type: TYPE_NORMAL
+- en: '**For Interface 3:**'
+  prefs: []
+  type: TYPE_NORMAL
+- en: The wireless Ethernet is `wl`
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: The PCI bus address is `p12`
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: The slot number is `s0`
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Again, using `lspci` and `grep`, we can see this device. The PCI bus (`12`)
+    in hexadecimal appears as `0c` from the output of `lspci` because this uses hexadecimal
+    and the device naming scheme uses decimal values:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE9]'
+  prefs: []
+  type: TYPE_PRE
+- en: Disabling consistent network device naming
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: For simplicity, especially where you have a single interface, you may preferably
+    use the traditional name (`eth0`). You may also have legacy software that requires
+    this naming scheme. These legacy names can still be used, as you learned when
+    using the naming scheme 4\. Adding the `HWADDR` attribute to the network configuration
+    file and either renaming the `/etc/syconfig/network-scripts/ifcfg-eth0` file or
+    configuring the `DEVICE` name attribute with a value of `eth0` will help you achieve
+    your goal.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'To set this globally across the system for all interfaces, you will be required
+    to use additional kernel parameters at boot time. This can be set via `GRUB2`
+    in the `/etc/default/grub` file. The `GRUB_CMDLINE_LINUX` line should be changed
+    to the following code, appending the `biosdevname` and `net.ifname` command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE10]'
+  prefs: []
+  type: TYPE_PRE
+- en: '![Disabling consistent network device naming](img/image00193.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'Once the file is edited and saved, we can update the `GRUB2` configuration
+    with the following command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE11]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'We then need to reboot our system to see that the view changes to interface
+    names:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE12]'
+  prefs: []
+  type: TYPE_PRE
+- en: Tip
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: It's strongly recommended that you persevere with the consistent names and accept
+    that this naming scheme addresses the inconsistent nature of device-naming that
+    the traditional kernel names previously presented to administrators.
+  prefs: []
+  type: TYPE_NORMAL
+- en: For the rest of this book, we will use the standard naming system associated
+    with the single NIC on the RHEL 7.1 system, that is, `eno16777736`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Using the ip command to display configurations
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: We started this chapter outlining with the fact that the preferred command to
+    use to display and configure the IP address configuration from the command line
+    on RHEL 7.1 is `ip`. The `ip` command is part of the `iproute` RPM package and
+    replaces the now obsolete `ifconfig` command, which is part of the net-tools RPM.
+    The `ifconfig` command is still installed, but `ip` is preferred.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'We can display the IP address for all interfaces, using the `address show`
+    option for the `ip` command. This can be implemented in one of the three ways,
+    shown as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`$ ip address show`'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`$ ip a s`'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`$ ip a`'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'We start with the verbose use of options, where the full `address show` command
+    is used. This can be abbreviated to `a s`, or as the default action is `show`
+    for the address command, just use `ip a`. Extending this a little, we can display
+    the IP address for just a single interface or a single protocol as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE13]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'The following screenshot displays the command and output from the demonstration
+    system when you view the IPv4 address for the configured NIC:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Using the ip command to display configurations](img/image00194.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Tip
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: The use of the dynamic term within the third line of the `scope global dynamic
+    eno16777766` output is indicative of an address assigned via **DHCP** (**Dynamic
+    Host Control Protocol**).
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'To view the transmission statistics for this same interface, we change to the
+    `link` option, as shown in the following command line and output:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE14]'
+  prefs: []
+  type: TYPE_PRE
+- en: '![Using the ip command to display configurations](img/image00195.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'We can already start to feel the flexibility associated with this command,
+    but we are not restricted to just `link` and `address` as options. In the following
+    commands, we first view the route table and then the **ARP** (**Address Resolution
+    Protocol**) cache. Each command is shown in the verbose form and then short form.
+    The shortened form is especially useful if you can''t spell neighbor:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE15]'
+  prefs: []
+  type: TYPE_PRE
+- en: Tip
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: The ARP cache displays the MAC addresses of the devices that you have connected
+    to that exist on the same network.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Using the ip command to implement configuration changes
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'As a stalwart at displaying the configuration information, the `ip` command
+    is a dab hand at changing the IP address''s dynamic configuration too, this time
+    using `add` in place of `show`. For example, to add an additional IPv4 address
+    to our interface, we will use the following command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE16]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'We can now view this information using the `show` command we looked at previously,
+    as shown in the following command and output:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE17]'
+  prefs: []
+  type: TYPE_PRE
+- en: '![Using the ip command to implement configuration changes](img/image00196.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: When we look carefully at the output, we can see the DHCP address we had before
+    and the additional address we have just applied. Although these settings have
+    been added only for this session, on a restart of the network or interface, we
+    will revert to the single DHCP assigned address.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'To restart all interfaces using network services, we will use the following
+    command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE18]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'If we have more than one interface in the system and we are using the NetworkManager
+    service, which is the default interface, we can stop and start a single interface
+    using the following commands:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE19]'
+  prefs: []
+  type: TYPE_PRE
+- en: Tip
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: There will be much more information on the `nmcli` command later in this chapter.
+  prefs: []
+  type: TYPE_NORMAL
+- en: So, although we can add IP addresses dynamically to our running system, if we
+    want the change or changes to be permanent, then we need to add the configuration
+    information to the configuration file.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Persisting network configuration changes
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'To change from the DHCP assigned address we are using on the demonstration
+    RHEL 7.1 system, we will assign a static address in the network configuration
+    file related to our `/etc/sysconfig/network-scripts/ifcfg-eno16777736` interface.
+    To edit the text file, you can use your favored text editor: `vi` or `nano`; here,
+    we will use `vi`:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE20]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'After editing the file in the preceding command line, it should read similar
+    to the following file content. Of course, with any pertinent information to your
+    network being set as opposed to IP addresses, we use:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE21]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'As always, take care when editing files. In reality, much of the file can stay
+    as it is because we edit changes to just the following one line:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE22]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Add four new lines:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE23]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'With the changes made and saved, we need to refresh NetworkManager using the
+    following command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE24]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'This will re-cache the network configuration files. With this done, we can
+    stop and start the following interface:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE25]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Alternatively, just restart the network service as we did before. This single
+    command replaces three commands here. However, it disrupts all interfaces. So,
+    the following command should only be used where we have a single interface:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE26]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Now that we have a static IPv4 address configured for our interface, we will
+    now see that we lose the keyword `dynamic` from the output from the `ip address
+    show` command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE27]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'We have now seen how we can successfully configure IPv4 settings from the command
+    line and through configuration files. We will now move on to the final part of
+    the network configuration: the hostname.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Configuring the RHEL 7 hostname with hostnamectl
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: With the advent of `systemd` on RHEL 7 and its derivatives, we have a brand
+    new way to display and set the hostname using the `hostnamectl` command. The advantage
+    of this tool is that the static name and the transient name can be configured
+    in one step.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'We will edit the `/etc/hostname` file and add the new static hostname. This
+    is then read by the kernel at system startup and displayed as the transient hostname,
+    which is often used as part of your BASH shell prompt. The transient hostname
+    can be displayed and set using the `hostname` command. This was a two part process:
+    using `hostname` to set the transient name maintained by the kernel and editing
+    the `/etc/hostname` file to ensure that it persisted across reboots.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'With RHEL 7, we have these two hostnames and a third hostname: the pretty name.
+    The pretty name can display UTF-8 characters that allow you to embed spaces and
+    apostrophes. The pretty name, when set, is stored in the `/etc/machine-info` file.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'To display the configured hostname, the `hostnamectl` command can be used.
+    The pretty name will only be displayed if the configured hostname contains characters
+    that cannot make up part of the static hostname. In the same way, the `/etc/machine-info`
+    file will only exist if the pretty name is used to store a name incompatible with
+    the `/etc/hostname` file:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'To display the hostname as a standard user, the following command can be issued:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE28]'
+  prefs: []
+  type: TYPE_PRE
+- en: '![Configuring the RHEL 7 hostname with hostnamectl](img/image00197.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'As spaces are used in the hostname, the **Pretty hostname** will show. The
+    **Pretty** and the **Static** names relate to the `/etc/machine-info` and `/etc/hostname`
+    file respectively and can be used in the following command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE29]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'The output for the preceding command line results in the following output:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE30]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'To configure the hostname using `hostnamectl`, we use the `set-name` option,
+    as shown in the following command. This command does not need to be prefaced as
+    `sudo` if the user is a member of the `wheel` administrative group, but the user
+    will be prompted for their password. These permissions are configured using the
+    policy kit:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE31]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'This will set all three names; to see the transient name, a new shell should
+    be initiated by running the `bash` command. To set individual names, include the
+    correct option to `hostnamectl` as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE32]'
+  prefs: []
+  type: TYPE_PRE
+- en: Introduction to the Red Hat NetworkManager
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: The `NetworkManager` service has been a part of RHEL since version 6 and in
+    its simplest form allows users to configure network configuration settings (such
+    as joining Wi-Fi networks). Of course, this is really necessary when we consider
+    laptop users with a Fedora or an RHEL laptop. This service extends well beyond
+    the GUI and to server products installed with or without the X Server environment.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The `NetworkManager` service that ships with RHEL 7 is a dynamic network control
+    and configuration daemon to keep network interfaces active while they remain available.
+    As we have seen, the `NetworkManager` service not only maintains support for the
+    traditional `ifcfg-` file type, but also extends this support to additional profiles.
+    In this way, we can easily have a static IP address configuration for your laptop
+    for different offices that you may visit, rather than relying on DHCP on each
+    site.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Configuration of the `NetworkManager` service can be maintained via the GUI
+    control center or from the `nmtui` command line menu. We have also seen that we
+    can avoid the menu, enabling scripting events from the command line, using the
+    `nmcli` command.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'To query the status of the `NetworkManager` service, we can use the `systemctl`
+    utility, as shown in the following command and the associated output screenshot:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE33]'
+  prefs: []
+  type: TYPE_PRE
+- en: '![Introduction to the Red Hat NetworkManager](img/image00198.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'Users and administrators can interact with the NetworkManager service by using
+    one of the following utilities:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: The GNOME notification area icon
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: The GNOME network settings control center
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: The `nmtui` menu
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: The `nmcli` command-line tool
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Interacting with the NetworkManager using the Control Center
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'If you are using RHEL, CentOS, or Fedora on a graphical environment, then with
+    the GNOME control center, we can interact with the NetworkManger service. We can
+    also access network settings from the notifications area icon. This can be seen
+    in the following screenshot on the RHEL 7.1 system:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Interacting with the NetworkManager using the Control Center](img/image00199.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'To access the same, but through the control center, we can use the **SUPER**
+    key. In the search dialog box, we will enter `control network`, as seen in the
+    following screenshot:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Interacting with the NetworkManager using the Control Center](img/image00200.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Once we have accessed **Network Settings**, it's possible to simply disable
+    all wireless interfaces with the traditional **Airplane Mode**. In this way, you
+    can be assured of not plummeting to your certain death during takeoff and landing
+    and still enjoy your game of *Candy Crush Saga*.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'On the left-hand side panel, we can view the current known interfaces and the
+    **Network proxy** settings. Here, we can add web proxies if required. On the RHEL
+    7.1 system we are using in this book, we see two network interface groups on the
+    left-hand side panel:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '**Wired**'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**Unknown**'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'In the graphic, the **Wired** interface represents my gigabit Ethernet card
+    and the **Unknown** interface represents the local loopback connection. If your
+    system includes a wireless card, you may well see **Wi-Fi** as an option too.
+    While selecting the **Wired** interface from the left-hand side panel, the right-side
+    panel will display your current network profiles. As we have only one profile,
+    the name of this profile is not shown, but this will represent the default system
+    profile we configured previously in this chapter: `eno16777736`.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'From the bottom of the right-side panel, we can create additional profiles
+    with the **Add Profile** button, whereas the gearwheel in the bottom right-side
+    corner will allow you to alter the properties of the current profile. All of this
+    can be seen in the following screenshot:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Interacting with the NetworkManager using the Control Center](img/image00201.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Adding a new profile with the Control Center
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: More useful for mobile systems, such as laptop devices and tablets, we may configure
+    profiles to easily load network configuration information specific to the location
+    where you use the device. For example, if you are using a laptop at home, you
+    may have a specific static IP address set, whereas when at work, you may have
+    a DHCP-assigned address. Profiles can handle this situation easily and effortlessly.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Using the **Add Profile** button from the Network Settings control center,
+    we are presented with the **New Profile** dialog box. From the left-side panel,
+    we can select an option from the following given options:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '**Security**'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**Identity**'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**IPv4**'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**IPv6**'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: We will create a new profile for DHCP for when at home; if you remember, we
+    set a static IPv4 address earlier in the section using the traditional `ifcfg-
+    script` located in the `/etc/sysconfig/network-scripts` directory. We will retain
+    this setting and additionally allow ourselves to switch from the static address
+    to DHCP and back as required.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Selecting the **Identity** option from the left-side panel, we will set **Name**
+    to `home-DHCP`. From the drop-down list, choose **MAC Address** associated with
+    the interface that we want to assign to this profile. Finally, we can deselect
+    the checkbox to **Connect automatically** so that the default connection will
+    still be the static assignment we chose earlier. We can manually select this profile
+    as required. We can leave all the other settings as they are; this includes the
+    automatic DHCP assignment of addresses for the **IPv4** and **IPv6** settings.
+    Navigate to the bottom-right corner of the open dialog box and select the **Add**
+    button to create a profile. The following screenshot shows the settings that we
+    have chosen:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Adding a new profile with the Control Center](img/image00202.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'Having created the new profile, we can easily select between two profiles using
+    the GNOME notification panel, which simplifies the transition between differing
+    networks. In the following screenshot, we can see the currently selected **eno16777736**
+    profile and how we can switch to the newly created **home-DHCP** profile:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Adding a new profile with the Control Center](img/image00203.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: We have now seen how we can set the network profile information using graphical
+    tools on RHEL 7.1\. For those running on RHEL or Fedora without the X server,
+    we can easily manage the `NetworkManager` connection using the `nmtui` ncurses
+    menu.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Interacting with the NetworkManager using nmtui
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'Just as with the GUI profile management within the GNOME control center, we
+    can use the text user interface provided by the `nmtui` command. This is the traditional
+    blue screen command-line menu provided by the ncurses system. If the command is
+    not available on your system, then it can be installed using `yum`, as shown in
+    the following command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE34]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Once installed, the NetworkManager menu can be accessed using the following
+    command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE35]'
+  prefs: []
+  type: TYPE_PRE
+- en: If you are using PuTTY to connect to your server via SSH, then in order to ensure
+    that the menu border show correctly, you should set the **Character set translation**
+    option to **UTF-8**. This can be found in connection settings and **Window** |
+    **Translation**.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The **NetworkManager** menu displayed on the RHEL 7.1 system used in this book
+    looks clean, if a little simple, and is displayed in the following screenshot:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Interacting with the NetworkManager using nmtui](img/image00204.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: The `nmtui` command also offers shortcut wrappers to specific tasks within the
+    menu. These take the form of the `nmtui-edit`, `nmtui-connect`, and `nmtui-hostname`
+    commands. The first two commands are useful when you already know the name of
+    the connection profile you want to activate or edit, whereas the last command
+    sets the hostname system-wide.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'To activate the home-DHCP profile we created previously, we will issue the
+    following command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE36]'
+  prefs: []
+  type: TYPE_PRE
+- en: This will effectively switch from the static IP address to the automatically
+    allocated DHCP address. You should issue this command from the console and not
+    remotely as you will lose your connection when the address is changed from static
+    to DHCP.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'This can also be used to connect to a new Wi-Fi SSID, should you be geeky enough
+    to be using a command line-only version of Fedora while at Starbucks:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE37]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'To change the properties of the same connection profile, we will use the following
+    command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE38]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'This will open up the property page for the homeDHCP connection profile in
+    readiness for editing purposes. To open the hostname menu page for editing purposes,
+    you can use the following command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE39]'
+  prefs: []
+  type: TYPE_PRE
+- en: Extreme interaction with NetworkManager using nmcli
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: For those who believe that the only true form of Linux is without the aid of
+    menus, using solely the wisdom handed down to you through your Jedi parentage,
+    we have the extreme sport of `nmcli`. Joking aside, working with the `NetworkManager`
+    in this way, without interaction of menus, will allow you to make changes in scripts,
+    which can then be implemented across many systems.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'As a simple starter, we can use `nmcli` to scan for available Wi-Fi networks;
+    the output should show you the Wi-Fi SSID and strength as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE40]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'This procedure is greatly simplified compared to the traditional command-line
+    mechanism we have used before to display SSIDs with the `iw` command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE41]'
+  prefs: []
+  type: TYPE_PRE
+- en: The process with `nmcli` is simplified for us, as the `NetworkManager` can use
+    the configured `polkit` permissions. These permissions or actions (using the `polkit`
+    language) are configured by the system administrator and are not meant to be changed
+    by users. The policy file is located at the `/usr/share/polkit-1/actions/org.freedesktop.NetworkManager.policy`
+    location.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'We can use `nmcli` to display configured permissions with the following command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE42]'
+  prefs: []
+  type: TYPE_PRE
+- en: '![Extreme interaction with NetworkManager using nmcli](img/image00205.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'Should we want to be able to create a connection for the wired interface when
+    it''s up and available, we can do so with `nmcli`. This can also be easily scripted
+    across many devices as and when required. Firstly, we create the connection profile,
+    as shown in the following command and output:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE43]'
+  prefs: []
+  type: TYPE_PRE
+- en: This command is greatly simplified when you know the fact that tab completion
+    is enabled even for subcommands and values—such as `enp9s0`—that we add as a value
+    to `ifname`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'To complete the task, we need to add the DNS configuration to the connection
+    profile, which we can affect with the use of the following command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE44]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'We can now display the properties with the following command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE45]'
+  prefs: []
+  type: TYPE_PRE
+- en: The `-p` option used here is for the pretty output; for the terse output, `-t`
+    may be implemented. Either way, the output is too verbose to show as part of the
+    book.
+  prefs: []
+  type: TYPE_NORMAL
+- en: We have now replicated creating a connection profile that we first saw when
+    we started with the control center. We do not pretend that this is easy, but being
+    able to script this presents a multitude of options not available with any form
+    of interactive menu, be that the text menu from `nmtui` or the GUI from the control
+    center.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Summary
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: In this chapter, we have really established a baseline of knowledge that we
+    need to begin to understand networking on the RHEL 7 family. To begin with, you
+    learned how to gain and manage privileges on RHEL using `su` and `sudo`. Further,
+    we looked at how to restrict the use of `su` to members of the `wheel` group with
+    PAM. We have also begun our administration in the way that we mean to continue,
+    using `sudo` to manage administrative tasks rather than logging in as root or
+    using `su`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: With the ground knowledge of rights set, we moved on to understand the new naming
+    conventions of network devices on the Red Hat release. We learned why it's preferred,
+    compared to traditional names before moving on to the network configuration.
+  prefs: []
+  type: TYPE_NORMAL
+- en: To configure network interfaces, we can use traditional `ifcfg-` scripts and
+    these are used by default. We can extend this to additional network profiles that
+    are probably most useful with mobile devices—such as laptops—that connect to different
+    network locations. We saw how these can be configured in many different ways from
+    menus to raw command-line tools.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Next up, we will look at how to configure key network services, such as DNS,
+    DHCP, and SMTP.
+  prefs: []
+  type: TYPE_NORMAL

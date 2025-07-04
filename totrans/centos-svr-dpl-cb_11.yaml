@@ -1,0 +1,1789 @@
+- en: Chapter 11. Safeguarding Against Threats
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'This chapter contains the following recipes:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Sending messages to Syslog
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Rotating log files with logrotate
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Using Tripwire to detect modified files
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Using ClamAV to fight viruses
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Checking for rootkits with chkrootkit
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Using Bacula for network backups
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Introduction
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: From logging your system's activities to sniffing out rootkits, this chapter
+    presents recipes to help protect the investment you've made in your system and
+    its data against various threats. First, you'll learn how to set up a central
+    log server using Syslog, and then, how to rotate log files to make sure that they
+    don't grow out of control. Then, we'll look at how Tripwire is used to detect
+    system intrusion by checking if changes have been made to important system files.
+    This chapter also contains recipes for setting up ClamAV and chkrootkit to keep
+    your system free of viruses, Trojans, rootkits, and other malware. We'll finish
+    with how to set up a centralized backup server using Bacula to safeguard your
+    data from everyday threats such as accidental deletion and hardware failures.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Sending messages to Syslog
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: Syslog is a process that listens for messages from other applications and writes
+    them to its log files, providing a common service to handle all logging activity.
+    Messages can also be sent to a running instance of Syslog on a remote system acting
+    as a centralized log server for your entire network. Apart from convenience, centralized
+    logging can be useful for security reasons and also because it's harder for an
+    attacker to cover their tracks when it's logged to a second system. In this recipe,
+    you'll learn how to configure local and remote instances of Syslog to run your
+    own log server.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Getting ready
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: This recipe requires two CentOS systems with working network connections. The
+    recipe will refer to the first system as the local system and assume that it is
+    configured with the IP address `192.168.56.100` and the hostname `benito`. The
+    second system, referred to as the remote system, is assumed to have the address
+    `192.168.56.35` and the hostname `logs`. The systems should be able to access
+    each other by the hostnames; so, you will need to add the appropriate DNS records
+    or override entries in the systems' `/etc/hosts` files. Administrative privileges
+    are also required either by logging in with the `root` account or through the
+    use of `sudo`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: How to do it...
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'To forward log messages from the local system to the remote system, perform
+    the following steps on the local system:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Open Syslog''s configuration file using your text editor:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE0]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'At the end of the file, add the following rule:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE1]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: Save the change and close the configuration file.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'Restart Syslog for the updated configuration to take effect:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE2]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Then, to accept incoming log messages, perform the following steps on the remote
+    system:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Open Syslog''s configuration file using your text editor:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE3]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Locate the `$ModLoad` directive responsible for loading the `imudp` module
+    and uncomment it by removing the leading `#` character. Uncomment the `$UDPServerRun`
+    directive that immediately follows it as well:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE4]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: Save the changes and close the configuration file.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'Restart Syslog for the updated configuration to take effect:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE5]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Open the firewall to UDP traffic on port `514`:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE6]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: How it works...
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: Syslog receives messages through several logging facilities, and each message
+    has an assigned priority/severity. Messages can be filtered based on their facility
+    and priority so that the desired messages are relayed while the rest are discarded.
+    A list of facilities and priorities are both outlined in RFC-5424 (the Syslog
+    protocol), and Rsyslog (the version of Syslog available in CentOS) implements
+    most of them.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Facilities offer a broad categorization designed to organize messages by the
+    type of service that generates them. You can think of them as channels, where
+    a message that logs a user''s failed login attempt can be sent over the `auth`
+    channel separate from messages logging the restart of a service sent over the
+    `daemon` channel. Rsyslog''s facilities are the following:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`auth`: Security and authorization-related messages'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`cron`: Messages from cron'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`daemon`: Messages from system daemons'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`kern`: Messages from the Linux kernel'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`lpr`: Messages from the system''s printer services'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`mail`: Messages from the system''s mail services'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`news`: Messages from NTTP services'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`syslog`: Messages generated by Syslog itself'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`user`: User-level messages'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`uucp`: Messages from UUCP services'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`local0`-`local7`: User-level facilities for messages that aren''t handled
+    by the other facilities'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Priorities indicate the severity of the message, for example, a situation that
+    generates an error message is more severe than one generating an informational
+    or debugging message. Rsyslog''s priorities are as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`emerg`, `panic`: The system is unusable'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`alert`: Immediate action is required'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`crit`: A critical event happened'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`err`, `error`: An error happened'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`warn`, `warning`: A significant condition is encountered'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`notice`: Notice messages'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`info`: Informational messages'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`debug`: Debugging messages'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: The rules in Syslog's configuration file specify where a log is written to and
+    they are made up of two parts—the first part is a pattern that identifies a facility
+    and priority. It consists of both the facility and priority names separated by
+    a dot, for example, `auth.warn` or `local2.debug`. More than one facility can
+    be separated by commas, as in `auth,daemon,cron.warn`. Additionally, `*` can be
+    used as a wildcard to match all facilities or priorities. `auth.*` represents
+    messages coming through the `auth` facility of any priority, `*.warn` represents
+    messages with a priority of `warn` or above from any facility, and `*.*` represents
+    all messages regardless of facility or priority.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Messages that match the pattern are processed by the rule's second part, the
+    action. Usually, the action is the location of a file that the message is written
+    to, but it can also discard the message (use `~` as the location), send the message
+    to a named pipe to be handled by an external process (prefix the location with
+    `|`), or forward the message to another system (give a hostname as the location
+    prefixed with `@`).
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Since Rsyslog is installed, the service''s configuration file is `/etc/rsyslogd.conf`.
+    On the local system we added the following rule:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE7]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'This rule matches all messages and sends them to the server `logs.example.com`.
+    One `@` means messages will be sent using UDP while two means they will be sent
+    using TCP:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE8]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Then, we uncommented the following configuration on the remote system:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE9]'
+  prefs: []
+  type: TYPE_PRE
+- en: '`$ModLoad` loads a Syslog module, in this case `imudp`, which handles incoming
+    messages over UDP. The `$UDPServerRun` directive specifies the port which the
+    module listens to for the messages. Traditionally, Syslog messages are sent to
+    port `514`.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Note
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: Syslog can be configured to transmit messages using TCP, but unless you have
+    specific need to do so, I recommend that you use UDP. UDP is less reliable, but
+    TCP entails more overhead and can result in more severe network congestion during
+    heavy logging events.
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![How it works...](img/image_11_001.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: The configuration file contains rules to direct messages to different files
+    based on their facility and priorities
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Many applications are capable of sending messages to Syslog, even if they write
+    to their own log files by default. Some programs do so when given an appropriate
+    argument on the command line, for example, MySQL accepts the `--syslog` argument.
+    Others, such as BIND and Apache, require changes in their configuration files.
+    Even the shell scripts you write can send messages to Syslog using the `logger`
+    command as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE10]'
+  prefs: []
+  type: TYPE_PRE
+- en: '`logger` accepts several arguments and then the log message. `-n` specifies
+    the server where the message is sent (messages are sent to the local system''s
+    Syslog instance when not provided) and `-p` specifies the facility and priority
+    for the message.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: See also
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'Refer to the following resources for more information on working with Syslog:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: The Rsyslog website ([http://www.rsyslog.com/](http://www.rsyslog.com/))
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Basic configuration of Rsyslog ([https://access.redhat.com/documentation/en-US/Red_Hat_Enterprise_Linux/7/html/System_Administrators_Guide/s1-basic_configuration_of_rsyslog.html](https://access.redhat.com/documentation/en-US/Red_Hat_Enterprise_Linux/7/html/System_Administrators_Guide/s1-basic_configuration_of_rsyslog.html))
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'RFC5424: The Syslog protocol ([http://www.rfc-base.org/txt/rfc-5424.tx](http://www.rfc-base.org/txt/rfc-5424.tx)t)'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Rotating log files with logrotate
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: Log files are important because they provide better insight into what is happening
+    on a system. The debugging and error messages in a log can be used to track down
+    the source of a problem and resolve it quickly. Authentication messages maintain
+    a record of who accessed the system and when, and repeated authentication failures
+    can be a sign that an attacker is trying to gain unauthorized access. However,
+    the usefulness of logs typically diminishes with age, and chatty applications
+    that generate a lot of log entries could, if left unchecked, easily consume all
+    of the system's storage resources. This recipe will show you how to rotate the
+    log files to prevent the files from growing out of control and stale logs from
+    wasting space.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Getting ready
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: This recipe requires a CentOS system with a working network connection. Administrative
+    privileges are also required either by logging in with the `root` account or through
+    the use of `sudo`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: How to do it...
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'Follow these steps to configure log file rotation using `logrotate`:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Create the `/etc/logrotate.d/example` file:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE11]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Write the following contents to the file:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE12]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: Save your update and close the file.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: How it works...
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: '`logrotate` rotates the log files by renaming them as sequential backups and
+    creating a new file for the application to write to. While rotating `example.log`,
+    it renames `example.log` to `example.log.1`. If `example.log.1` exists, it renames
+    that file to `example.log.2` first (and so on for the other enumerated files).'
+  prefs: []
+  type: TYPE_NORMAL
+- en: For the sake of this example, this recipe created a new configuration to rotate
+    the `/var/log/example.log` file. The main configuration file of `logrotate` is
+    `/etc/logrotate.conf`, while additional files can be placed in the `/etc/logrotate.d`
+    directory. You'll want to check `logrotate.d` to see if rotation for the application's
+    logs you want to manage is already configured (many packages will drop a configuration
+    file there as a courtesy). You can then update the configuration if the package
+    maintainer's configuration doesn't suit your needs. Directives in the main file
+    set the global behavior, which is overridden on a per-configuration basis by the
+    additional files in `logrotate.d`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The configuration supplies the name of the targeted log file followed by a
+    braced set of directives that specifies how `logrotate` should manage the file.
+    `*` can be used as a wildcard to match multiple files which is useful when an
+    application writes to more than one log file. For example, the Apache HTTP server
+    logs messages to `access_log` and `error_log` in /`var/log/http`. So it''s configuration
+    targets the log files as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE13]'
+  prefs: []
+  type: TYPE_PRE
+- en: The `monthly` directive instructs `logrotate` to rotate the files on a monthly
+    basis. Other options are `daily`, `weekly`, and `yearly`. Alternatively, you can
+    instruct `logrotate` to manage files based on their size—the `size` directive
+    specifies a size and `logrotate` will rotate those files that are larger than
+    that.
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE14]'
+  prefs: []
+  type: TYPE_PRE
+- en: If a value is given without a unit, the given value is understood as bytes.
+    `logrotate` also supports `k` for kilobytes, `M` for megabytes, and `G` for gigabytes.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The `rotate` directive specifies how many log files to keep in the rotation.
+    In our scenario, four files are allowed; so, `example.log.3` overwrites `example.log.4`
+    and there is no `example.log.5`. The `missingok` directive lets `logrotate` know
+    that it''s okay to go on if a log file doesn''t exist (its default behavior is
+    to raise an error). Also, the `notifempty` directive instructs `logrotate` to
+    skip rotating if the file is empty. The `create` directive instructs `logrotate`
+    to create a new log file after renaming the original and supplies the mode, user,
+    and group for the new file:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE15]'
+  prefs: []
+  type: TYPE_PRE
+- en: '![How it works...](img/image_11_002.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Rotated log files are numbered in sequence
+  prefs: []
+  type: TYPE_NORMAL
+- en: Note
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: The content of the original `example.log.4` file doesn't have to be lost. One
+    option is to use the `mail` directive to instruct `logrotate` to e-mail its contents
+    to you before overwriting it.
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`**mail tboronczyk@example.com**`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Personally though, I recommend using `mail` only if the file is relatively small
+    since sending a large file can cause undue strain on the mail server. Also, a
+    log file that contains sensitive information shouldn't be transmitted by e-mail.
+    For sensitive logs and larger files, I recommend using `prerotate` to invoke `scp`
+    or another utility to copy the file elsewhere before the rotation.
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE16]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'We can specify external actions to be performed before and after the log files
+    are rotated. The `prerotate` directive supplies a set of shell commands that will
+    be executed before the rotation process begins, and the `postrotate` directive
+    supplies commands that will be run after rotation. Both directives use `endscript`
+    to mark the end of the command set as shown in the preceding tip and in the recipe''s
+    configuration. The configuration invokes `kill` to send the hang-up signal (`HUP`)
+    to the example process which would reload that daemon. Some programs might be
+    confused if the log file they''re writing to is moved and recreated, and reloading
+    it causes the program to reopen its connection to the log file so that it can
+    continue logging:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE17]'
+  prefs: []
+  type: TYPE_PRE
+- en: '`logrotate` is run daily via `cron`, so once you''ve created/adjusted your
+    rotation''s configuration you should be finished. The next time `logrotate` runs,
+    it will pick up the update as it re-reads all of the configuration files.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: See also
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'Refer to the following resources for more information on working with `logrotate`:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: The `logrotate` manual page (`man 8 logrotate`)
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Manage Linux log files with Logrotate ([http://www.techrepublic.com/article/manage-linux-log-files-with-logrotate](http://www.techrepublic.com/article/manage-linux-log-files-with-logrotate))
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: How to manage system logs ([http://www.tecmint.com/manage-linux-system-logs-using-rsyslogd-and-logrotate/](http://www.tecmint.com/manage-linux-system-logs-using-rsyslogd-and-logrotate/))
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Using Tripwire to detect modified files
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: This recipe shows you how to set up Tripwire, an auditing tool for detecting
+    changes made to files on your system. Most often, Tripwire is positioned as an
+    intrusion detection system because the unexpected modification of important configuration
+    files is usually a sign of intrusion or malicious activity. Being able to monitor
+    for such changes gives you the ability to detect and put a stop to malicious activity
+    in a timely manner should it occur.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Getting ready
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: This recipe requires a CentOS system with a working network connection. The
+    `tripwire` package is found in the EPEL repository, so the repository must be
+    registered as discussed in [Chapter 4](ch04.html "Chapter 4. Software Installation
+    Management"), *Software Installation Management*. Administrative privileges are
+    also required, either by logging in with the `root` account or through the use
+    of `sudo`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: How to do it...
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'Follow these steps to monitor for system intrusions using Tripwire:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Install the `tripwire` package from the EPEL repository:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE18]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Run `tripwire-setup-keyfiles` to generate Tripwire''s keyfiles and configuration
+    and policy files:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE19]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: You will be prompted to provide a passphrase for the site keyfile and local
+    keyfiles and then to give the site passphrase again to sign the configuration
+    and policy files that are generated.
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: 'Initialize Tripwire''s database. You will be prompted to provide your local
+    passphrase:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE20]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Review warnings in the output to identify files that are defined in the policy
+    but do not exist on your system:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE21]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Comment out the entries in `/etc/tripwire/twpol.txt` that reference the nonexisting
+    files in `output.txt`. If all of the warnings in `output.txt` were caused by nonexisting
+    files, then you can automate this step as follows:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE22]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Regenerate the signed policy file. Provide the password for the site keyfile
+    when prompted:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE23]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Delete the original database and initialize a new one. This time, the process
+    should finish without generating any warnings:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE24]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: How it works...
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'Tripwire audits your system to detect which files have changed. The idea behind
+    this is, if an attacker gains access to your system, they''ll inevitably create
+    or modify keyfiles to secure their presence. However, it would be trivial for
+    an attacker to modify Tripwire''s policy files to create the illusion that nothing
+    has changed; so, the configuration and policy files are signed with a keyfile.
+    The configuration file, policy file, and the keyfile are all generated when we
+    run:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE25]'
+  prefs: []
+  type: TYPE_PRE
+- en: Because the default policy tries to be as comprehensive as possible for most
+    users, there will be entries that aren't applicable to our CentOS system. If we
+    were to run with the unmodified defaults then Tripwire would report the missing
+    files, and sifting through the list of false positives would make it more difficult
+    to identify if someone deleted a file of legitimate concern. Rather than reviewing
+    the policy file manually, especially if you're not an expert and familiar with
+    some of the files, the best approach is to run an initial scan on a system that
+    is known to be clean and then let Tripwire report the nonexistent files. This
+    will help save time as we try to tailor the policy to our system.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Initializing Tripwire''s database is done using `tripwire --init`. The program
+    will scan the system, comparing the filesystem with what it knows about in the
+    policy file and collect statistics on the files that do exist. These statistics
+    are stored in the database as a baseline metric for comparison the next time Tripwire
+    runs to see if there have been changes. The recipe redirected the error output
+    containing the list of missing files to a separate text file for two reasons:
+    the list will be lengthy and it''s sometimes easier to page through a file than
+    scroll the terminal session, and we can script the process of customizing the
+    policy based on that output:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE26]'
+  prefs: []
+  type: TYPE_PRE
+- en: '`sed` is the traditional search-and-replace workhorse and `grep` is great for
+    finding and extracting lines of interest, so we can use these two tools to update
+    the policy `/etc/tripwire/twpol.txt`. First, we need to know what the messages
+    in `output.txt` look like:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE27]'
+  prefs: []
+  type: TYPE_PRE
+- en: '![How it works...](img/image_11_003.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Nonexistent files generate a warning when initializing the Tripwire database
+  prefs: []
+  type: TYPE_NORMAL
+- en: Note
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: If all of the warnings in the output file are related to nonexistent files then
+    it's safe to automate updating the policy. This is why we then carefully reviewed
+    the contents before continuing.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'We use `grep` to target the lines containing `Filename:` and then use `cut`
+    to split the line on the colon and capture the second part—the name of the nonexistent
+    file. The `for` loop captures each filename and assigns it to the variable `f`,
+    which we can then reference in our pattern to `sed`. The pattern performs a global
+    search and replace, using capturing parentheses and numeric back references to
+    overwrite the filename with a leading `#`:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE28]'
+  prefs: []
+  type: TYPE_PRE
+- en: Note
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: It's important there is a space in the search space after the filename to make
+    sure we only match the entire file. For example, we want to avoid a scenario where
+    `/etc/rc.d` will also match `/etc/rc.d/init` because of the common prefix.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'An unsigned, plain-text copy of the policy is stored at `/etc/tripwire/twpol.txt`.
+    After we make our changes, we want to create a signed policy file which is used
+    by Tripwire for the security reasons mentioned earlier. This is done with `twadmin`
+    and the `--create-policy` argument. The `-S` argument provides the command with
+    the path to our signing key and then we supply the plain-texted copy of the policy
+    as the input:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE29]'
+  prefs: []
+  type: TYPE_PRE
+- en: '`twadmin` will sign the policy and write the result to `/etc/tripwire/tw.pol`.
+    After the policy file has been modified we can then reinitialize the database.
+    In fact, any time the policy file is updated you should regenerate the database,
+    which is stored in `/var/lib/tripwire` and is named using the system''s hostname:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE30]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'To scan the system for violations, run Tripwire with the `--check` option:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE31]'
+  prefs: []
+  type: TYPE_PRE
+- en: '![How it works...](img/image_11_004.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Tripwire reports its findings after a scan is performed
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Of course, to be effective, a scan must be performed at least once a day. For
+    this reason, a cron job is installed in `/etc/cron.daily` by the `tripwire` package
+    which runs a Tripwire scan. Depending on how cron is configured, the output of
+    the scan will probably be e-mailed by cron to the system''s `root` user (and will
+    most likely end up in `/var/spool/mail/root`). You can edit `/etc/cron.daily/tripwire-check`
+    so that the output is e-mailed to you instead:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE32]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'You can also configure Tripwire to send e-mails itself if you prefer. First,
+    you''ll want to ensure that Tripwire can send mail to your address. Issue the
+    following to send a test message and then check to make sure it arrives in your
+    inbox:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE33]'
+  prefs: []
+  type: TYPE_PRE
+- en: Note
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: You can use supply the `--email-report` option when running a manual scan to
+    have Tripwire send its results to your e-mail.
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`**tripwire --check --email-report**`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: By default, Tripwire will attempt to send the e-mail via sendmail (or Postfix's
+    sendmail interface). If you need to send the mail through an SMTP server instead,
+    review the *Email Notification Variables* section in `man 4 twconfig`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Specifying the destination e-mail address is a bit more involved in Tripwire''s
+    configuration. The tests defined in the Tripwire policy file are grouped into
+    rulesets, which allows files to be grouped together in a logical fashion. For
+    example, there is a ruleset that tests the integrity of the Tripwire binaries
+    themselves, which is separate from the ruleset that tests system administration
+    programs. Each ruleset can have a defined e-mail address to send notifications
+    to, which is great for flexibility where one administrator should be notified
+    of modifications to one set of files and another admin should be notified about
+    others:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE34]'
+  prefs: []
+  type: TYPE_PRE
+- en: If you're the only administrator, repeatedly specifying the same address can
+    be tedious. A better approach would define the e-mail address as a global variable
+    and then let the creative use of `sed` come to the rescue.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'First, edit `twpol.txt` to include the variable assignment for your e-mail
+    address in the global variable definitions section:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE35]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Save the change and close the file. Then, knowing each ruleset contains a `severity`
+    directive, we can use a replacement pattern to insert the `mailto` directive:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE36]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'The end result should include the `emailto` directive in each ruleset''s definition:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE37]'
+  prefs: []
+  type: TYPE_PRE
+- en: After you inspect the results, resign the policy file and reinitialize the database.
+  prefs: []
+  type: TYPE_NORMAL
+- en: See also
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'Refer to the following resources for more information on working with Tripwire:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Introduction to Tripwire (`man 8 twintro`)
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Tripwire configuration manual page (`man 4 twconfig`)
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Tripwire policy manual page (`man 4 twpolicy`)
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Intrusion detection with Tripwire ([http://www.akadia.com/services/tripwire.html](http://www.akadia.com/services/tripwire.html))
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: How to set up and use Tripwire ([http://www.linuxjournal.com/article/8758](http://www.linuxjournal.com/article/8758))
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Using ClamAV to fight viruses
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: The threat from viruses, Trojans, and other forms of malware is real. They have
+    grown exponentially in both quantity and in sophistication, and antivirus software
+    have had to adopt sophisticated detection methods. While there's no guarantee
+    that your system will not fall victim to these unwanted bits of code, remaining
+    mindful when using the Internet and sharing files, implementing common-sense security
+    policies, and using an up-to-date antivirus program can go a long way in protecting
+    you. This recipe will show you how to install ClamAV, the professional-grade open-source
+    antivirus program, keep its threat database up to date, and scan your system.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Getting ready
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: This recipe requires a CentOS system with a working network connection. The
+    ClamAV packages can be found in the EPEL repository, so the repository must be
+    registered as discussed in [Chapter 4](ch04.html "Chapter 4. Software Installation
+    Management"), *Software Installation Management*. Administrative privileges are
+    also required either by logging in with the `root` account or through the use
+    of `sudo`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: How to do it...
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'Follow these steps to install ClamAV and scan for viruses and Trojans:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Install the `clamav` and `clamav-update` packages from the EPEL repository:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE38]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Open the `freshclam` configuration file with your text editor:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE39]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Locate the `Example` line and add an `#` to the start of its line to comment
+    it out:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE40]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: Save the update and close the file.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'Run `freshclam` to update the scanner''s threat database:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE41]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Create a `systemd` service file to manage the `freshclam` daemon for automate
+    updates:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE42]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Use the following for the file''s content:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE43]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Force `systemd` to reload its services:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE44]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Start the new `freshclam` service and enable it to start when the system reboots:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE45]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Scan the files in your `home` directory for threats using `clamscan`:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE46]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: How it works...
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'First, we installed the `clamav` and `clamav-update` packages. The `clamav`
+    package contains the virus scanner while `clamav-update` contains the `freshclam`
+    program, which updates ClamAV''s virus definitions to keep it up to date:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE47]'
+  prefs: []
+  type: TYPE_PRE
+- en: '`freshclam` reads its configuration from `/etc/freshclam.conf`. The file contains
+    a line with the word `Example` to prevent users from using the defaults blindly
+    and we must remove it or comment it out before we can use `freshclam`. The defaults
+    settings are fine for our purposes and this is more of an annoyance than anything
+    else, but it does force us to look at the file and see what behavior can be tweaked.
+    Each directive is commented with an explanation and what the default behavior
+    is.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Then, we ran `freshclam` to update the scanner''s databases:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE48]'
+  prefs: []
+  type: TYPE_PRE
+- en: Note
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: The process outputs its progress to the terminal and you may see several error
+    messages. For example, it may report that it was unable to download a daily file.
+    Don't panic; `freshclam` will try several mirrors. As long as it reports that
+    `main.cvd`, `daily.cvd`, and `bytecode.cvd` are up to date when it's finished
+    you know you have the latest definitions.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'We can run `freshclam` any time we want to make sure the definition databases
+    are up to date, but it would be inconvenient to have to always run it manually.
+    When launched with the `-d` argument, `freshclam` will run in the daemon mode
+    and periodically check for updates throughout the day (every two hours by default).
+    To keep things clean, we created a service file to run `freshclam` and registered
+    it with `systemd`:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE49]'
+  prefs: []
+  type: TYPE_PRE
+- en: The `[Unit]` section defines the basic attributes of the service, such as its
+    description and that it relies on a network connection. The `[Service]` section
+    defines the service itself, `ExecStart` will run `freshclam` with the `-d` argument,
+    `Type` lets systemd know that the process will fork and run in the background
+    as a daemon, and `Restart` will have systemd monitor the service and restart it
+    automatically if it crashes. The `[Install]` section defines how it will be linked
+    when we run `systemctl enable`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Note
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: The system file's content is pretty basic and can be used as a starting point
+    for other custom services you write.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Scanning files for threats is done with `clamscan`:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE50]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'The `-i` argument instructs the scanner to only output infected files as opposed
+    to the name of every file it scans. `-r` triggers a recursive scan, descending
+    into subdirectories. The path given can be an individual file to scan or a directory,
+    in this case, our `home` directory:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![How it works...](img/image_11_005.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: ClamAV provides a summary of its scan results
+  prefs: []
+  type: TYPE_NORMAL
+- en: Note
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: You can use EICAR's test files from [http://www.eicar.org/85-0-Download.html](http://www.eicar.org/85-0-Download.html)
+    to verify if ClamAV is working. Read their intended use page for more information
+    at [http://www.eicar.org/86-0-Intended-use.html](http://www.eicar.org/86-0-Intended-use.html).
+  prefs: []
+  type: TYPE_NORMAL
+- en: ClamAV is generally used in two ways—as a scanner to examine existing files
+    to detect threats or as a filter to detect threats in a stream of data in real
+    time. The easiest way to schedule a reoccurring scan is by setting up a cron job.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'To create a personal cron job that runs `clamav` to scan your `home` directory,
+    use `crontab`:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE51]'
+  prefs: []
+  type: TYPE_PRE
+- en: '`crontab` will launch your default editor for you to enter the job schedule.
+    Then `crontab` will automatically activate the job after you save the schedule
+    and close the file.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'An example schedule that runs `clamscan` every day at 3:00 a.m. might look
+    as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE52]'
+  prefs: []
+  type: TYPE_PRE
+- en: The first five columns specify the time when the job should run. The first column
+    is the time's minutes, the second is hours, the third is the day of the month,
+    the fourth is the month, and last is the day of the week when the job will run.
+    `*` is used as a shorthand to indicate the entire range, thus the example will
+    run every day of every month. More information can be found in the man page outlining
+    the format of the `crontab` file (`man 5 crontab`).
+  prefs: []
+  type: TYPE_NORMAL
+- en: On a server system, ClamAV is often run as a real-time scanner as a mail filter.
+    Messages are received by the mail server, for example Postfix, and passed off
+    to ClamAV for scanning. Assuming that you're running Postfix, as discussed in
+    [Chapter 9](ch09.html "Chapter 9. Managing E-mails"), *Managing E-mails*, here's
+    what you'll need to do to set up ClamAV and Postfix to work together.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'First, we need to install some additional packages. The `clamav-scanner-systemd`
+    package will install the functionality we need to run `clamscan` as a daemon so
+    that it''s always available and the `clamav-milter-systemd` package installs a
+    mail filter that acts as a proxy between Postfix and the scanner:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE53]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Then, edit the configuration file `/etc/clamd.d/scan.conf`. Comment out the
+    `Example` line and uncomment the `LocalSocket` option:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE54]'
+  prefs: []
+  type: TYPE_PRE
+- en: The value given with `LocalSocket` is the socket file used by the scanner daemon
+    for communicating with outside processes.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Next, edit the `/etc/mail/clamav-milter.conf` file, which is the configuration
+    file for the `clamav-milter` mail filter. Comment out the `Example` line, uncomment
+    the first `MilterSocket` directive, and add the `ClamdSocket` directive. The value
+    for `ClamdSocket` should be the same as the `LocalSocket` in `scan.conf` but prefixed
+    with `unix:` to denote that it''s a Unix socket:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE55]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Start and enable the scanner daemon and the filter services:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE56]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Finally, open `/etc/postfix/main.cnf` and add an `smtpd_milters` entry which
+    lets Postfix know about the filter:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE57]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Don''t forget to restart Postfix after updating its configuration:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE58]'
+  prefs: []
+  type: TYPE_PRE
+- en: See also
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'Refer to the following resources for more information on working with ClamAV:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: ClamAV documentation ([http://www.clamav.net/documents/installing-clamav](http://www.clamav.net/documents/installing-clamav))
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: European Institute for Computer Anti-Virus Research ([http://www.eicar.org/](http://www.eicar.org/))
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Checking for rootkits with chkrootkit
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: In the unfortunate event that an attacker gains access to your system, one of
+    the first things they'll do is try to hide their intrusion while preserving access
+    for as long as possible, perhaps by installing a rootkit. A rootkit is a program
+    that runs stealthily and gives the attacker administrator access. They embed themselves
+    in the Linux kernel to prevent detection, and there are even rootkits that can
+    hide in a system firmware's dedicated memory allowing an attacker to control the
+    system even when it's powered down. This recipe shows you how to check your system
+    for rootkits using chkrootkit.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Getting ready
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: This recipe requires a CentOS system with a working network connection. Administrative
+    privileges are also required, either by logging in with the `root` account or
+    through the use of `sudo`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: How to do it...
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'Follow these steps to use chkrootkit to check for rootkits:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Install the `gcc` and `glibc-static` packages that are needed to compile `chkrootkit`
+    binaries:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE59]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Download `chkrootkit` source code:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE60]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Extract the downloaded source code archive and enter into the code''s directory:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE61]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Run make to compile chkrootkit''s binary components:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE62]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'chkrootkit requires `netstat` to conduct its network tests which is available
+    in the `net-tools` package:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE63]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Run chkrootkit to scan for rootkits:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE64]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: How it works...
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'chkrootkit consists of a shell script and a small collection of compiled utilities
+    distributed as source code so we need to compile it. This means you''ll need a
+    compiler installed on your system. Minimally, `gcc` will suffice. Also, we need
+    to install the `glibc-static` package because the project''s `Makefile` builds
+    a statically compiled binary—all of the binaries'' dependencies are compiled in;
+    it doesn''t dynamically reference the copy of the system''s shared libraries:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE65]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'The source code for chkrootkit is available on the project''s website. The
+    link used in the recipe is a direct link to the latest source archive and is downloaded
+    using `curl`:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE66]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Once the download is complete, building chkrootkit''s is a matter of extracting
+    the archive, entering into the newly created directory, and running `make`:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE67]'
+  prefs: []
+  type: TYPE_PRE
+- en: When you learned how to compile a program from source code in the *Compiling
+    a program from source* recipe of [Chapter 4](ch04.html "Chapter 4. Software Installation
+    Management"), *Software Installation Management*, you used the common `configure`,
+    `make`, and `make install` approach. However, chkrootkit doesn't ship with a configure
+    script and its `Makefile` doesn't contain an `install` target. All we need to
+    do here to kick off the compilation process is invoke `make` itself.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'chkrootkit runs a series of tests to check for known rootkit signatures. Some
+    of these tests use its compiled utilities while others use common system utilities.
+    One of its network tests checks which ports are open using `netstat`, which is
+    not installed by default on CentOS but is available in the `net-tools` package.
+    So, before we can use chkrootkit, we need to install this dependency:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE68]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Once everything is installed, we can execute the chkrootkit script. When run
+    without any arguments, chkrootkit executes all of its tests. Otherwise, we can
+    specify one or more tests and only those will run. The `-l` (lowercase L) argument
+    will display a list of possible tests:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE69]'
+  prefs: []
+  type: TYPE_PRE
+- en: See also
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'Refer to the following resources for more information on working with chkrootkit:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: The chkrootkit website ([http://www.chkrootkit.org](http://www.chkrootkit.org))
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Chkrootkit: check your system for hidden rootkits ([https://www.youtube.com/watch?v=IdvdUv0Nsq4](https://www.youtube.com/watch?v=IdvdUv0Nsq4))'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Using Bacula for network backups
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: The fact of the matter is that we are living in a world that is becoming increasingly
+    dependent on data. Also, from accidental deletion to a catastrophic hard drive
+    failure, there are many threats to the safety of your data. The more important
+    your data is and the more difficult it is to recreate if it were lost, the more
+    important it is to have backups. So, this recipe shows you how you can set up
+    a backup server using Bacula and how to configure other systems on your network
+    to backup their data to it.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Getting ready
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: This recipe requires at least two CentOS systems with working network connections.
+    The first system is the local system which we'll assume has the hostname `benito`
+    and the IP address `192.168.56.41`. The second system is the backup server. You'll
+    need administrative access on both systems, either by logging in with the `root`
+    account or through the use of `sudo`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: How to do it...
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'Perform the following steps on your local system to install and configure the
+    Bacula file daemon:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Install the `bacula-client` package:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE70]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Open the file daemon''s configuration file with your text editor:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE71]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'In the `FileDaemon` resource, update the value of the `Name` directive to reflect
+    the system''s hostname with the suffix `-fd`:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE72]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: Save the changes and close the file.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'Start the file daemon and enable it to start when the system reboots:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE73]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Open the firewall to allow TCP traffic through to port `9102`:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE74]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: Repeat steps 1-6 on each system that will be backed up.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Perform the following steps on the system designated as the backup server to
+    install and configure the Bacula director, storage, and file daemons.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Install the `bacula-console`, `bacula-director`, `bacula-storage`, and `bacula-client`
+    packages:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE75]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Re-link the catalog library to use SQLite database storage:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE76]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: Type 2 when asked to provide the selection number.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'Create the SQLite database file and import the table schema:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE77]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Open the director''s configuration file with your text editor:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE78]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'In the `Job` resource where `Name` has the value `BackupClient1`, change the
+    value of the `Name` directive to reflect one of the local systems. Then add a
+    `Client` directive with a value that matches that system''s `FileDaemon``Name`:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE79]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: Duplicate the `Job` resource and update its directive values as necessary so
+    that there is a `Job` resource defined for each system to be backed up.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'For each system that will be backed up, duplicate the `Client` resource where
+    the `Name` directive is set to `bacula-fd`. In the copied resource, update the
+    `Name` and `Address` directives to identify that system:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE80]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: Save your changes and close the file.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'Open the storage daemon''s configuration file:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE81]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'In the `Device` resource where `Name` has the value `FileStorage`, change the
+    value of the `Archive Device` directive to `/bacula`:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE82]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: Save the update and close the file.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'Create the `/bacula` directory and assign it the proper ownership:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE83]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'If you have SELinux enabled, reset the security context on the new directory:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE84]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Start the director and storage daemons and enable them to start when the system
+    reboots:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE85]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Open the firewall to allow TCP traffic through to ports `9101-9103`:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE86]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Launch Bacula''s console interface:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE87]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Enter `label` to create a destination for the backup. When prompted for the
+    volume name, use `Volume0001` or a similar value. When prompted for the pool,
+    select the `File` pool:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE88]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: Enter `quit` to leave the console interface.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: How it works
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: Configuring Bacula can be a daunting task for the most part because of the suite's
+    distributed architecture and the level of flexibility it offers in organizing
+    and scheduling backup and restore jobs. However, once everything is up and running,
+    I'm sure you'll have peace of mind knowing that your data is safe from accidents
+    and disasters.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Bacula is made up of several components. In this recipe, our efforts were centered
+    on three daemons—the director, the file daemon, and the storage daemon. The file
+    daemon is installed on each of the client systems to be backed up and listens
+    for connections from the director. The director connects to each file daemon as
+    scheduled and tells it which files to backup and where to copy them to (the storage
+    daemon). The storage daemon receives the backed up data and writes it to the backup
+    medium, for example, the disk or tape drive.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'First, we installed the file daemon with the `bacula-client` package on our
+    client systems. Then we edited the file daemon''s configuration file found at
+    `/etc/bacula/bacula-fd.conf` to specify the name of the process. The convention
+    is to add the suffix `-fd` to the system''s hostname:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE89]'
+  prefs: []
+  type: TYPE_PRE
+- en: After the update is made to the configuration, we started the service and opened
+    the appropriate port in the system firewall. The file daemon is now listening,
+    waiting for the director to connect and tell it what it needs to do.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'On the backup server, we installed the `bacula-director`, `bacula-storage`,
+    and `bacula-client` packages. This gives us the director and storage daemon, and
+    another file daemon. The file daemon''s purpose here on the backup server is to
+    backup Bacula''s catalog:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![How it works](img/image_11_006.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: This image reproduced from Bacula's documentation shows how the different applications
+    relate to one another
+  prefs: []
+  type: TYPE_NORMAL
+- en: Bacula maintains a database of metadata about previous backup jobs called the
+    catalog, which can be managed by MySQL, PostgreSQL, or SQLite. SQLite is an embedded
+    database library, meaning the program using it links against the SQLite library
+    and manages its own database files. To support multiple databases, Bacula's code
+    is written so that all the database access routines are contained in separate
+    shared libraries with a different library for each database. Then, when Bacula
+    wants to interact with a database, it does so through `libbaccats.so`, a *fake*
+    library that is nothing more than a symbolic link pointing to one of the specific
+    database libraries. This let's Bacula support different databases without requiring
+    us to recompile its source code.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'To create the symbolic link, we used `alternatives` and select the real library
+    that we want to use:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE90]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Then, we initialized the database''s schema using the scripts that come with
+    Bacula:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE91]'
+  prefs: []
+  type: TYPE_PRE
+- en: '![How it works](img/image_11_007.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Bacula supports multiple databases without recompiling
+  prefs: []
+  type: TYPE_NORMAL
+- en: Note
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: 'This recipe took advantage of Bacula''s SQLite support because it''s convenient
+    and doesn''t require additional effort to set up. If you want to use MySQL, install
+    MySQL as discussed in [Chapter 7](ch07.html "Chapter 7. Working with Databases"),
+    *Working with Databases*, create a dedicated MySQL user for Bacula to use, and
+    then initialize the schema with the following scripts:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE92]'
+  prefs: []
+  type: TYPE_PRE
+- en: You'll also need to review Bacula's configuration files to provide Bacula with
+    the required MySQL credentials.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Different resources are defined in the director's configuration file at `/etc/bacula/bacula-dir.conf`,
+    many of which consist not only of their own values but also reference to other
+    resources. For example, the `FileSet` resource specifies which files are included
+    or excluded in backups and restores, while a `Schedule` resource specifies when
+    backups should be made. A `JobDef` resource can contain various configuration
+    directives that are common to multiple backup jobs and also reference particular
+    `FileSet` and `Schedule` resources. `Client` resources identify the names and
+    addresses of systems running file daemons, and a `Job` resource will pull together
+    a `JobDef` and `Client` resource to define the backup or restore task for a particular
+    system. Some resources define things at a more granular level and are used as
+    building blocks to define other resources, creating complex definitions in a flexible
+    manner.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Tip
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: The default resource definitions define basic backup and restore jobs sufficient
+    for this recipe. You'll want to study the configuration and see how the different
+    resources fit together so you can tweak them to better suit your backup needs.
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![How it works](img/image_11_008.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: This image, reproduced from Bacula's documentation shows, how the different
+    resources relate to one another
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'To get started, we customized the existing backup `Job` by changing its name
+    and client. Then we customized the existing `Client` resource by changing its
+    name and address to point to a specific system running a file daemon. The pair
+    of `Job` and `Client` resources were duplicated, a pair for each system we''re
+    backing up. Notice that we also left a default `Client` resource that defines
+    `bacula-fd` for the localhost. This is the file daemon that''s local to the backup
+    server and will be the target for things such as restore jobs and catalog backups:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE93]'
+  prefs: []
+  type: TYPE_PRE
+- en: Tip
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: 'If you have a lot of client systems or a lot of job definitions, you can stay
+    better organized by defining these resources in their own files and read them
+    into `bacula-dir.conf`. Create the directory `/etc/bacula/config.d`, and place
+    the individual configuration files there. Then add the following line to `bacula-dir.conf`
+    to read them:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`**@|"find /etc/bacula/config.d -name ''*.conf'' f -exec echo @{} \;"**`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: To complete the setup, we need to label a backup volume. This task, as with
+    most others, is performed through `bconsole`, a console interface to the Bacula
+    director.
+  prefs: []
+  type: TYPE_NORMAL
+- en: We used the `label` command to define a label for the backup volume, and when
+    prompted for the pool, we assigned the labeled volume to the `File` pool. In a
+    way very similar to how logical volumes work (refer to [Chapter 5](ch05.html "Chapter 5. Managing
+    Filesystems and Storage"), *Managing Filesystems and Storage*), an individual
+    device or storage unit is allocated as a volume and the volumes are grouped into
+    storage pools. If a pool contains two volumes backed by tape drives for example,
+    and one of the drives is full, the storage daemon will write the backup data to
+    the tape that has space available. Even though in our configuration we're storing
+    the backup to disk, we still need to create a volume as the destination for data
+    to be written to.
+  prefs: []
+  type: TYPE_NORMAL
+- en: At this point, you should consider which backup strategy works best for you.
+    A full backup is a complete copy of your data, a differential backup captures
+    only the files that have changed since the last full backup, and an incremental
+    backup copies the files that have changed since the last backup (regardless of
+    the type of backup). Commonly, administrators employ a combination of these, perhaps
+    making a full backup at the start of the week and then differential or incremental
+    backups each day thereafter. This saves storage space because the differential
+    and incremental backups are smaller and also convenient when the need to restore
+    a file arises, because a limited number of backups need to be searched for the
+    file.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Another consideration is the expected size of each backup and how long it will
+    take for the backup to run to completion. Full backups obviously take longer to
+    run, and in an office with 9-5 working hours, Monday through Friday, it may not
+    be possible to run a full backup during the evenings. Performing a full backup
+    on Fridays gives the backup time over the weekend to run. Smaller, incremental
+    backups can be performed on the other days when time is lesser.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Still another point that is important in your backup strategy is how long the
+    backups will be kept and where they will be kept. This touches on a larger issue,
+    disaster recovery. If your office burns down, a year's worth of backups will be
+    of no use if they were sitting in the office's IT closet. At one employer, we
+    kept the last full backup and last day's incremental on a disk on site. These
+    were then duplicated to tape and shipped off site.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Regardless of the strategy you choose to implement, your backups are only as
+    good as your ability to restore data from them. You should periodically test your
+    backups to make sure you can restore your files.
+  prefs: []
+  type: TYPE_NORMAL
+- en: To run a backup job on demand, enter `run` in `bconsole`. You'll be prompted
+    with a menu to select one of the current configured jobs. You'll then be presented
+    with the job's options, such as what level of backup will be performed (full,
+    incremental, or differential), it's priority, and when it will run. You can type
+    `yes` or `no` to accept or cancel it or `mod` to modify a parameter. Once accepted,
+    the job will be queued and assigned a job ID.
+  prefs: []
+  type: TYPE_NORMAL
+- en: To restore files from a backup, use the `restore` command. You'll be presented
+    with a list of options allowing you to specify which backup the desired files
+    will be retrieved from. Depending on your selection, the prompts will be different.
+    Bacula's prompts are rather clear, so read them carefully and it will guide you
+    through the process.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Apart from the `run` and `restore` commands, another useful command is `status`.
+    It will allow you to see the current status of the Bacula components, if there
+    are any jobs currently running, and which jobs have completed. A full list of
+    commands can be retrieved by typing `help` in `bconsole`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![How it works](img/image_11_009.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: bconsole is a console interface to the Bacula director
+  prefs: []
+  type: TYPE_NORMAL
+- en: See also
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'Refer to the following resources for more information on working with Bacula:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Bacula documentation ([http://blog.bacula.org/documentation/](http://blog.bacula.org/documentation/))
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: How to use Bacula on CentOS 7 ([https://www.digitalocean.com/community/tutorial_series/how-to-use-bacula-on-centos-7](https://www.digitalocean.com/community/tutorial_series/how-to-use-bacula-on-centos-7))
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Bacula-Web (a web-based reporting and monitoring tool for Bacula) ([http://www.bacula-web.org/](http://www.bacula-web.org/))
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL

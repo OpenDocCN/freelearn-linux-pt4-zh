@@ -1,0 +1,2258 @@
+- en: Chapter 3. Linux Patching
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'In this chapter, we will cover the following recipes:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Installing SCR prerequisites
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Installing the SCR Tool
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Setting up the SCR configuration file
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Scheduling content downloads
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Configuring Apache
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Configuring patching repository options in VCM
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Configuring staging options in VCM
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Configuring the SCR Tool base path for the patching repository
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Creating a patch assessment template
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Deploying patches on Linux machines - on demand
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Deploying patches on Linux machines - scheduled
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Introduction
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: Before patching Linux/Unix or Macintosh, we need to configure a repository into
+    which we can download the patches in vendor-provided format. Once they've been
+    downloaded, we need to make them available for the machines we plan to patch.
+    This is where the VMware **Software Content Repository** (**SCR**) tool comes
+    into picture. SCR is a Java-based tool that is installed on a separate RHEL 7
+    VM. SCR downloads the patch signature files and OS vendor patch content from the
+    **content distribution network** (**CDN**) and downloads subscription-only content
+    from the OS vendor content websites.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Since the release of SCR 6.1, which was shipped with VCM 5.7.3, VMware supports
+    the installation only on RHEL 7.x (refer to the VCM 7.5.3 release notes).
+  prefs: []
+  type: TYPE_NORMAL
+- en: Note
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: Note that you must have a basic understanding of RHEL 7 or basic Linux commands
+    to work through this chapter.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Note that if you need to patch your RHEL 7 target machines, then you must have
+    the new SCR Tool 6.1 version based on RHEL 7 Server (64-bit). However, VCM continues
+    to support SCR Tool on RHEL 6 Server (64-bit) for patching earlier Linux platforms.
+  prefs: []
+  type: TYPE_NORMAL
+- en: SCR is not involved in patch management, configuration, or deployment. It just
+    acts as a repository that will be accessed by various methods such as HTTP, HTTPS,
+    FTP, and NFS by the clients that need those patches. As a VCM administrator, we
+    need to define the way in which the managed machines will access the content,
+    such as downloading via HTTP, HTTPS, or NFS. We need to make the necessary changes
+    on the SCR server, such as installing a web server to make patches available over
+    HTTP, add proper certificates so that they can be accessed over HTTPS, and so
+    on.
+  prefs: []
+  type: TYPE_NORMAL
+- en: How Linux patching works
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'The following figure from the VMware documentation depicts how VCM works with
+    SCR:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![How Linux patching works](img/image_03_001.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'The following is the procedure of getting Linux patching working according
+    to the previous figure:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: We configure the SCR Tool on an RHEL machine (the biggest blue box); we can
+    have several of them for load balancing.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Patches are downloaded either via a CDN or from the vendor into respective configured
+    folders on the SCR server.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Meanwhile, VCM server (the biggest green box) checks the patch status of the
+    managed Linux machines (the smaller green boxes). The VCM admin then decides which
+    patches to install. VCM downloads patch bulletins from [http://www.vmware.com/](http://www.vmware.com/)
+    to get the latest information about the patches.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Once the VCM administrator decides which patches to install, all the Unix/Linux
+    machines reach the SCR server to get those patches.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Managed machines install the patches and inform the VCM server about the latest
+    status; based on this, if required, the VCM admin can take further action, for
+    instance, troubleshooting and getting a patch installed if it failed to.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: SCR VM requirements
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: Let's look at some values you should consider to plan for the SCR VM.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Estimated required SCR storage by platform
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: '| **Supported platform** | **Minimum storage required****for patch content
+    files and payload** |'
+  prefs: []
+  type: TYPE_TB
+- en: '| AIX | 130 GB |'
+  prefs: []
+  type: TYPE_TB
+- en: '| CentOS | 80 GB |'
+  prefs: []
+  type: TYPE_TB
+- en: '| HP-UX | 15 GB |'
+  prefs: []
+  type: TYPE_TB
+- en: '| Mac OS X | 210 GB |'
+  prefs: []
+  type: TYPE_TB
+- en: '| Oracle Enterprise Linux (OEL) | 80 GB |'
+  prefs: []
+  type: TYPE_TB
+- en: '| RedHat | 80 GB |'
+  prefs: []
+  type: TYPE_TB
+- en: '| Solaris | 325 GB |'
+  prefs: []
+  type: TYPE_TB
+- en: '| SUSE | 60 GB |'
+  prefs: []
+  type: TYPE_TB
+- en: SCR VM hardware requirements
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: 'Here are the base hardware requirements for deploying SCR:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '| **Hardware** | **Specification** |'
+  prefs: []
+  type: TYPE_TB
+- en: '| **OS** | RHEL 7.x x86_64 |'
+  prefs: []
+  type: TYPE_TB
+- en: '| **HDD** | 20 GB base OS + extra disk as per the previous table.This needs
+    to be mounted at `/opt/vcmpatches` on the server.Follow the [http://www.techotopia.com/index.php/Adding_a_New_Disk_Drive_to_an_RHEL_6_System](http://www.techotopia.com/index.php/Adding_a_New_Disk_Drive_to_an_RHEL_6_System)
+    this is for RHEL 6 blog. This is for RHEL 6 but works well with RHEL 7. |'
+  prefs: []
+  type: TYPE_TB
+- en: '| **Processor** | 2 vCPUs if going for virtual |'
+  prefs: []
+  type: TYPE_TB
+- en: '| **RAM** | 4 GB |'
+  prefs: []
+  type: TYPE_TB
+- en: '| **NIC** | 1 GBps with Internet access |'
+  prefs: []
+  type: TYPE_TB
+- en: List of patch sites for SCR
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: 'This is the list of websites we need access to for downloading patches for
+    the respective OSes:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '| **Platform** | **Download URL** |'
+  prefs: []
+  type: TYPE_TB
+- en: '| **All platforms** | [http://configuresoft.cdn.lumension.com/configuresoft](http://configuresoft.cdn.lumension.com/configuresoft)[http://novell.cdn.lumension.com/](http://novell.cdn.lumension.com/)[https://a248.e.akamai.net/f/60/59258/2d/](https://a248.e.akamai.net/f/60/59258/2d/)[http://vmware.cdn.lumension.com/](http://vmware.cdn.lumension.com/)
+    |'
+  prefs: []
+  type: TYPE_TB
+- en: '| **CentOS** | [http://vault.centos.org](http://vault.centos.org)You can also
+    use the mirrors returned from the Web service:[http://mirrorlist.centos.org](http://mirrorlist.centos.org)
+    |'
+  prefs: []
+  type: TYPE_TB
+- en: '| **RedHat** | [http://xmlrpc.rhn.redhat.com/XMLRPC](http://xmlrpc.rhn.redhat.com/XMLRPC)
+    |'
+  prefs: []
+  type: TYPE_TB
+- en: '| **SUSE** | [https://you.novell.com/update/](https://you.novell.com/update/)[https://nu.novell.com/repo/$RCE/](https://nu.novell.com/repo/$RCE/)
+    |'
+  prefs: []
+  type: TYPE_TB
+- en: Note
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: Check [http://www.vmware.com/pdf/vrealize-configuration-manager-software-content-repository-tool-61-guide.pdf](http://www.vmware.com/pdf/vrealize-configuration-manager-software-content-repository-tool-61-guide.pdf)
+    for details of more OSes supported by SCR.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Installing SCR prerequisites
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: As mentioned earlier, SCR is a Java-based tool, so it has some prerequisites,
+    such as the latest JRE and JDK versions installed on the base OS. We will now
+    check all the requirements that we need to get SCR going.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Getting ready
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: Before we start, we must have an RHEL 7 server deployed, the minimum install
+    option of the RHEL installer installs the necessary features we need to start
+    with. We will need to install Apache and a few other utilities, but those we can
+    install later. The latest JRE and JDK RPMs can be downloaded from Oracle.com.
+    We also need root credentials to install the patches.
+  prefs: []
+  type: TYPE_NORMAL
+- en: How to do it...
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'Log in to the RHEL server with an SSH tool such as **PuTTY** and go to the
+    folder where the installers have been copied. Then, follow these steps:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '**Downloading**:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Visit [http://www.oracle.com/index.html](http://www.oracle.com/index.html) and
+    download the latest RPMs for JRE and JDK for RHEL 7 x64.
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: Once the RPMs have been downloaded, you can use a tool such as **winscp** to
+    copy the installer to the SCR server.
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: '**Installing JDK using RPM**:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'Use the `cd` command to go to the folder where you have copied both the installers
+    and run this command:'
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: '[PRE0]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: '**Installing JRE**:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'Continue from where you left off earlier and run this command to install JRE:'
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: '[PRE1]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: '**Verify the Java Cryptography Extension (JCE)**:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: By default, when you install the Java tool that comes with JCE, you don't need
+    to separately install it again.
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: 'Run the following command to validate whether JCE has been installed:'
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: '[PRE2]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: '![How to do it...](img/image_03_002.jpg)'
+  prefs:
+  - PREF_IND
+  type: TYPE_IMG
+- en: How it works...
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: As SCR is a Java-based tool, we need the latest JRE installed to make the tool
+    work.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The minimum Java version you can safely install without worrying about breaking
+    the application is JRE 8u72, which is what we will use in this book. The JCE is
+    required for AIX, HP-UX, RedHat, Solaris, and SUSE. It encrypts passwords when
+    we use third-party credentials in the properties files used to download patch
+    content.
+  prefs: []
+  type: TYPE_NORMAL
+- en: VCM downloads the metadata about the patches from [http://www.vmware.com/](http://www.vmware.com/).
+  prefs: []
+  type: TYPE_NORMAL
+- en: VCM is not at all aware what patches are available on the SCR server; it gets
+    its data from [http://www.vmware.com/](http://www.vmware.com/), and SCR gets its
+    updates from other locations.
+  prefs: []
+  type: TYPE_NORMAL
+- en: There is no synchronization between what is available on SCR and what is required
+    on VCM, so it is recommended that you synchronize your SCR server overnight to
+    make sure all the patches are downloaded and then start pushing the patches from
+    VCM.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Installing the SCR Tool
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: In this recipe, we will install the SCR Tool on the RHEL VM we prepared earlier.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Getting ready
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: You should have made sure that all the prerequisites form the previous recipes
+    have been met.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Download the latest version of SCR from [http://www.vmware.com/](http://www.vmware.com/),
+    at the time of writing, it was SCR 6.1.21\. Copy the ZIP file to the `/tmp` directory
+    of the SCR VM.
+  prefs: []
+  type: TYPE_NORMAL
+- en: We also need login credentials for vendors such as RHEL and SUSE so that we
+    can encrypt the password for later use in the configuration files.
+  prefs: []
+  type: TYPE_NORMAL
+- en: How to do it...
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: Log in to the SCR VM with root credentials and follow these steps to install
+    and perform base configuration of SCR.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Installing SCR
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: 'Create the  `/opt/SCR` folder with this command:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE3]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: From now on, we will refer to this location as `scr_root`
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: 'Unzip the SCR installation files:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE4]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: Encrypting the password for the content repository
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: 'Continue from where we left off at step 2, and start the process of encrypting
+    the password with the following commands:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Go to `/opt/SCR/bin` using this command:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE5]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Run the script that will encrypt the password:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE6]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: Provide the password (and confirm it).
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Copy the encrypted password string and keep it handy for the upcoming configuration
+    steps in the following recipe.![Encrypting the password for the content repository](img/image_03_003.jpg)
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Not only the vendor connection password, but also the proxy password, if required,
+    needs to be encrypted in this way.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Note
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: Note that if you provide a non-encrypted password, SCR assumes it is encrypted
+    and will fail to connect and download patches.
+  prefs: []
+  type: TYPE_NORMAL
+- en: How it works...
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: We are now getting ready by unzipping the installer and encrypting all the required
+    passwords, such as the RedHat network access password, the password required to
+    download content from SUSE, or the password required to get past our proxy.
+  prefs: []
+  type: TYPE_NORMAL
+- en: We need to enter the password in the plaintext properties file used by SCR as
+    configuration input when it starts downloading patches. If we enter our password
+    unencrypted, then anyone with access to the file can read it. To avoid this situation,
+    there is a script that encrypts the password, and we can provided this encrypted
+    password in the configuration file.
+  prefs: []
+  type: TYPE_NORMAL
+- en: These passwords can be set in a plaintext configuration file for further processing
+    of SCR.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The SCR server must have execute permission for all of the repository application
+    files in order to access and update the properties files. To provide those privileges,
+    follow these steps:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: On the SCR server, change to the `scr_root` directory.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: To change the mode, run the `chmod -R a+x **/*` command.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Setting up the SCR configuration file
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: The meat of SCR is its configuration file; if we make a mistake here, we will
+    never have those patches downloaded, and we can't have our SCR instance ready.
+    Pay attention to what you choose; if a channel is not required, don't mention
+    it the configuration file.
+  prefs: []
+  type: TYPE_NORMAL
+- en: In this recipe, we will have a look at the various configuration options we
+    have, what they mean, and how to configure them.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Getting ready
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: Follow the *Installing SCR* recipe to install SCR and prepare the encrypted
+    passwords.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Consult your OS support teams about which Linux/Unix OSes will be patched by
+    VCM so that you can download those patches beforehand.
+  prefs: []
+  type: TYPE_NORMAL
+- en: How to do it...
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: In this recipe, we will prepare for RedHat Linux patching; however, the same
+    principle applies for all Linux operating systems.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The example properties files are available in the `scr_root/conf/`  directory.
+  prefs: []
+  type: TYPE_NORMAL
+- en: If you have been following along properly so far, then the RHEL properties file
+    will be at `/opt/SCR/redhat-rt.properties`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: As stated earlier, we want to configure a properties file that will be used
+    by the SCR Tool to obtain configuration details and act accordingly.
+  prefs: []
+  type: TYPE_NORMAL
+- en: To configure the file, open it with your favorite Linux editor.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The options that we will keep at their default values are not discussed here.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Here are the options to configure:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`platform`'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: The `platform` parameter specifies the type of patch content to download.
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: '[PRE7]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: '`arch`'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: The `arch` parameter specifies valid architecture strings for the specified
+    platform.
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: '[PRE8]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: '`dist`'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: The `dist` parameter specifies the distribution of Linux. Multiple values must
+    be comma separated without spaces.
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: '[PRE9]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: '`folder`'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: The `folder` parameter specifies the **root folder** where the SCR Tool output
+    is stored. By default, this `folder` is  `/tmp/SCR/download`.
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: Change it to `folder=/opt/vcmpatches` (we have mounted our second HDD under
+    this folder; if you don't understand this, consult your Linux admin)
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: The SCR Tool creates the subdirectory tree under the root output folder.
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: '`thirdparty`'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Set the value to `true` to support third-party downloads for CentOS, Oracle
+    Linux, RedHat, Solaris, and SUSE.
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: '[PRE10]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: '`user`'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: The `user` parameter specifies the user ID for third-party vendor downloads,
+    such as SUSE or RHEL.
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: '[PRE11]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: '`pwd`'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: The `pwd` parameter specifies an encrypted password for the user id specified
+    by the `user` parameter. Check the *Installing SCR recipe* for more details.
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: '[PRE12]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: '`configlog`'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: This parameter specifies an output file, which contains a list of parameters
+    and values. These values reflect the parameter configuration used during the previous
+    or current execution of the SCR Tool and can be used to troubleshoot problems.
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: '[PRE13]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: '`checkPayload`'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '[PRE14]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: Set this to `true`.
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: '`dependencyCheck`'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: This turns off dependent RPM downloads for Linux platforms.
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: '[PRE15]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: VMware recommends using `TRANSITIVE`, as this will download all the dependent
+    patches.
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: '`channels`'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Channels are basically versions of the Linux/Unix operating system; for example,
+    in the case of RHEL, we either have `client-x`, `server-x`, or `workstation-x`.
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: 'An example for RedHat:'
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: '[PRE16]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: If you want to download patches only for RHEL 7, then select `server-7`. SCR
+    will then download patches for any other version.
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: This is where you need to consult your Linux team about which OS versions they
+    support to add only those as channels and avoid unnecessary patch download.
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: '`downloadPayload`'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: If the value is `true`, all patches are downloaded. If the value is `false`,
+    only the patches with UIDs that are included in the cache request folder are downloaded.
+    If the value is `false` and there is no cache request XML, the content is processed
+    but no patches are downloaded.
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: '[PRE17]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: It is recommended to keep this `true`.
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: '`cacheRequestFolder`'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '[PRE18]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: The cache request XML file is used to limit the downloaded patches to only those
+    for which you obtain UIDs from the `ecm_sysdat_patch_pls` table in the VCM database.
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: Even if you are not using this, don't hash out this option; or else, the patch
+    download will fail.
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: '`proxyServer`'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: This specifies the proxy server IP address in your infrastructure for internet
+    access.
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: '[PRE19]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: '`proxyPort`'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: This specifies the proxy server port in your infrastructure for internet access.
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: '[PRE20]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: '`proxyUser`'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: This specifies the user ID for proxy server authentication, if applicable.
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: '`proxyPwd`'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: This specifies the encrypted password for the proxy server if you need a proxy
+    user. This password is generated using the `lumension_encryptor_tool.sh` script,
+    as explained in the earlier recipe.
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: '[PRE21]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: '`Certificate`'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Point this to the file containing your RedHat entitlement certificate. This
+    file is created in `/etc/pki/entitlement` by the subscription manager when you
+    attach a subscription to your registered RedHat system. The filename of the certificate
+    varies but is always in the form `XXXXXXXXXXXXXXXXXXX.pem`, where `X` is a decimal
+    digit.
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: 'If you attempt to download RedHat 7 RPMs without setting a certificate, the
+    following error message appears:'
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: '[PRE22]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Example values for this parameter:'
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: '[PRE23]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'The following command is used to register RHEL 7 with RedHat Subscription Management:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE24]'
+  prefs: []
+  type: TYPE_PRE
+- en: This is the reason we can't use any other version of Linux as the SCR server.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Note
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: Most of these details have been taken from [http://www.vmware.com/pdf/vrealize-configuration-manager-software-content-repository-tool-61-guide.pdf](http://www.vmware.com/pdf/vrealize-configuration-manager-software-content-repository-tool-61-guide.pdf).
+  prefs: []
+  type: TYPE_NORMAL
+- en: Save the properties file.
+  prefs: []
+  type: TYPE_NORMAL
+- en: There is another problem with this file; we need to copy the working `redhat-rt.properties`
+    file to the `REDHAT-rt.properties` file, as it has been observed in error logs
+    that VCM tries to find the file with uppercase `REDHAT` and it fails, and in Linux,
+    `REDHAT-rt.properties` and `redhat-rt.properties` are two different files.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Once configured, the file looks something like this:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![How to do it...](img/image_03_004.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'Once the file has been saved, go to `/opt/SCR/bin` and run the following command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE25]'
+  prefs: []
+  type: TYPE_PRE
+- en: Then, check the logfiles and the download folder; if there are no error logs
+    in the logfile, then SCR will start synchronizing the patches.
+  prefs: []
+  type: TYPE_NORMAL
+- en: How it works...
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: When we start downloading patches with the SCR Tool, it uses the information
+    provided in the configuration file and then acts on it; for example, it will use
+    the proxy provided in the configuration file and the credentials configured to
+    authenticate.
+  prefs: []
+  type: TYPE_NORMAL
+- en: It will use the folder path to download the patches and the credentials shared
+    to authenticate with the OS vendor.
+  prefs: []
+  type: TYPE_NORMAL
+- en: It will download only patches for the OS versions mentioned in the channel configuration;
+    it might not download any patch if we configure the file like that, and we might
+    get failures while performing the deployment with VCM.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The SCR Tool first attempts to download the payload from the CDN. If the patch
+    is not found in the CDN, the SCR Tool downloads it from the vendor's website,
+    such as RedHat, SUSE, or Solaris, using the credentials provided in the user and
+    password parameters.
+  prefs: []
+  type: TYPE_NORMAL
+- en: If something like that happens now, you know where to look first. The logfile
+    location mentioned here comes in handy, assuming you have configured everything
+    correctly. If SCR is not downloading the patches, have a look at the logfile generated
+    at the location mentioned in the configuration file.
+  prefs: []
+  type: TYPE_NORMAL
+- en: If you are new to Linux, then use a tool called winscp; this allows you to browse
+    the Linux filesystem and manipulate files.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Open the logfile in winscp and look for something that tells you the system
+    is getting registered to RHN in order to make sure everything is going well:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![How it works...](img/image_03_005.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: We will look at a recipe on troubleshooting SCR download issues in [Chapter
+    9](ch09.html "Chapter 9. Troubleshooting VCM"), *Troubleshooting VCM*.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Scheduling content downloads
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: OS vendors keep generating patches. We can't just log in to SCR and synchronize
+    them manually; we can set a schedule and let SCR take care of downloading all
+    the required patches.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Getting ready
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: The SCR VM must have access to the Internet and be configured as per the previous
+    two recipes.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Configure the `redhat-rt.properties` file with the correct settings, such as
+    user details for RHN and proxy details, and save it.
+  prefs: []
+  type: TYPE_NORMAL
+- en: How to do it...
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: To set up the scheduling, we need to a create scripts that then can be run automatically.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Follow these steps to create the script and schedule it.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Once logged in to the SCR server, go to the location where SCR is installed
+    (for us, it is `/opt/SCR`)
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '**Copy the following content into the file**:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE26]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: press *i*
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: 'Enter or copy the following content:'
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: '[PRE27]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: Remove the `#` in front of the RedHat entry as we want to synchronize the patches
+    for it, and if you have another version of Linux, do the same for that.
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: After you finished press [*ESC*] and then *:wq* to write the content and exit
+    vi
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: '**Assign executable permissions to the created file:**'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE28]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: Once the script is ready, we need to schedule it.
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: '**Schedule a cron job to download it daily**:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE29]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: Tip
+  prefs:
+  - PREF_IND
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: 'Note that the following script runs daily and synchronizes your patch content:'
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: '`vim /etc/cron.daily/SCR`'
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: '**Add the following code to the file**:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE30]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: The host machine must have execute permission for all of the repository application
+    files in order to access and update the properties files. To grant this permission,
+    you run a command on the host machine.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Change directory to the SCR root directory (`/opt/SCR`).
+  prefs: []
+  type: TYPE_NORMAL
+- en: Tip
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: 'Note that execute the following command in the `/opt/SCR` directory: `**cd
+    /opt/SCR**` `**chmod -R a+x **/***`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Run the SCR file to create the directory structure:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Change directory to `/etc/cron.daily`.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE31]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Run the SCR file to create the directory structure and download the content:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE32]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Monitor the size for a while by running this:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE33]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: How it works...
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: We create a daily schedule that will run at 12:00 am and will then use the configuration
+    settings provided in the properties file and download the patches to the SCR server.
+    The patches can then be used to deploy using VCM. Before starting to deploy patches
+    with VCM, you must download them to the SCR server, as VCM will not know which
+    patches are available and which are not.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Configuring Apache
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: By now, we will have all the patches downloaded to the SCR server; now, we need
+    a mechanism to make them available to the managed machines when they need them
+    for installation.
+  prefs: []
+  type: TYPE_NORMAL
+- en: We can configure a web server to distribute the patches from the SCR repository.
+  prefs: []
+  type: TYPE_NORMAL
+- en: As discussed in the introduction, we can distribute the patches over HTTP/HTTPS;
+    we will configure the Apache web server such that the folder containing patches
+    (`/opt/vcmpatches`) will be available over HTTP. We will make the necessary changes
+    in the VCM server to instruct the Linux/Unix machines to download patches according
+    to our web server configuration.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Getting ready
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: As you have already registered your SCR server with the RedHat network, which
+    is a prerequisite for downloading RHEL 7 patches, you have a repository ready
+    to install Apache.
+  prefs: []
+  type: TYPE_NORMAL
+- en: '**Security-Enhanced Linux** **(** **SELinux)** should be disabled or configured
+    such that we can connect on port `80` or `443`.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'If you are not aware how this can be achieved, have a look at the following
+    article:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[https://access.redhat.com/documentation/en-US/Red_Hat_Enterprise_Linux/7/html/SELinux_Users_and_Administrators_Guide/chap-Managing_Confined_Services-The_Apache_HTTP_Server.html#sect-Managing_Confined_Services-The_Apache_HTTP_Server-The_Apache_HTTP_Server_and_SELinux](https://access.redhat.com/documentation/en-US/Red_Hat_Enterprise_Linux/7/html/SELinux_Users_and_Administrators_Guide/chap-Managing_Confined_Services-The_Apache_HTTP_Server.html#sect-Managing_Confined_Services-The_Apache_HTTP_Server-The_Apache_HTTP_Server_and_SELinux)'
+  prefs: []
+  type: TYPE_NORMAL
+- en: The firewall should be disabled or configured so that we can access patches
+    over port `80`/`443`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Have a look at this article for details on how to work with the RHEL firewall:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[https://access.redhat.com/documentation/en-US/Red_Hat_Enterprise_Linux/7/html/Security_Guide/sec-Using_Firewalls.html](https://access.redhat.com/documentation/en-US/Red_Hat_Enterprise_Linux/7/html/Security_Guide/sec-Using_Firewalls.html)'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'You could also use the following article for port 80 and make the necessary
+    changes for port `443`:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[https://linuxconfig.org/how-to-open-http-port-80-on-redhat-7-linux-using-firewall-cmd](https://linuxconfig.org/how-to-open-http-port-80-on-redhat-7-linux-using-firewall-cmd)'
+  prefs: []
+  type: TYPE_NORMAL
+- en: How to do it...
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'This is a pretty long recipe, and we will break it into multiple sections,
+    as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: I*nstalling Apache*
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '*Configuring httpd.conf for Apache*'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '*Configuring the .htaccess file*'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '*Configuring HTTPS in Apache*'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Installing Apache
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: To make the patches available in our infrastructure, we can make the SCR server
+    act as a web server and then configure it in VCM such that the managed machines
+    access the patches over port `80` or `443` from the SCR server.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'We will achieve this by following these steps:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Log in to SCR server with the root account.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'Install Apache:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE34]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Make sure that httpd starts with the OS boot:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE35]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Start the httpd service now:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE36]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: Now, we need to configure the `httpd.conf` file, located in `/etc/https/conf`,
+    to make Apache work as per our requirements.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Configuring httpd.conf for Apache
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: The Apache configuration is stored in the `httpd.conf` file, located in `/etc/https/conf`.
+    Continue with the following steps to make the necessary changes in the configuration
+    file.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Before making changes to `httpd.conf`, we need to add a symbolic link between
+    the folder we used to download the patches (`/opt/vcmpatches`) and the folder
+    exposed under `httpd.conf` (`/var/www/html`).
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Log in to the SCR server with the root account.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Go to `/var/www/html` using `cd /var/www/html`.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Run the `ln -s /opt/vcmpatchs vcmpatches` command.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'Edit `httpd.conf`:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE37]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Enter *I* to go into edit mode, and add the following line under the `AccessFileName`
+    section:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE38]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: Note
+  prefs:
+  - PREF_IND
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: Note that we will be creating this `.httaccess` file in the next section of
+    this recipe.
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: Configuring the .htaccess file
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: To make this secure, we can add a `.htaccess` file so that only configured users
+    can access the patches.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Create and edit the `.htaccess` file at `/opt/vcmpatches`:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE39]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Add the following lines to the file:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE40]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Now, create an encrypted password for the `httpuser` user:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE41]'
+  prefs: []
+  type: TYPE_PRE
+- en: It will prompt you for a password; type the password you want to set.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'This creates another file at the same location called `.htpasswd`, and it stores
+    the encrypted password, which you can see using the following command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE42]'
+  prefs: []
+  type: TYPE_PRE
+- en: Configuring HTTPS in Apache
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: 'The default installation of Apache will give us an HTTP connection to the patch
+    repository. We need to create and configure a certificate in Apache so that our
+    managed VMs can securely download the patches from the SCR server. To configure
+    HTTPS, we follow these steps:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '**Install Mod SSL**'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'In order to set up the self-signed certificate, we first have to be sure that
+    Apache and Mod SSL are installed. You can install both with one command:'
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: '[PRE43]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: '**Create a new directory**'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'Next, we need to create a new directory, where we will store the server key
+    and certificate:'
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: '[PRE44]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: '**Create a self-signed certificate**'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'When we request a new certificate, we can specify how long it should remain
+    valid by changing the `1000` parameter to the number of days we prefer:'
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: '[PRE45]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: With this command, we will both be creating the self-signed SSL certificate
+    and the server key that protects it and placing both of them into the new directory.
+    This command will prompt the terminal to display a list of fields that need to
+    be filled in. The most important line is **Common Name.** Enter your official
+    domain name here or, if you don't have one yet, use your site's IP address.
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: You will be asked to enter information that will be incorporated into your certificate
+    request.
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: 'Provide the following details:'
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: '**Country Name (two-letter code)**: `IN`'
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**State or province name (full name)**: `Maharashtra`'
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**Locality name (for example, a city)**: `Pune`'
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**Organization name (such as a company)**: `VCM_Cookbook`'
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**Organizational unit name (for example, a section)**:  `Information Technology`'
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**Common name (for example, a server FQDN or your name)**: `VCMCookbook.com`'
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**Email address**: `Abhijeet@vcmcookbook.com`'
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Note
+  prefs:
+  - PREF_IND
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: Note that the example values need to be changed as per your infrastructure.
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: '**Set up the certificate**:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: We now have all of the required components of the finished certificate. The
+    next thing to do is to set up the virtual hosts to display the new certificate.
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: 'Open up the SSL config file:'
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: '[PRE46]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Now, add the following block of code to the file:'
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: '[PRE47]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: '**Restart Apache**:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: You are done. Restarting the Apache server will reload it with all of your changes
+    in place.
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: '[PRE48]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: After this, you should access the VCM patches folder over the network via a
+    browser, and it should look something like the following screenshot.
+  prefs: []
+  type: TYPE_NORMAL
+- en: When you access the link, it will ask for authentication. Use the `httpuser`
+    user and password created in the earlier step.
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Configuring HTTPS in Apache](img/image_03_006.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: How it works...
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: Linux and Unix managed machines can use HTTP/HTTPS to retrieve patches directly
+    from the RedHat Linux patching repository machine.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The VCM Collector orchestrates and coordinates the tasks required to download,
+    stage, and deploy the patches and the custom predeployment, postdeployment, and
+    reboot actions using the VCM agent installed on the patching repository machine
+    and the VCM agent on the target managed machines.
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![How it works...](img/image_03_007-1.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: The patches are available on the SCR server, and with the help of the Apache
+    server, we created a web server that will present the patches to the managed machines.
+  prefs: []
+  type: TYPE_NORMAL
+- en: There's more...
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: Once this has been configured, we need to make the necessary configuration changes
+    in the VCM console and add the staging option as HTTP and redirect the managed
+    machines to the `/opt/vcmpatches` folder to download patches. We will do this
+    in the following recipes, *Configuring patching repository options in VCM* and
+    *Configuring staging options*.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Configuring patching repository options in VCM
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: Once everything is configured and ready on the SCR front, we should start configuring
+    the repository in VCM. This is where we set the machine (SCR server) that will
+    act as the repository.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Getting ready
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: We should have finished all the previous recipes before we start this, as this
+    is dependent on all of them. Install the VCM agent as described in [Chapter 2](ch02.html
+    "Chapter 2. Configuring VCM to Manage Your Infrastructure"), *Configuring VCM
+    to Manage * *Your Infrastructure*, in the *Installing an agent on Linux servers*
+    recipe, and perform an initial data collection for the SCR machine.
+  prefs: []
+  type: TYPE_NORMAL
+- en: How to do it...
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'To set up a patch repository in VCM, log in to the VCM console and follow these
+    steps:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Go to **Administration** | **Certificate** and select the SCR server. Click
+    on **Change Trust Status** at the top of the screen.![How to do it...](img/image_03_008.jpg)
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: In the wizard, select the SCR machine and tick the **Check to trust and uncheck
+    to untrust the selected machine** option.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: You should see a handshake sign in front of the SCR server.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Now, keep the SCR machine selected and click on **Patching Repository** at the
+    top of the screen.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Make sure the SCR server is selected and choose **Enable - Allow the selected
+    machine to be** ****used** as Patch Repository**. Click on **Next**.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Click on **Finish** to close the wizard.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: The end result should look something like this:![How to do it...](img/image_03_009.jpg)
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: How it works...
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: We set the patching repository as the designated patch repository for all the
+    Linux/Unix machines we will be managing. Now, VCM knows where to redirect the
+    machines if they want to be patched; we need to perform further configuration
+    changes such as setting the path from where the machines can download the patches,
+    but that is for the next recipe.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Configuring staging options in VCM
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: Staging options are where we set VCM to exactly redirect the VM to `https://<SCR
+    Server>/<Patch location>`. So far, we have downloaded the patches and added a
+    server as the repository, and now, we will set the name of the folder and configure
+    machine group mappings to the staging options.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Getting ready
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: We are building on previous recipes, so before we go ahead with this recipe,
+    we should have finished all of them. If there are any special machine groups required,
+    then they should be ready before we start with this recipe.
+  prefs: []
+  type: TYPE_NORMAL
+- en: How to do it...
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'Log in to the VCM server console and follow these steps to configure patch
+    staging:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Login as a VCM administrator in VCM console.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Navigate to **Administration** | **Settings** | **General Settings** | **Patching**
+    | **UNIX** | **Patch Staging**. Click on **Add**.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Give a name and add a description.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'Under **Repository Type**, select **Obtain patches from the patching repository
+    : <Name of SCR server>**.'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'On the next page, provide details as follows:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '**Repository Path: **`/vcmpatches` (this is the relative path to which we have
+    downloaded the patches)'
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**Protocol:** Choose **HTTPS**'
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**Port:** Type `443` unless you have made some changes in `httpd.conf` and
+    are using some other port'
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Select credentials required
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**Username :**`httpuser` (or any user set in the `.htaccess` file)'
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**Password :** A plaintext password (don''t use an encrypted password here)'
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Click on **Finish**.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Now that we have set a staging option, we need to assign it to the machine groups
+    so that the machines will know where to download the patches from.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Navigate to **Administration** | **Settings** | **General ****Settings** | **Patching**
+    |**UNIX** | **Machine Group Mapping**.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Select the **Machine Group** and click on **Edit**.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Set the patch path value to **Standard Deployment and Source** for staged patches
+    to **SCR-HTTP.**
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'The protocol and path will populate automatically, that is, if you have not
+    created the certificate, then it will assign port 80, and if you have secured
+    your Apache setup by creating a self-signed certificate, then it will look like
+    one of these:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '`HTTP://scr:80/vcmpatches`'
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`HTTPS://scr:443/vcmpatches`'
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Click on **Next** and **Finish** to save the settings.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Do this for all the machine groups that have Linux/Unix machines and will be
+    patched with VCM.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: How it works...
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: If we don't set staging options, then machine patching will fail as the machines
+    won't know from where to get the installers. As a best practice, use HTTPS.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Configuring the SCR Tool base path for the patching repository
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: The setting for the SCR Tool base path in VCM must point to the location where
+    you installed the SCR Tool on the patching repository machine.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The base path directory contains directories for the SCR binary files, configuration
+    files, and logs.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Getting ready
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'As usual, we are building a patching mechanism, so all previous recipes are
+    important to continue with subsequent ones. The same is applicable for this recipe:
+    complete all the previous recipes before starting this one.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: How to do it...
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'In this recipe, we will make a few changes to the VCM configuration; just follow
+    these steps:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Navigate to **Administration** | **Settings** | **General ****Settings** | **Patching**
+    |**UNIX** | **Additional Settings**.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Select **Default Machine Group Mapping for Temporary files during patching**
+    and change it to a folder you know will have enough space to download the patches
+    before installation.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: How much space is enough will depend on how many patches are getting deployed.
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: If you have standard partitions across the entire Linux/Unix server, select
+    a path where you will have enough space.
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: 'In our case, it is `/var/tmp`, as shown here:'
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: '![How to do it...](img/image_03_010.jpg)'
+  prefs:
+  - PREF_IND
+  type: TYPE_IMG
+- en: Click on **Next** (not visible in the screenshot) and **Finish** to close and
+    save the setting.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Next in the list is **Default UNIX>Linux package Repository path**.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: This is the path to which we are *downloading the patches*; in our case, it
+    is `/opt/vcmpatches`.![How to do it...](img/image_03_011.jpg)
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Click on **Next** (not visible in the screenshot) and **Finish** to close and
+    save the setting.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: The final setting in the list is **Default UNIX/Linux package repository SCR
+    base path**.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: This is the location to which we *untarred or installed the SCR files* downloaded
+    from [http://www.vmware.com](http://www.vmware.com).
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: In our case, it is `/opt/SCR`.![How to do it...](img/image_03_012.jpg)
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Click on **Next** (not visible in the screenshot) and **Finish** to close and
+    save the setting.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: How it works...
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: The details of each setting are explained there only; this basically makes sure
+    of the location of the SCR file to locate the `properties` file which is in the `/opt/SCR/conf`
+    folder.
+  prefs: []
+  type: TYPE_NORMAL
+- en: To check the `manifest.pkl` file, which is available under the `/opt/vcmpatches`
+    folder, this has all the RPMs listed.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Creating a patch assessment template
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: A patch assessment template is basically list of patches that will be installed
+    on managed machines or will be used to check patch compliance against.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Getting ready
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: We need internet access on the Collector server to download patch metadata.
+  prefs: []
+  type: TYPE_NORMAL
+- en: How to do it...
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'Log in to the VCM console and follow these steps to create the required assessment
+    template:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Navigate to **Patching** | **All UNIX/Linux Platforms** | **Assessment ****Templates**
+    and click on **Add**.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Templates can be created under individual Unix/Linux platforms as well.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Give the template a descriptive name and add a description.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'Select **Static** as the type of template. Here is the difference between a
+    static and dynamic template:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '**Static template:** With this, we can choose which patches are to be included
+    in the template.'
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**Dynamic template:** With this, VCM selects patches depending upon the query
+    we set.'
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '![How to do it...](img/image_03_013.jpg)'
+  prefs:
+  - PREF_IND
+  type: TYPE_IMG
+- en: If we selected a dynamic template, we have options to formulate queries, such
+    as **OS Name**, **OS Version**, and **Severity**, and we can create multiple queries
+    and select the **and**/**or **operator.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Note
+  prefs:
+  - PREF_IND
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: Note that you can have only one **and**/**or **operator for all queries.
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: '![How to do it...](img/image_03_014.jpg)'
+  prefs:
+  - PREF_IND
+  type: TYPE_IMG
+- en: If we select **S****tatic**, we are free to choose all the patches we want.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: There is a temporary filter we can apply to limit the number of patches to select
+    from.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Note
+  prefs:
+  - PREF_IND
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: Note that multiple product bulletins can be wrapped up in this way. VCM will
+    only attempt to patch an affected product, that is, if a VM is running RedHat
+    6, then VCM will not attempt to apply RedHat 7 bulletins.
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: '![How to do it...](img/image_03_015.jpg)'
+  prefs:
+  - PREF_IND
+  type: TYPE_IMG
+- en: Click on **Next** once all the required patches have been selected.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Close the wizard by clicking on **Finish.**
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: How it works...
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: We cannot deploy patches without creating assessment templates; these will be
+    used for assessing the status of the machines, checking missing patches, and then
+    deploying them.
+  prefs: []
+  type: TYPE_NORMAL
+- en: We cannot make sure whether the patch we are selecting in the template will
+    be there on the SCR server, so to avoid failures, we should always download all
+    the patches to the SCR server.
+  prefs: []
+  type: TYPE_NORMAL
+- en: See also
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: This patch assessment template will be used in *Deploying patches on Linux machines
+    – on demand* and *Deploying patches on Linux machines – scheduled* recipes.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Deploying patches on Linux machines – on demand
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'This is what we''re executing all these recipes for: patching servers. By this
+    time, we will be ready to install the patches on the managed machines. We can
+    either schedule the patch to be installed or we can install them on demand. In
+    this recipe, we will install the missing patches directly from the console.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Getting ready
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: Make sure the VM you want to patch is trusted in VCM; if it isn't, follow the
+    same steps we followed to trust the SCR server in the *Configuring patching repository
+    options in VCM* recipe.
+  prefs: []
+  type: TYPE_NORMAL
+- en: We must have DNS resolution to and from the Linux machine to be patched and
+    the SCR and VCM servers.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The managed machine must reach the VCM and SCR server on their IPs.
+  prefs: []
+  type: TYPE_NORMAL
+- en: We should have performed a collection with the **Patching - Unix Assessment
+    Result** as the **Filter Set** option, as explained in the *Collecting data from
+    managed machines* recipe in [Chapter 2](ch02.html "Chapter 2. Configuring VCM
+    to Manage Your Infrastructure"), *Configuring VCM to Manage * *Your Infrastructure*.
+  prefs: []
+  type: TYPE_NORMAL
+- en: How to do it...
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'Log in to the VCM console with admin privileges and start installing patches
+    by following these steps:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Go to **Patching** | **Red****Hat** | **Assessment****Templates** and select
+    the assessment template you have created.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Click on **View Report** in the top corner.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Once you see the report, drag **Recommended Action** to the **Filter** bar;
+    now, the default view changes and you can see that it is arranged depending upon
+    the **Recommended Action**.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Click on the small arrow in front of **Install Path**, select the patch and
+    hit **Deploy** from the topmost menu.![How to do it...](img/image_03_016.jpg)
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Select the items and click on **include prerequisite patches**.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Validate the patches.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Click on **advanced** and check whether this interests you or your Linux admin.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Confirm the patch deployment and select the staging option.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Note
+  prefs:
+  - PREF_IND
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: 'Note that if the machine you want to patch belongs to a machine group that
+    you did not assign a staging option to, you will see only one option enabled for
+    you, that is, **None: Stage patches manually**.'
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: '![How to do it...](img/image_03_017.jpg)'
+  prefs:
+  - PREF_IND
+  type: TYPE_IMG
+- en: On the next page, choose whether you want to reboot the server.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Click on **Finish** to close the wizard.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'VCM will start installing the patch and you can check the status of the jobs
+    it runs: all the three jobs–**Download**, **Stage**, and **Deployment–**should
+    end with a **Succeeded** result.'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: If you chose to reboot the server, then after a reboot, check the status like
+    we did in steps 3 and 4 of the recipe; it should say **Success** and list the
+    name of the path we just installed.
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: 'This is how it will look in the job history under **Administration** | **Job**
+    | **Manager** | **Other jobs** | **Past 24 Hours**:'
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: '![How to do it...](img/image_03_018.jpg)'
+  prefs:
+  - PREF_IND
+  type: TYPE_IMG
+- en: You can check the status of the patch in the VCM console and it will show you
+    that the patch has been installed. To check the status, go to **Patching** | **RedHat**
+    | **Assessment Template** | "Template name ":![How to do it...](img/image_03_019.jpg)
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: How it works...
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: When we push the patch from the VCM console, it first assesses the machine to
+    check whether the patch has been installed since the last assessment. If it is
+    still required, then the patch that was staged at the location configured in the
+    staging option gets installed, and then the VCM agent checks whether the patch
+    was installed properly.
+  prefs: []
+  type: TYPE_NORMAL
+- en: If we schedule a reboot after that, then another job is configured in VCM and
+    it starts, depending upon the configuration we select when deploying the patch.
+    If the patch installation takes more time than the scheduled fixed reboot time,
+    then the reboot job fails.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Deploying patches on Linux machines – scheduled
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: When we performed on-demand patching, we made sure the infrastructure we set
+    up for patching Linux or Unix machines was working fine. Now, we need to take
+    this to the next level by performing all the stuff automatically. In this recipe,
+    we will configure all the required jobs so that VCM will perform patching of Linux/Unix
+    machines on schedule.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Getting ready
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: Preparation will be the same as earlier. Make sure the VM you want to patch
+    is trusted in VCM; if it isn't, take the same steps we followed to trust the SCR
+    server in the *Configuring patching repository options in VCM* recipe.
+  prefs: []
+  type: TYPE_NORMAL
+- en: We should have DNS resolution to and from the Linux machine to be patched and
+    the SCR and VCM server.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The machine group where the VMs belong should have proper staging configured.
+  prefs: []
+  type: TYPE_NORMAL
+- en: How to do it...
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'We now know patching Linux is a three-step process:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Collecting the latest data with **Patching - Unix Assessment Result** as the
+    **Filter Se**t option
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Performing the actual patching
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Again collecting the data (this is kind of optional as VCM also collects the
+    data–it's just a precaution)
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'So, let''s begin by scheduling the required tasks in VCM so that our machines
+    will get patched automatically:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '| **Sr. No.** | **Name** | **Schedule** | **Reason** |'
+  prefs: []
+  type: TYPE_TB
+- en: '| **1** | Initial collection | First Sunday 08:00 am | 12 hours before the
+    actual patch |'
+  prefs: []
+  type: TYPE_TB
+- en: '| **2** | Deploying the patch | First Sunday 08:00 pm | Scheduled patch maintenance
+    window |'
+  prefs: []
+  type: TYPE_TB
+- en: '| **3** | Final assessment | First Sunday 11:00 pm | 3 hours after patching
+    to give time for automated collection (happens after 30 minutes of patching and
+    reboot) |'
+  prefs: []
+  type: TYPE_TB
+- en: Step 1 – the initial collection
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: Log in to the VCM console and go to **Administration** | **Job****Manager**
+    | **Scheduled**.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Click on **Add**, select **Collection** once the wizard starts, and click on
+    **Next**.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Provide a proper name and description.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Select **Patching - Unix Assessment Result** as the **Filter Set** option.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Select the machine group you want to patch in this schedule.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Select a schedule, preferably one upto 24 hours before the actual patching.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Click on **Next** and finally, after validating there are no conflicts, click
+    on **Finish**.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: This completes our first phase. The next is the actual patching schedule.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Step 2 – deploying the patch
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: 'To schedule patching, follow these steps:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Go to **Patching** | **All****Unix/Linux Platforms** | **Automatic Deployment**
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Give the deployment a name and add a description.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Select the **Machine Group** we want to patch and whose data was collected in
+    the earlier initial collection step.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Select the **Assessment Template** to deploy the patches with.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'On the next page, select the following:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '**Scheduled Automatic Deployment Run**'
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Depending upon the organization's policy, select whether you want to reboot
+    or not.
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**Threshold Data Age**: `2` days should be fine as we are performing the data
+    collection for the past 24 hours. If the data is older than the number of configured
+    days, the server will not be patched.'
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '![Step 2 – deploying the patch](img/image_03_020.jpg)'
+  prefs:
+  - PREF_IND
+  type: TYPE_IMG
+- en: Select the schedule and click on **Finish** on the last page to save the scheduled
+    patching.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Step 3 – final assessment
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: Once patching is done, VCM performs a collection with **Patching - Unix Assessment
+    Result** as the **Filter Set** option. Still, we can schedule one more task to
+    collect the details.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Follow the same steps we did for configuring prepatch data collection, but this
+    time, change the name and the collection schedule so that this collection will
+    start a few hours after the patching has finished.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: How it works...
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: Basically, we are scheduling the things we were doing manually to save us some
+    time and to not be awake at midnight to patch the server. VCM starts the scheduled
+    jobs on time, collects the data, checks which patches are missing, installs them,
+    and finally collects post-patch data so that when we run patch reports, we will
+    have the latest status of the managed machine.
+  prefs: []
+  type: TYPE_NORMAL
+- en: To check the reports, have a look at the *Patching Reports* recipe in [Chapter
+    4](ch04.html "Chapter 4. Windows Patching"), *Windows Patching*. The only difference
+    we can expect there is that the name is different; we need to replace Windows
+    with Unix.
+  prefs: []
+  type: TYPE_NORMAL

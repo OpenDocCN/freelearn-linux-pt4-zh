@@ -1,0 +1,809 @@
+- en: Chapter 6. Service Chaining and Networking Across Services
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: This chapter explains the need and mechanism for chaining different services
+    running in a cluster.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'This chapter covers the following topics:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Introduction to and necessity of service chaining
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Introduction to Docker networking
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Service chaining using Flannel/Rudder
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Service chaining using Weave
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: In the previous chapter, we discussed in detail how the services running in
+    different CoreOS instances can be discovered from other services. Once the services
+    are discovered, one or more services may need to talk to each other. This chapter
+    explains the need and mechanism for chaining different services running in the
+    CoreOS cluster.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Introduction to and necessity of service chaining
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: As different services in the CoreOS clusters are deployed as a docker/Rackt
+    container, it is inevitable that we will provide a mechanism to communicate between
+    these services. These services may run in the same CoreOS instances of a cluster
+    or they may run across different CoreOS instances in the cluster.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'An example is, when a web server is deployed in node1 of a CoreOS cluster and
+    database services are deployed in node2 of the cluster. Here, the database service
+    provides a service to the web server and we can call this a service provider.
+    Using the service discovery mechanisms described in the previous chapter, the
+    web server service may discover the database service and its parameters such as
+    its connection string with IP, port no., and so on. Once this information is discovered,
+    the web server may need to interact with the database service for storing some
+    information persistently or to fetch some information from the persistent storage.
+    In order to do this, it may need to do the following:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Establish a network connection between each other
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Use the service provided by the service provider
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Everything looks fine. But when providing a network connection between the containers,
+    there are some complexities. Let's look into those. Throughout this chapter, we
+    assume that the services in the CoreOS instances are deployed as a docker container.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Each service/docker container in the CoreOS node is assigned an IP address.
+    This IP address can be used by the applications running in the container to talk/communicate
+    with each other. This works well when the services are running in the same CoreOS
+    node. This is because all of the docker instances or services running in the same
+    CoreOS node will be part of the same network, which will be connected by the docker0
+    bridge. When these services are running in different CoreOS nodes, then these
+    nodes should use the port-mapping functionality provided by the host CoreOS to
+    reach the desired container. But when using this mechanism, the containers should
+    advertise the host machine's IP address in the discovery service. One option to
+    push the host IP to the discovery service is by using the `ExecStartPost` option
+    in the fleet unit file. This way, the container will be able to access the host
+    IP. The host machine IP address and network is not available to the containers.
+    This allows some other external entity to provide this service.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Before looking into how this issue is being solved by mechanisms like Flannel
+    and Weave, let us have a look at the details of Docker container networking.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Introduction to Docker networking
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'There are multiple communication requirements for containers/service as follows.
+    CoreOS and Docker together should provide a mechanism to meet all the following
+    requirements:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Container–Container communication in the same CoreOS node
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Container to CoreOS host communication
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Container to external world communication
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Container–Container communication in a different CoreOS node
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Let us look into how CoreOS provides these functionalities for the docker container
+    in the following sections.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Container–Container communication
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'This section describes in detail the different mechanisms provided by the CoreOS
+    and Docker/Container technology to provide communication across different instances
+    of Docker. There are multiple ways to provide this communication as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Docker0 bridge and veth pair
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Using Link
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Using common network stack
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Docker0 bridge and veth pair
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: '**Docker0** bridge is a Linux bridge created by docker in order to provide
+    communication across different docker containers. By default, docker creates a
+    Linux bridge called docker0 bridge, which provides connectivity for all the docker
+    containers in the CoreOS host.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Tip
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: Docker0 bridge is created only at the instantiation of the first container instance.
+    No new bridge will be created on subsequent container instantiation.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Veth is a **Virtual Ethernet Device** that can be used as a virtual link inside
+    the Linux kernel. Typically, the veth device will be created in a pair (called
+    veth pair) to provide connectivity across different instances of a container.
+    When a new container/service is instantiated in the CoreOS node, a new veth pair
+    will be created. One end of the veth pair is attached to the container service
+    and the other end is connected to docker0 bridge. These docker0 bridge and veth
+    pairs provide connectivity across different containers running in the same CoreOS
+    node.
+  prefs: []
+  type: TYPE_NORMAL
+- en: In the following diagram, the docker1 and docker2 containers are connected to
+    docker0 bridge via the veth pair, which provides connectivity across the docker
+    containers. One end of the veth pair, which is attached to the docker instance,
+    will be visible inside the docker instance as the eth0 interface. It is possible
+    to configure the IP address for this eth0 interface. The user can configure the
+    eth0 interface of the docker1 and docker2 instances with the same network in order
+    to provide connectivity across them.
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Docker0 bridge and veth pair](img/00023.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Container–Container communication using docker0 bridge
+  prefs: []
+  type: TYPE_NORMAL
+- en: The docker instances are attached to docker0 bridge using a virtual subnet with
+    an IP address ranging from `172.17.51.1` – `172.17.51.25`. As the docker side
+    of the veth pair gets the IP in the same range, there is a possibility that, in
+    two different servers/VM instances, two containers have the same IP address. This
+    may result in problems while routing the IP packet.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Using Link
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: This is one of the simple ways of providing communication between Docker containers.
+    **Docker Link** is a unidirectional conduit/pipe between the source and the destination
+    containers. The `docker` command provides a way to link the containers while instantiating
+    the container itself. The `–link` option is used for this purpose. Docker Link
+    can be used only to provide communication between containers running on the same
+    host.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'As an example, if the `docker2` container wants to use the networking stack
+    of another container, `docker1`, then the command to start `docker2` is as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE0]'
+  prefs: []
+  type: TYPE_PRE
+- en: '![Using Link](img/00024.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Container–Container communication using Docker Link
+  prefs: []
+  type: TYPE_NORMAL
+- en: Using common network stack
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: In this mechanism, one docker container will use the networking stack provided
+    by some other docker container's networking stack, instead of having its own networking
+    stack. The docker container will not use the network namespace construct explained
+    in the introduction section of this book, but shares the network namespace with
+    another docker. As the container shares the namespace with another container,
+    any application in one container can communicate with the other container as if
+    both the docker container services are running as an application in one networking
+    stack.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The `docker` command provides a way to use another docker's networking stack
+    while instantiating the container itself. The `–net=container1` option is used
+    for this purpose.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'As an example, if the container `cont_net1` wants to use the networking stack
+    of another container, `b1`, then the command to start `cont_net1` is as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE1]'
+  prefs: []
+  type: TYPE_PRE
+- en: '![Using common network stack](img/00025.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Container–Container communication using common network stack
+  prefs: []
+  type: TYPE_NORMAL
+- en: Container to CoreOS host communication
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'Apart from the container to container communication mechanism, there are some
+    instances where the service running inside the container may want to talk or exchange
+    some information with applications running in the CoreOS host. CoreOS and docker
+    provide some mechanisms to achieve this using the following mechanisms:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Host networking
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: docker0 bridge
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Host networking
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: In this mechanism, the docker container will use the networking stack provided
+    by the CoreOS host machine instead of having its own networking stack. The docker
+    container will not use the network namespace construct explained in the introduction
+    section of this book, but shares the network namespace with the host CoreOS operating
+    system. As the container shares the namespace with the host CoreOS operating system,
+    any application in the CoreOS host can communicate with the docker container as
+    if the docker container service is running as an application in the CoreOS host.
+    This is one of the simpler mechanisms to allow docker to host communication.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The `docker` command provides a way to use the host machine's networking stack
+    while instantiating the container itself. The `–net=host` option is used for this
+    purpose.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'As an example, if the docker1 container wants to use the networking stack of
+    the host CoreOS, then the command to start `docker1` is as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE2]'
+  prefs: []
+  type: TYPE_PRE
+- en: '![Host networking](img/00026.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Container–Container communication using the host network stack
+  prefs: []
+  type: TYPE_NORMAL
+- en: docker0 bridge
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: docker0 bridge can also be used to provide communication between docker and
+    the host operating system. To do this, one of the interfaces in the host operating
+    system should be attached to docker0 bridge, which provides communication. This
+    is illustrated in detail in the following diagram where the `eth1` interface of
+    the CoreOS host machine is also connected to docker0 bridge, which provides connectivity
+    to and from docker and the WAN. In this case, the eth0 interface of docker1, docker2,
+    and the eth1 interface should be in the same network to provide network connectivity
+    between docker and the host CoreOS.
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![docker0 bridge](img/00027.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Container – External world communication using docker0 bridge
+  prefs: []
+  type: TYPE_NORMAL
+- en: Container to CoreOS outside world communication
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'This is one of the basic requirements while deploying a service as a micro-service
+    in the CoreOS cluster. The services running in the CoreOS cluster (as docker)
+    should be accessible from the external world and vice versa. CoreOS and docker
+    provide the following mechanisms to achieve this:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Host networking
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Port mapping
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Using docker0 bridge
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Host networking
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: Host networking is described in detail in the previous section. As the container
+    shares the namespace with the host CoreOS operating system, when the host CoreOS
+    operating system is connected to WAN, the service running inside the container
+    should also be able to be part of the WAN network.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The `docker` command provides a way to use the host machine's networking stack
+    while instantiating the container itself. The `–net=host` option is used for this
+    purpose.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'As an example, if the docker1 container wants to use the networking stack of
+    the host CoreOS, then the command to start docker1 is as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE3]'
+  prefs: []
+  type: TYPE_PRE
+- en: Port mapping
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: This is one of the most widely used mechanisms for communicating a docker container
+    to the external world. In this mechanism, a port number in the host machine will
+    be mapped to a port number in the docker container. Here, the port refers to transport
+    layer ports like UDP port/TCP port. For example, if the user deploys a web server
+    in a docker container, they can map the `HTTP` port (port no. `80`) in the host
+    CoreOS operating system to the `HTTP` port (port no. `80`) of the docker container.
+    So when a HTTP request is received by the CoreOS host, it forwards the request
+    to the container, which processes this HTTP request. But one major challenge with
+    respect to this mechanism is that the same service won't be able to deploy in
+    multiple docker containers, as it results in port collision in the host operating
+    system.
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Port mapping](img/00028.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Container – External world communication using port mapping
+  prefs: []
+  type: TYPE_NORMAL
+- en: Container – Container communication in different CoreOS nodes
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'We have seen how CoreOS or docker provides networking from a single node perspective.
+    As the services are deployed inside the CoreOS cluster, it is necessary to provide
+    communication between containers running in different CoreOS nodes in a cluster.
+    The rest of the chapter discusses this communication mechanism in detail. There
+    are multiple tools that provide this as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Weave
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Flannel/Rudder
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Using **OVS** (**OpenVSwitch**)
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: In this chapter, we are going to see how Flannel and Weave provide the communication
+    mechanism. In the next chapter, we will discuss OVS in detail and how it can be
+    used to provide communication between the various containers.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Introduction to Weave
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: We learned before that applications running inside Docker have no knowledge
+    of the IP address of the host machine. Hence, they are not in position to register
+    their IP for the service, since another container running outside the host has
+    to use the host IP address for accessing the service.
+  prefs: []
+  type: TYPE_NORMAL
+- en: If an IP address of the host machine is passed as an environment variable, service
+    information can be stored in `etcd` and read by the service user as illustrated
+    in [Chapter 5](part0033_split_000.html#VF2I1-31555e2039a14139a7f00b384a5a2dd8
+    "Chapter 5. Discovering Services Running in a Cluster"), *Discovering Services
+    Running in Cluster*. This approach requires the application code to be aware of
+    how services can be discovered.
+  prefs: []
+  type: TYPE_NORMAL
+- en: '**Weave** simplifies service discovery and does a lot more. Weave provides
+    a mechanism to connect applications running inside a Docker container irrespective
+    of where they are deployed. Since application services are running as a Docker
+    container, the ease of communication of micro-services running in Docker containers
+    is very important.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Weave registers the named containers automatically in **weaveDNS**, hence services
+    or dockers can be accessed by resolving their names through regular name resolution.
+    This requires application-specific code as routine system calls like `gethostbyname`,
+    or `getaddrinfo` with a pre-defined Docker name used for service, will resolve
+    the name to the IP address using `weaveDNS`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Weave sets up a Virtual Ethernet Switch connecting all docker containers and
+    in turn services or applications running inside Docker. Weave builds up the network
+    assigning unique IP addresses to each of the docker containers as they come up
+    and free the IP address when they go down. With this, it is no longer required
+    to export a port explicitly when starting Docker and enables service to be accessed
+    from anywhere, thus not making it mandatory that frontend applications run on
+    the host machine, which exposes the public network. It is also possible to assign
+    the IP addresses to the containers manually, which can eventually be used to create
+    isolated subnets. This enables the isolation of a group of applications from another
+    group.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Weave is simple to integrate with Docker, which we will see when we go hands-on
+    later in this chapter. Weave also offers security by encrypting traffic when docker
+    containers need to be connected through public or untrusted networks.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Introduction to Flannel/Rudder
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: Similar to Weave, **Flannel** also assigns an IP address to a container that
+    can be used for container to container communication by creating an overlay mesh
+    network. Flannel internally uses `etcd` to store the mapping between the assigned
+    container IP address and host IP address. It doesn't have elaborate features like
+    Weave and can be used if other feature sets provided by Weave are not required.
+    For example, Flannel doesn't provide automatic service discovery through DNS and
+    still requires application coding or instrumentation to discover service endpoints.
+  prefs: []
+  type: TYPE_NORMAL
+- en: By default, each container is assigned an IP address in the `/24` subnet. Subnet
+    size can be configured. Flannel uses UDP to encapsulate traffic to transmit to
+    a destination.
+  prefs: []
+  type: TYPE_NORMAL
+- en: In later sections, we will learn about using Flannel. Flannel was previously
+    referred to as **Rudder**.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Integrating Weave with `CoreOSWeave` is rather simple to install. The standalone
+    installation is as simple as pulling the Weave script from the repository and
+    calling another command to set up and start the Weave router.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Let's run through the sequence of command manually, and then we will run the
+    installation and setup through `cloud config`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Installation
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: Weave can be installed onto the system by fetching the script using `wget` or
+    `curl`. After downloading, change the permission to make it executable.
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE4]'
+  prefs: []
+  type: TYPE_PRE
+- en: Setting up Weave
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: Run the command `weave launch` to set up and start the Weave router, Weave DNS,
+    and proxy for Docker API commands like `docker run` and so on. This command also
+    sets up the Weave network. When this command is run for the first time in the
+    machine, the `Weave Docker` image required for setup is downloaded.
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE5]'
+  prefs: []
+  type: TYPE_PRE
+- en: To check the status, the `status` command is used to check the router status.
+    If this command is run for the first time, the Weave Docker image required for
+    setup is downloaded.
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE6]'
+  prefs: []
+  type: TYPE_PRE
+- en: If specific IP addresses were not provided during container startup, Weave assigns
+    a free IP from the address pool to the container and releases that address (that
+    is, marks it free) when the container exits. The IP address pool is maintained
+    across all the Weave instances that are part of the cluster. Hence, at Weave launch
+    either all the members of the cluster or one or more members of the cluster should
+    be provided. Additionally, a parameter should be included to inform Weave about
+    the number of members. To illustrate, if there are three members with the IP addresses
+    `172.17.8.101`, `172.17.8.102`, and `172.17.8.103` then the following commands
+    are the right way to launch Weave for allocating the IP addresses.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Option one:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE7]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Option two:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE8]'
+  prefs: []
+  type: TYPE_PRE
+- en: Weave allocates IP addresses in the `10.32.0.0/12` range by default, unless
+    it's overridden with the `--ipalloc-range` option at the time of launch. For instance,
+    if the subnet to be used is `10.1.0.0` with a size of `16`, the following command
+    can be provided. The same value should be provided across all the members.
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE9]'
+  prefs: []
+  type: TYPE_PRE
+- en: Weave gives an option to enable or disable the use of the Weave DNS service.
+    By default, the Weave DNS service is enabled. To disable this service, the `--without-dns`
+    option can be provided while running Weave. Weave maintains an in-memory database
+    of all the hosts. It builds up the database as the peer join. This is maintained
+    on all the hosts and is replicated across hosts. If a hostname is in the `.weave.local`
+    domain, then Weave DNS records the association of that name with the container's
+    Weave IP address (es). When DNS query arrives for the `.weave.local` domain, the
+    Weave DNS database is used to return with the IPs of all containers for that hostname
+    across the entire cluster. When DNS query arrives for the name in a domain other
+    than `.weave.local`, it queries the host's configured nameserver, hence complying
+    with default behavior.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Container startup
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: Docker containers can be started by using the Weave proxy or without using the
+    Weave proxy. When containers are created using the Weave proxy, the container
+    initialization waits for the Weave network interface to become available and then
+    proceeds with further startup of the container. The IP addresses of the containers
+    are assigned and the container is connected to the Weave network.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following command sets up the environment so that Docker containers can
+    connect to the Weave network automatically. The usual Docker commands can be used
+    to start the Docker container:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE10]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'By default, Weave allows the communication of a container with all other containers
+    in the cluster. This can be restricted by providing a subnet range from which
+    an IP address can be allocated. Multiple subnets can also be provided. Also, an
+    IP address can be provided that will be assigned to the container in addition
+    to the automatic IP address allocation. It is also possible to avoid automatic
+    IP address allocation:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE11]'
+  prefs: []
+  type: TYPE_PRE
+- en: Containers can be launched without the Weave proxy by starting them using the
+    command `weave run`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The following is the setup that will be used to illustrate a network between
+    two CoreOS hosts. We will instantiate two CoreOS members in a cluster and spawn
+    two docker containers inside members. The docker container runs a busybox shell
+    so that we can run the networking command and check the IP address assignments
+    and peer container reachability. This setup illustrates the scenario where communication
+    is happening between docker containers across two CoreOS hosts.
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Container startup](img/00029.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Weave setup
+  prefs: []
+  type: TYPE_NORMAL
+- en: The following is the `cloud-config` file used to create the setup. The other
+    configuration files reused are from the section *Static discovery* in [Chapter
+    3](part0026_split_000.html#OPEK1-31555e2039a14139a7f00b384a5a2dd8 "Chapter 3. Creating
+    Your CoreOS Cluster and Managing the Cluster"), *Creating your CoreOS cluster
+    and managing the Cluster*. Set `$num_instances` to `2` in the `config.rb` file
+    as we need to start only two instances of members.
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE12]'
+  prefs: []
+  type: TYPE_PRE
+- en: Let's run through the finer details of the `cloud-config` file before we start
+    containers in the members and check connectivity.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Firstly, we create two files using the `write_files` section. They will be used
+    before starting Weave on respective machines. Each file has the hostname in their
+    name, so that using `%H` in `EnvironmentFile` results in referring the file meant
+    for the member.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Unit file `10-weave.network` is added to allow the Weave network to be used
+    for DHCP queries. By default, `docker0` bridge is used. This is optional and is
+    required if the Weave network is being used for DHCP.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Unit `install-weave.service` installs Weave onto the member and sets the required
+    permissions. This is a one-shot service as it has served its purpose once Weave
+    is installed. `After=network-online.target` is added to ensure that this network
+    is up before Weave is installed. This is required so that packages can be downloaded
+    from the Internet.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Unit `weave.service` sources the corresponding environment file and launches
+    Weave.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Boot the cluster using `Vagrant up`. After booting up, the nodes in the cluster
+    comes up with weave networking up:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE13]'
+  prefs: []
+  type: TYPE_PRE
+- en: We can see that both the peers are connected. We can also see that the DNS and
+    router services are enabled with default settings.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Now we will start a Docker container on each of the members. We will run a simple
+    shell on busybox. The following command is executed on both the members. Note
+    that we are providing the name of the docker container explicitly. This will result
+    in two DNS entries with the domain `.weave.local`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE14]'
+  prefs: []
+  type: TYPE_PRE
+- en: Now ping the IP address and hostname of the other container to ensure that the
+    network across containers and the DNS service is working. You can also run the
+    status command to check that two DNS entries has been updated, once the containers
+    are started.
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE15]'
+  prefs: []
+  type: TYPE_PRE
+- en: Integrating Flannel with CoreOS
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: Flannel runs a daemon `flanneld` on each host, responsible for allocating a
+    free IP within the configured subnet. `flanneld` sets a watch on `etcd` information
+    and routes the packets using the mechanism configured.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Although the `flanneld` service is not part of the standard CoreOS distribution,
+    when the `flanneld` service is started through `cloud-config`, CoreOS internally
+    starts a service before other initializations to pull `flanneld` from the `docker`
+    registry. `flanneld` is stored as a `docker` container in the CoreOS enterprise
+    registry.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The same setup used for Weave networking is being used here. Note that for Flannel,
+    hostnames are irrelevant.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The following is the `cloud-config` file used to create setup. The other configuration
+    files are reused from the *Static discovery* section in [Chapter 3](part0026_split_000.html#OPEK1-31555e2039a14139a7f00b384a5a2dd8
+    "Chapter 3. Creating Your CoreOS Cluster and Managing the Cluster"), *Creating
+    your CoreOS cluster and Managing the Cluster*. Set `$num_instances` to `2` in
+    the `config.rb` file as we need to start only two instance of members.
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE16]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Vagrant setup will configure the interface that Flannel should use. This is
+    done by providing the following configuration in `cloud-config`:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE17]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Directive `ExecStartPre` is added to the `flanneld` service configuration as
+    a drop-in file with the name `50-network-config.conf`. Using `ExecStartPre`, `Flannel`
+    configuration is updated in `etcd`. This is mandatory for Flannel to work as it
+    looks up the configuration at `/coreos.com/network/config`. The following are
+    the Flannel configurations that can be provided as comma-separated values while
+    setting the configuration to etcd:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`Network`: This specifies the subnets to be used across all Flannel networks.
+    This field is mandatory. In the preceding example, the subnet configuration was
+    provided as `10.1.0.0/16`. Further subnets for each of the hosts will be created
+    within this subnet.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`SubnetLen`: This specifies the size of the subnet as bits allocated to each
+    host. This field should have a value less or equal to the subnet size provided
+    for the network. If this field is not provided, a default value of `24` is used
+    if the `Network` field has a subnet size more than or equal to `24`. If the `Network`
+    field has a subnet size less than `24` and this field is not configured, one less
+    than the value configured for the `Network` is used.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`SubnetMin`: This specifies the starting IP range from which the subnet allocation
+    starts. This defaults to the first subnet of Network if this field is not provided.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`SubnetMax`: This specifies the end IP range from which the subnet allocation
+    starts. This defaults to the first subnet of Network if this field is not provided.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`Backend`: This specifies the mechanism to be used for sending traffic across
+    hosts. Supported values are `udp, vxlan, host-gw`, and so on. If this field is
+    not provided, `udp` is used. If `udp` is used, the port number to be used for
+    UDP is configured. If the port is not provided, the default port of 8285 is used.
+    This port should be allowed if the hosts are to be networked across firewalls.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'The following is another sample configuration for Flannel, which contains other
+    optional parameters set to their respective defaults:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE18]'
+  prefs: []
+  type: TYPE_PRE
+- en: Boot the cluster using `Vagrant up`. After booting up, the clusters come up
+    with the interfaces setup on the host by Flannel.
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE19]'
+  prefs: []
+  type: TYPE_PRE
+- en: Similarly, we can see that interfaces were created by Flannel on other instances
+    also.
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE20]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Flannel sets up subnets `10.1.35.0` for host1 and `10.1.27.0` for host2 to
+    be used by containers. Flannel decides on the available subnets before allocating
+    to a host. Now, we will start a `Docker` container on each of the members. We
+    will run a simple shell on `busybox`. The following command is executed on both
+    the members:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE21]'
+  prefs: []
+  type: TYPE_PRE
+- en: As we see, an IP address from the corresponding subnet of the hosts has been
+    allocated to the container and the IP addresses can be pinged from the other container.
+    This also illustrates that with add-ons like Weave and Flannel, communication
+    across containers is much simpler and closer to the communication of applications
+    across bare metal.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Summary
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: In this chapter, we have seen the importance of container communications and
+    the various possibilities provided by CoreOS and docker to provide the communication.
+    In the next chapter, we are going to see how **OVS** (**OpenVSwitch**) can be
+    used to provide the communication mechanism over an underlay network. Apart from
+    Flannel, Weave, and OVS, there are other mechanisms like pipework available to
+    provision the network inside the CoreOS and docker environment.
+  prefs: []
+  type: TYPE_NORMAL

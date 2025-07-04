@@ -1,0 +1,952 @@
+- en: Lets Make a Process Chat
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: '**Inter-process Communication** (**IPC**) is a nice way to describe the fact
+    that processes talk to each other, exchange data, and can then react accordingly.
+    This kind of chatting can be held between a parent and a child process, between
+    processes on the same host, and between programs on different hosts. Processes
+    exchange data in a different ways; for instance, if we think about it, when we
+    SSH to a remote server, our client is communicating with the remote host and actually
+    exchanging data back and forth. The same happens when you pipe the output of a
+    command into the standard input of another one; these are ways, sometimes monodirectional,
+    sometimes bidirectional, to put different processes into communicating and enhancing
+    what we can do with our Bash environment.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: There are different ways to accomplish IPC, some more familiar, some less, but
+    all are effective to a certain extent, and we already saw some examples during
+    this book. So, now we will go through few pages which will describe a bit more
+    in depth how processes can interact and how can use the IPC to enhance our scripts,
+    focusing on those methods that we can access using Bash, starting with the so-called
+    **pipes**.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Pipes
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'We can describe a pipeline as a sequence of processes tied together by `stdout`
+    and `stdin` so that the output of one process becomes the input of the following
+    one. This is a simple form of IPC, commonly known as anonymous pipe, and it is
+    a one-way form of communicating: whatever comes from standard output of the preceding
+    process flows into the standard input of the following one; nothing comes back
+    from the latter to the former.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Let''s see an example that will clarify the concept of anonymous pipe, staring
+    with a simple `ps` command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE0]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'We have a simple listing with some commands: `PID`, `TTY`, and `CMD`. Let''s
+    say we want to trim down the output to just `PID` and `CMD`. We could alter the
+    output using some `ps` switches, but who remembers them? It''s easier to use something
+    that is capable of mangling the text and gives us the result we want, so why not
+    use `awk`? The problem here is that `awk` works on the text it receives from the
+    input, reading a file for instance. But we can cut corners, linking its standard
+    input to the `ps` standard output by means of the pipe character `|`:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE1]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Here, `awk` accepted the output of `ps` as the input and printed to the `stdout`
+    the first and fourth field only, being the blank character the standard field
+    separator. As mentioned earlier, we can chain more than two processes:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE2]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'In this case, we piped the output of the previous set of commands through `tail`,
+    which actually got the first line (`PID CMD`) removed and printed to `stdout`.
+    Then, we piped this output through the `stdin` of `wc`, which then printed the
+    count of the lines we received in `stdin`. This is possible because all the processes
+    are in the same environment since each command at the right end of a pipe runs
+    in a subshell of the main shell and shares the same file descriptors. Thus, it
+    is just matter of writing the data to the open descriptor of the parent process;
+    and the child will be able to read them in the same order it was written: with
+    a kernel buffer to hold the bits waiting to be read.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Nice and handy, but there are some serious restrictions:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: The processes must reside on the same host
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'The processes must be active on an overlapping span of time: the preceding
+    process must be producing output while the following one is reading'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'The communication is one way only: the data descends the chain and never climbs
+    back the ladder'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'We can overcome some of these restrictions using pipes, which are often referred
+    to as FIFO pipes due to the way they work. They rely on the creating a file, which
+    then any number of processes can access, and this introduces a huge difference
+    with respect to the anonymous pipe. It lasts as long as the processes involved
+    last, while a named pipe lasts as long as the file exists; and this can last as
+    long as the system is not rebooted or the file itself. We can create a file using
+    either `mkfifo` or `mknode`, and use the I/O redirection to read or write as shown
+    in the following example:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE3]'
+  prefs: []
+  type: TYPE_PRE
+- en: Let's follow the flow of the script. The first thing we want to be sure of is
+    that our named pipe is in place, so we test for a particular kind of file called `-p`,
+    a pipe. If it does not exist, the script creates it using `mknod $pipefile p`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The `p` added at the end of the command line ensures the creation of the file
+    as a pipe and not as a regular one. Then, we want the script to keep reading from
+    the file we open so we use an infinite loop: *true is always true*. Inside the
+    infinite loop, we have the `read row $pipefile` instruction, which reads from
+    the pipe file line by line and stores the content into the `row` variable. So
+    far, so good. If we jump to the end of the script, we can see that it just echoes
+    whatever we input but there is a tiny check in between; if we input `exit`,  the
+    program will exit. Let''s run in one terminal our new script:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE4]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'We will see our prompt flashing without giving us the command line back: the
+    script is trapped in an infinite loop reading from the named pipe and will not
+    terminate until we type `exit` into its standard input. Now, using the output
+    redirection, let''s send some stuff into the pipe file:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE5]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Let''s see what is on the terminal running our script:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE6]'
+  prefs: []
+  type: TYPE_PRE
+- en: That's it. The script echoed all the text we sent to the `pipe` file; and when
+    it encountered the `quit` string, it just exited, giving us a nice message. This
+    example is quite easy and can be replicated using simple files, but switch the
+    context and think about multiple processes coordinating their actions writing
+    and reading from a pipe, sending and reading data, keywords, commands from the
+    pipe, and doing something in a graceful order. All without using an intermediary
+    temporary file but a pipe that will disappear upon the system reboot without the
+    need for all processes to run at the same time. Processes can be triggered by
+    cron jobs manually, by other applications, or by running indefinitely in a loop.
+    It does not matter, as everything is async. We have a means to connect processes
+    in an asynchronous way and both ways, since each process can both send and receive
+    data. This means, we instruct other processes and feed them with data, or are instructed
+    and get fed with data when needed. All this is really useful but there is something
+    more barebone than this when it comes to IPC, not really an inter-process communication
+    since we are going to use redirections to plain files.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Redirection to a file
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'Well, redirecting the output of a process is not what an IPC means, but it
+    can be used as such in an asynchronous way: have one process redirect its output
+    to a file and have another one read from the same file later on; and this can
+    be a way to exchange information between the two processes:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE7]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'In this example, we just stored a filename into a variable. We created the
+    file with `touch`, and then stored the filename into the `controller` file. Once
+    we had the filename into the `controller` file, we had it read line by line and
+    each line was stored into the `line` variable. Finally, the content of the line
+    variable is used to zip the file pointed by the `myfile` variable:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE8]'
+  prefs: []
+  type: TYPE_PRE
+- en: Here, we have all the files in place and `tar` just followed the instructions
+    stored by `echo` in the `controller` file. This is quite a trivial example, and
+    it can be expanded as much as we wish. Notice that in this way, there are no special
+    files needed, and the processes can be unrelated and can be executed any time
+    without any need for concurrency. Probably this kind of IPC is not so surprising,
+    but if we pay enough attention, we can find other interesting ways to make processes
+    talk to each others, for instance, **command substitution**.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The command substitution
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'We already saw what a command substitution is:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE9]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'The output of a command gets stored as a string into a variable, and it is
+    then available to be used in any way we need. So, for instance, we could well
+    do this:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE10]'
+  prefs: []
+  type: TYPE_PRE
+- en: In this case, we used the command substitution to perform a test on a `tar`
+    file whose name was provided by means of a variable. The output of the command
+    substitution was then fed as an argument to echo, which showed us the outcome
+    of the `tar` command. We could use an even more complex command inside the command
+    substitution bit, but beware of some issues with escaping since what happens inside
+    the parentheses is not always what we would expect.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Is this a valid way to make processes communicate with each other? Yes, it is.
+    Is it handy? Not so much. Command substitution can be tricky in a complex task,
+    and we have the same limitations we saw for other methods since it is a one-way
+    flow. That said, it is widely used in Bash scripts to provide a quick access to
+    command paths or just store some information in variables, such as the actual
+    date on the system or whatever small bit of information we need. We have other
+    options to feed the output of a process to the standard input of another, but
+    sometimes we do not take enough time to think at all the ways we have to accomplish
+    this goal. For example, using the process substitution.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The process substitution
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'The **process substitution** is a handy way to feed the output of multiple
+    commands/processes to the input of another process. The standard way to manage
+    a process substitution goes along with the following syntax:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE11]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Mind the space between `<`,`>`, and the parentheses; there is no space at all:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE12]'
+  prefs: []
+  type: TYPE_PRE
+- en: In this example, the output of `ps -fj` has been given as an input to `wc -l`,
+    which counted `5` lines in the output. Notice `/dev/fd/63`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'This is the file descriptor used by the process substitution to feed the results
+    of the process inside the parentheses to another process. So, file descriptors
+    in `/dev/fd` are used to feed data, and this is useful, especially for those commands
+    that cannot take advantage of pipes, because they expect data to be read from
+    a file and not fed from the standard input. A classic example of a multiprocess
+    feed as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE13]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'We just created a couple of test directory and in the first directory, we made
+    `5` empty files, in the second, `3`. Then, we just fed `diff` with the output
+    of the `ls` command issued on both `test 1` and `test 2` directories. The utility
+    then just showed us all the files available in `test 1` but not in `test 2`, as
+    we had issued it on the two real directories. It is handy, but consider its scope
+    carefully since the command substitution remains available in a function until
+    this returns. Talking about scope, process substitution is a good way to avoid
+    a common pitfall when piping command to a loop in a subshell:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE14]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Piping is actually executing the loop inside a subshell, and this will have
+    all the variables inside the loop being available in the subshell only. The value
+    of `main_variable` will be modified in the inner loop but once we exit it, we
+    go back to the main value since each variable value set in the inner loop cannot
+    be sent back to the calling environment:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE15]'
+  prefs: []
+  type: TYPE_PRE
+- en: As we can see, `main_variable` changes inside the subshell, where the loop after
+    the pipe is executed; but it is unaffected on the main shell. Subshells can be
+    really tricky, because you may not realize you are spawning them and so be unaware
+    of what the real outcome will be. Even setting some environment variable will
+    not help us in preventing this issue.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Environment variables
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'Let''s call it a proof of concept more than a real means to have processes
+    communicate with each other. Who would really want to mess with the environment?
+    Anyway, we are exploring some viable means to IPC, so we can take this in account
+    even though we will not use it in the first instance. Let''s have a look at `env`:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE16]'
+  prefs: []
+  type: TYPE_PRE
+- en: We trimmed out the content of the `LS_COLORS` variable, but even so, one outstanding
+    issue is that the output is a bit crowded and holds a lot of information, most
+    of it vital for our login session. So, first advice, let's be really cautious
+    when tinkering with the `environment` variable.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'One thing we must keep in mind is that there is a big difference between a
+    `shell` variable and an `environment` one; let''s see an example:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE17]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Executing it, we will get this:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE18]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'And now we will tinker with the environment:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE19]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'And they are the same, since the nested shell shared the environment variables
+    of the parent shell:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE20]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'What we get from this example concerns the normal use of variables. There is
+    no real difference between shell and environment variables: both are accessible
+    by sub processes/shells and both are unaffected by subshell manipulations. The
+    real difference stands out when we have a subprocess which is executed by an `execve()`
+    system call: in this case, the shell variable is not be passed through. We will
+    have to export it to make it available to the subshell. If we want to have fun,
+    there is something even trickier than this. A new keyword introduced with Bash
+    4.0 can reveal itself as a nice playground for our experiments.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Coprocesses
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'Introduced with Bash 4.0, the coproc keyword allow allows the user to run a
+    process in the background in an asyncronous subshell. During the execution of
+    the process, a pipe is established between the calling shell and the coprocess.
+    The best results are obtained with programs which can be run in a CLI and can
+    read from `stdin` and write to `stdout`, better if with an unbuffered stream.
+    The syntax for coprocess is here:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE21]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'The bits within parentheses are optional, but if you specify a name, `coproc`
+    will create a coprocess with the name. If no name is given, it will be defaulted
+    to `COPROC`; and we must not define any name if the following is a simple command,
+    otherwise it will be treated as the first word of the command. The process ID
+    of the shell executing the coprocess is stored in a variable called `NAME_PID`:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE22]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'We executed an infinite loop and its `PID` is shown as `31067`; let''s check
+    whether we can read it from `COPROC_PID`, which is the default name for the variable
+    when no name has been provided:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE23]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Here, we can easily get the `PID` value from the `COPROC_PID` variable. When
+    coprocess is executed the shell instances an array variable named after `NAME`,
+    which holds two pieces of information:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '**NAME[0]**: This holds the output file descriptor for coprocess'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**NAME[1]**: This holds the input file descriptor for coprocess'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'So, we can read and write using the file descriptors, which in our example
+    are here:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE24]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Another way to see what files are open for the current process is this:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE25]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'In our case, do this:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE26]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'These pipes are in place before any redirection a user could specify on the
+    command line, so the file descriptors can be used as arguments for the commands
+    issued on the command line, and redirections can be used to feed or retrieve data;
+    but beware that the file descriptors do not get inherited by subshells. That said,
+    we can feed data to coprocess simply using the following syntax:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE27]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'While we can use `read` to retrieve data from coprocess as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE28]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Before having a look a simple example, we have to keep in mind a few points:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Most of the commands in Linux are buffered when used without a user interaction.
+    And this fools us into reading from the `coproc` file descriptors. To make some
+    simple experiments, the `bc` util works fine; or use `awk` with `fflush()` or
+    the `unbuffer` command from the `expect` package to have unbuffered output.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: There can be only one active coproc at time.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: We can use the `wait` built-in to wait for coprocess to terminate.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'That said, let''s see how can we can interact with a process in the background:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE29]'
+  prefs: []
+  type: TYPE_PRE
+- en: To trick `coproc` into letting us use a name we created a list with only one
+    command followed by `;` then we made it a bit easier to work with file descriptors,
+    storing them in two meaningful variables. So, we will not fiddle with `0` and
+    `1`. In the next step, we echoed a `bc` multiplication to the `stdin` of `bc`
+    using its file descriptor, and read it with the `-u` option, which is exactly
+    the option needed for reading from file descriptors. As the last step, we printed
+    the out variable in which we previously stored the result of the multiplication,
+    printed by `bc` on its standard output.
+  prefs: []
+  type: TYPE_NORMAL
+- en: There is actually one last way to make different processes talk to each other;
+    can we recall it? Yes, we already saw it at the very beginning of this book.
+  prefs: []
+  type: TYPE_NORMAL
+- en: /dev/tcp and /dev/udp
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: If we look inside the `/dev` directory, we find lots of files that represent
+    physical devices that can be hardware or not. These device files can represent
+    partitions; loopback is used to access plain files as if they were block devices.
+    ISO files, for example, can be mounted as if they were CD-ROMs. Some of this device
+    files are quite unusual, but we have already heard of them, for instance, `/dev/null`, `/dev/zero`, `/dev/urandom`, `/dev/tcp`,
+    and `/dev/tcp`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'These are called pseudo-devices, and they represent and provide access to some
+    *facilities*. For instance, all this is moved or redirected to the `/dev/null`
+    fall in a *black hole* and disappears, whereas `/dev/urandom` is a good way to
+    get a random string when needed:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE30]'
+  prefs: []
+  type: TYPE_PRE
+- en: With `/dev/tcp` or `/dev/udp`, we get access to a socket through which we can
+    communicate to network services locally or remotely. For our examples, we will
+    focus on TCP sockets, since they are more interesting to use for our experiments.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Then what is a socket? Imagine a socket as a pipe between two multistorey buildings.
+    To put this pipe in place, you have to know the civic number of each building
+    and which floor of one must be connected to which floor of the other. The same
+    is for a network socket which is identified by two tuples:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE31]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'So, Bash is able to set up a connection to a network service as long as we
+    provide at least the remote end of the communication channel, the IP or hostname,
+    and the port to cling to. Easy, isn''t it, but how to do it? The right syntax
+    is the following:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE32]'
+  prefs: []
+  type: TYPE_PRE
+- en: '`<` means opening the socket for reading, `>` for writing, and `<>` for both.
+    There isn''t a big difference between the IP or hostname, but we must pay attention
+    to which file descriptors we are going to use. We have 10 file descriptors available,
+    from 0 to 9, but since, `0 = stdin`, `1 = stdout`, `2 = stderr` are already bound,
+    we cannot use them. So, we are left with seven file descriptors, from 3 to 9\.
+    So, let''s try an easy example:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE33]'
+  prefs: []
+  type: TYPE_PRE
+- en: We just read the time over the internet, connecting to an Italian time server
+    in an easy way, but we can do something even more complicated; let's recall an
+    example we made in the first chapter.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Let''s open a socket in read/write mode to a web server and assign a file descriptor
+    called `9`:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE34]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Then, we are going to write a request to it using the HTTP/1.1 syntax as if
+    we were a real web browser:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE35]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'We just requested a simple HTML file created for this example; so since we
+    requested it, it is time to read this page through the file descriptor called
+    `9`:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE36]'
+  prefs: []
+  type: TYPE_PRE
+- en: Here, we could interact with a remote server as if it was a local file, using
+    `print` and `cat` to push and pull content. All locally, but definitely remotely.
+  prefs: []
+  type: TYPE_NORMAL
+- en: There is indeed one last way to have fun when we want to tinker with IPC; even
+    though this is not a proper IPC means, it is so much fun that we cannot avoid
+    talking about Netcat.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Netcat
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: We could even never have been using this tool but no one probably can say they
+    never heard about it being called the *TCP/IP Swiss army knife* and that for its
+    versatility. You can literally have hours of fun just exploring all the possibilities
+    it enables. That said, `netcat` is a utility, which reads and writes over the
+    network using either TCP or UDP protocol; and what makes it really handy is its
+    ability to keep up the connection until the remote side of the connection is shut
+    down. This makes it different from most of the applications, which just stop working
+    after the last bit of data has been delivered. `netcat` is different; it keeps
+    both ends of the communication channel in touch even if there is nothing passing
+    through, so you can use it for repeated dispatches.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The Netcat can be used either in a server or client mode and from inside scripts
+    too by adding network facilities to them. So many things, but the best way to
+    understand what we can do with it is to run some examples. So, the first step
+    will be opening a connection to a remote server inside a term, which can be split
+    in two panels such as *terminator.* Last bit, remember that Netcat cannot be installed
+    by default on our system, but distributions have a package for it. So, once the
+    utility is installed, let''s open two `xterm`, or split terminators into two panels
+    and connect to a remote server. On the remote server, check for an open port,
+    usually something around `8000` (`8080` being a port widely used for proxies)
+    or `9000` would be nice; a command like this executed as root can tell us whether
+    the port we are looking for is available:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE37]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Netstat simply lists all the tcp ports in listen mode, showing the numeric
+    port numbers; and then we grep over the port we want to check. If it returns nothing,
+    the port is free. Second step, often forgotten, is that we are sure the port is
+    not blocked by our local firewall. This is because we are mastering Bash and *have* a
+    firewall in place even on our local desktop. We will talk more about securing
+    our boxes later on, but, for now, let''s assume we have a simple but reliable
+    firewall in place such as `ufw`. To enable port `900` , we can just give the following
+    command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE38]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Rule added, it is the sixth in our chain, but it can have any other number
+    depending on how many other rules you have. Remember that to delete a rule, you
+    just have to run this:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE39]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'We used the rule number; you can use the rule name `allow 9000/tcp` as you
+    wish. Now that we have a free port unblocked, we can run `netcat` in listening
+    mode on the remote server:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE40]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'This will start `netcat` in listening mode, and `-l` will be ready to accept
+    connections on port `-p 9000` in a verbose detailed mode `-vv`. We will not have
+    our prompt back because `netcat` keeps running in the foreground, monopolizing
+    the terminal. Now, on the local system, let''s run `netcat` in client mode:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE41]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Great, the connection is opened on both sides. Notice that we invoked Netcat
+    both with the `netcat` command and `nc;` we can choose whatever we prefer. Once
+    the connection is established, we will see a message like this on the listening
+    side:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE42]'
+  prefs: []
+  type: TYPE_PRE
+- en: The message called `Unknown host` must not bother us; Netcat makes a reverse
+    lookup to check the hostname the connection is coming from. Being a test environment
+    we did not set any internal DNS resolution. If you do not want to tinker with
+    DNS, a simple solution is to open the `/etc/hosts` file on the server side operating
+    system and add a line such as `192.168.0.5 spoton`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Being `192.168.0.t` the IP address of the client the connection is coming from
+    and `spoton` the hostname we want it to be identified and resolved by `netcat`
+    on the server side. If you don''t want the DNS resolution, add `-n` on the server
+    and the client side, and you will work with IP. So now, let''s retry the connection:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE43]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'This looks better, doesn''t it? Let''s just type something on the client, and
+    whatever we input will be echoed on the server side. We can pause and type at
+    a later time; meanwhile, the channel will be up and running waiting for our input:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00043.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'The client is on the left panel and gets echoed on the right panel, onto the
+    server side. Now something spooky; on the server side, type this:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE44]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'What we just did is use the `-c` switch to tell `netcat` to execute right after
+    the connection the command specified as argument. The command will be passed to
+    `/bin/sh -c` for execution with no further check, and if you do not have the `sh`
+    shell installed, just use `-e` to have the command executed. Now, on the client
+    side, let''s execute this:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE45]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'The connection has been established right after the `date` command has been
+    issued; so, in our client, we can see the output of the command and the date and
+    time on the server side. It does not seem spooky, does it? It is just `date`,
+    what harm can it do? Okay, let''s modify the server argument and be ready to freak
+    out:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE46]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Interesting, at each connection, we will execute a Bash shell. Let''s open
+    it on the client side:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE47]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Now, let''s give some innocent commands in the client:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE48]'
+  prefs: []
+  type: TYPE_PRE
+- en: Okay, this is a date, but where are we?
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE49]'
+  prefs: []
+  type: TYPE_PRE
+- en: Nice, but who are we?
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE50]'
+  prefs: []
+  type: TYPE_PRE
+- en: So, we are `root` but on which side?
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE51]'
+  prefs: []
+  type: TYPE_PRE
+- en: Ouch, we are `root` on the server, and we issued commands as a superuser with
+    no authentication required. Since this is really dangerous, use this option with
+    extreme care. Maybe just for fun and testing and nothing else, we just showed
+    it to highlight the potentials and the risks.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'What else can we do? Let''s create a file on the client side:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE52]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'On the server side, let''s start `netcat`, this time with no verbose mode since
+    we do not need it if you do not want to debug the connection and redirect the
+    output to `testfile.txt`:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE53]'
+  prefs: []
+  type: TYPE_PRE
+- en: We used unprivileged users. We do not need to use `root` if we do not want to
+    bind the so-called reserved or system ports; the ports below `1024` are used for
+    providing service, such as`22` for SSH, `80` for HTTP, and so forth.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Now, back on the client side, let''s feed the client with the content of `testfile`:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE54]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'We added a timeout of 2 seconds for the connection so that once the file content
+    is dispatched, it will close the connection after 3 seconds. Once on the server
+    side, we see this:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE55]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'We are done and we just have to interrupt Netcat with a *Ctrl *+ *C *and check
+    the content of `filetest.txt`:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE56]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'And that''s it, the content of the file has been transferred to the server
+    and saved on `testfile.txt`. But what if we wanted to transfer whole directories
+    or bunches of file? We cannot adopt the same strategy because all the output would
+    be redirected to a single file, and this won''t work. So, on the server side,
+    let''s first create a test `dir`:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE57]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Now, let''s run Netcat:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE58]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'This will run `tar` on the input with the following:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`x`: It extracts files from the archive received in input'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`p`: It preserves permissions on files'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`z`: It filters the received archive through `gzp`, essentially uncrompressing
+    it'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`f`: File archive to work on. In our case everything goes to the `stdout`'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`-`: The last dash means it will work on the data coming from the `stdin` instead
+    of looking for a file on the filesystem'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'On the client side, let''s enter a directory with some files and subdirectories
+    we want to transfer and have a look at their properties:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE59]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Now, on the client side, let''s run Netcat:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE60]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'The `tar` command is executed with the following:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`c`: Create an archive.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`z`: Compress it filtering through `gzip`.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`f`: File archive to work on. In our case, it will get the name from the input.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`-`: The last dash means it will work on the data coming from the `stdin` instead
+    of looking for a file on the filesystem.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'We gave all the visible files and directories as input to `tar`; we could also
+    use single or multiple files and directory names if we just wanted to copy a few
+    of them. Once the command is given, we should see something like this on the server
+    side:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE61]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'It seems the files and directories have been transferred. Let''s exit Netcat
+    and check this:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE62]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'That''s it, all the files and directories are copied and permissions preserved.
+    There are so many things we can do with Netcat that probably it would deserve
+    a book on its own; we are just scratching the surface and having fun:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE63]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'We can just use it as a simple port scanner with `-z`, which will prevent the
+    reception of any data from the remote server and `-w 1` to timeout the connection
+    in case the remote port does not provide a reply. You can add `-n` to prevent
+    the DNS resolution and specify a port not only by its number but also with its
+    name or specify a range of ports to be checked specifying *lower_port_number:higher_port_number*:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE64]'
+  prefs: []
+  type: TYPE_PRE
+- en: If we do not know or remember the ports associated to the main services, we
+    can retrieve a list from the `/etc/services` file.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Well, do we need a proxy?
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE65]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'In this case, we used `ncat`, a sort of Netcat on steroids, which can overcome
+    a limit in Netcat. It has a one direction pipe, so we can send but not read from
+    the server while proxying. Once `ncat` executes Netcat, managing the flow, we
+    can connect to port `9999` on localhost and ask for a page:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE66]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'We just cut a part of the output with the whole page and highlighted the commands
+    we gave to retrieve the page. Anyway, instead of `ncat`, we could use Netcat with
+    a named pipe:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE67]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Then, simply use the output redirection to have a bidirectional channel:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE68]'
+  prefs: []
+  type: TYPE_PRE
+- en: Now, telnet to localhost on port `9999` and perform the same get as in the other
+    example or, better, fire up your internet browser and point it to `http://localhost:9999`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'One more thing before leaving this chapter, did you ever fancy a quick, easy
+    server at your disposal? Let''s start creating a small HTML page:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE69]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Now, an infinite loop will help Netcat to serve us the page:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE70]'
+  prefs: []
+  type: TYPE_PRE
+- en: Last step, let's open `http://localhost:9999` in our favorite internet browser.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The page will be served because it was pushed by a web server, as we can see
+    from the following screenshot:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00044.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: The HTML page we just created is being served as if it was pushed by a real
+    web server.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Summary
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'Letting services talk to each other is not so difficult and can be real fun,
+    especially if we know how to redirect the flows and spice things up with the right
+    tools. Did we see everything Bash has to offer regarding IPC? No, and this is
+    one of the best things about the shell: we can accomplish the same task in different
+    ways, and there are so many things to do that a chapter would not be enough. Once
+    again, this is the best thing in shell: we start off with some examples, learn
+    how to work with the commands and utilities, and then expand our knowledge trying
+    new experiments, tinkering with options and arguments, and mastering the tools
+    we have been offered.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: We pushed IPC so far that Netcat became a simple web server, pushing a page
+    over the network so that we could actually display it in a browser. This is amazing,
+    and it is quite the limit of what Bash can do, but we will try to stretch these
+    boundaries in the next chapter by taking a look at how we can create simple daemons
+    and offer services with Bash.
+  prefs: []
+  type: TYPE_NORMAL

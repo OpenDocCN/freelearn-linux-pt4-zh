@@ -1,0 +1,1127 @@
+- en: Chapter 3. User and Permission Management
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'This chapter contains the following recipes:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Escalating privileges with sudo
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Enforcing password restrictions
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Setting default permissions for new files and directories
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Running binaries as a different user
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Working with SELinux for greater security
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Introduction
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: Each of the recipes in this chapter pertain to users and permissions. You'll
+    learn how to let users temporarily escalate their privileges without requiring
+    the root password and how to enforce complexity requirements for users. You'll
+    also learn how to specify what access permissions are given to new files and directories
+    by default and how the traditional Unix permission system can allow a program
+    to run under a different security context than that of the user who launched it.
+    Finally, we'll look at SELinux, a secondary permission system that hardens the
+    security of your CentOS server.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Escalating privileges with sudo
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'The `root` account is Linux''s **god account**, and it has the ability to perform
+    pretty much any activity on the system. For security reasons, you should use an
+    unprivileged user account for your day-to-day activities and use `root` only when
+    it''s necessary for administration tasks. It''s also important to keep the root''s
+    password secret; the more people who know its password, the harder it is to keep
+    it secret. A quote by Benjamin Franklin comes to mind: Three can keep a secret
+    if two of them are dead.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: If more than one administrator has been tasked with managing a system, keeping
+    `root` secure can be difficult. `sudo` solves this problem by giving users a way
+    to execute commands with the privileges of another user (most commonly `root`).
+    Each of the administrator accounts can be configured using one of the methods
+    presented in this recipe to escalate their privileges temporarily with `sudo`,
+    and root's password can remain secret.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Getting ready
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: This recipe requires a CentOS system and administrative access provided by logging
+    in with the `root` account. You'll also need one or two unprivileged user accounts
+    to configure (refer to the `useradd` man page `man 8 useradd` for information
+    on creating user accounts).
+  prefs: []
+  type: TYPE_NORMAL
+- en: How to do it...
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'One way to allow an unprivileged account the use of `sudo` is to assign it
+    a membership in the `wheel` group. This is done with the following steps:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Use `usermod` to add the user account to `wheel`:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE0]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Verify the update using the `groups` command. `wheel` should list one of the
+    groups which the account is a member of:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE1]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Another way to grant access to `sudo` is by configuring the sudoers policy
+    which identifies which accounts can use `sudo` and in what manner. You can easily
+    add an account to the policy with the following steps:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Create a new file in the `/etc/sudoers.d` directory named after the user account:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE2]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Open the file and add the following directive. When finished, save your update
+    and close the file:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE3]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: How it works...
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'For a user to use the `sudo` command they must be somehow listed in the sudoers
+    policy. This is checked by `sudo` to verify whether the account is authorized
+    to perform the attempted action. This recipe presented two ways of accomplishing
+    this: by assigning the user account to the `wheel` group (which is already registered
+    in the policy) or by adding the account directly to the policy.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: In the first approach, the `usermod` command assigns the user membership in
+    `wheel`. The `-G` option specifies the name of the group and `-a` instructs `usermod`
+    to add the user to that group. It's important that you provide `-a` since without
+    it the list of assigned groups is overwritten with only what is given with `-G`
+    (that is, the account would belong only to `wheel`).
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE4]'
+  prefs: []
+  type: TYPE_PRE
+- en: The second approach registers the account with the sudoers policy by creating
+    a file for the user under `/etc/sudoers.d`. We alternatively could have added
+    the user's information to the `/etc/sudoers` configuration file, but the policy
+    already includes any files found in the `sudoers.d` directory as part of its configuration.
+    Creating a file for each user in the directory will be more manageable given a
+    large number of users when it is time to revoke access.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Both approaches allow a user the use of `sudo` to execute commands they wouldn''t
+    ordinarily have sufficient rights to. For example:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE5]'
+  prefs: []
+  type: TYPE_PRE
+- en: The first time a user invokes `sudo`, a message is displayed that reminds them
+    to be responsible with their new-found power. The user must provide their password
+    to verify their identity; the verification is cached for five minutes from the
+    last invocation as an extra bit of protection against malicious users who might
+    walk up to a terminal that was carelessly left logged in.
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![How it works...](img/image_03_001.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: sudo reminds the user that with great power comes great responsibly
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The sudoers policy is flexible enough to allow a user account to execute certain
+    commands instead of giving carte blanche access. Recall the configuration directive
+    for our unprivileged user account:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE6]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'The username is specified followed by assigning the `ALL` alias to `ALL`. As
+    you might determine by looking at this, `ALL` is the predefined alias that represents
+    all commands. We can redefine the alias for the given user as a list of allowed
+    commands:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE7]'
+  prefs: []
+  type: TYPE_PRE
+- en: Now the account can invoke any command it normally has access to, but only the
+    `mount` and `umount` commands with elevated privileges (assuming the account isn't
+    a member of `wheel`).
+  prefs: []
+  type: TYPE_NORMAL
+- en: Tip
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: 'Are you tired of typing `sudo` before your commonly-used administrative commands?
+    You can create aliases for a smoother command line experience. Suppose your unprivileged
+    account is allowed to use the `mount` and `umount` commands with `sudo`. Adding
+    the following lines to your `~/.bashrc` file will let you invoke them commands
+    without explicitly typing `sudo`:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE8]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Multiple directives in the policy can apply to an account in which case they
+    are applied additively, first to last. To see this in action, suppose an account
+    already has full `sudo` usage by assignment in the `wheel` group. By default,
+    the user needs to provide their password to execute a command. We can relax this
+    requirement and allow the user to use `ls` to display the contents of restricted
+    directories without a password:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE9]'
+  prefs: []
+  type: TYPE_PRE
+- en: The `wheel` group's policy is applied first, establishing the default behavior.
+    Then our new directive uses the `NOPASSWD` tag to grant the user unauthenticated
+    access to the `ls` command. The user will still need to provide their password
+    for commands such as `mount` and `passwd` but won't need to provide it to list
+    restricted directories.
+  prefs: []
+  type: TYPE_NORMAL
+- en: See also
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'Refer to the following resources for more information on working with `sudo`
+    to temporarily elevate an account''s privileges:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: The `sudo` man page (`man 8 sudo`)
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: The `sudoers` man page (`man 5 sudoers`)
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Code Snipcademy: Using `sudo` and `su` and their differences ([https://code.snipcademy.com/tutorials/linux-command-line/permissions/sudo](https://code.snipcademy.com/tutorials/linux-command-line/permissions/sudo))'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Enforcing password restrictions
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: A weak password can be one of the weakest security points of any system. Simple
+    passwords are susceptible to brute-force attacks and long-lived passwords, if
+    they are compromised, provide a wide window of opportunity for malicious activity.
+    Because of this, it's important to ensure that your users choose sufficiently
+    complex passwords and change them regularly. This recipe shows you how to strengthen
+    your system's security by enforcing various restrictions on users' passwords.
+    You'll learn how to specify the minimum complexity requirements for a password,
+    how long before a password must be changed, and how to lock down an account after
+    a number of failed login attempts.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Getting ready
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: This recipe requires a CentOS system and administrative access, either provided
+    by logging in with the `root` account or by using `sudo`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: How to do it...
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'Follow these steps to enforce password restrictions that will increase the
+    security of your CentOS system:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The parameters governing password aging are found in `/etc/login.defs`; open
+    the file using your text editor of choice:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE10]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Locate the password aging controls section and update the value of `PASS_MAX_DAYS`,
+    `PASS_MIN_DAYS`, `PASS_MIN_LEN`, and `PASS_WARN_AGE`:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE11]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: Save your changes and close the file.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'The values specified in `login.defs` will be applied to new accounts when they
+    are created. Existing users must have their password parameters set separately
+    using the `chage` command:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE12]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'The parameters governing the acceptable complexity for passwords are found
+    in `/etc/security/pwquality.conf`; open the file for editing:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE13]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Uncomment the `minlen` value to specify the desired minimum password complexity
+    plus 1\. For example, an eight-character password consisting of all lowercase
+    characters would require a `minlen` of `9`:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE14]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: You may uncomment other values and set them as well if you like. Each value
+    is preceded by a brief descriptive comment of what it does. To require a minimum
+    number of characters to be from a certain class (uppercase, lowercase, digits,
+    and other/special), specify the value as a negative number. For example, if passwords
+    require at least one numeric digit and one uppercase character then both `dcredit`
+    and `ucredit` would be set to `-1`:![How to do it...](img/image_03_002.jpg)
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Options for configuring your system's password complexity requirements are found
+    in pwquality.conf
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: Save your changes and close the file.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'Next we''ll update PAM''s `password-auth` and `system-auth` module configurations
+    to lock out an account after a number of unsuccessful login-attempts. Open the
+    file `/etc/pam.d/password-auth`:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE15]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Update the group of `auth` lines at the beginning of the file to read as follows.
+    The second and fourth lines have been added and include `pam_faillock` to the
+    authentication stack:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE16]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Update the group of `account` lines to read as follows. The second line has
+    been added to include `pam_faillock` to the account stack:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE17]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: Note
+  prefs:
+  - PREF_IND
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: Be careful when updating the `password-auth` and `system-auth` files. The order
+    in which modules are listed in a stack is significant!
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: Save your changes and close the file. Then repeat steps 9 to 11 with the file
+    `/etc/pam.d/system-auth`.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: How it works...
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: Properly configuring the authentication requirements for local accounts is a
+    bit of a fractured experience. First, there's the traditional Unix password files
+    (`/etc/passwd` and `/etc/groups`) and the `shadow-utils` package, which adds shadowing
+    support (`/etc/shadow`). Together, these form the core database for local account
+    credentials. In addition, similar to most other modern Linux systems, CentOS uses
+    PAM, a collection of pluggable authentication modules. The PAM stack is configured
+    by default to lookup account information in the shadow file, but it also provides
+    additional functionality that PAM-aware programs can leverage, such as password-strength
+    checking. As an administrator, you're responsible for configuring these services
+    so that they work properly in tandem and operate within the acceptable security
+    guidelines set by your organization.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'In this recipe, we first updated the password aging related controls found
+    in `/etc/logins.def`:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE18]'
+  prefs: []
+  type: TYPE_PRE
+- en: '`PASS_MAX_DAYS` defines how much time can pass before a password must be changed.
+    By setting the value to `90`, a user must change their password at least once
+    every three months (90 days). `PASS_MIN_DAYS` specifies how many days a user must
+    wait to change a new password. Since this value is 0, a user can change their
+    password any time they want-even several times a day if they like. `PASS_WARN_AGE`
+    defines how many days in advance a user will be notified of their password''s
+    pending expiration as `PASS_MAX_DAYS` approaches.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Note
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: '`PASS_MIN_LEN` is supposed to set the minimum password length, but you''ll
+    find PAM''s password complexity requirements supersede this, making the setting
+    pretty much worthless.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Utilities such as `useradd` use these settings as the defaults when creating
+    entries in the password and shadow files. They aren''t applied retroactively to
+    existing users so we need to use `chage` to update their accounts:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE19]'
+  prefs: []
+  type: TYPE_PRE
+- en: '`chage` can set the minimum and maximum age of a user''s password and the notification
+    window for pending expirations, but note the absence of a minimum length requirement.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'We can also use `chage` to make a user''s password expire immediately so that
+    they must specify a new one the next time they log in. To do so, we provide the
+    `--lastdays` argument with a value of 0:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE20]'
+  prefs: []
+  type: TYPE_PRE
+- en: Tip
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: 'If you have more than a handful of accounts, you may want to automate using
+    `chage` with some basic shell scripting. Here''s a series of commands piped together
+    that update all of the existing user accounts in an automated fashion:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE21]'
+  prefs: []
+  type: TYPE_PRE
+- en: This works by retrieving the contents of the shadow file and using `awk` to
+    split each record using `:` as the field separator. `awk` looks at the value in
+    the second field (the encrypted password) to see if it begins with `$`, indicating
+    the account has a password, to filter out disabled accounts and system accounts
+    without a password. The username from each matching record is then piped to `xargs`
+    which then feeds the names one at a time to `chage`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: As the PAM module `pam_pwquality` checks the complexity of passwords, we specify
+    our password complexity requirements in the module's configuration file, `/etc/security/pwquality.conf`.
+    It gauges the quality of a password using a credit system where each character
+    credits a point towards the password's total score. This score then must meet
+    or exceed the value we gave for `minlen`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The page at [http://wpollock.com/AUnix2/PAM-Help.htm](http://wpollock.com/AUnix2/PAM-Help.htm)
+    has a good explanation of how `pam_pwquality` calculates a password''s complexity.
+    It explains the algorithm as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Add one for each character in the password regardless of the type of the character
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Add one to that for each lowercase letter used, up to a maximum of `lcredit`
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Add one to that for each uppercase letter used, up to a maximum of `ucredit`
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Add one to that for each digit used, up to a maximum of `dcredit`
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Add one to that for each symbol used, up to a maximum of `ocredit`
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: The page also presents a few complexity calculations for different passwords
+    and is worth reading.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Then we updated the `password-auth` and `system-auth` files to lock a user''s
+    account after three unsuccessful login attempts. Different authentication stacks
+    need to be configured because different login methods will invoke a different
+    authentication stack (that is, a logging in over SSH as opposed to logging in
+    locally):'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE22]'
+  prefs: []
+  type: TYPE_PRE
+- en: The `pam_faillock` module is added at multiple positions in the authentication
+    stack. The first appearance in the `auth` block performs a precheck (`preauth`)
+    to see if the account is already locked out The second appearance tallies the
+    failed attempt (`authfail`). The argument specified by `deny` is the number of
+    failed attempts permitted before locking the account. `unlock_time` specifies
+    how much time the module should wait (in seconds) before unlocking the account
+    so that another login attempt can be made. As the example specifies 600 seconds,
+    a user will have to wait 10 minutes for the lockout to expire. The module's appearance
+    in the `account` block denies authentication to the locked account.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The `faillock` command is used to view the number of failed login attempts
+    and to unlock an account. To see the failed attempts, invoke the command using
+    the `--user` argument to specify the account''s username:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE23]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'To manually unlock the account before `unlock_time` has elapsed, invoke the
+    command with the `--reset` argument:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE24]'
+  prefs: []
+  type: TYPE_PRE
+- en: See also
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'Refer to the following resources for more information on how user accounts
+    are authenticated and how to enforce password restrictions:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: The `chage` man page (`man 1 chage`)
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: The shadow file man page (`man 5 shadow`)
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: The `pam_faillock` man page (`man 8 pam_faillock`)
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Linux Documentation Project: Putting the Shadow suite to use ([http://tldp.org/HOWTO/Shadow-Password-HOWTO-7.html](http://tldp.org/HOWTO/Shadow-Password-HOWTO-7.html))'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: The Linux-PAM System Administrator's Guide ([http://www.linux-pam.org/Linux-PAM-html/Linux-PAM_SAG.html](http://www.linux-pam.org/Linux-PAM-html/Linux-PAM_SAG.html))
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'RHEL Security Guide: Password Security ([https://access.redhat.com/documentation/en-US/Red_Hat_Enterprise_Linux/7/html-single/Security_Guide/index.html#sec-Password_Security](https://access.redhat.com/documentation/en-US/Red_Hat_Enterprise_Linux/7/html-single/Security_Guide/index.html#sec-Password_Security))'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Setting default permissions for new files and directories
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: Linux's permissions system governs whether a user can enter a directory or read,
+    write, or execute a file. By setting the permission bits on files and directories,
+    access can be granted or revoked to different users and groups of users. However,
+    it's possible for a user to create a file and expect others in their group to
+    access it, but the initial file permissions prevents this. To help avoid this
+    situation, this recipe teaches you how to set the default permissions for new
+    files and directories by specifying a mask value.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Getting ready
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: This recipe requires a CentOS system and administrative access, either provided
+    by logging in with the `root` account or by using `sudo`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: How to do it...
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'Follow these steps to specify the default permissions for new files and directories:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'To set the mask value globally, open the `/etc/profile` file:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE25]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'At the end of the file, add the following directive (adjusting the value as
+    desired). When finished, save and close the file:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE26]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'To override the global mask and set the mask on a per-user basis, open the
+    user''s `~/.bashrc` file:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE27]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'At the end of the file, add the following (again adjusting the value as necessary).
+    Then save and close the file:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE28]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'To temporarily set the mask only for the duration of your session, execute
+    the `umask` command at the command prompt:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE29]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: Note
+  prefs:
+  - PREF_IND
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: You can execute `umask` at the command prompt without providing a mask value
+    to see what your current mask value is.
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: How it works...
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: This recipe presents three ways a mask value can be set, which is responsible
+    for determining what permissions are set on newly created files and directories.
+    However, to understand how the mask works, you need to understand the traditional
+    read, write, and execute permission system.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Directories and files in the Linux file system are owned by a user and group,
+    and they are assigned a set of permissions that describe who can access it. When
+    a user tries to access a resource, the system compares its ownership information
+    with requesting user and determines if the requested access should be granted
+    according to the permissions.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The three permissions are read, write, and execute. Since access to each can
+    be only one of the two values (allowed or disallowed), and because such binary
+    options can be represented with 1 for yes and 0 for no, a sequence of 1''s and
+    0''s can be viewed as a bit pattern where each permission is given a different
+    position in the sequence. The following figure shows how a list of binary yes''s
+    and no''s can be converted to a human-friendly value:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![How it works...](img/image_03_003.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Binary values represent whether a user has permission to access a resource
+  prefs: []
+  type: TYPE_NORMAL
+- en: From the file or directory's perspective, there are three types of users. The
+    user is either the file's owner, a member of the owning group, or neither (everyone
+    else).
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The resource is given a set of permissions for each type of users, as shown
+    in the following figure:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![How it works...](img/image_03_004.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: The full permission set of a file or directory includes the three types of users
+  prefs: []
+  type: TYPE_NORMAL
+- en: This is the logic behind the traditional Unix permission system, but don't worry
+    if this seems intimidating at first. Determining the permissions for a class of
+    users is really just a matter of addition. Start with 0 for no access at all.
+    To allow read access, add `4`. For write access, add `2`. For execute, add `1`.
+    These values come from viewing the value of the permission in the bit string as
+    a binary number, but they are easy enough to memorize. Thus, to allow all access,
+    we add `4` + `2` + `1` which equals `7`. To allow only read and execute access,
+    `4`  + `1` equals `5`. The more you work with permissions, the more you'll come
+    to recognize certain combinations automatically.
+  prefs: []
+  type: TYPE_NORMAL
+- en: When a file is created, the system begins with `666` as a default value, giving
+    read and write access to all three classes of users. Directories start with `777`
+    since the executable permission on a directory is what allows a user to traverse
+    into it. The system then subtracts the creating user's umask value and the result
+    determines what permissions will be assigned to the resource when it's created.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Suppose we create a new directory and our umask value is `0027`. The system
+    subtracts `7` from the all other users' field and `2` from the group's field.
+    `7` - `7` is `0`, and `7` - `2` is `5`, so the default permission for a new directory
+    is `750`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Because we start with one bit less in the default value for files, it's possible
+    to end up with a negative permission number. If umask masks out all of the permissions
+    using the value `7`, but the starting value is `666` for files, `6` - `7` gives
+    `-1`. It doesn't make sense to go beyond 0 so the system treats it as 0\. So,
+    a mask of `0027` gives us `650` for the file's permissions.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The `/etc/profile` and `~/.bashrc` files are executed whenever a user logs in
+    to configure their session's environment. Calling `umask` in `profile` has the
+    effect of setting the mask for all users. `.bashrc` is executed after `profile`
+    and is user specific; so, its call to `umask` overrides the previously set value,
+    setting the mask for that specific user.
+  prefs: []
+  type: TYPE_NORMAL
+- en: See also
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'Refer to the following resources for more information about umask:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Wikipedia: Umask ([http://unix.stackexchange.com/questions/102075/why-are-666-the-default-file-creation-permissions](http://unix.stackexchange.com/questions/102075/why-are-666-the-default-file-creation-permissions))'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Why are 666 the default file creation permissions? ([https://en.wikipedia.org/wiki/Umask](https://en.wikipedia.org/wiki/Umask))
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Controlling file permissions with umask ([http://linuxzoo.net/page/sec_umask.html](http://linuxzoo.net/page/sec_umask.html))
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Running binaries as a different user
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: Every program on CentOS runs within the environment of a user account regardless
+    of whether the program is executed by a user or run as an automated system process.
+    However, sometimes we want the program to run with different restrictions and
+    access those rights the account is allowed. For example, a user should be able
+    to use the `passwd` command to reset their password. The command needs write access
+    to `/etc/passwd` but we don't want the user running the command to have such access.
+    This recipe teaches you how setting a program's SUID and SGID permission bits
+    allows it to execute within the environment of a different user.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Getting ready
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: This recipe requires a CentOS system. Administrative privileges are also required,
+    either by logging in with the `root` account or by the use of `sudo`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: How to do it...
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'Follow these steps to allow a program to execute as a different user:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Identify the file''s owner and group details using the `ls` command. The third
+    field in its output lists the owner and the fourth field lists the group:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE30]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: '![How to do it...](img/image_03_005.jpg)'
+  prefs:
+  - PREF_IND
+  type: TYPE_IMG
+- en: The -l option displays the file listing in long-form which includes ownership
+    information
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: 'If necessary, change the file''s ownership using `chown` so that the owner
+    is the one whose environment you want the script to execute in:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE31]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Set the SUID bit to allow the program to run as if it were invoked by its owner:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE32]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Set the SGID bit to allow the program to run as if it were invoked by a member
+    of its group:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE33]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: How it works...
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: When a file's SUID and SGID bits are set, the program runs within the environment
+    of its owner or group instead of the user who invoked it. This is usually done
+    with administrative programs that an unprivileged user should have access to but
+    the program itself requires administrative permissions to function properly.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The bits are set using `chown` with `u` set to target the SUID bit. A script
+    with the SUID bit set will execute with the privileges its owner has. `g` is set
+    to target the SGID bit which allows the script to execute with the privileges
+    of a member of its group. Intuitively, `+` sets the bit and `-` removes the bit,
+    later allowing the program to execute in the invoking user's environment.
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE34]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'SUID and SGID may be set numerically as well-the value for SUID is 4 and the
+    value for SGID is 2\. These can be summed together and appear as the left-most
+    digit in the numeric permission value. For example, the following sets the SUID
+    bit, the read, write, and execute bits for the file''s owner; read, write, and
+    execute bits for group members; and read and execute bits for everyone else:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE35]'
+  prefs: []
+  type: TYPE_PRE
+- en: However, the numeric approach requires you to specify all of the file's permissions.
+    If you need to do that and want to set the SUID or SGID bits at the same time,
+    it's not a problem. Otherwise, it's probably more convenient to use `+` or `-`
+    to add or subtract the indented bits.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Setting bits using mnemonic characters with `chmod` also works with the standard
+    permissions. `u`, `g`, and `a` target the desired bits for its owner (u for user),
+    group (g for group), and everybody else (a for all). The characters for read access
+    is `r`, write `w`, and execute `x`. Here are a few examples using mnemonic characters:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Allow the file''s owner to execute the file:'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '[PRE36]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Allow a group member to read the file:'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '[PRE37]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Prevent everyone who is not the owner or a member of the group from writing
+    to the file:'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '[PRE38]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: See also
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: Refer to the following resource for more information about `chmod` and setting
+    the SUID and SGID bits.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The `chmod` man page ([https://linux.die.net/man/1/chmod](https://linux.die.net/man/1/chmod))
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: How to set the SetUID and SetGID bit for files in Linux and Unix ([http://linuxg.net/how-to-set-the-setuid-and-setgid-bit-for-files-in-linux-and-unix/](http://linuxg.net/how-to-set-the-setuid-and-setgid-bit-for-files-in-linux-and-unix/))
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Wikipedia: Setuid ([https://en.wikipedia.org/wiki/Setuid](https://en.wikipedia.org/wiki/Setuid))'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Working with SELinux for greater security
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: This recipe shows you the basics of working with Security-Enhanced Linux (SELinux),
+    a kernel extension that adds an extra layer of security to your CentOS installation.
+    Because it runs at the kernel level, SELinux can control access beyond the reach
+    of the traditional filesystem permissions, including restricting running processes
+    and other resources.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Unfortunately, some administrators disable SELinux because admittedly it can
+    be a source of frustration. They're comfortable with the user/group/all and read/write/execute
+    approach and suddenly find themselves at a loss when SELinux blocks something
+    that seems as it should be available. However, the extra layer of security that
+    SELinux provides is worth the effort of investigating such problems and adjusting
+    its policies if necessary.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Getting ready
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: This recipe requires a CentOS system. Administrative privileges are also required,
+    either by logging in with the `root` account or through the use of `sudo`. The
+    demonstrated commands come from the `policycoreutils-python` package, so be sure
+    to install the package first using the `yum install policycoreutils-python` command.
+  prefs: []
+  type: TYPE_NORMAL
+- en: How to do it...
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'This collection of commands will introduce you to working with SELinux in various
+    contexts, which are as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Use `sestatus` to verify whether SELinux is enabled and to see what policy is
+    loaded:![How to do it...](img/image_03_006.jpg)
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: SELinux is enabled on this system and currently enforcing the targeted policy
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: Use `id -Z` to see which SELinux account, role, and domain your account is mapped
+    to.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Use `ls -Z` to see the security context of a file or directory:![How to do it...](img/image_03_007.jpg)
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Both id and ls can display security context related information
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: 'Use `semodule -l` to review the list of loaded policy modules in the current
+    policy. The output can be quite lengthy and you may find it beneficial to paginate
+    it using `less` or `more`:'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '[PRE39]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Use `semodule -d` and provide a module''s name to disable a specific policy
+    module:'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '[PRE40]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: You can verify that the module is disabled by reviewing the list of policy modules
+    with `semodule -l` again. The word `disabled` should appear to the right of the
+    module name.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Use `semodule -e` to enable a specific policy module:'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '[PRE41]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Use `semanage boolean` to selectively enable or disable features of an active
+    module. The `-l` argument outputs list of available features with their current
+    and default values:'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '[PRE42]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Use `-m` followed by `--on` or `--off` and the feature name to affect the desired
+    feature:'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '[PRE43]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: '![How to do it...](img/image_03_008.jpg)'
+  prefs:
+  - PREF_IND
+  type: TYPE_IMG
+- en: semanage boolean -l shows which features of a policy module can be toggled on
+    and off
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: How it works...
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: SELinux views the system in terms of objects, subjects, domains, and types.
+    An object is any resource whether it's a file, directory, network port, memory
+    space, and so on. A subject is anything that acts on an object, such as a user
+    or a running program. A domain is the environment in which the subject operates,
+    or in other words the collection of resources available to the subject. Types
+    are simply categories that identify the purpose of an object. Within this framework,
+    SELinux's security policies organize objects into roles and roles into domains.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Domains are granted or denied access to types. A user is allowed to open a specific
+    file, for example, because they belong to a role in a domain that has permission
+    to open that type of object. To decide whether a user has the ability to do something,
+    SELinux maps the system's user accounts to one of the users (and roles and domains)
+    in its own database. By default, accounts map to SELinux's `unconfined_u` user
+    which is assigned the `unconfined_r` role and operates in the `unconfined_t` domain.
+  prefs: []
+  type: TYPE_NORMAL
+- en: This recipe showed us that `id -Z` can be used to retrieve the user, role, and
+    domain that our user account maps to and `ls -Z` retrieves a file's security labeling.
+    Of course, the values displayed by the commands are different depending on the
+    file. For example, the binary file `/bin/cp` executes as the `system_u` user,
+    is a member of the `object_r` role, and is in the `bin_t` domain.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The `sestatus` command outputs basic status information about SELinux, such
+    as whether it's enabled, enforcing its policies, and how it's enforcing them.
+    SELinux can run in enforcing mode, in which it actively enforces its policies,
+    or in permissive mode, in which it will not prevent any actions but will log a
+    message if an action would have been prevented by the policy. You can set SELinux
+    to permissive mode with `setenforce 0`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The `semodule` command is used to manage policy modules. For the sake of keeping
+    everything organized, a policy is a collection of modules and each module is concerned
+    with a specific program or activity. There are dedicated modules for the most
+    common applications, such as MySQL, Apache HTTP server, and SSHd, which describe
+    which domains have access to which types. This recipe showed us how we can enable
+    or disable these modules using the `-e` and `-d` arguments to `semodule`:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE44]'
+  prefs: []
+  type: TYPE_PRE
+- en: Finally, the recipe presented the `semanage` command, which manages various
+    aspects of SELinux. We saw its `boolean` subcommand, using it to list the specific
+    protections we can toggle on or off.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'It probably goes without saying that while SELinux does a great job in protecting
+    your system by adding an extra layer of access controls, fully understanding it
+    and writing custom policies is a serious undertaking. Entire books have been written
+    on this subject and there is a plethora of resources available online. The SELinux
+    Users and Administrator''s Guide that is part of the Red Hat Enterprise Linux
+    7 documentation and a three-part series introducing the basic concepts of SELinux
+    by DigitalOcean are great starting points, and I''ve listed their URLs here. I
+    also recommend the book *SELinux by Example: Using Security Enhanced Linux* by
+    David Caplan, Karl MacMillan, and Frank Mayer.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: See also
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'Refer to the following resources for more information on working with and better
+    understanding SELinux:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Wikipedia: Security-Enhanced Linux ([https://en.wikipedia.org/wiki/Security-Enhanced_Linux](https://en.wikipedia.org/wiki/Security-Enhanced_Linux))'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: SELinux Project Wiki ([http://selinuxproject.org/page/Main_Page](http://selinuxproject.org/page/Main_Page))
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: RHEL7 SELinux User's and Administrator's Guide ([https://access.redhat.com/documentation/en-US/Red_Hat_Enterprise_Linux/7/html/SELinux_Users_and_Administrators_Guide/part_I-SELinux.html](https://access.redhat.com/documentation/en-US/Red_Hat_Enterprise_Linux/7/html/SELinux_Users_and_Administrators_Guide/part_I-SELinux.html))
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'CentOS Wiki: SELinux ([http://wiki.centos.org/HowTos/SELinux](http://wiki.centos.org/HowTos/SELinux))'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: An Introduction to SELinux on CentOS 7 ([http://www.digitalocean.com/community/tutorials/an-introduction-to-selinux-on-centos-7-part-1-basic-concepts](http://www.digitalocean.com/community/tutorials/an-introduction-to-selinux-on-centos-7-part-1-basic-concepts))
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL

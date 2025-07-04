@@ -1,0 +1,882 @@
+- en: Using Python to Build and Manage KVM Instances
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'In this chapter, we are going to cover the following topics:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Installing and using the Python libvirt library
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Defining KVM instances with Python
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Starting, stopping, and deleting KVM instances with Python
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Inspecting KVM instances with Python
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Building a simple REST API server with libvirt and bottle
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Introduction
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'The `libvirt` library exposes a virtualization agnostic interface for controlling
+    the full lifecycle of KVM (and other technologies, such as XEN and LXC) instances.
+    Using the Python bindings we can define, start, destroy, and delete virtual guests,
+    along with anything else the `virsh` userspace tool implements. In fact, we can
+    see that the `virsh` command uses various libvirt shared libraries, by running:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE0]'
+  prefs: []
+  type: TYPE_PRE
+- en: The Python libvirt module, also provides methods to monitor and report the use
+    of CPU, memory, storage, and network resources on the hypervisor node and other
+    capabilities depending on the type of hypervisor driver in use.
+  prefs: []
+  type: TYPE_NORMAL
+- en: In this chapter, we are going to use a small subset of the Python libvirt API
+    to define, start, inspect, and stop a KVM instance.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'For a complete list of functions, classes, and methods that the Python libvirt module
+    provides, execute:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`root@kvm:~# pydoc libvirt`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Installing and using the Python libvirt library
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: In this recipe we are going to install the Python libvirt module and its dependencies,
+    create a new virtual environment, and install the `iPython` command shell for
+    interactive computing.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Getting ready
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'For this recipe we are going to need the following:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: An Ubuntu host, with libvirt and QEMU installed and configured
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: The `debian.img` raw image file we built in the *Installing custom OS on the
+    image with debootstrap* recipe from [Chapter 1](part0026.html#OPEK0-c1e587dcccb14690b55c247c1809e6ce),
+    *Getting Started with QEMU and KVM*
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: The Python 2.7 interpreter, usually provided by the `python2.7` package
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: How to do it...
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'To install the Python libvirt module, the `iPython` utility, and to create
+    a new virtual environment for our tests, follow these steps:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Install the Python development packages `pip` and `virtualenv`:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE1]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Create a new Python virtual environment and activate it:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE2]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Install the libvirt module:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE3]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Install `iPython` and start it:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE4]'
+  prefs: []
+  type: TYPE_PRE
+- en: How it works...
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: We start by installing the dependency packages in step 1\. Since we are going
+    to use a Python virtual environment for our development, we install the `virtualenv`
+    package as well. The Python libvirt module is going to be installed in the virtual
+    environment with the `pip` package manager, since we don't want to pollute the
+    host with extra packages.
+  prefs: []
+  type: TYPE_NORMAL
+- en: In step 2, we create and activate a new Python virtual environment and install
+    the Python libvirt module in step 3.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Finally in step 4, we install and start the `iPython` development tool, which
+    we are going to use throughout this chapter.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Defining KVM instances with Python
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: In this recipe we are going to define a new KVM instance using the Python libvirt
+    module we installed in the previous recipe. We are going to use a virtual environment
+    and the `iPython` development tool for the following examples.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Getting ready
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'For this recipe we are going to need the following:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: An Ubuntu host, with libvirt and QEMU installed and configured
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: The `debian.img` raw image file we built in the *Installing custom OS on the
+    image with debootstrap* recipe from [Chapter 1](part0026.html#OPEK0-c1e587dcccb14690b55c247c1809e6ce),
+    *Getting Started with QEMU and KVM*
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Python 2.7, the `iPython` tool, and the virtual environment we created in the
+    *Installing and using the Python libvirt library* recipe in this chapter
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: How to do it...
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'To define a new KVM instance, using the Python libvirt module follow these
+    instructions:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'In the iPython interpreter, import the `libvirt` module:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE5]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Create the instance definition string:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE6]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Obtain a connection to the hypervisor:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE7]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Define the new instance without starting it:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE8]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'List the defined instances on the host:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE9]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Ensure the instance has been defined, using the `virsh` command:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE10]'
+  prefs: []
+  type: TYPE_PRE
+- en: How it works...
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: In this recipe, we are using the pre-existing raw Debian image we created in
+    [Chapter 1](part0026.html#OPEK0-c1e587dcccb14690b55c247c1809e6ce), *Getting Started
+    with QEMU and KVM, *to define the KVM instance.
+  prefs: []
+  type: TYPE_NORMAL
+- en: In step 1, we import the libvirt package and proceed to define the new KVM instance.
+    We assign the XML formatted string to the `xmlconfig` variable in step 2\. Notice
+    that the definition contains the name of the new instance and the location of
+    the image file.
+  prefs: []
+  type: TYPE_NORMAL
+- en: In step 3, we obtain a connection object and assign it to the `conn` variable.
+    We can now use the available methods to define the KVM guest.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'To list all available methods for an object in iPython, type the variable name
+    followed by `*.*` and press the *Tab* key twice:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'In [7]: conn.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Display all 117 possibilities? (y or n)
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`conn.allocPages`                                                         
+               `conn.getURI` `conn.nodeDeviceLookupByName`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`conn.baselineCPU`                                                         
+         `conn.getVersion` `conn.nodeDeviceLookupSCSIHostByWWN`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`conn.c_pointer`                                                 `conn.interfaceDefineXML`
+    `conn.numOfDefinedDomains`        `conn.interfaceLookupByMACString` `conn.numOfDefinedInterfaces`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '...'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'In [7]: conn.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'To obtain help on a method, append the question mark character at the end of
+    the method:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`In [7]: conn.defineXML?`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`Type: instancemethod`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`String Form:<bound method virConnect.defineXML of <libvirt.virConnect object
+    at 0x7fc5e57dc350>>`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`File: /root/kvm_python/lib/python2.7/site-packages/libvirt.py`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`Definition: conn.defineXML(self, xml)`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`Docstring:`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`Define a domain, but does not start it.`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`This definition is persistent, until explicitly undefined with`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`virDomainUndefine(). A previous definition for this domain would be`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`overridden if it already exists.`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Some hypervisors may prevent this operation if there is a current
+  prefs: []
+  type: TYPE_NORMAL
+- en: block copy operation on a transient domain with the same ID as the
+  prefs: []
+  type: TYPE_NORMAL
+- en: domain being defined; in that case, use `virDomainBlockJobAbort()` to
+  prefs: []
+  type: TYPE_NORMAL
+- en: stop the block copy first.
+  prefs: []
+  type: TYPE_NORMAL
+- en: virDomainFree should be used to free the resources after the
+  prefs: []
+  type: TYPE_NORMAL
+- en: domain object is no longer needed.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'In [7]:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'In step 4, we use the `defineXML()` method on the `libvirt.virConnect` connection
+    object, passing the XML definition string and assign it to the instance variable.
+    We can see the type of the new object by running:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE11]'
+  prefs: []
+  type: TYPE_PRE
+- en: In step 5, we list the defined instances on the host, by using the `listDefinedDomains()`
+    method and we confirm the result by using the `virsh` command in step 6.
+  prefs: []
+  type: TYPE_NORMAL
+- en: There's more...
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'Let''s add some simple error checking to the preceding Python code and write
+    all of it to a new file. We are going to be adding to this file in the subsequent
+    recipes:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE12]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'To execute the script, ensure that the `python_kmv` instance has been undefined
+    first, then run:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE13]'
+  prefs: []
+  type: TYPE_PRE
+- en: Starting, stopping, and deleting KVM instances with Python
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: In this recipe we are going to use the `create()` method on the instance object
+    we defined in the previous recipe to start it and the `destroy()` method to stop
+    it.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'To obtain more information on the `create()` method, run:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE14]'
+  prefs: []
+  type: TYPE_PRE
+- en: Getting ready
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'For this recipe we are going to need the following:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: An Ubuntu host, with libvirt and QEMU installed and configured
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: The `debian.img` raw image file we built in the Installing custom OS on the
+    image with debootstrap recipe from [Chapter 1](part0026.html#OPEK0-c1e587dcccb14690b55c247c1809e6ce), *Getting
+    Started with QEMU and KVM*
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Python 2.7, the iPython tool, and the virtual environment we created in the
+    *Installing and using the Python libvirt library* recipe in this chapter
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: The instance object we created in the *Defining KVM instances with Python* recipe
+    in this chapter
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: How to do it...
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'To start the KVM instance that was defined earlier, to obtain its status and
+    finally to stop it, use the following Python code:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Invoke the `create()` method on the instance object:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE15]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Ensure the instance is in a running state by calling the `isActive()` method
+    on the instance object:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE16]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Check the status of the KVM instance from the host OS:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE17]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Stop the instance with the `destroy()` method:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE18]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Ensure the instance has been destroyed:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE19]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Delete the instance and list all defined guests:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE20]'
+  prefs: []
+  type: TYPE_PRE
+- en: How it works...
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: In step 1, we call the `create()` method to launch the defined instance. If
+    successful the guest will transition from shut off state to running as we can
+    see in the output of the command in step 3\. In step 2, we use the `isActive()`
+    method, to check the status of the instance. An output of 1 indicates that the
+    instance is running.
+  prefs: []
+  type: TYPE_NORMAL
+- en: In step 4, we stop the instance using the `destroy()` method and confirm in
+    step 5.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Finally in step 6, we delete the instance using the `undefine()` method and
+    list all defined instances with the `listDefinedDomains()` call.
+  prefs: []
+  type: TYPE_NORMAL
+- en: There's more...
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'Let''s add the new code to the Python script we started in the *Defining KVM
+    instances with Python* recipe. The updated script should look like the following:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE21]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Starting the script should define a new instance, start it, stop it, and finally
+    remove it:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE22]'
+  prefs: []
+  type: TYPE_PRE
+- en: In the preceding script, we used the `instance.name()` method to get the name
+    of the KVM guest and print it. We also clean up, by closing the connection to
+    the hypervisor with the `conn.close()` call.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Inspecting KVM instances with Python
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: In this recipe we are going to collect instance information, using methods from
+    the `libvirt.virDomain` class.
+  prefs: []
+  type: TYPE_NORMAL
+- en: For more information on the libvirt Python API, please refer to the official
+    documentation at: [http://libvirt.org/docs/libvirt-appdev-guide-python/en-US/html/index.html](http://libvirt.org/docs/libvirt-appdev-guide-python/en-US/html/index.html).
+  prefs: []
+  type: TYPE_NORMAL
+- en: Getting ready
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'For this recipe we are going to need the following:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: An Ubuntu host, with libvirt and QEMU installed and configured
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: The `debian.img` raw image file we built in the *Installing custom OS on the
+    image with debootstrap* recipe from [Chapter 1](part0026.html#OPEK0-c1e587dcccb14690b55c247c1809e6ce), *Getting
+    Started with QEMU and KVM*
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Python 2.7, the `iPython` tool, and the virtual environment we created in the
+    *Installing and using the Python libvirt library* recipe in this chapter
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: The `instance` object we created in the *Defining KVM instances with Python* recipe
+    in this chapter, representing the KVM guest
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: How to do it...
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'To collect CPU, memory, and state information about a running instance, use
+    the following Python methods:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Get the name of the instance:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE23]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Ensure the instance is running:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE24]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Collect resource statistics on the KVM instance:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE25]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Retrieve the maximum amount of physical memory allocated to the instance:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE26]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Extract CPU statistics for the instance:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE27]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Check if the virtual machine is using hardware acceleration:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE28]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Collect the instance state:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE29]'
+  prefs: []
+  type: TYPE_PRE
+- en: How it works...
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: In this recipe, we used a few new methods from the `libvirt.virDomain` class.
+    Let's see what they do in more detail and then add them to the simple `kvm.py`
+    Python script we started in the *Defining KVM instances with Python* recipe.
+  prefs: []
+  type: TYPE_NORMAL
+- en: In steps 1 and 2, we get the name of the KVM instance and ensure it's in a running
+    state.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'In step 3, we collect the following instance information, returned as a Python
+    list:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '**state**: The state of the instance, as defined in the *virDomainState* enumerated
+    type at [https://libvirt.org/html/libvirt-libvirt-domain.html#virDomainState](https://libvirt.org/html/libvirt-libvirt-domain.html#virDomainState)'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**maxMemory**: The maximum memory used by the guest'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**memory**: The current amount of memory used by the instance'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**nbVirtCPU**: The number of allocated virtual CPUs'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**cpuTime**: The time used by the instance (in nanoseconds)'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: In step 4, we collect the memory allocated to the instance. Notice how it matches
+    the output of the function from step 3.
+  prefs: []
+  type: TYPE_NORMAL
+- en: In step 5, we collect information about the CPU of the guest instance. We can
+    see the CPU, system, and user times.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The `hvm` output of the `OSType()` method in step 6, indicates that the guest
+    OS is designed to run on bare metal, requiring full virtualization, such as KVM.
+  prefs: []
+  type: TYPE_NORMAL
+- en: In the last step of this recipe, we call the `state()` method to return the
+    current instance state.
+  prefs: []
+  type: TYPE_NORMAL
+- en: There's more...
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'Let''s finish up this chapter with a complete example script, containing all
+    of the methods we have used so far:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE30]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Executing it provides the following output, assuming the `kvm_python` instance
+    has been undefined first:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE31]'
+  prefs: []
+  type: TYPE_PRE
+- en: Building a simple REST API server with libvirt and bottle
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: In this recipe, we are going to use all of the libvirt methods we saw in the
+    earlier recipes to build a simple RESTfull API server, leveraging the bottle micro
+    framework for Python.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Bottle is described as a fast and simple **Web Server Gateway Interface** (**WSGI**)
+    micro web-framework for Python, which is distributed as a single module file.
+  prefs: []
+  type: TYPE_NORMAL
+- en: For more information on the bottle micro framework please visit the official
+    website at: [https://bottlepy.org/docs/dev/](https://bottlepy.org/docs/dev/).
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The simple API server we are implementing, will accept the following requests:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '**list**: `get` method that lists all defined libvirt instances.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**define**: `post` method used to define a new KVM instance. We are going to
+    provide the XML definition as a header in the post request.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**start**: `post` method to start an instance. The name of the instance will
+    be provided in the header of the request.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**stop**: `post` method to spot a KVM instance.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**undefine**: `post` method to delete the instance.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Getting ready
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'For this recipe we are going to need the following:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: An Ubuntu host, with libvirt and QEMU installed and configured
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: The `debian.img` raw image file we built in the *Installing custom OS on the
+    image with debootstrap* recipe from [Chapter 1](part0026.html#OPEK0-c1e587dcccb14690b55c247c1809e6ce), *Getting
+    Started with QEMU and KVM*
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Python 2.7  and the virtual environment we created in the *Installing and using
+    the Python libvirt library* recipe in this chapter
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: The `curl` command line tool for transferring data with URL syntax, usually
+    provided by the curl package
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: How to do it...
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'The following steps describe how to install the bottle module and the simple
+    RESTfull API server written in Python:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Install the `bottle` module:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE32]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Create a new file, import the libvirt and bottle modules and write the libvirt
+    connection method:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE33]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Implement `/define` the API route and function:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE34]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Implement `/undefine` the API route and function:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE35]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Implement `/start` the API route and function:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE36]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Implement `/stop` the API route and function:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE37]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Implement `/list` the API route and function:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE38]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Invoke the `run()` method to start the WSGI server when the script is executed:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE39]'
+  prefs: []
+  type: TYPE_PRE
+- en: How it works...
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'Let''s look at the code in more detail. First,  save the preceding changes
+    in a file and execute the script:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE40]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'In a separate terminal, define a new instance, passing the following XML definition,
+    as a header:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE41]'
+  prefs: []
+  type: TYPE_PRE
+- en: We are using the raw Debian image we created in [Chapter 1](part0026.html#OPEK0-c1e587dcccb14690b55c247c1809e6ce)*,
+    Getting Started with QEMU and KVM*. The XML definition should look familiar as
+    well; we've been using it in most of the recipes in this chapter.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'We should now have a new KVM instance defined. Let''s use the `/list` route
+    to list all instances and confirm with the `virsh` command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE42]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Now that we have a defined instance, let''s start it using the `/start` route
+    and ensure it''s running:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE43]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'To stop the instance and remove it completely, we use the `/stop` and `/undefine`
+    routes from the script:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE44]'
+  prefs: []
+  type: TYPE_PRE
+- en: Let us go through the code in more detail.
+  prefs: []
+  type: TYPE_NORMAL
+- en: In step 1, we install the bottle module in the Python virtual environment.
+  prefs: []
+  type: TYPE_NORMAL
+- en: After importing the libvirt and bottle packages in step 2, we define the `libvirtConnect()`
+    method. The functions in our program will use it to connect to the hypervisor.
+  prefs: []
+  type: TYPE_NORMAL
+- en: In step 3, we implement the `/define` route and its functionality. The `@post` decorator
+    links the code from the following function to a URL path. In our example the `/define`
+    route is bound to the `build()` function. Passing the `/define` route to the curl
+    command will execute the function, which in turn will call the `defineKVMInstance()`
+    method to define the instance.
+  prefs: []
+  type: TYPE_NORMAL
+- en: We use the same code pattern in steps 4, 5, and 6 to start, stop, and undefine
+    the instance.
+  prefs: []
+  type: TYPE_NORMAL
+- en: In step 7, we use the `@get` decorator to implement a function to list all defined
+    instances on the host.
+  prefs: []
+  type: TYPE_NORMAL
+- en: In step 8, we use the `run` class which provides the `run()` method we use to
+    start a built-in server. In our example the server will be listening on localhost,
+    port `8080`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: As we saw earlier, executing the script will start a listening socket on port
+    `8080`, which we can interact with, using the `curl` command.
+  prefs: []
+  type: TYPE_NORMAL
+- en: There's more...
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'The full code implementation follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE45]'
+  prefs: []
+  type: TYPE_PRE

@@ -1,0 +1,700 @@
+- en: Chapter 9. Putting It All Together
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: Over the past eight chapters, we've explored the elements and concepts of a
+    full-featured home security system that you'd expect to have installed in your
+    property. It's been presented in a modular fashion so that you can choose which
+    features you want for your system, to allow you to make it as compact and basic
+    or large and complex as you require.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Fundamentally, the idea behind a home security system is to detect whether particular
+    zone inputs are triggered high or low by an external sensor, be that a switch,
+    motion detector, or water detector. At the end of the day, as far as the control
+    software is concerned, the type of sensor is irrelevant and the system software's
+    job is to simply check the state of its inputs and alert accordingly.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'In this final chapter, we''re going to put all of the concepts together to
+    come up with a security system framework and write the control scripts around
+    it. This is what we will cover:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Defining a high-level overview of our system, detailing the connected elements
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Building the entire modular security system framework control script, exploring
+    the code in detail
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Delving into some detailed shell scripting techniques to perform certain tasks
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Learning how to make our system automatically start at boot-time
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Preventing the burning out of our SD card by creating a RAM-based file system
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Alarm system diagram
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: So that we don't get lost in this process, the first thing I recommend is to
+    come up with a complete system diagram that we can follow. I do this for any system
+    I design and put together so that it can be built in a structured way, and easily
+    documented and modified.
+  prefs: []
+  type: TYPE_NORMAL
+- en: For the home security system in this chapter, I have come up with the following
+    system diagram that we will look to as a framework. The whole concept is designed
+    to be modular, so you can come up with your own system to suit your requirements
+    and implement it accordingly, using the scripts presented in this chapter.
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Alarm system diagram](img/B04579_09_01.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: The final home security system diagram
+  prefs: []
+  type: TYPE_NORMAL
+- en: Overview of the system elements
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'The preceding system diagram comprises the elements and modules that we have
+    discussed in previous chapters. Here''s a quick recap of these:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: A +12V power supply
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: This is the primary power supply to our system, which we will obtain from an
+    external mains adapter that could be **battery-backed**. This supply needs to
+    be smooth and regulated to ensure that it remains stable for the system as currently
+    drawn.
+  prefs: []
+  type: TYPE_NORMAL
+- en: All of the alarm wiring and sensors will be supplied with this power, as will
+    peripherals such as sounders and bells, which usually operate from a 12V supply.
+    [Chapter 5](ch05.html "Chapter 5. Adding a Passive Infrared Motion Sensor"), *Adding
+    a Passive Infrared Motion Sensor* discussed the merits of using a 12V supply for
+    the alarm circuits.
+  prefs: []
+  type: TYPE_NORMAL
+- en: A +3.3V power supply
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: This supply is a regulated +3.3V supply for the digital port expander circuit;
+    it also provides the logical alarm zone inputs via an opto-coupler. The +3.3V
+    power supply can be derived from either the +12V supply (recommended), or the
+    +5V supply from the Raspberry Pi's GPIO connector, using a voltage regulator chosen
+    according to how much current you need.
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[Chapter 3](ch03.html "Chapter 3. Extending Your Pi to Connect More Things"),
+    *Extending Your Pi to Connect More Things*, showed you how to build a +3.3V regulated
+    supply.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: The opto-isolator input module
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: This will isolate the +12V zone input power lines from the port expander and
+    GPIO digital inputs, which should only have a maximum of +3.3V presented to them
+    when triggered high.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The circuit for these opto-isolated input modules was discussed and shown in
+    [Chapter 5](ch05.html "Chapter 5. Adding a Passive Infrared Motion Sensor"), *Adding
+    a Passive Infrared Motion Sensor*.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The port expander
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: The port expander is our main digital input/output system that will take the
+    alarm zone inputs and transmit them to the Raspberry Pi using the I2C bus, or
+    allow the Raspberry Pi to switch outputs on and off.
+  prefs: []
+  type: TYPE_NORMAL
+- en: We built our MCP23017-based port expander circuit in [Chapter 3](ch03.html "Chapter 3. Extending
+    Your Pi to Connect More Things"), *Extending Your Pi to Connect More Things* and
+    configured the software for it in [Chapter 4](ch04.html "Chapter 4. Adding a Magnetic
+    Contact Sensor"), *Adding a Magnetic Contact Sensor*.
+  prefs: []
+  type: TYPE_NORMAL
+- en: An arm/disarm switch
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: The arm/disarm input overrides the arm/disarm **soft-switch** function on our
+    web-based control panel, and is a switch (key, digital keypad, or otherwise) connected
+    to GP0 directly on the Raspberry Pi's GPIO connector.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Remember to connect any switch circuit appropriately to the GPIO pin to avoid
+    damage to your Raspberry Pi. This was discussed in [Chapter 2](ch02.html "Chapter 2. Connecting
+    Things to Your Pi with GPIO"), *Connecting Things to Your Pi with GPIO*.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Alarm outputs
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: In our system, we have several output devices that are controlled by our Raspberry
+    Pi via output driver circuits. We have an output for an entry/exit buzzer, an
+    armed status LED, an alarm bell, and an alarm LED indicator.
+  prefs: []
+  type: TYPE_NORMAL
+- en: These are switched on and off by our Raspberry Pi GPIO connector via driver
+    circuits that allow us to drive high current and inductive loads using the GPIO
+    pins. These driver circuits, based around TIP120 Darlington transistors, were
+    discussed in [Chapter 6](ch06.html "Chapter 6. Adding Cameras to Our Security
+    System"), *Adding Cameras to Our Security System* and [Chapter 8](ch08.html "Chapter 8. A
+    Miscellany of Things"), *A Miscellany of Things*.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Designing the control scripts
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: Before we start writing the scripts to control our alarm systems, it is probably
+    a good idea to outline the **high-level** process for the system. The following
+    **flow-chart** helps us picture how our system should work, and the various logical
+    decisions our script needs to make.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The flowchart might look a bit complicated with all its lines in different
+    directions, but it''s actually pretty linear and in a downward direction. Referring
+    to the flowchart, it shows the following tasks that the control script will be
+    doing:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Sitting quietly until the system is armed either by the hardware key switch
+    or the web-based panel's soft switch.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: When the system is first armed, it will sound the exit buzzer for a pre-determined
+    amount of time before actually arming the system. This gives you a chance to leave
+    the property or disarm the system again, before it starts monitoring the inputs.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Once the system is armed, the armed LED will be switched on and the system will
+    wait to see if any of the alarm zone inputs are triggered. It will also wait to
+    see if the alarm is disarmed on your return to the property. We can optionally
+    put an entry timer in here on the entry zone to delay before triggering the alarm.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: If the alarm is ultimately triggered, then the main alarm bell will be switched
+    on, as well as the exit buzzer. The main bell should only sound for a while, depending
+    on environmental restrictions in your neighborhood, and so, this will be switched
+    off after a pre-defined period, but the internal buzzer will stay on.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: When triggered, the system will then wait for you to disarm it, before resetting
+    it.![Designing the control scripts](img/B04579_09_02.jpg)
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: The control script flowchart
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: Building the control script
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: Now that we have designed our system the way we want it to work, we can start
+    writing our Bash **control script**. As before, we'll locate our scripts in the
+    folder, `/etc/pi-alarm`, which, you'll remember from [Chapter 7](ch07.html "Chapter 7. Building
+    a Web-Based Control Panel"), *Building a Web-Based Control Panel*, is also where
+    our Web-based control panel writes its configuration status file, `alarm.cfg`
+    to. We'll be referring to that file in our scripts too.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'In this script, we are going to use the **bc** tool (the Bash command-line
+    **calculator**) to convert **hex** values to **binary**. It''s not installed by
+    default, so you''ll need to get the package:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE0]'
+  prefs: []
+  type: TYPE_PRE
+- en: Tip
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: Our script file is quite long so, as before, you might want to sit on the sofa
+    and write it on your laptop using something such as Notepad++. Remember, however,
+    if you're using a PC, ensure that the end-of-line (EOL) format is converted to
+    the Unix format, otherwise the Bash script won't run on the Pi when you copy it
+    across. Notepad++ will do this for you.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Exploring the script code
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: I'm now going to walk you through the various sections of the control script
+    code I've written, which will be used as a framework for our system. I say "framework"
+    because, while it will provide you with a fully functional control script for
+    the system, it can be modified and extended to suit your particular requirements.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The following code listings are all part of the single bash script, `alarm-control.sh`,
+    that can be downloaded in full with comments from the Packt Publishing website.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Declarations
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: 'We''ll start off by setting up the various **control variables** needed to
+    track the system''s state:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE1]'
+  prefs: []
+  type: TYPE_PRE
+- en: Because we could face the situation whereby a HIGH or a LOW input could represent
+    a triggered zone, depending on its configuration and wiring, I have introduced
+    an array of *normalized* status flags in the variable, `ALM_ZONES_STAT`, which
+    will be the definitive state as far as the script is concerned. We'll look at
+    the function that deals with this later.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Updating config settings
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: In [Chapter 7](ch07.html "Chapter 7. Building a Web-Based Control Panel"), *Building
+    a Web-Based Control Panel*, we introduced the configuration file, `alarm.cfg`,
+    which stores the system status and configuration for the benefit of the Web-based
+    control panel. This file not only needs to be read by the main control script
+    to get any settings made using the control panel, but also needs to be updated
+    with status values from the main control script so that they can be presented
+    back to the control panel, essentially exchanging data between the two sub-systems.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Therefore, we''re going to include a helper function that contains the same
+    code called by the Web page PHP script to update this file from the control panel:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE2]'
+  prefs: []
+  type: TYPE_PRE
+- en: Setting up the GPIO
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: 'We now need to set up the Raspberry Pi''s GPIO pins for our purposes, as outlined
+    by the earlier system diagram. The following commands were first discussed in
+    [Chapter 2](ch02.html "Chapter 2. Connecting Things to Your Pi with GPIO"), *Connecting
+    Things to Your Pi with GPIO*:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE3]'
+  prefs: []
+  type: TYPE_PRE
+- en: Note
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: 'Note that you can only **export** a GPIO pin once, unless it has been subsequently
+    **unexported**. Therefore, you might see the error, `echo: write error: Device
+    or resource busy`, if you re-run the script when it tries to export the pin again.
+    You can safely ignore this.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'We''ll also throw in a few helper functions that will easily allow us to switch
+    on or off various outputs to simplify the main code. I''m a big fan of implementing
+    functions, however simple, as they keep the code modular, reusable, and simpler
+    to read in most cases:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE4]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'And, we''ll add a helper function that will read the ARM switch status from
+    the D0 (GPIO17) of the Raspberry Pi and from the web-console to see if the ARM
+    soft switch has been set:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE5]'
+  prefs: []
+  type: TYPE_PRE
+- en: Setting up the I2C port expander
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: 'The next few lines of code set up the I2C port expander to set all of the pins,
+    on both Port A and Port B, as inputs. In our system here, we''re only using Port
+    A, but this allows us to have another 8 inputs if we want to expand our system.
+    We originally looked at this in [Chapter 4](ch04.html "Chapter 4. Adding a Magnetic
+    Contact Sensor"), *Adding a Magnetic Contact Sensor*:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE6]'
+  prefs: []
+  type: TYPE_PRE
+- en: Note
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: 'If you don''t have your I2C port expander attached, then you''ll see the following
+    error when you try to run these commands: *Error: Write failed*'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Decoding the zone inputs status
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: The next function is a big one—and key to our system. It will read the Port
+    A value from the I2C port expander. It'll be returned as a hexadecimal value,
+    so we need to convert this to a binary value with a 0 or 1 flag representing each
+    input bit. We'll use the `bc` tool installed earlier to do this.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Once we have the status of each input bit, we then normalize the status by
+    determining whether a 0 or a 1 determines a positive trigger. The resulting output
+    is the array, `ALM_ZONES_STAT`, which contains the status of each zone—with a
+    1 representing a positive triggered zone de-facto:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE7]'
+  prefs: []
+  type: TYPE_PRE
+- en: Initialization
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: 'Now that we have declared our module-level variables and helper functions,
+    we will start our main routine. First, we''ll initialize the system that clears
+    the `SYSTEM_ARMED` status and reads in the initial settings from the config file:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE8]'
+  prefs: []
+  type: TYPE_PRE
+- en: The system monitoring loop
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: 'The script then jumps into a never-ending loop that will be the main control
+    system, monitoring the arm/disarm status and, when armed, monitoring the zone
+    input status and responding accordingly:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE9]'
+  prefs: []
+  type: TYPE_PRE
+- en: Arming the system
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: 'When the system goes into the ARMED state, it will first switch on the exit
+    buzzer and then wait for a pre-determined amount of time. This will give you time
+    to leave the property or disarm the system:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE10]'
+  prefs: []
+  type: TYPE_PRE
+- en: Monitoring the zones
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: Once armed, the system will monitor the zone inputs in a continuous loop until
+    either the system is disarmed, or a zone input is triggered. When a zone is triggered,
+    it will check against the `ZONE_ENABLE_n` configuration to see if that zone has
+    been disabled (this is done in the Web-based control panel). If the zone is not
+    disabled, then the alarm system is deemed triggered.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The `ZONE_STATUS_n` setting is also updated here so that the web-based control
+    panel indicates which zone or zones have been triggered:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE11]'
+  prefs: []
+  type: TYPE_PRE
+- en: Entry delay
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: 'When an alarm zone is triggered, it will first check whether it was the entry/exit
+    zone that was triggered. If it was, then the system will delay before sounding
+    the main alarm to give you a chance to disarm the system. Only the entry buzzer
+    will sound at this time:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE12]'
+  prefs: []
+  type: TYPE_PRE
+- en: Sounding the main alarm
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: 'If, at this point, the system hasn''t been disarmed, then we need to sound
+    the main bell. We have a duration limit for sounding the bell to cater to environmental
+    noise restrictions; we wouldn''t want the alarm sounding for hours, annoying the
+    neighbors until we got home. At this point, you can also add code from [Chapter
+    6](ch06.html "Chapter 6. Adding Cameras to Our Security System"), *Adding Cameras
+    to Our Security System*, if you want to be sent an alert email to your mobile
+    device:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE13]'
+  prefs: []
+  type: TYPE_PRE
+- en: Disarming and resetting the system
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: 'When we disarm the system, we need to reset its status and complete the monitoring
+    loop so that we can start all over again and wait for it to be re-armed:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE14]'
+  prefs: []
+  type: TYPE_PRE
+- en: We're done (almost)…
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: 'And there we have it: a framework for an entire alarm control script on our
+    Raspberry Pi. Additional features that you may want to implement within your script
+    could include the following:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Sending a photo or video clip from a zone's camera when it's triggered
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Sending an email alert with status details when the alarm has been triggered
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Writing a regular log file recording historical status information
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Adding additional environmental sensors to port B
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Tip
+  prefs:
+  - PREF_IND
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: Each of the script blocks is taken from the single script file, `alarm-control.sh`,
+    so you should be able to put all of the described pieces together into one file
+    to have a fully functional script.
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: 'As always, before we can run it we need to give the script execute rights:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE15]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'After we copy the script to our Raspberry Pi, this is what we should see in
+    our `/etc/pi-alarm` folder:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE16]'
+  prefs: []
+  type: TYPE_PRE
+- en: Automatically starting the system
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: Now, obviously, we don't want to have to manually start the alarm control script
+    each time the Raspberry Pi boots up, for example, after a power failure—for a
+    start, we may not even be there. Therefore, we need to set up our operating system
+    so that it will automatically start up the `alarm-control.sh` script at boot time.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'To do this, we need to edit the `rc.local` file using Nano:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE17]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Before the line containing `exit 0`, insert the following line:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE18]'
+  prefs: []
+  type: TYPE_PRE
+- en: Note
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: The `&` symbol at the end of the line is important because it will then make
+    the script run in a different process, otherwise the `rc.local` script would never
+    exit.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Your `rc.local` file should now look something like this:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE19]'
+  prefs: []
+  type: TYPE_PRE
+- en: The operating system runs the `rc.local` script after the system boots up, so
+    you can put anything in there that you want to happen automatically at this time.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Preserving the SD card
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: One final topic I want to share with you is that of preserving your Raspberry
+    Pi's SD card. SD cards have a finite write cycle, and continuous writing to the
+    card will eventually burn it out. If we're going to be writing lots of log file
+    entries and taking lots of camera images, we will want to protect our SD card
+    in order to maintain the integrity and reliability of our system; using the system
+    RAM instead can help us with this.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Creating a RAM-based file system
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: Our Raspberry Pi has plenty of fast system RAM available to us (1Gb on the latest
+    models) that isn't susceptible to this write burn-out issue. Therefore, I'm going
+    to show you how to allocate some of it to create a temporary disk in memory, which
+    we can write files to that we don't need kept on the SD card. Such files would
+    include the, quite large, camera image files that will be emailed out of the system—
+    which, therefore, don't need to be stored permanently. You should also consider
+    any log files that are regularly written to, which would then be shipped off the
+    system at regular intervals.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Note
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: Remember that this is a RAM-based file system, so content will be lost when
+    the Raspberry Pi shuts down or reboots. So, don't store any data here that you
+    want to persist after a restart.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Let''s create a Bash script file called `setup-ramfs.sh`, and copy it to our
+    `/etc/pi-alarm` folder:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE20]'
+  prefs: []
+  type: TYPE_PRE
+- en: '`setup-ramfs.sh` RAM disk creation script'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Running the preceding script will create a RAM disk folder at `/ramfs`—you
+    can treat it just like any other folder; it''s just that it resides in the system
+    memory rather than on the SD card:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE21]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'You can call this script from the `alarm-control.sh` script as part of the
+    initialization process by including the line:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE22]'
+  prefs: []
+  type: TYPE_PRE
+- en: Conclusion
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: The Raspberry Pi is a powerful little beast and a great platform for building
+    low-cost, but highly capable, embedded systems. The interfaces built into its
+    GPIO connector make it easy to bolt on modules using simple low-cost electronics
+    and a bit of configuration to create very functional and flexible systems. The
+    inclusion of a dedicated camera interface and networking interfaces give you everything
+    you could possible need for an Internet-connected home security system.
+  prefs: []
+  type: TYPE_NORMAL
+- en: I've covered a lot of topics in this book, and I could have gone on and on,
+    but I hope that what I have presented has been done in a structured and methodical
+    way, and has given you the tools and techniques to carry on this journey so that
+    you are able to create the perfect home security system for your needs.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Tips for building systems
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'As a systems guy who has to work with many different technologies and disciplines
+    on a day-to-day basis, I just want to leave you with the following thoughts to
+    consider, if you choose to build upon the system we''ve put together in this book,
+    which, of course, I hope you will:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Create a high-level diagram of your proposed system first—a bit like the one
+    I produced earlier in this chapter.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Define everything in a modular way so that you can build and test your system
+    in small chunks. This makes it much easier to spot issues early on.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Building the system using smaller modules makes it easier to re-use and replace
+    circuits and code, and don't be afraid to mix-and-match technologies using what's
+    best for the individual module.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Don't try to re-invent the wheel—use existing code and circuit resources that
+    are proven to work. This makes it much quicker to get things working and minimizes
+    the number of times you have to hit your head against a brick wall. I call it
+    blagging.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Summary
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: Well, we've reached the end of our journey to build a fully functional and extensible
+    home security system using the mighty Raspberry Pi mini-PC. In this final chapter,
+    we put together all of the elements and concepts from the previous chapters to
+    create a home security framework, both from a hardware and software perspective.
+  prefs: []
+  type: TYPE_NORMAL
+- en: In particular, this chapter guided us toward building a modular framework for
+    our home security system, implementing features that you would find in any commercially
+    available system, and also things that you don't see out there. We walked through
+    the complete control script, exploring its various sections and understanding
+    how they fit into our system.
+  prefs: []
+  type: TYPE_NORMAL
+- en: We also learned how to automatically start-up our home security system script
+    when our Raspberry Pi boots up, and how data is shared between the Pi and the
+    web-based control panel in real-time via the configuration file. Finally, we looked
+    at how to prevent our SD card from burning out by creating a rather useful RAM-based
+    temporary file system.
+  prefs: []
+  type: TYPE_NORMAL

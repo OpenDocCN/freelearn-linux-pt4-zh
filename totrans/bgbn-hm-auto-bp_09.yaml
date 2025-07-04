@@ -1,0 +1,981 @@
+- en: Chapter 9. Twitter Access Control System with Smart Card and RFID
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: Identifying people or objects with a computer may seem like an easy task, but,
+    in reality, there is a lot of technology behind the devices used to accomplish
+    this task.
+  prefs: []
+  type: TYPE_NORMAL
+- en: In this chapter, we are going to use a smart card reader and two kinds of RFID
+    readers (a **Low Frequency** or **LF** reader suitable for short ranges and an
+    **Ultra High Frequency** or **UHF** reader suitable for long ranges) in order
+    to show different possibilities to implement a minimal identifying system for
+    access control.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Once the detection has been done, the system will send a message to our Twitter
+    account informing our followers about what is happening (in a normal case, we
+    may lock or unlock something, but I decided to do something different).
+  prefs: []
+  type: TYPE_NORMAL
+- en: The basics of functioning
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: The smart cards and the smart card readers, for example, are complex devices
+    that are used everywhere nowadays, from our credit cards to our smartphones. The
+    term smart card implies a set of technologies, including integrated circuits,
+    microprocessors, memories, antennas, and so on, in the same integrated circuit,
+    to form a microchip that is the heart of a smart card. On the other hand, the
+    smart card readers are complex devices that can communicate with the cards and
+    save data on it or return data to a computer.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Note
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: The reader can get more information regarding the smart card world by taking
+    a look at [https://en.wikipedia.org/wiki/Smart_card.](https://en.wikipedia.org/wiki/Smart_card.)
+  prefs: []
+  type: TYPE_NORMAL
+- en: The evolution of smart cards are the **Radio-Frequency Identification** (**RFID**)
+    devices that can be used to identify people or objects in a contactless form,
+    starting from a few centimeters to several meters. The RFID readers and the corresponding
+    tags (or transponders) are high technology radio devices that can exchange data
+    to each other in order to accomplish identification tasks.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Note
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: The reader can get more information regarding the **RFID** world by taking a
+    look at [https://en.wikipedia.org/wiki/Radio-frequency_identification](https://en.wikipedia.org/wiki/Radio-frequency_identification).
+  prefs: []
+  type: TYPE_NORMAL
+- en: This time, all the complexity of this project is inside the hardware devices
+    (the smart card reader and the RFID readers) and their corresponding software
+    managers, so we only have to write the code to get access to them and retrieve
+    the data held in the smart cards or the RFID tags only.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'In order to show different techniques to manage an identification device, we''re
+    going to write three programs (one per device) in three different programming
+    languages. However, the result of all programs will be the same: when a well-defined
+    person (or object) has been recognized, a message will be sent to our Twitter
+    account.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: To accomplish this last task, we're going to use a dedicated (and interesting)
+    tool that allows the user to manage a Twitter account from the command line.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Every identification system has its own characteristics; however:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: The solution with the smart card reader can be used, where the identification
+    can be done by inserting a credit card (or something similar) somewhere for identification.
+    This is not suitable for wireless applications. The smart card reader I'm going
+    to use in my prototype is a USB device with a slot where the smart card must be
+    inserted.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: The second solution, that is, the one with the RFID LF reader, can be used where
+    the identification tasks need wireless, but where the distance between the object
+    to identify and the reader is no more than a few centimeters. These kinds of devices
+    are usually very simple, such as the one I'm going to use in my prototype. The
+    RFID reader is connected with the host by a serial port, and it simply returns
+    a string each time a tag is detected.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: The last solution is implemented with a RFID UHF reader, that is, with a device
+    that can detect tags in a wireless mode, as the preceding RFID LF reader does,
+    but at a distance of several meters long. These UHF devices can be more complex
+    than the LF ones, such as the one I'm going to use for my prototype. The RFID
+    reader still uses a serial connection to talk with the host, but it implements
+    a more elaborate protocol to exchange data.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Setting up the hardware
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: As just said in the previous section, this time we have to connect a USB device
+    and two serial devices. Regarding the USB device, the main problem is that it
+    has a nonstandard USB connector, so we have to find a trick to solve the problem
+    (see the following part); while for the serial devices, we have to find two free
+    serial ports on the BeagleBone Black's expansion connectors.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Regarding this last issue, we should remember that the BeagleBone Black has
+    six on-board serial ports that are disabled by default, except the `/dev/ttyO0`
+    device, which is coupled to the serial console. If we do log in into the system,
+    we can easily verify it by using the following command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE0]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'To enable the other serial ports, we need to modify the kernel settings in
+    order to enable the serial port that we wish to use. The choice of which ports
+    to enable depends on the pins we''d like to use to connect our devices, and the
+    following table may help us in choosing them:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '| Device | TxD | RxD | RTS | CTS | Name |'
+  prefs: []
+  type: TYPE_TB
+- en: '| --- | --- | --- | --- | --- | --- |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `/dev/ttyO1` | P9.24 | P9.26 |   |   | `UART1` |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `/dev/ttyO2` | P9.21 | P9.22 | P8.38 | P8.37 | `UART2` |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `/dev/ttyO4` | P9.13 | P9.11 | P8.33 | P8.35 | `UART4` |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `/dev/ttyO5` | P8.37 | P8.38 |   |   | `UART5` |'
+  prefs: []
+  type: TYPE_TB
+- en: 'All the devices are suitable for our scope, so I choose to use the two `/dev/ttyO1`
+    and `/dev/ttyO2` devices, and, to activate them, we can use the following commands:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE1]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Now, two new serial ports are ready to be used, as shown by the following command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE2]'
+  prefs: []
+  type: TYPE_PRE
+- en: Note
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: The reader can also take a look at the book *BeagleBone Essentials*, *Packt
+    Publishing*, written by the author of this book, in order to have more information
+    regarding how to manage the BeagleBone Black's serial ports needed to communicate
+    with the sensors.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Setting up the smart card reader
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'The smart card reader I used in this prototype is shown in the following image:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Setting up the smart card reader](img/B00255_09_01.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Note
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: 'The device can be purchased at the following link (or by surfing the Internet):
+    [http://www.cosino.io/product/http://www.cosino.io/product/smartcard-reader-isoiec-7816](http://www.cosino.io/product/http://www.cosino.io/product/smartcard-reader-isoiec-7816).'
+  prefs: []
+  type: TYPE_NORMAL
+- en: The device is based on the chip **Maxim 73S1215F**, and its datasheet is available
+    at [http://datasheets.maximintegrated.com/en/ds/73S1215F.pdf](http://datasheets.maximintegrated.com/en/ds/73S1215F.pdf).
+  prefs: []
+  type: TYPE_NORMAL
+- en: As stated before, this device has a nonstandard USB connector, so we have to
+    find a trick to connect it to our BeagleBone Black.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The *quick and dirty* solution can be in using a USB plug type A adapter from
+    an old USB device, which then must be soldered with the board, as shown in the
+    following image:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Setting up the smart card reader](img/B00255_09_02.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'The connections must be done according to the following table:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '| Smart Card reader pin | USB plug type A cable |'
+  prefs: []
+  type: TYPE_TB
+- en: '| --- | --- |'
+  prefs: []
+  type: TYPE_TB
+- en: '| VBus | Red |'
+  prefs: []
+  type: TYPE_TB
+- en: '| D- | White |'
+  prefs: []
+  type: TYPE_TB
+- en: '| D+ | Yellow |'
+  prefs: []
+  type: TYPE_TB
+- en: '| GND | Green |'
+  prefs: []
+  type: TYPE_TB
+- en: Note
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: The connector pin out can be retrieved at [https://en.wikipedia.org/wiki/USB](https://en.wikipedia.org/wiki/USB)
+    in the **pin out** box on the left.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'If the connections are correct, once you connect the device to the BeagleBone
+    Black, you should get an output as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE3]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Okay, everything works correctly, but now we need some packages to manage our
+    smart card reader. So, let''s install them by using the following command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE4]'
+  prefs: []
+  type: TYPE_PRE
+- en: Once finished, the `pcsc` tool is ready to work.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Note
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: 'The curious reader may take a look at the following URL for further information
+    on this tool: [http://ludovic.rousseau.free.fr/softwares/pcsc-tools/](http://ludovic.rousseau.free.fr/softwares/pcsc-tools/).'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Once installed, we can execute it with the following command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE5]'
+  prefs: []
+  type: TYPE_PRE
+- en: Tip
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: 'In case you get the following error instead of the preceding output, you can
+    try to restart the daemon with the `/etc/init.d/pcscd restart` command and then
+    execute the `pcsc_scan` tool again:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE6]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Okay, the daemon started correctly, but it still didn''t recognize our device.
+    In this case, we have to patch the `/etc/libccid_Info.plist` configuration file,
+    as shown in the following patch:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE7]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'After all the modifications are in place, we have to restart the daemon. Now
+    the output should change as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE8]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Great! Now we can verify that the reader is really working by inserting a card
+    into the socket and by verifying that the tool should print something, as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE9]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'The device is functioning; however, we need a dedicated program to manage the
+    cards. So, let''s install the `python-pyscard` package with the usual `aptitude`
+    command and then consider the following code snippet:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE10]'
+  prefs: []
+  type: TYPE_PRE
+- en: Note
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: The complete code is stored in the `chapter_09/smart_card/smart_card.py` script
+    in the book's example code repository.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The program defines a `cardmonitor` object and then adds its observer with the
+    `addObserver()` method in order to be called when a card is inserted or removed.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'If executed, the program gives an output as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE11]'
+  prefs: []
+  type: TYPE_PRE
+- en: Tip
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: 'If you get the following error while executing the command, you need the `python-daemon`
+    package:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE12]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'You an resolve the issue by using the following command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE13]'
+  prefs: []
+  type: TYPE_PRE
+- en: Setting up the RFID LF reader
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'As an RFID LF reader, we can use the device shown in the following image that
+    sends its data through a serial port at the TTL 3.3V level:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Setting up the RFID LF reader](img/B00255_09_03.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Note
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: 'The device can be purchased at the following link (or by surfing the Internet):
+    [http://www.cosino.io/product/lf-rfid-low-voltage-reader](http://www.cosino.io/product/lf-rfid-low-voltage-reader).'
+  prefs: []
+  type: TYPE_NORMAL
+- en: The datasheet of this device is available at [http://cdn.sparkfun.com/datasheets/Sensors/ID/ID-2LA,%20ID-12LA,%20ID-20LA2013-4-10.pdf](http://cdn.sparkfun.com/datasheets/Sensors/ID/ID-2LA,%20ID-12LA,%20ID-20LA2013-4-10.pdf).
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'It can be directly connected to our BeagleBone Black to the following pins
+    of the expansion connector *P9*, corresponding to the already-enabled serial device
+    `/dev/ttyO1`:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '| Pins | RFID LF reader pins - label |'
+  prefs: []
+  type: TYPE_TB
+- en: '| --- | --- |'
+  prefs: []
+  type: TYPE_TB
+- en: '| P9.4 - Vcc | 8 - Vcc |'
+  prefs: []
+  type: TYPE_TB
+- en: '| P9.26 - RxD | 6 - TX |'
+  prefs: []
+  type: TYPE_TB
+- en: '| P9.2 - GND | 7 - GND |'
+  prefs: []
+  type: TYPE_TB
+- en: 'After all the pins have been connected, the tag''s data will be available on
+    the `/dev/ttyO1` device. To quickly verify it, we can use the following commands:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE14]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Then, when approaching a tag to the reader, we should hear a *beep*, and the
+    corresponding tag''s ID should appear to the command line as follows. (The following
+    `cat` command is repeated from before for better readability, so you don''t need
+    to retype it):'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE15]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'However, using the `cat` command is not the best thing to do for our purposes
+    since its output is not a completely clean ASCII text (see the device''s datasheet
+    for further information about this issue); in fact, some *dirty* bytes are received
+    before the tag ID. For example, the dot ''`.`'' before the tag ID is one of these
+    bytes. So, we can imagine writing a dedicated tool to clean the received messages
+    from the device in order to have a clean ASCII ID string. A code snippet of such
+    a tool is as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE16]'
+  prefs: []
+  type: TYPE_PRE
+- en: Note
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: The complete code is stored in the `chapter_09/rfid_lf/rfid_lf.sh` script in
+    the book's example code repository.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The `cat` command reads the data from the device addressed by the `dev` variable,
+    as in the preceding example; then, the output is passed through the `tr` command
+    in order to remove nonprintable characters. The result is as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE17]'
+  prefs: []
+  type: TYPE_PRE
+- en: Tip
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: The curious reader can take a look at the `tr`'s man pages for further information
+    about its usage.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Setting up the RFID UHF reader
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'As an RFID UHF reader, we can use the following device that sends its data
+    through a serial port at the TTL 3.3V level:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Setting up the RFID UHF reader](img/B00255_09_04.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Note
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: 'The device can be purchased at the following link (or by surfing the Internet):
+    [http://www.cosino.io/product/uhf-rfid-long-range-reader](http://www.cosino.io/product/uhf-rfid-long-range-reader).'
+  prefs: []
+  type: TYPE_NORMAL
+- en: The product's information from the manufacturer is available at [http://www.caenrfid.it/en/CaenProd.jsp?mypage=3&parent=59&idmod=818](http://www.caenrfid.it/en/CaenProd.jsp?mypage=3&parent=59&idmod=818).
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'It can be directly connected to our BeagleBone Black to the following pins
+    of the expansion connector *P9*, which are connected with the already-enabled
+    serial device `/dev/ttyO2`:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '| Pins | RFID UHF reader pins - label |'
+  prefs: []
+  type: TYPE_TB
+- en: '| --- | --- |'
+  prefs: []
+  type: TYPE_TB
+- en: '| P9.6 - Vcc | 1 - +5V |'
+  prefs: []
+  type: TYPE_TB
+- en: '| P9.21 - TxD | 9 - RXD |'
+  prefs: []
+  type: TYPE_TB
+- en: '| P9.22 - RxD | 10 - TXD |'
+  prefs: []
+  type: TYPE_TB
+- en: '| P9.1 - GND | 12 - GND |'
+  prefs: []
+  type: TYPE_TB
+- en: After all the pins have been connected, the tag's data will be available at
+    the `/dev/ttyO2` device, but to get them, we need extra software. In fact, this
+    device requires a special protocol to communicate with the host, so we need to
+    install a dedicated **C** library to do the trick, as explained in the following
+    part.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'We need to download, compile, and then install three libraries: `libmsgbuff`,
+    `libavp`, and `libcaenrfid`.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'First of all, we need some prerequisite packages. So, let''s install them:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE18]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Now, we can start downloading the first library with the following command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE19]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Then, we have to enter in the new directory `libmsgbuff` and execute the `autogen.sh`
+    command, as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE20]'
+  prefs: []
+  type: TYPE_PRE
+- en: Tip
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: 'It may happen that you get the following errors:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE21]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'In this case, the lines with the macros `AM_SILENT_RULES` and `AM_PROG_AR`
+    should be deleted, as shown in the following patch:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE22]'
+  prefs: []
+  type: TYPE_PRE
+- en: Then, we can safely restart the `autogen.sh` command.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Then, to recompile the library, we can use the following command line:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE23]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Okay, now that the packages are ready we can install them by using the `dpkg`
+    command, as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE24]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Now it''s the turn of the second library. The steps are the same as in the
+    preceding example. Once done, move to the parent directory and then download the
+    new sources with the following `git` command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE25]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Then, execute the `autogen.sh` script in the library''s directory:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE26]'
+  prefs: []
+  type: TYPE_PRE
+- en: Tip
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: Again, as in the preceding example, if an `undefined macro` error occurs, just
+    apply the same patch as in the preceding example at the current `autogen.sh` script.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Then, start the following compilation:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE27]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'And, finally, execute the `dpkg` command to install the packages:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE28]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Okay, for the last library the procedure is similar, but with a little note.
+    Move to the parent directory. Then, download the code and execute the `autogen.sh`
+    script (patch it as before if needed):'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE29]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Then, we need to create two new files for the BeagleBone Black''s architecture
+    (which is named `armhf` in Debian). The commands are as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE30]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Now we can execute the usual package generation command followed by the installation
+    one, as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE31]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'At this point, the needed libraries are in place, so we can compile our program
+    to get access to the RFID UHF reader. A snippet of a possible implementation is
+    as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE32]'
+  prefs: []
+  type: TYPE_PRE
+- en: Note
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: The complete code is stored in the `chapter_09/rfid_uhf/rfid_uhf.c` script in
+    the book's example code repository.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The program simply uses the `caenrfid_open()` method to establish a connection
+    with the reader and the `caenrfid_inventory()` method to detect the tags. The
+    `caenrfid_set_srcconf()` method is used to set an internal special feature in
+    order to avoid multiple readings of the same tag.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The program can be compiled with the `make` command, executed in the `rfid_uhf`
+    directory, and the tool can be used as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE33]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'The program answers with no output in case there are no tags near the reader''s
+    antenna, but if we approach some tags we get something as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE34]'
+  prefs: []
+  type: TYPE_PRE
+- en: Note that, in this case, and contrary to what happens in the RFID LF case, the
+    reader can detect a tag even a few meters away (the distance depends on the antenna
+    you're using!)
+  prefs: []
+  type: TYPE_NORMAL
+- en: The final picture
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'The following image shows the prototype I realized to implement this project
+    and to test the software:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![The final picture](img/B00255_09_05.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Note that to use the RFID UHF reader, you must use an external power supply,
+    while for the other two readers it is not needed.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Setting up the software
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: After the hardware has been set up, most of the job is done; to finish our job,
+    we need to first install a tool to get access to our Twitter account, and then
+    we have to add a mechanism to call it each time a successful identification process
+    is accomplished. So, in the following sections I'm going to show how to install
+    and correctly set up a command line tool to communicate with Twitter and then
+    how to call it in three different programming languages for three different identification
+    systems.
+  prefs: []
+  type: TYPE_NORMAL
+- en: To simplify the project a bit, we can use a static list of known IDs stored
+    in each program, but you can understand that this list can be easily managed by
+    an external database. So, I leave this implementation as an exercise for you.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Setting up the Twitter utility
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'The utility I''m going to use to get access to a Twitter account is named with
+    the single character `t`. The `t` program, as reported on its home page, derives
+    from the Twitter SMS commands:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '*The CLI takes syntactic cues from the Twitter SMS commands, but it offers
+    vastly more commands and capabilities than are available via SMS.*'
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+- en: In fact, once installed, it uses simple commands to update our Twitter status,
+    follow/unfollow users, retrieve detailed information about a Twitter user, create
+    a list for everyone you're following, and so on.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Note
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: For a complete reference of the `t` tool, the [https://github.com/sferik/t](https://github.com/sferik/t)
+    URL is a good starting point.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'To install this tool into our BeagleBone Black, we first need the `ruby-dev`
+    package with the `aptitude` program:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE35]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Then, `t` is installed with the following command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE36]'
+  prefs: []
+  type: TYPE_PRE
+- en: Tip
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: The execution of this command can be very slow! So, be patient and wait.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Once the installation has ended, we can execute the program, and if everything
+    works well, a long list of available commands should be displayed as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE37]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'At this point, as done for other social networks, we have to create a special
+    application for our Twitter account to get access to our data. To do so, let''s
+    point our browser to the [https://apps.twitter.com/app/new](https://apps.twitter.com/app/new)
+    URL. We''ll see a form where we can fill out information about our new application.
+    Simply fill in three fields: **Name**, **Description**, and **Website**. Note
+    that the name of the application needs to be unique across all Twitter users and
+    cannot contain the word `twitter`, while the website can be arbitrary (for instance,
+    `http://www.mydomain.com`), as shown in the following screenshot:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Setting up the Twitter utility](img/B00255_09_06.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Regarding the **Callback URL** field, you can leave it blank. Then, click on
+    the checkbox for developer terms agreement at the bottom of the page and then
+    click on the **Create your Twitter application** button.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Once your application has been successfully created, you will see a page where
+    you can manage your application settings, as shown in the following screenshot:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Setting up the Twitter utility](img/B00255_09_07.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Now, go to the **Permissions** tab and change **Access** type to **Read, Write
+    and Access direct messages** and save.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The next step is to authorize your application to access your Twitter account.
+    For that, run the following command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE38]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Then, once the *Enter* key has been pressed, the following output is shown:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE39]'
+  prefs: []
+  type: TYPE_PRE
+- en: Apart from the error messages due to the fact that `t` cannot execute any browser
+    at all, we have to go to the **Keys and Access Token** tab and enter the key in
+    the **Consumer Key (API Key)** field located under **Application Settings**. Then,
+    the tool will ask for the API secret, so you have to enter the **Consumer Secret
+    (API Secret)** in the same page as before.
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Setting up the Twitter utility](img/B00255_09_08.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'When finished, if both the keys are valid, the tool will display the following
+    output:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE40]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'As before, the tool will try to open the browser again in order to show the
+    Twitter application authorization page, but of course, it cannot, so the following
+    error message is shown:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE41]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Okay, we just need to *copy and paste* the preceding URL into our browser on
+    the host PC to finish the job. To be clear, the URL is as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE42]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Then, a new page where your Twitter credentials are to be put should appear,
+    as shown in the following screenshot:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Setting up the Twitter utility](img/B00255_09_09.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Tip
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: Sorry for the Italian, but this is what my Twitter account's default language
+    is set to.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Put your Twitter credentials and, if they are correct, the system should give
+    you a PIN to be used to finish the authorization process (see the following screenshot):'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Setting up the Twitter utility](img/B00255_09_10.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'Just *copy and paste* the PIN into the terminal where the tool is running and
+    press *Enter* (again, you should not care about the error when launching the browser).
+    However, if all steps are correct, the last message from `t` should be the following:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE43]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Great! Now, we are ready to do our first tweet from the BeagleBone Black''s
+    command line! The command is as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE44]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'The following screenshot shows a snippet of my Twitter account where the recently
+    sent message is published:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Setting up the Twitter utility](img/B00255_09_11.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: The smart card implementation
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: Let's now start with the first implementation of our identifying system by getting
+    access to the smart card. The code is written in Python, and it shows a possible
+    implementation of our access control system by using a smart card reader.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Tip
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: Note that implementation is very minimal since we limit our attention to the
+    ATR parameter, which cannot be used to uniquely identify a smart card in all circumstances.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The program is very similar to the one stored in the `chapter_09/smart_card/smart_card.py`
+    file, so I''m going to show only the relevant differences here:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE45]'
+  prefs: []
+  type: TYPE_PRE
+- en: Note
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: The complete code is stored in the `chapter_09/smart_card/smart_card2twitter.py`
+    script in the book's example code repository.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The `ID2NAME` array holds a list of known IDs, that is, our *database* of valid
+    IDs that are associated with well-known people. It's easy here to imagine that
+    using a real database would be a better implementation, but this solution is fine
+    for our teaching purposes.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The `update()` method extracts the smart card's ATR field, and then, instead
+    of simply printing it, it compares the current ID with our internal database,
+    and in case of positive match, it calls the `t` tool in order to update the Twitter
+    account.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The RFID LF implementation
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'As in the preceding example, we have to modify the `chapter_09/rfid_lf/rfid_lf.sh`
+    **Bash** script a bit in order to call the `t` tool if the current tag ID is found
+    in the list of the known IDs held by the `ID2NAME` array. A snippet of the modified
+    code is as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE46]'
+  prefs: []
+  type: TYPE_PRE
+- en: Note
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: The complete code is stored in the `chapter_09/rfid_lf/rfid_lf2twitter.sh` script
+    in the book's example code repository.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The RFID UHF implementation
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'The last implementation is in C**,** and it uses the RFID UHF reader in order
+    to take the identification string. The trick is now well-known; we simply need
+    to modify the `chapter_09/rfid_uhf/rfid_uhf.c` program in order to check the current
+    tag ID with the known ones held again in the well-known `ID2NAME` array. The code
+    snippet is as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE47]'
+  prefs: []
+  type: TYPE_PRE
+- en: Note
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: The complete code is stored in the `chapter_09/rfid_uhf/rfid_uhf2twitter.c`
+    file in the book's example code repository.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Before executing it, don't forget to compile it!
+  prefs: []
+  type: TYPE_NORMAL
+- en: Final test
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'To test our prototype, we have to run the three different programs presented
+    in the preceding section. As in the previous chapters, I first executed the `chapter_09/SYSINIT.sh`
+    file in the book''s example code repository as usual to set up all peripherals:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE48]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Then, let''s start the smart card program and insert the smartcard as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE49]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Now, press the *CTRL* + *C* keys to stop the program, and let''s try the RFID
+    LF program as follows by approaching the relative tag:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE50]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Again, stop the program with the *CTRL* + *C* keys, and let''s test the last
+    program as follows by approaching the relative tag again:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE51]'
+  prefs: []
+  type: TYPE_PRE
+- en: Summary
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: In this chapter, we discovered how to publish a message to a Twitter account
+    and three different ways to identify people or objects by using different identification
+    technologies and programming languages.
+  prefs: []
+  type: TYPE_NORMAL
+- en: In the next chapter, we'll discover how to manage some lights by using a common
+    remote controller (or any infrared capable device). We'll see how our BeagleBone
+    Black board can receive some commands by using our TV remote.
+  prefs: []
+  type: TYPE_NORMAL

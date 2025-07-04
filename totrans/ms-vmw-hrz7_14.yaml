@@ -1,0 +1,1627 @@
+- en: Delivering Published Apps with Horizon 7
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: So far in this book, we have concentrated on the delivery of virtual desktop
+    machines, but Horizon View also has the ability to deliver remote applications,
+    or published applications, as they're more commonly known, as well as session-based
+    desktops, all from the same platform. In this chapter, we are going to dive deeper
+    into this feature, which is part of the Horizon Advanced Edition and above, and
+    look at how Horizon View publishes an application directly into the Horizon View
+    Client, without the need to launch a full virtual desktop machine.
+  prefs: []
+  type: TYPE_NORMAL
+- en: A use case for this could be a call center worker who uses just a couple of
+    different applications. It's far easier from a management perspective to just
+    give them the applications they require rather than a full-blown virtual desktop.
+    Another use case is the ability to launch applications using the View Client running
+    on a device that wouldn't normally be able to run that application. For example,
+    you could run the "real" version of Microsoft Word on your iPad using the Horizon
+    View Client for iOS.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The infrastructure required for this is based on Microsoft **Remote Desktop
+    Services** (**RDS**) running at the backend, with Horizon View acting as the broker
+    to connect users with the applications or desktop sessions. As it's View-based,
+    it uses the View protocols, such as PCoIP and Blast, as the delivery protocols,
+    taking advantage of all the features the protocols have to offer, as we have discussed
+    previously.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'In this chapter, we will cover the following topics:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Architectural overview
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: RDSH sizing guidelines
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Installing and configuring View-hosted apps
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Installing the Horizon View Agent for RDSH
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Configuring published apps in the View Administrator
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Load-balancing published apps in Horizon View
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Architectural overview
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: So, what does the architecture look like, and how does the hosted application
+    feature work when compared to virtual desktop machine brokering? In terms of the
+    architecture, delivering hosted applications is handled in pretty much the same
+    way as virtual desktop machines are managed and brokered.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Horizon View acts as the broker, using the same Connection Server, but instead
+    of brokering a virtual desktop machine that would be running on the ESXi host
+    server, it is now brokering an application session that is running on a Microsoft
+    Windows server, configured with the RDSH role and the applications installed on
+    it.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following diagram gives you a high-level outline of the architecture for
+    delivering hosted applications:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/86227e67-de18-4b54-9e13-0804402a6caf.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: So, how does the hosted application feature work?
+  prefs: []
+  type: TYPE_NORMAL
+- en: To begin with, as with connecting to a View delivered to the virtual desktop
+    machine, you launch the View client and log in to the Connection Server. You enter
+    the details of the View Connection Server you want to connect to (**1**), enter
+    your User name and Password (**2**), and then authenticate against AD (**3**).
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Once authenticated, the client sends a `<get-launch-items>` request to the
+    Connection Server to request a list of all the entitled application sessions,
+    applications, and desktops for that user. The response contains the following
+    details:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`<app-sessions>`, `<desktops>`, and `<applications>`'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Absolute paths to the icons
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: The client fetches any icons it doesn't have already cached via HTTPS using
+    the paths that were provided by the Connection Server when it sent the response.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Access to icon **uniform resource identifiers** (**URIs**) needs to be authenticated.
+    The Connection Server performs an entitlement check and only returns an icon if
+    that user is entitled to at least one application that has an icon associated
+    with it. For applications that don't have any icons, the client will provide a
+    default icon.
+  prefs: []
+  type: TYPE_NORMAL
+- en: A list of entitled desktop and application pools is then displayed to the end
+    user in the View Client (**4**).
+  prefs: []
+  type: TYPE_NORMAL
+- en: The end user then double-clicks on an application (or desktop) to launch it
+    (**5**), the connection is made, and the application opens in a new window (**6**).
+  prefs: []
+  type: TYPE_NORMAL
+- en: In the next section, we will take a deep dive into what happens during the connection
+    process to connect the user to the application or desktop session they requested.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Application connection sequence
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: In this section, we are going to break down the connection sequence into three
+    separate parts, showing the process flow of what happens when the user launches
+    an application.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The process starts when the end user double-clicks to launch an application
+    and is illustrated in the following diagram:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: So, now we have a user that has made a request via the View Client to the Connection
+    Server to launch an application.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The next phase of the connection process is for the Connection Server to talk
+    to the Horizon Agent installed on the RDS host server.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following diagram illustrates the next part of the process:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/83e038dc-7344-41ff-879c-1cc5d6859d84.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: The next step in the connection process is to set up the secure connection to
+    the **PCoIP Secure Gateway server** (**PSG**).
+  prefs: []
+  type: TYPE_NORMAL
+- en: A tunnel is set up by the View agent on the RDS server by talking to the PSG.
+    The details of this connection are then forwarded, via the Connection Server,
+    back to the client. This is pretty much the same way that this process works when
+    connecting to a virtual desktop machine hosted on an ESXi host server.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'This process is illustrated in the following diagram, along with the final
+    part of the process, which is to log the end user in and then connect them to
+    the application that they requested:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/cb391750-cea4-49ad-b1c0-05468e0502e0.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: We have now covered a deep dive on how the process works for connecting the
+    end user to their remote applications. In the next section, we are going to look
+    at some of the specifics around the RDS roles in this environment, starting with
+    sizing guidelines.
+  prefs: []
+  type: TYPE_NORMAL
+- en: RDSH sizing guidelines
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: As with the sizing of View for virtual desktop machines, configuring the right
+    specification for the RDSH servers is also key, and in a similar way in which
+    we consider the desktop sizing, we are going to look at different user types.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The VMware recommendation for the user workloads and the memory requirements
+    are shown in the following table:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/acdfdfed-f21e-4588-bd0c-296d8a162345.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: For the total memory in each RDSH server, VMware recommends that a virtual machine
+    configured as an RDSH server should be provisioned with 64 GB memory, and in terms
+    of CPU requirements, the VMware recommendation is to create virtual servers for
+    the RDSH roles and configure each one with four vCPUs. Make sure that you do not
+    overcommit on the number of cores.
+  prefs: []
+  type: TYPE_NORMAL
+- en: So, for example, if you had a virtual machine running as an RDSH server configured
+    with 64 GB of memory, and had heavy users hosted on it, you would be able to host
+    a maximum of 64 sessions on that server.
+  prefs: []
+  type: TYPE_NORMAL
+- en: For the hardware configuration, let's say you had a physical ESXi host server,
+    configured with a 2-socket CPU that had 12 cores, giving you a total of 24 cores.
+  prefs: []
+  type: TYPE_NORMAL
+- en: This would allow a maximum of 6 RDSH servers as we are going to provision virtual
+    machines for the RDSH role that each has 4 cores (24 cores/4 cores per server).
+    That would mean that the physical server would also need to be configured with
+    384 GB of memory in total (64 GB x 6 RDSH host servers).
+  prefs: []
+  type: TYPE_NORMAL
+- en: These figures are only guidelines and are based on some of the VMware-recommended
+    best practices. It is always best to run an assessment on your environment to
+    work out your optimum configuration.
+  prefs: []
+  type: TYPE_NORMAL
+- en: In the next section, we are going to install and configure the View-hosted applications
+    feature.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Installing and configuring View-hosted apps
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: We are now going to start the installation process, starting with configuring
+    the server that is going to be used for hosting the remote applications, by adding
+    the RDSH role to it. In the example lab, there is a Windows Server 2016 server
+    ready built, called **RDSH-Apps**, to perform this role.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The installation and configuration process is pretty straightforward and can
+    be summarized with the following schematic diagram:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/90e0fef1-4c4b-4225-a0bb-fae4c1e0e295.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: In the next sections, we are going to walk through this process in more detail,
+    starting with configuring the RDSH role.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Configuring the RDS server role
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'The first thing that we are going to do is to configure the RDSH server role,
+    and then configure this server to deliver the remote applications. In the example
+    lab, the server we are going to configure is called **RDSH-Apps**. To configure
+    the RDSH role, perform the following steps:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Open a console to the server, and then from the Server Manager and the Dashboard
+    screen, click on Add roles and features (**1**), as shown in the following screenshot:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '![](img/01715728-5418-4193-8630-5496a06da4e4.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'The first screen you will see is the Before You Begin screen, as shown in the
+    following screenshot:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '![](img/d6e8c259-de54-47e4-abbb-990b2170ab0f.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: Click Next > to continue.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'You will now see the Select installation type screen, as shown in the following
+    screenshot:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '![](img/bd66acf7-deb5-4f45-98e5-50b606be2bf5.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: Click the radio button for Remote Desktop Services installation, and then click
+    Next > to continue.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'You will now see the Select deployment type screen, as shown in the following
+    screenshot:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '![](img/0ecef8a3-7de2-4622-bc18-336f42356500.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: Click the radio button for Quick Start, and then click Next > to continue.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'You will now see the Select deployment scenari**o** screen, as shown in the
+    following screenshot:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '![](img/491fa8e0-1761-40b0-8d33-a3bf9b52b4a2.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: Click the radio button for Session-based desktop deployment, and then click
+    Next > to continue.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'You will now see the Select a server screen, as shown in the following screenshot:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '![](img/9c00eb59-21a6-427b-aace-5533faf18a23.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: From the Server Pool box, click and highlight the server you want to install
+    the RDSH role onto and click the arrow to add it to the Selected box. In the example
+    lab, this is the server called `rdsh-apps.pvolab.com`.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Click Next > to continue.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'You will now see the Confirm selections screen, as shown in the following screenshot:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '![](img/0db1a638-4c5e-4802-a28e-72febed2d7dc.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: Check the services that are going to be installed, and then check the box to
+    Restart the destination server automatically if required.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Click Deploy to start the installation.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'You will now see the progress of the installation, as shown in the following
+    screenshot:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '![](img/af11eb06-d8b0-4648-8410-8acbf73202bc.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: During the installation, the server will reboot. After rebooting, log back in
+    and launch the Server Manager again to monitor the rest of the installation process.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'Once the installation has completed, from the Server Manager Dashboard**,**
+    you will now see that the Remote Desktop Services role has been added, as shown
+    in the following screenshot:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '![](img/7977ba47-0de5-4f93-b3b1-1572f35ae13e.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: You have now successfully installed the RDS role.
+  prefs: []
+  type: TYPE_NORMAL
+- en: You will need to add and configure the Remote Desktop Licensing role on this
+    server.
+  prefs: []
+  type: TYPE_NORMAL
+- en: In the next section, we will configure some example applications that will be
+    made available as remote applications.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Testing with the standard remote applications
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: The first applications we are going to configure for session-based remote access
+    are those that are integrated into the Windows operating system and configured
+    by default when you create the RDSH server role. These include applications such
+    as Calculator and Notepad.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'We are going to test that these applications work as remote applications by
+    first checking they have been configured, and then whether or not we can access
+    them remotely, before configuring the Horizon View components and any additional
+    applications:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'From the Server Manager Dashboard screen, click on Remote Desktop Services
+    (**1**), as shown in the following screenshot:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '![](img/887f9e20-20fc-4578-89dd-ecd3c66a2882.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'You will then see the list of servers that are configured with the RDSH role,
+    as shown in the following screenshot:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '![](img/4455f1f5-d6b3-48cc-ae20-27047e86ca21.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: Click to highlight the `RDSH_APPS` server, and then click on QuickSessionCollection
+    (**3**).
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'You will now see the QuickSessionCollection and REMOTEAPP PROGRAMS (**4**)
+    boxes, as shown in the following screenshot:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '![](img/d5fa29c4-3c78-483f-aba7-66abb4726fde.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: This will show WordPad, Paint, and Calculator listed as available remote applications.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'So, now that the standard applications are available as remote sessions for
+    end users, we are going to try connecting using the RD Web Access web portal to
+    test that everything is working before continuing with the configuration. To do
+    this, perform the following steps:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Open a browser from either your desktop or the server itself. It's best to test
+    from a remote desktop rather than the server itself.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: In the browser, type in the URL of the RDSH server. In the example lab, this
+    address is `https://rdsh-apps.pvolab.com/rdweb`**.**
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'You will then see the login screen, as shown in the following screenshot:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '![](img/414c3d01-1aeb-4271-9268-d382ed0c7d54.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: In the Domain\user name box, enter a username in the format of Domain\user name.
+    So, for this example, we are logging in as the administrator using the format
+    `pvolab\administrator`. Then enter the password.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'Now click the Sign in button. You will now see the following Work Resources
+    web page, which displays the available applications:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '![](img/80e7a241-13ff-4e24-b638-58bdc2264f6d.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'To test that an application launches, double-click on it. In this example,
+    we will launch the calculator. The calculator should then successfully launch,
+    as shown in the following screenshot:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/28e38c7b-3d71-4277-b022-1309a5d47f33.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: Now that everything is working and applications can be published and launched,
+    in the next section, we are going to add some more applications.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Installing additional applications
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: In this section, we are going to install some additional application for remote
+    access, starting with Microsoft Office 2016.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Installing applications is almost identical to installing applications on any
+    other Windows operating system; however, there are a few subtle differences given
+    that this is a remote session host server. We are going to quickly run through
+    the process, as described in the following steps:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'As we are going to install Microsoft Office 2016, the first thing to do is
+    mount the ISO image containing the installer, as shown in the following screenshot:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '![](img/89f1c700-8124-405b-b407-628f7046d0f8.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: We can now move on to the actual installation process.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Open a console to the RDSH server on which you want to install the applications
+    and open the Control Panel**,** as shown in the following screenshot:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '![](img/4364f1d5-9f5e-46d8-bae7-6b7d5270ff98.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'Click on Programs. You will now see the Programs dialog box, as shown in the
+    following screenshot:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '![](img/8884c51d-ee2d-43a5-b4fd-f9c7b12b3583.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: Click on Install Application on Remote Desktop....
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'You will now see the Install Program From Floppy Disk or CD-ROM dialog box,
+    as shown in the following screenshot:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '![](img/78c87c5c-5db3-4ce0-aced-c3f417a5b486.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: Before we continue, we are going to talk about how to install apps on an RDSH
+    server. In this dialog box, it highlights something called the **RD-Install mode**;
+    so, what does that mean?
+  prefs: []
+  type: TYPE_NORMAL
+- en: To install an application on an RDSH host server, it needs to be switched into
+    a special install mode called **RD-Install** to make sure that the applications
+    are able to run in a multi-user environment.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Once you have installed the applications on the RDSH server, the server will
+    then need to be switched back into what is called the execution mode, or **RD-Execute**,
+    so that users can remotely connect to the server and the applications running
+    on it.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'This can also be done at the command line, using the following commands:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE0]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'You can check the current install mode of your RDSH server using the following
+    command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE1]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'The easiest way to install applications is by using the Programs option from
+    the Control Panel, which is how we are going to do it in this example. This option
+    takes you through the installation process by automatically switching the server
+    to the RD-Install mode, installing the program, and switching the server back
+    to the RD-Execute mode once finished. Let''s continue with the installation:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Click Next > to start the installation.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'You will now see that the Run Installation Program dialog box is displayed,
+    as shown in the following screenshot:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '![](img/b69aed00-3974-4bad-bdb5-9d053b7130d3.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: Click the Browse... button and then navigate to the installer for the app you
+    want to install. In the example lab, this is the `setup.exe` file for Microsoft
+    Office 2016 from the ISO image we mounted at the beginning of this section.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Now click Next > to continue.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'The first thing you will see is the Finish Admin Install dialog box, as shown
+    in the following screenshot:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '![](img/0b69c56d-3b54-4321-b337-4c698fdec722.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: Ignore this dialog box for now, and make sure that you **DO NOT** click the
+    **Finish** button at this point. You need to complete the application installation
+    first.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The installation of Office 2016 will now run, and you should install Office
+    in exactly the same way as you would normally.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Once the installation is complete, return to the Finish Admin Install box and
+    click on the Finish button.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'Now Microsoft Office 2016 has been installed on the RDSH server, you need to
+    go back and configure which of the individual Office suite applications are going
+    to be made available to the users as remote applications. To do this, perform
+    the following steps:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: From the Server Manager dashboard screen, click on Remote Desktop Services.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'Highlight the RDSH server you want to configure, and then click on QuickSessionCollection
+    (**1**), as shown in the following screenshot:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '![](img/e1d5ab0b-919a-4f9c-affc-a188d190cdf4.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: Scroll down to the REMOTEAPP PROGRAMS dialog box and then click the down arrow
+    on the TASKS button in the top right of the screen, and then click Publish RemoteApp
+    Programs (**4**).
+  prefs:
+  - PREF_OL
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'You will now see the Select RemoteApp programs configuration screen, as shown
+    in the following screenshot:'
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '![](img/6727e6aa-7d58-44c8-b2b4-22b8ae6b4fe1.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: From here, you can select which applications you want to publish and make available
+    remotely to your end users.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'Check the boxes next to the applications you want to add (**3**). In the example
+    lab, we are going to check the boxes for the following applications:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Excel 2016
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: OneNote 2016
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Outlook 2016
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: PowerPoint 2016
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Publisher 2016
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Word 2016
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: From here, you can select which applications you want to publish and make available
+    remotely to your end users.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Once you have selected all the applications you want to publish, click the Next
+    > button.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'You will now see the Confirmation box of the applications you selected, as
+    shown in the following screenshot:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '![](img/89102d39-fa6d-4fe3-8fae-eaee2d716a45.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: Now click the Publish button.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'You will then see a progress bar, detailing the progress of the applications
+    being published, as shown in the following screenshot:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '![](img/c49833dc-ce39-4f60-85da-595cd98f994e.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'Once completed, you will now see the Completion screen, as shown in the following
+    screenshot, detailing the applications that were successfully published:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '![](img/865c37fc-c2b2-4f5b-9432-9df58bf05344.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: Click the Close button to complete the publishing process.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'As previously, we are going to test that the applications are available from
+    the web access portal. Open a browser and go to the following address: `https://rdsh-apps.pvolab.com/rdweb`**.**'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Log in to the portal using the administrator account.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'You will see the following screenshot from the RD web access portal, showing
+    the newly published applications for Office 2016:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/431662ee-4735-4468-ab85-8f105199ea80.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: As you can see, the newly published Office applications are available to the
+    end users. Double-click on one of them to test that it launches and, once happy
+    it's working, then click on Sign out and close the web page.
+  prefs: []
+  type: TYPE_NORMAL
+- en: In the next section, we are going to install the Horizon Agent on the RDSH server.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Installing the Horizon Agent for RDSH
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'In the next part of the process, we are going to install the Horizon View Agent
+    onto the RDSH server. The agent is exactly the same agent as the one that you
+    would install on virtual desktop machines and registers the RDSH with the Horizon
+    Connection Server. To install the agent, perform the following steps:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Open a remote console to the RDSH server running the applications, navigate
+    to the shared software folder, and then find the agent installer, as shown in
+    the following screenshot:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '![](img/182c016d-ef19-47b3-bf4d-77b1e4d0cc27.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: Double-click to launch `VMware-Horizon-Agent-x86_64-7.6.0-9539447`. The seven-digit
+    number at the end of the filename refers to the build version, and so you may
+    have a different number, depending on the build version you are using.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'You will now see the Welcome to the Installation Wizard for VMware Horizon
+    View Agent dialog box, as shown in the following screenshot:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '![](img/f7bce05d-d015-4eb3-95e5-71b246059013.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: Click the Next > button to start the installation.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'You will now see the License Agreement dialog box, as shown in the following
+    screenshot:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '![](img/69802673-ce2f-4e2d-aa75-e5aca326a1ec.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: Click the radio button for I accept the terms in the license agreement, and
+    then click the Next > button to continue.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'You will now see the Network protocol configuration screen, as shown in the
+    following screenshot:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '![](img/6cdd8330-d40c-428c-97e4-b76f2542ca59.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: Click on IPv4 and then click on the Next > button to continue the installation.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'You will now see the Custom Setup screen, as shown in the following screenshot:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '![](img/85789811-08e6-4345-9c2b-34367e5f0e25.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: In the example lab, we are going to accept the default options; however, you
+    can choose to install the 3D RDSH, USB Redirection, View Composer, and Flash Redirection
+    options, should you want to.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'As you can see, there are a number of features that can be installed as part
+    of the View Agent installation. These are listed here:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Core: Installs the core features required for RDSH'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '3D RDSH: Enables 3D acceleration in RDSH sessions'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'USB Redirection: Redirects USB devices from the client to the RDSH session'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'VMware Horizon View Composer Agent: Allows RDS host servers to be built from
+    a single parent image using linked clone technology to easily deploy the RDS server
+    farm'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Client Redirection: Allows clients to share local drives with the RDS sessions
+    (not supported when using IPv6)'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Virtual Printing: Allows printing from RDS sessions'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'vRealize Operations Desktop Agent: Allows the management agent to be deployed
+    for monitoring RDS sessions with vRealize'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Flash Redirection: Enables the Flash redirection feature with RDS sessions
+    (note that this is currently a tech preview in this version of Horizon View)'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Click the Next > button to continue the installation.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: You will now see the **Register with Horizon 7 Connection Server** configuration
+    screen, where we will configure the Horizon Agent to talk to the Connection Server.
+    This allows the Connection Server to read the published applications list from
+    the RemoteApp catalog and allows you to create application pools within View.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: In the hostname or IP address box, enter the name of the Connection Server.
+    In the example, this is `hzn7-cs1.pvolab.com`.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: In the Authentication section, click the radio button for Specify administrator
+    credentials and then in the **Username** box, enter the user account you want
+    to use to connect to the Connection Server. In the example lab, this is pvolab\administrator.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Make sure you use the Domain\user format to enter the username, and also that
+    the account has the correct privileges to access the Connection Server. You would
+    typically use a service account for this.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'In the Password box, type in the password for the account, as shown in the
+    following screenshot:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '![](img/d47d9c38-a8c6-4ddf-a078-3ec699a6d392.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: Click the Next > button to continue the installation.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: You will now see the Ready to Install the Program screen. Click the Install
+    button to start the installation process.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Once successfully installed, you will see the Installer Complete screen.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Click Finish to quit the installation.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: You will then be prompted to reboot the server. Click Yes to reboot.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: One of the most common reasons that the installation of the View agent fails
+    is down to the configuration of the RDSH server. More often than not, there are
+    no sound drivers loaded on the Windows Server running the RDSH role. If this is
+    the case, then the installation of the agent will fail and automatically roll
+    back. If that happens, it is worth checking this first.
+  prefs: []
+  type: TYPE_NORMAL
+- en: We have now completed the first part of the Horizon View configuration. In the
+    next step of the process, we will turn our attention to the View Administrator
+    and configure the application pools.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Configuring published apps in the View Administrator
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: The next stage in the installation and configuration process is performed using
+    the View Administrator console and, like a standard View setup, involves creating
+    pools and entitlements. However, rather than creating pools for virtual desktop
+    machines, this time we are going to configure application pools.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Before we do any of that, the first thing we need to do is to set up a farm
+    that contains the newly built RDSH server. To do this, perform the following steps:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Open a browser and connect to the View Administrator. In our example lab, the
+    address for the View Administrator is `https://hzn7-cs1.pvolab.com/admin/`.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Log in to the View Administrator using the administrator account and password.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'You will now see the View Administrator Dashboard, as shown in the following
+    screenshot:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '![](img/97990f92-7505-4ab4-a3eb-1e67260d84e1.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: Expand the arrow for Resources from the Inventory pane on the left, and then
+    click on Farms (**1**).
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Now click the Add… button (**2**).
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'You will now see the Add Farm configuration screen, as shown in the following
+    screenshot:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '![](img/566a9947-54cb-4c74-8876-821b852c2df2.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: In the Type section, click the radio button for Manual Farm.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Click the Next > button to continue.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'You will now see the Identification and Settings configuration screen, as shown
+    in the following screenshot:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '![](img/90bc8618-e13c-4bf6-8f44-8f02f4dc55dd.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'You need to fill the details, as shown here:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: In the ID box, enter an ID for the farm that will be used by View to identify
+    it. In the example lab, this is called `Horizon-Published-Apps`.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: You cannot use spaces for the ID, only letters (upper and lowercase), numbers
+    (0-9), and *–* (minus) or *_* (underscore) characters.
+  prefs: []
+  type: TYPE_NORMAL
+- en: In the Description box, enter an optional description for the farm and then,
+    from the Access Group dropdown, select an access group if you have one.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Next, under Farm Settings, set the Default display protocol to PCoIP and from
+    the Allow users to choose protocol dropdown, select Yes.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: In the Pre-launch session timeout, leave this as the default setting of `10`
+    minutes. Pre-launch allows apps to load ahead of a user clicking to launch it.
+    This option configures a timeout.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: In the Empty session timeout**,** enter a time after which the session should
+    timeout when not being used, and then in the When timeout occurs box, from the
+    drop-down menu, select what happens at timeout. In the example lab, this is set
+    to disconnect the user from the session.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: The next option is whether or not to Log off disconnected sessions. This option
+    will log off any disconnected sessions. In the example lab, this is set to Never
+    happen.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Check the Enabled box to allow HTML access to desktops and applications on this
+    farm.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Finally, check the box for Allow Session Collaboration. This only works when
+    you connect using the Blast protocol.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Once you have completed the configuration options on this screen, click the
+    Next > button to continue.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'You will now see the Select RDS Hosts configuration screen from where you select
+    which hosts are going to participate in this farm, as shown in the following screenshot:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '![](img/b95a97d1-2965-46d3-a5c4-b05c2ef1ccaa.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: Click and select the `rdsh-apps.pvolab.com` server entry and then click the
+    Next > button.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'You will now see the Ready to Complete screen, as shown in the following screenshot:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '![](img/cc26a567-b643-4687-9083-86f5d8de8ec6.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: Check that the settings you have entered are correct, and then click the Finish
+    button.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'You have now successfully created a new farm configuration for the hosted applications,
+    as shown in the following screenshot:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/1637d1eb-25de-434e-8d4c-d8f2ddf324a7.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'You will also see in the RDS Farms section in the System Health box on the
+    View Administrator Dashboard that the farm name, Horizon-Published-Apps, and the
+    server name, `rdsh-apps.pvolab.com`, are now listed, along with a green box to
+    show they are working correctly:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/c2bcdbc6-6472-4af5-9358-7a4a67856838.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: In the next section, we are going to create an application pool.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Creating an application pool for published apps
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'In this section, we are going to create an application pool. This allows you
+    to create a pool that contains a number of different applications. You may want
+    to create application pools to reflect different departments, for example. To
+    configure an application pool, perform the following steps:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'From the View Administrator, expand the arrow for Catalog from the Inventory
+    pane on the left, and then click on Application Pools (1), as shown in the following
+    screenshot:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '![](img/0c51aded-0df0-4f62-9f40-69abc33fb21e.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: Now click on the Add... button (**2**).
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'You will now see the Add Application Pools configuration screen, as shown in
+    the following screenshot:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '![](img/500e9c42-77c7-4ca9-b5fb-81afda90c4ee.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: From the Select an RDS farm drop-down menu, select the farm that we created
+    previously for our published applications. In the example lab, select the farm
+    called Horizon-Published-Apps from the menu.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Next, click the radio button for Select installed applications. This will automatically
+    list all the applications that are installed on that particular RDSH server. There
+    is also the option to add an application pool manually.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: From the list of applications, check the box for the applications you want to
+    add to the application pool. In the example, we have selected PowerPoint 2016
+    (**3**) and Word 2016 (**4**), as well as Calculator, Paint, Excel 2016, Publisher
+    2016, and Outlook 2016.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: You then have the option to check the Pre-Launch box. That means the applications
+    in the pool are launched and ready when the end users click on them to speed up
+    launch times.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: The next option is for Connection Server restrictions, which allows you to configure
+    tags for which Connection Servers you can connect with.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Finally, you can configure the Category Folder**,** which allows you to add
+    a shortcut on the end user's device.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: When you have selected all the required applications, click the Next > button
+    to continue.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'You will now see the **Edit ID** **and Display Name** screen. Here, you can
+    choose to edit the ID and the display name for the applications if you want to.
+    This is shown in the following screenshot:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '![](img/16a808b7-df2d-4b0a-9aae-929f8f513809.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: Also, check the Entitle users after this wizard finishes box to automatically
+    launch the user entitlement configuration, which we will complete in the next
+    section.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Click the Finish button to complete the configuration. You will then see that
+    the application pool has been created.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Now that you have your application pool all set up and ready to go, the next
+    step is to entitle end users to the pool and allow them to launch applications.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Entitling users to application pools
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'In the previous section, we checked the Entitle users after this wizard finished
+    box, which means that you will now see the Add Entitlements configuration screen,
+    as shown in the following screenshot:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/512fac43-3763-4875-be05-7f57d3e5de40.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'Now perform the following steps to add entitlements:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Click the Add... button (**1**).
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'You will now see the Find User or Group configuration screen, as shown in the
+    following screenshot:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '![](img/4189b532-fe82-458e-b98d-c94b4ec32e98.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: In the Type section, ensure that the Users box (**2**) is ticked.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: From the Domain drop-down menu (**3**), select the domain that contains the
+    user you want to entitle. In the example lab, this is the `pvolab.com` domain.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: In the Name/User name box (**4**), enter the details of the user you want to
+    entitle. In the example lab, we are going to entitle the user called `Peter von
+    Oven`, so type the first part of the username, in this case, `peter`, into the
+    box and then click the Find button (**5**) to search for the user in the domain.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Once found, the user and their details will be displayed in the table. Select
+    the user by clicking on the entry in the table to highlight and select the user.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Click OK to continue.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'You will now return to the Application Pools screen, detailing the applications
+    published, as shown in the following screenshot:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '![](img/c603fc1d-20b2-44fe-94bb-b48680473e53.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: As a final check, we are going to launch the Horizon Client, log in as the entitled
+    user, and then launch one of the published applications using the Horizon Client,
+    to test that everything works.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Make sure you are using the latest version of the Horizon Client, version 3.0
+    and above. Older versions will still work with VDI desktops, but will not show
+    the published applications.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'To test the functionality, complete the following steps:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Launch the VMware Horizon Client and make sure that you have added the address
+    of the Connection Server. We will cover the Horizon View Client in [Chapter 12](e1944fcc-6ae9-4db7-b51b-db75e37e01ab.xhtml),
+    *Horizon Client Options*.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'In the example lab, we are connecting to the `hzn7-cs1.pvolab.com` Connection
+    Server, as shown in the following screenshot:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '![](img/cf978123-f482-4c61-960b-ff936d6a261b.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: Double-click on the `hzn7-cs1.pvolab.com` icon in the VMware Horizon Client.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'You will then see the Login box, as shown in the following screenshot:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '![](img/4f7d3e19-685a-48b1-b17a-e8c4e1ae3d28.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: In the User name box, enter the username for the user that is entitled to the
+    application pool. In the example lab, the User name for the user `Peter von Oven`
+    is `pvo`.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: In the Password box, enter the password for the username.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: In the Domain box, ensure the correct domain is selected from the drop-down
+    menu. In the example lab, this is the PVOLAB domain.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Now click the Login box.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'Once authenticated, the Horizon Client will connect to the application pool
+    and display the available applications, as shown in the following screenshot:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '![](img/9dae20bd-c0c3-4082-ac39-9a1aa8970208.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: Double-click on any of the applications to ensure that they launch correctly.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: You have now successfully installed, configured, and delivered a Vieww-hosted
+    applications environment. In this example, we have deployed a single RDSH server
+    to host remote applications; however, in a production environment, you are more
+    likely to have multiple servers in a farm.
+  prefs: []
+  type: TYPE_NORMAL
+- en: In the final section of this chapter, we are going to look how you load-balance
+    the session connections across multiple host servers in a farm.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Load-balancing published apps in Horizon View
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: The next thing we are going to cover is how the Connection Broker decides which
+    of the RDS host servers in the farm that is running the requested application
+    is actually going to deliver the application. There are two options for configuring
+    load balancing.
+  prefs: []
+  type: TYPE_NORMAL
+- en: For the first option, there is no real complicated science behind the load balancing
+    from a Horizon View perspective. It is purely based on how many sessions are available
+    on any given RDSH server. So, that means when a user logs in and launches a published
+    application, the application is delivered from the server that has the highest
+    amount of free sessions available; that is, the one that is least busy.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'This is illustrated in the following diagram:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/ffdb0bb7-cd55-4f94-a8ef-4312da738a43.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: This first option works fine, but how does it know what each session is consuming
+    in terms of resources? A particular host may well have enough capacity for additional
+    sessions based on the number of sessions it has free, but what if the sessions
+    it's already hosting are consuming vast amounts of resources?
+  prefs: []
+  type: TYPE_NORMAL
+- en: This is where the second option comes in, as it uses more in-depth information
+    to place sessions, which is based on measuring the CPU and memory utilization
+    of each host rather than the number of free sessions.
+  prefs: []
+  type: TYPE_NORMAL
+- en: To enable this load-balancing method, there are a number of manual steps you
+    need to complete, as we will now describe.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'First of all, this method is based on executing scripts, and therefore you
+    need to ensure that those scripts are stored on each RDS host server in the farm.
+    You can create your own scripts; however, there are a couple of example scripts
+    that ship as part of the View Agent installation. You will find them in the following
+    folder once the View Agent has been installed (View Agent installation was covered
+    earlier on in this chapter):'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE2]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'You will then see the two example scripts, as shown in the following screenshot:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/abe0902a-af70-4217-a860-9d3c8381b709.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'As the names suggest, one script monitors CPU utilization and the other monitors
+    memory utilization. Each script monitors its respective component and returns
+    the following values to make the decision on placing sessions:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`0`: For utilization > 90%'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`1`: For utilization > 75%'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`2`: For utilization > 25%'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`3`: For utilization > 25%'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Let''s now configure the CPU script for use in the example lab by completing
+    the following tasks. The first of these is to enable the View Script Host service.
+    To do this, perform the following the steps:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Open a console to the RDSH host server, RDSH-Apps, and from the desktop of the
+    server, launch a `RUN` command.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'In the **Open** box, type `services.msc` and click OK to launch the Services
+    management screen. You will now see the **Services** screen, as shown in the following
+    screenshot:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '![](img/e92f5526-dbff-45ff-ae8b-745fd14a869e.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: Scroll down until you find the entry for **VMware Horizon View Script Host**.
+    Click on it to highlight it, and then right-click.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: From the contextual menu that is now displayed, click Properties.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'You will now see the VMware Horizon View Script Host Properties screen, as
+    shown in the following screenshot:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '![](img/56e0e0b9-cfdd-4003-9902-bb70fc245b38.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: In the Startup type box, from the drop-down menu (**1**), select the option
+    for Automatic**,** so that this service starts when the server boots.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Next, click the Apply button.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'Finally, click the Start button (**2**) to start the service. You should now
+    see that the service is running, as shown in the following screenshot:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '![](img/9a08cfc3-f853-4ba1-8359-210a24698e0d.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'Once completed, close the Services management screen. The next step is to add
+    the script details to the registry of the server. To do this, perform the following
+    steps:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Open a console to the RDSH host server, RDSH-Apps, and from the desktop of the
+    server, launch a `RUN` command.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: In the **Open**box, type `regedit` and click **OK** to launch the registry editor.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'Once the registry editor has launched, navigate to the following path:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '![](img/07afa9ad-c699-478e-a1e0-1fac33271071.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'You will now see the following screen:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '![](img/cb0247dc-45d8-4620-8736-7a7bea64cb3f.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'Now right-click in the right-hand side pane and, from the contextual menu displayed,
+    click on New (**3**), and then select the option for String Value (**4**), as
+    shown in the following screenshot:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '![](img/a0a43b3c-81cb-42c7-b34c-5b386af1e695.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'You will now be able to enter a new string value. In the example lab, this
+    is called `cpuutilisation` (**5**) to reflect the script that will be run, as
+    shown in the following screenshot:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '![](img/fe8ff537-ab1a-429d-90d3-11611243ecc9.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: Next, you need to edit the newly created string value and enter a value.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'To do this, highlight the `cpuutilisation` entry (**6**), right-click and from
+    the contextual menu, and click the option for Modify… (**7**), as shown in the
+    following screenshot:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '![](img/757b3e53-44f1-46dd-bfb4-3b42effce953.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'You will now see the Edit String box, as shown in the following screenshot:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '![](img/5d05d093-7daf-4162-b1fc-306206fe1d09.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: In the Value data**,** box enter the path to the script. In the example lab,
+    this path is `C:\Program Files\VMware\VMware View\Agent\scripts\cpuutilisation.vbs`**.**
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Click OK.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'You will now see that the script has been added, as shown in the following
+    screenshot:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '![](img/f405cf04-bc36-429c-96b7-c0e6ecaac761.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: Exit the registry editor.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'As you have changed the properties of the VMware Horizon Agent, you will need
+    to restart this service for the changes to be applied. To do this, perform the
+    following steps:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Launch a `RUN` command.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'In the **Open** box, type `service.msc` and click OK to launch the Services
+    management screen, as shown in the following screenshot:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '![](img/34e9a4fc-3fed-4a4d-b0da-335adb6d816f.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: Scroll down until you find the entry for VMware Horizon View Agent (**8**).
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Click on it to select it, right-click, and, from the contextual menu, select
+    the Restart option (**9**) to restart the service.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Once the service has restarted, you can close the Services management screen.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'You have now completed the configuration steps for load balancing and this
+    will now be calculated based on CPU utilization. You can check that this is working
+    by performing the following:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: From the View Administrator Dashboard, navigate to the System Health box.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'Then expand the options for RDS Farms and the farm for Horizon-Published-Apps.
+    Now click on the `RDSH-Apps.pvolab.com` server. You will see the following screen:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '![](img/014122b4-460b-4997-90c6-59a80b516b04.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: You will see that at the bottom of the box, there is a Server load option now
+    shown. This is being measured from the script, and as you can see, currently,
+    the CPU load is light and new sessions are able to be resourced by this particular
+    server.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Click OK to close the box. You have now successfully configured the optional
+    load-balancing feature.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Summary
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: In this chapter, we have discussed how to deliver remote/published applications
+    with the Horizon published applications feature. We started off by looking at
+    the architecture and took a deep dive into how it works, before walking through
+    the installation and configuration process of both the Microsoft RDSH components
+    and the Horizon View components needed to make it work.
+  prefs: []
+  type: TYPE_NORMAL
+- en: We then configured an RDS farm and an application pool, and then entitled a
+    test user to the pool. Finally, to check that everything was working, we logged
+    in as the user and tested the environment by launching a remote application.
+  prefs: []
+  type: TYPE_NORMAL
+- en: In the final section, we looked at how to configure load balancing in a View
+    published application environment.
+  prefs: []
+  type: TYPE_NORMAL
+- en: In the next chapter, we are going to look at how we apply the same methodology
+    to deliver session-based or published desktops.
+  prefs: []
+  type: TYPE_NORMAL

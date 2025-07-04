@@ -1,0 +1,970 @@
+- en: Chapter 4. Rewrite Engine and Access Control
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: The World Wide Web and HTTP as its building block operate in URLs. Since URLs
+    are so fundamental, the ability of a server to manipulate URLs is essential.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Nginx allows you to manipulate URLs using a built-in rewrite engine. The Nginx
+    rewrite engine has a broad functionality and is very easy to configure, which
+    makes it a very powerful tool. We'll walk through the entire rewrite engine in
+    this chapter.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Another topic that we are going to explore in this chapter is access control.
+    This is, obviously, an essential function of every software system that keeps
+    the system secure and reliable. We'll walk through access control methods available
+    in Nginx and explore their subtleties, and you'll learn how to combine them.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The basics of the rewrite engine
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: The rewrite engine allows you to manipulate the request URI of inbound requests.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The rewrite engine is configured using rewrite rules. Rewrite rules are used
+    when the request URI needs to undergo transformation before further processing.
+    Rewrite rules instruct Nginx to match the request URI with a regular expression
+    and substitute the request URI with a specified pattern whenever a match has been
+    scored.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Rewrite rules can be specified inside `server`, `location`, and `if` sections
+    of the configuration.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Let''s study some examples of rewrite rules in action. Consider a simple case
+    when one resource needs to be substituted by another:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE0]'
+  prefs: []
+  type: TYPE_PRE
+- en: With the preceding configuration, every request to `/css/default.css` will have
+    its URI rewritten to `/css/styles.css` and will fetch this resource instead. The
+    `rewrite` directive specifies a pattern that has to match the request URI in order
+    to fire the rule and a substitution string that says how the request URI must
+    look after transformation. The third argument, `break`, is a flag that instructs
+    Nginx to stop processing rewrite rules once a match for this rule has been scored.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The preceding configuration can be extended to work with multiple resources
+    as well. For that, you need to use captures (round brackets in the first argument)
+    and positional parameters (variables with numbers that refer to captures):'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE1]'
+  prefs: []
+  type: TYPE_PRE
+- en: With the preceding configuration, every request to any CSS file in `/styles/`
+    will have its URI rewritten to the corresponding resource in `/css/`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'In the last two examples, we used the `break` flag in order to stop rewrite
+    rules from processing as soon as a match is found (assuming more rules can be
+    added to those configurations). If we want to combine those two examples, we need
+    to drop the `break` flag and allow the cascading application of rewrite rules:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE2]'
+  prefs: []
+  type: TYPE_PRE
+- en: Now, every request to style sheets in `/styles/` will be redirected to the corresponding
+    resource in `/css/`, and `/css/default.css` will be rewritten to `/css/styles.css`.
+    A request to `/styles/default.css` will undergo two rewrites, as it sequentially
+    matches both rules.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Notice that all URI transformations are performed by Nginx internally. This
+    means that for an external client, the original URIs return ordinary resources,
+    thus the previous configurations will externally look like a series of documents
+    with identical content (that is, `/css/default.css` will be identical to `/css/styles.css`).
+  prefs: []
+  type: TYPE_NORMAL
+- en: This is not a desirable effect in the case of ordinary web pages, as search
+    engines might penalize your website for duplicate content.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'To avoid this problem, it is necessary to replace copies of a resource with
+    permanent redirects to the master resource, as shown in the following configuration:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE3]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'This works well for whole sections of a website:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE4]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'It also works for an entire virtual host:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE5]'
+  prefs: []
+  type: TYPE_PRE
+- en: The preceding configuration for any URL requested performs a permanent redirect
+    from a top-level domain `example.com` to the `www` sub domain, making it the primary
+    entry point of the website.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The next powerful application of rewrite rules is translating a semantic URL
+    into a URL with a query (section of a URL after the *?* character). This functionality
+    has its primary application in **Search Engine Optimization** (**SEO**) and website
+    usability, and it is driven by a need to obtain semantic URLs for each and every
+    resource and to deduplicate the content.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Note
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: You can find more information about semantic URLs at [https://en.wikipedia.org/wiki/Semantic_URL](https://en.wikipedia.org/wiki/Semantic_URL).
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Consider the following configuration:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE6]'
+  prefs: []
+  type: TYPE_PRE
+- en: The preceding configuration transforms URLs consisting of a number of path sections
+    starting with `/products` into a URL starting with `/products.php` and arguments.
+    In this way, it is possible to hide implementation details from users and search
+    engines, and generate semantic URLs.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Note that the flags of the rewrite directives are now set to `last`. This makes
+    Nginx seek a new location for a rewritten URL and process request with a newly-found
+    location.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Now that you have studied some examples of rewrite rules in action, you can
+    learn more about the nitty-gritty details in order to master the rewrite rule.
+    The following sections take a deeper look at its syntax and functionality.
+  prefs: []
+  type: TYPE_NORMAL
+- en: More about rewrite rules
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'Now, let''s discuss some of interesting details of the rewrite rules. Here''s
+    the complete syntax of the `rewrite` directive:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE7]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'The first argument of this directive, `<pattern>`, is a regular expression
+    that needs to match the request URI in order to activate the substitution. The
+    `<substitution>` argument is a script that is evaluated once a match has been
+    scored and the value produced by evaluation replaces the request URI. Special
+    variables `$1`...`$9` can be used to cross-reference a pattern and its substitution
+    by referring to a capture with the specified position. The `<flag>` argument affects
+    the behavior of the `rewrite` directive. The following table lists all possible
+    flags of the `rewrite` directive and their functions:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '| Flag | Function |'
+  prefs: []
+  type: TYPE_TB
+- en: '| --- | --- |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `break` | Interrupts processing of rewrite rules |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `last` | Interrupts processing of rewrite rules and looks up a location for
+    the new request URI |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `redirect` | Returns a temporary redirect (HTTP status `302`) to the new
+    request URI |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `permanent` | Returns a permanent redirect (HTTP status `301`) to the new
+    request URI |'
+  prefs: []
+  type: TYPE_TB
+- en: The rewrite engine makes multiple passes before a location for the request is
+    found, and then in the request location and subsequent locations that the request
+    is redirected to (such as those that are invoked by the `error_page` directive).
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Rewrite rules specified directly in the `server` section are processed in the
+    first pass, while rewrite rules in the `location`, `if`, and other sections within
+    the `server` section are processed at subsequent passes. Consider the following
+    example:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE8]'
+  prefs: []
+  type: TYPE_PRE
+- en: After the first pass is complete, Nginx searches for a location that matches
+    the rewritten request URI if a rewrite was performed, or a location that matches
+    the original request URI (if no rewrite took place). The subsequent passes alter
+    the request URI without changing the location.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Rewrite rules at each pass are processed in order of appearance. Once a match
+    is scored, the substitution is applied and processing resumes with subsequent
+    rewrite rules—unless a flag is specified to interrupt processing.
+  prefs: []
+  type: TYPE_NORMAL
+- en: If the resulting request URI starts with http:// or https://, it is treated
+    as absolute and Nginx returns a temporary (`302` "Found") or a permanent (`301`
+    "Moved Permanently") redirect to the resulting location.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Patterns
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'Now, let''s go back to the `<pattern>` argument and see how a match pattern
+    can be specified. The following table gives a brief overview of regular expression
+    syntax used in rewrite rules:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '| Pattern | Examples | Description |'
+  prefs: []
+  type: TYPE_TB
+- en: '| --- | --- | --- |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `<pattern A> <pattern B>` | `Ab, (aa)(bb)` | Following |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `<pattern A> &#124; <pattern B>` | `a&#124;b, (aa)&#124;(bb)` | Alternative
+    |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `<pattern>?` | `(\.gz)?` | Option |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `<pattern>*` | `A*, (aa)*` | Repetition of `<pattern>` from *0* to *infinity*
+    |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `<pattern>+` | `a+, (aa)+` | Repetition of `<pattern>` from *1* to *infinity*
+    |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `<pattern>{n}` | `a{5}, (aa){6}` | Repetition of `<pattern>` *n* times |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `<pattern>{n,}` | `a{3,}, (aa){7,}` | Repetition of `<pattern>` from *n*
+    to *infinity* |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `<pattern>{,m}` | `a{,6}, (aa){,3}` | Repetition of `<pattern>` from *0*
+    to *m* |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `<pattern>{n,m}` | `a{5,6}, (aa){1,3}` | Repetition of `<pattern>` from *n*
+    to *m* |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `( <pattern> )` | `(aa)` | Grouping or parameter capture |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `.` | `.+` | Any character |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `^` | `^/index` | Start of line |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `$` | `\.php$` | End of line |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `[<characters>]` | `[A-Za-z]` | Any character from the specified set |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `[^<characters>]` | `[^0-9]` | Any character outside of the specified set
+    |'
+  prefs: []
+  type: TYPE_TB
+- en: The patterns are listed in increasing priority order. That is, the pattern `aa|bb`
+    will be interpreted as `a(a|b)b`, while the pattern `a{5}aa{6}` will be interpreted
+    as `(a{5})(a)(a{6})` and so on.
+  prefs: []
+  type: TYPE_NORMAL
+- en: To specify characters that are themselves part of regular expression syntax,
+    you can use the backslash character `\`, for example `\*` will match an asterisk
+    `*`, `\.` will match a dot character `.`, `\\` will match the backslash character
+    itself and `\{` will match an opening curly bracket `{`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: More information about regular expression syntax in rewrite rules can be found
+    on the PCRE website [www.pcre.org](http://www.pcre.org).
+  prefs: []
+  type: TYPE_NORMAL
+- en: Captures and positional parameters
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'Captures are designated with round brackets and mark sections of matched URLs
+    that need to be extracted. Positional parameters refer to substrings of the matched
+    URLs extracted by corresponding capture, that is, if the pattern is as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE9]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Also, if the request URL is like this:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE10]'
+  prefs: []
+  type: TYPE_PRE
+- en: The positional parameters `$1` and `$2` will evaluate to `id` and `23850`, respectively.
+    Positional parameters can be used in any order within the substitution string
+    and this is how you connect it with the match pattern.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Other functionalities of the rewrite engine
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'The rewrite engine can also be used to perform other tasks:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Assigning variables
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Evaluating predicates using the `if` directive
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Replying with specified HTTP status code
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: A combination of these operations and rewrite rules can be performed at every
+    pass of the rewrite engine. Note that `if` sections are separate locations, so
+    it is still possible that the location will change at the location rewrite pass.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Assigning variables
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'Variables can be assigned using the `set` directive:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE11]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Variable values can be scripts with text and other variables:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE12]'
+  prefs: []
+  type: TYPE_PRE
+- en: Once set on the rewrite phase, variables can be used in any directive in the
+    rest of the configuration file.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Evaluating predicates using if sections
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'You have probably figured out from the title that `if` sections are part of
+    the rewrite engine. This is true. The `if` sections can be used to conditionally
+    apply selected rewrite rules:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE13]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'In the preceding configuration, any attempt to make a POST request to the URL
+    `/media/` will result in rewriting it to the URL `/upload`, while requests with
+    other methods to the same URL will result in no rewrites. Multiple conditions
+    can also be combined. Let''s look at the following code:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE14]'
+  prefs: []
+  type: TYPE_PRE
+- en: The preceding configuration applies the rewrite only when both `if` conditions
+    are fulfilled, that is, when the request method is `POST` and the request URL
+    scheme is `https`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Now that you know how you can use the `if` section, let''s talk about its side
+    effects. Remember that conditions in the `if` directives are evaluated in the
+    course of the `rewrite` directive processing. What it means is that when the `if`
+    section contains directives that are not part of the rewrite engine, the behavior
+    of the `if` section becomes non-intuitive. This was discussed in [Chapter 1](ch01.html
+    "Chapter 1. Getting Started with Nginx"), *Getting Started with Nginx*. Consider
+    the following configuration:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE15]'
+  prefs: []
+  type: TYPE_PRE
+- en: Each individual `if` section contains an atomic set of configuration settings.
+    Assume Nginx receives a `POST` request with the `https` URL scheme such that both
+    conditions evaluate to true. All `set` directives will be correctly processed
+    by the rewrite engine and will be assigned to proper values. However, Nginx cannot
+    merge other configuration settings and cannot have multiple configurations active
+    at once. When rewrite processing is finished, Nginx simply switches configuration
+    to the last `if` section with its conditions evaluated to true. Because of that,
+    in the preceding configuration, compression will be switched on but the request
+    will not be proxied according to `proxy_pass` directive. This is not something
+    you might expect.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'To avoid this non-intuitive behavior, stick to the following best practices:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Minimize the usage of the `if` directive
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Combine the `if` evaluations using the `set` directive
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Take actions only in the last `if` section.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Replying with a specified HTTP status code
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'If a definite reply with a specified HTTP status code is required in a certain
+    location, you can use the `return` directive to enable this behavior and specify
+    the status code, a reply body, or a redirect URL. Let''s look at the following
+    code:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE16]'
+  prefs: []
+  type: TYPE_PRE
+- en: The preceding configuration will execute a permanent redirect (301) to the secure
+    part of domain `www.example.com` and the URI path identical to the URI path in
+    the original request. Thus, the second argument of the `return` directive will
+    be treated as a redirect URI. The other status codes that treat the second argument
+    of the `return` directive as a redirect URI are `302`, `303` and `307`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Note
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: Performing a redirect with the `return` directive is much faster than doing
+    so with the `rewrite` directive, because it does not run any regular expressions.
+    Use the `return` directive in your configuration instead of the `rewrite` directive
+    whenever possible.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The status code 302 is quite common, so the `return` directive has a simplified
+    syntax for temporary redirects:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE17]'
+  prefs: []
+  type: TYPE_PRE
+- en: As you can see, if the `return` directive has a single argument, it is treated
+    as redirect URI and makes Nginx perform a temporary redirect. This argument must
+    start from `http`:// or `https://` to trigger such behavior.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The `return` directive can be used to return a reply with a specified body.
+    To trigger such behavior, the status code must simply be other than `301`, `302`,
+    `303` or `307`. The second argument of the `return` directive specified the content
+    of the response body:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE18]'
+  prefs: []
+  type: TYPE_PRE
+- en: The preceding configuration will return HTTP status 200 (OK) with the specified
+    response body. To assert correct processing of the body content, we set response
+    content type to `text/plain` using the `default_type` directive.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Access control
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: Access control restrictions are essential to day-to-day operation. Nginx includes
+    a group of modules that let you allow or deny access depending on various conditions.
+    Nginx denies access to a resource by returning a `403` (Forbidden HTTP) status
+    or 401 (Unauthorized) if accessing the resource requires authentication. This
+    403 (Forbidden) status code can be intercepted and customized using the `error_page`
+    directive.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Restricting access by IP address
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'Nginx allows you to permit or deny access to a virtual host or a location by
+    IP address. For that, you can use the directives `allow` and `deny`. They have
+    the following format:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE19]'
+  prefs: []
+  type: TYPE_PRE
+- en: Specifying an IP address allows or denies access to a single IP address within
+    a location, while specifying an IP address with a prefix size (for example 192.168.0.0/24
+    or 200.1:980::/32) allows or denies access to a range of IP addresses.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The `allow` and `deny` directives are processed in order of appearance within
+    a location. The remote IP address of a requesting client is matched against the
+    argument of each directive. Once an `allow` directive with a matching address
+    is found, access is immediately allowed. Once a `deny` directive with a matching
+    address is found, access is immediately denied. Once Nginx reaches the `allow`
+    or `deny` directive with the `all` argument, access is immediately allowed or
+    denied, regardless of client's IP address.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'This, obviously, allows some variation. Here are some simple examples:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE20]'
+  prefs: []
+  type: TYPE_PRE
+- en: The preceding configuration makes Nginx deny access to IP addresses 192.168.1.0
+    to 192.168.1.255, while allowing access to everyone else. This happens because
+    the `deny` directive is processed first and if matched, is immediately applied.
+    The entire server will be forbidden for specified IP addresses.
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE21]'
+  prefs: []
+  type: TYPE_PRE
+- en: The preceding configuration makes Nginx allow access to `location /admin` only
+    to IP addresses in the range 10.132.3.0 to 10.132.3.255\. Assuming this range
+    of IP addresses corresponds to some privileged group of users, this configuration
+    makes perfect sense, as only they can access the administrative area of this web
+    application.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Now, we can improve on that and make the configuration more complicated. Assume
+    that more networks need access to this web application''s administrative interface,
+    while the IP address 10.132.3.55 needs to be denied access due to technical or
+    administrative reasons. Then, we can extend the preceding configuration as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE22]'
+  prefs: []
+  type: TYPE_PRE
+- en: As you can see, the directives `allow` and `deny` are quite intuitive to use.
+    Use them as long as the list of IP addresses to match is not too long. Nginx processes
+    these directives in sequential order, so the time taken to check the client's
+    IP address against the list is on average proportional to the length of the list
+    no matter which directive the address is matched against.
+  prefs: []
+  type: TYPE_NORMAL
+- en: If you need to match client's IP address against a larger list of addresses,
+    consider using the `geo` directive.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Using the geo directive to restrict access by IP address
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: With the `geo` directive, you can transform an IP address into a literal or
+    numerical value that can later be used to trigger some actions while processing
+    a request.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The `geo` directive has the following format:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE23]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'If the source variable is omitted, the `$remote_addr` variable is used instead.
+    The address mapping is a list of key/value pairs, separated by whitespace. A key
+    is usually an IP address or an IP address with a prefix size specifying a subnet.
+    A value is an arbitrary string of character or a number. Let''s look at the following
+    code:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE24]'
+  prefs: []
+  type: TYPE_PRE
+- en: The value of the source variable is used as a key to look up an entry in the
+    address mapping. Once found, the target variable is assigned to the looked-up
+    value. Otherwise, the default value is used.
+  prefs: []
+  type: TYPE_NORMAL
+- en: With the preceding configuration, the variable `$admin_access` will be assigned
+    the value `allow` if the remote client's IP address originates from the subnet
+    10.129.1.0/24, 10.144.25.0/24 or 10.132.3.0/24, and `deny` otherwise.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Note
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: The `geo` directive builds an efficient succinct data structure to look up the
+    values by IP address in memory. It can handle hundreds of thousands of IP addresses
+    and subnets. To accelerate the startup time, specify IP addresses to the `geo`
+    directive in ascending order, for example, 1.x.x.x to 10.x.x.x, 1.10.x.x to 1.30.x.x.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The address mapping section can contain directives that affect the behavior
+    of `geo` address mapping. The following table lists those directives along with
+    their functions:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '| Directive | Function |'
+  prefs: []
+  type: TYPE_TB
+- en: '| --- | --- |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `default` | Specifies a value that is returned when no match is found in
+    the IP address mapping. |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `proxy` | Specifies the address of a proxy server. If a request originates
+    from an address specified by one of the `proxy` directives, `geo` will use the
+    last address from the "X-Forwarded-For" header and not from the source variable.
+    |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `proxy_recursive` | If a request originates from an address specified by
+    one of `proxy` directives, `geo` will process addresses in the "X-Forwarded-For"
+    header from right-to-left in search of an address outside of the list specified
+    by the `proxy` directive. In other words, this directive makes `geo` make a better
+    effort in the search for a real IP address. |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `ranges` | Enables IP address ranges in the mapping list. |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `delete` | Removes the specified sub network from the mapping. |'
+  prefs: []
+  type: TYPE_TB
+- en: Let's take a look at some examples.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Consider Nginx receives HTTP traffic from an application-level load balancer
+    or an inbound proxy located at IP 10.200.0.1\. Since all requests will originate
+    from this IP, we need to examine the "X-Forwarded-For" header in order to obtain
+    the real IP address of the client. We then need to change the preceding configuration
+    as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE25]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'If the server is behind a chain of proxies, the real IP address can be obtained
+    by specifying the `proxy_recursive` directive and listing all proxies in the chain:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE26]'
+  prefs: []
+  type: TYPE_PRE
+- en: In the preceding example, proxies have IP addresses 10.200.0.1, 10.200.1.1 and
+    10.200.2.1\. The order the addresses are listed in is not important, as Nginx
+    simply iterates over the addresses specified in the "X-Forwarded-For" header from
+    right-to-left and checks their presence in the `geo` block. The first address
+    outside of the proxy list becomes the real IP address of the client.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'If IP addresses need to be specified as ranges instead or in addition to subnets,
+    you can enable this by specifying the `ranges` directive:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE27]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Finally, with the help of the `delete` directive, we can define the IP address
+    mapping that allows us to implement an access control procedure analogous to allow
+    and deny directives on a larger scale:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE28]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'To put this configuration in action, we need to use the `if` section to forbid
+    request those client''s IP address do not fall in the `allow` range of the `geo`
+    directive:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE29]'
+  prefs: []
+  type: TYPE_PRE
+- en: As you can see, the `geo` directive is a powerful and very scalable tool, and
+    access restriction is one of many applications that it can be put to.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Using basic authentication for access restriction
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'You can configure Nginx to allow access only to those users who can provide
+    the correct combination of a username and a password. Username/password verification
+    is enabled using the `auth_basic` directive:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE30]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Realm name specifies the name of a realm (an authenticated area). This argument
+    is usually set to a string that helps users to identify the area they are trying
+    to access (for example *Administrative area*, *Web mail*, and so on). This string
+    will be passed to the browser and displayed in the username/password entry dialog.
+    In addition to the realm name, you need to specify a file containing a user database
+    using the `auth_basic_user_file` directive:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE31]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'This file must contain authentication information with a username and a password
+    in each line:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE32]'
+  prefs: []
+  type: TYPE_PRE
+- en: This file presumably must be placed outside of document root of any website
+    you are hosting. The access rights must be set up such that Nginx can only read
+    this file, never write or execute.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Passwords must be encrypted using one of the following algorithms:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '| Algorithms | Comments |'
+  prefs: []
+  type: TYPE_TB
+- en: '| --- | --- |'
+  prefs: []
+  type: TYPE_TB
+- en: '| CRYPT | Unix DES-based password encryption algorithm |'
+  prefs: []
+  type: TYPE_TB
+- en: '| SSHA | Salted Secure Hash Algorithm 1 |'
+  prefs: []
+  type: TYPE_TB
+- en: '| *Deprecated: Do not use* |'
+  prefs: []
+  type: TYPE_TB
+- en: '| MD5 | Message Digest 5 algorithm |'
+  prefs: []
+  type: TYPE_TB
+- en: '| SHA | Unsalted Secure Hash Algorithm 1 |'
+  prefs: []
+  type: TYPE_TB
+- en: 'The password file can be managed using the `htpasswd` utility from Apache web
+    server. Here are some examples:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '| Instruction | Command |'
+  prefs: []
+  type: TYPE_TB
+- en: '| --- | --- |'
+  prefs: []
+  type: TYPE_TB
+- en: '| Create a password file and add user `john` to the password file | `$ htpasswd
+    -b -d -c /etc/nginx/auth.d/auth.pwd john test` |'
+  prefs: []
+  type: TYPE_TB
+- en: '| Add user `thomas` to the password file | `$ htpasswd -b -d /etc/nginx/auth.d/auth.pwd
+    thomas test` |'
+  prefs: []
+  type: TYPE_TB
+- en: '| Replace John''s password | `$ htpasswd -b -d /etc/nginx/auth.d/auth.pwd john
+    test` |'
+  prefs: []
+  type: TYPE_TB
+- en: '| Remove user `john` from the password file | `$ htpasswd -D /etc/nginx/auth.d/auth.pwd
+    john` |'
+  prefs: []
+  type: TYPE_TB
+- en: 'The option `-d` forces encryption of passwords using the CRYPT algorithm, which
+    is relatively less secure than SSHA (Salted SHA). To encrypt passwords using SSHA
+    and achieve higher security of your passwords you can use the `slappasswd` utility
+    from the `slapd` package:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE33]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Copy the output of `slappasswd` into the password file. The password file now
+    looks like this:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE34]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'This can be further automated using the `echo` command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE35]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Once the password file is ready, we can configure password authentication:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE36]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Password authentication is now enabled; you can navigate to `location /admin`
+    and see the password prompt:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Using basic authentication for access restriction](img/B04282_04_01.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Access to the protected resource will be granted only when a valid combination
+    of username and password is entered into the password prompt.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Note
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: Nginx reads and parses the password file every time a request to protected resources
+    is made. This is scalable only when the number of entries in the password file
+    does not exceed a few hundred.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Authenticating users with a subrequest
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'User authentication can be delegated to another web server using the auth request
+    module. This module must first be enabled at the source code configuration stage
+    using the `–with-http_auth_request_module` command-line switch:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE37]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Now the `auth_request` module is ready to be used. The delegation can be configured
+    as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE38]'
+  prefs: []
+  type: TYPE_PRE
+- en: With the preceding configuration, Nginx will execute a subrequest to `location
+    /auth`. This location will pass the subrequest to an external web application
+    (using the `proxy_pass` directive). As the original request might have a request
+    body that the authentication application does not expect, we discard it by specifying
+    `proxy_pass_request_body off` and nullifying the "Content-Length" header using
+    `proxy_set_header`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'In order to reply to a subrequest issued by auth request module, you need to
+    create an application that analyzes data from the original request and replies
+    with HTTP status 401 (Unauthorized) or 403 (Forbidden) in order to block access,
+    and with a successful HTTP status 200 to 299 in order to allow access. Here is
+    an example of such an application in `node.js`:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE39]'
+  prefs: []
+  type: TYPE_PRE
+- en: This application allows access as long a cookie names `uid` is present, and
+    forbids access otherwise.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'To run this application, create a directory, create a file named `auth.js`
+    in this directory, and put the preceding source code into this file. After that,
+    install the required modules `express` and `cookie-parser` using `npm`:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE40]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'After that, you can run the application:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE41]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'The application will start listening on port 3000\. The following Nginx configuration
+    can be used in order to try the application:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE42]'
+  prefs: []
+  type: TYPE_PRE
+- en: The subrequest will be delegated to port 3000 of the host, where Nginx is running,
+    and the application will reply to that request.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'If the application needs to examine the original request URI, it can be passed
+    using the `proxy_set_header` directive:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE43]'
+  prefs: []
+  type: TYPE_PRE
+- en: The original IP address and other original request parameters can be passed
+    to the authenticating application in the same way.
+  prefs: []
+  type: TYPE_NORMAL
+- en: This is how more sophisticated authentication logic can be implemented in Nginx.
+    If you make the application always reply with HTTP status 200, it can be used
+    for purposes other than authentication, such as logging or data injection.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Combining multiple access restriction methods
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: Multiple access restriction methods can be combined together. For that, they
+    must be both configured and enabled. By default, all configured access restriction
+    methods must be satisfied in order to allow the request. If any of the access
+    restriction methods are not satisfied, Nginx rejects the request with 403 Forbidden
+    HTTP status.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'This behavior can be changed using the `satisfy` directive:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE44]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Specifying `satisfy any` in a location makes Nginx accept the request if any
+    of the enabled access restriction methods are satisfied, while specifying `satisfy
+    all` (the default) makes Nginx accept the request only if all enabled access restriction
+    methods are satisfied. To demonstrate how it works, let''s extend the preceding
+    example:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE45]'
+  prefs: []
+  type: TYPE_PRE
+- en: This configuration enables and configures both password authentication and IP
+    address restriction. With `satisfy` set to `any`, a user needs to either enter
+    a correct username/password combination or originate from IP address range 10.132.3.0
+    to 10.132.3.255\. This makes users from this network somehow more trusted, as
+    they are not required to enter their username and password in order to access
+    the administrative area.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Summary
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: In this chapter, you learned how to use the rewrite engine and access control
+    functions. These are essential tools of every web master and site reliability
+    engineer. Excelling in configuring and using these features will help you to solve
+    day-to-day problems more efficiently.
+  prefs: []
+  type: TYPE_NORMAL
+- en: In the next chapter, we will talk about managing inbound and outbound traffic.
+    You will learn how to set various limitations on inbound traffic, how to configure
+    upstream, and how to apply various options to outbound traffic.
+  prefs: []
+  type: TYPE_NORMAL

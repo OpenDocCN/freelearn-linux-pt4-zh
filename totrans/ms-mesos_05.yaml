@@ -1,0 +1,1474 @@
+- en: Chapter 5. Mesos Cluster Deployment
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: This chapter explains how a Mesos cluster can be easily set up and monitored
+    using standard deployment and configuration management tools used by system administrators
+    and DevOps engineers. We will explain the steps that are required to set up a
+    Mesos cluster through Ansible, Puppet, SaltStack, Chef, Terraform, or Cloudformation,
+    and how a test environment can be set up using Playa Mesos. We will also talk
+    about some standard monitoring tools, such as Nagios and Satellite that are can
+    be used to monitor the cluster. We will also discuss some of the common problems
+    faced while deploying a Mesos cluster along with their corresponding resolutions.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The topics that will be covered are as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Deploying and configuring a Mesos cluster using the following:'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Ansible
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Puppet
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: SaltStack
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Chef
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Terraform
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Cloudformation
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Creating test environments using Playa Mesos
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Common deployment issues and solutions
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Monitoring the Mesos cluster using the following:'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Nagios
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Satellite
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Deploying and configuring a Mesos cluster using Ansible
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: Ansible is one of the popular infrastructure automation tools commonly used
+    by system administrators today and recently acquired by Red Hat. Nodes are managed
+    through **Secure Shell** (**SSH**) and require only Python support. Ansible has
+    open sourced a lot of playbooks, including an `ansible-mesos` one that we will
+    discuss in this section.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The `ansible-mesos` playbook can be used to install and configure a Mesos cluster
+    with customized master as well as slave setup options. Currently, it supports
+    Ubuntu and CentOS/Red Hat operating system-powered machines. The `ansible-mesos`
+    playbook also supports setting specific slave executors and hence can be run with
+    native Docker support.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Installing Ansible
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: Ansible installation is only required on a single machine. It does not require
+    a database, nor does it need to keep a daemon running all the time. It uses SSH
+    to manage the cluster and requires Python (versions 2.6 or 2.7) to be installed
+    on the machine. You can even install Ansible on your laptop or personal computer
+    and have it manage the machines running remotely. The machine where Ansible is
+    installed is called the **control machine**. At the time of writing this book,
+    there is no support for Windows machines. The machines that are controlled by
+    the control machine are known as **managed nodes** and require SSH access ability
+    from the control machine as well as Python (version 2.4 or later) installed on
+    them.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Installing the control machine
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'We can run Ansible without root access as it doesn''t require you to install
+    any additional software or database servers. Execute the following code:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE0]'
+  prefs: []
+  type: TYPE_PRE
+- en: If everything goes well, then we can see the following output in the Terminal,
+    indicating that the installation was successful. After this, we will be able to
+    use the Ansible command from the Terminal.
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Installing the control machine](img/B05186_05_01.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'By default, Ansible uses the inventory file in `/etc/ansible/hosts`, which
+    is an INI-like format and could look similar to the following, for example:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE1]'
+  prefs: []
+  type: TYPE_PRE
+- en: Here, the group names are indicated in brackets, which can be used to classify
+    the systems that will be controlled.
+  prefs: []
+  type: TYPE_NORMAL
+- en: We can also use the command-line option `-i` to point it to a different file
+    rather than the one found in `/etc/ansible/hosts`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Creating an ansible-mesos setup
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: Ansible executes a playbook composed of roles against a set of hosts, as described
+    before in the hosts file, which are organized into groups. For more details, visit
+    [http://frankhinek.com/create-ansible-playbook-on-github-to-build-mesos-clusters/](http://frankhinek.com/create-ansible-playbook-on-github-to-build-mesos-clusters/).
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'First, let''s create a hosts file by pointing to our Mesos master and slave
+    nodes via the following:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE2]'
+  prefs: []
+  type: TYPE_PRE
+- en: Here, we created two groups named `mesos_masters` and `mesos_workers` and listed
+    the master and slave IP addresses, respectively. For the `mesos_masters` group,
+    we will also need to specify the ZooKeeper ID as the cluster will run in high
+    availability.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'In the following steps, we will take a look at how to deploy Mesos on the machines
+    listed in the hosts file using Ansible:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Create a `site.yml` file with following content:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE3]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Now, we can create a group variable file that will be applicable to all the
+    hosts belonging to the cluster, as follows:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE4]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Next, we will put the following contents in all the files:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE5]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Now, we can create the roles for the Mesos cluster. First, create a roles directory
+    via the following command:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE6]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'We can now use the `ansible-galaxy` command to initialize the directory structure
+    for this role, as follows:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE7]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: This will create the directory structure as follows:![Creating an ansible-mesos
+    setup](img/B05186_05_02.jpg)
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'Now, modify the `mesos/handlers/main.yml` file with following content:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE8]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Next, modify the tasks from the `mesos/tasks/main.yml` file, as follows:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE9]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'This is a standard template to configure the Mesos master slave machines in
+    the cluster. This file also specifies the various configurations that are necessary
+    to install components such as ZooKeeper. The steps are listed as follows:'
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: 'Create the ZooKeeper configuration template as follows:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE10]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Then, add the following content:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE11]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Next, enter the following command:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE12]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Finally, add the following content:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE13]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: We can now run this playbook to deploy Mesos on the machines listed in the hosts
+    file. We only need to change the IP addresses from the hosts file to deploy on
+    other machines.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Deploying and configuring Mesos cluster using Puppet
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'This portion will primarily cover how one can deploy a Mesos cluster with the
+    Puppet configuration management tool using the ZooKeeper and Mesos modules located
+    at the following repositories:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[https://github.com/deric/puppet-mesos](https://github.com/deric/puppet-mesos)'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '[https://github.com/deric/puppet-zookeeper](https://github.com/deric/puppet-zookeeper)'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Puppet is an open source configuration management tool that runs on Windows,
+    Linux, and Mac OS. Puppet Labs was founded by Luke Kanies, who produced the Puppet,
+    in 2005\. It is written in Ruby and released as free software under the GNU General
+    Public License (GPL) until version 2.7.0 and Apache License 2.0 after that. Using
+    this, system administrators can automate the standard tasks that they need to
+    run regularly. More information about Puppet can be found at the following location:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[https://puppetlabs.com/puppet/puppet-open-source](https://puppetlabs.com/puppet/puppet-open-source)'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: The code will be organized with the profiles and roles pattern, and the node
+    data will be stored using Hiera. Hiera is a Puppet tool to perform a key/value
+    lookup of the configuration data. It allows a hierarchical configuration of data
+    in Puppet, which is difficult to achieve with native Puppet code. Also, it acts
+    as a separator of configuration data and code.
+  prefs: []
+  type: TYPE_NORMAL
+- en: At the end of this module, you will have a highly available Mesos cluster with
+    three masters and three slaves. Along with this, Marathon and Chronos will also
+    be deployed in the same fashion.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'We can combine several Puppet modules to manage Mesos and ZooKeeper. Let''s
+    perform the following steps:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'First, create a `Puppetfile` with the following content:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE14]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: Now, we can write the profiles and roles pattern for both Mesos masters and
+    slaves. On the master machines, it will also include managing ZooKeeper, Marathon,
+    and Chronos.
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: 'Create the following role for the masters:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE15]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Next, create the following role for the slaves:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE16]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: Now, we can go ahead and create the reusable profiles that match the include
+    statements listed before in the roles. The profiles will contain the calls to
+    the Mesos and ZooKeeper modules and any other resources that we need to manage.
+    One can consider the roles as the business logic and the profiles as the actual
+    implementation.
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: 'Create the following profile for ZooKeeper:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE17]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Create the following profile for Mesos masters:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE18]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Next, create the following profile for Mesos slaves:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE19]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: These are the basic things we need to launch a Mesos cluster. To manage Chronos
+    and Marathon, the following profiles will also need to be included.
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: 'Create a profile for Chronos, as follows:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE20]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Now, create a profile for Marathon via the following code:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE21]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'So far, the roles and profiles don''t contain any information about the machines
+    that we will use to set up the cluster. This information will come using Hiera.
+    The Hiera data for master would look something similar to this:'
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: '[PRE22]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: As we are setting up a highly available cluster, the master machines are named
+    master 1, master 2, and master 3, respectively.
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: 'Hiera data for slave would look something similar to the following:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE23]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: Now, we can initiate a Puppet run on each of the machines to install and configure
+    Mesos, ZooKeeper, Chronos, and Marathon.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The installation of the module is the same as for any Puppet module, as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE24]'
+  prefs: []
+  type: TYPE_PRE
+- en: Once executed successfully, we can expect that the Mesos package will be installed
+    and the `mesos-master` service will be configured in the cluster.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Deploying and configuring a Mesos cluster using SaltStack
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'The SaltStack platform, or Salt, is a Python-based open source configuration
+    management software and a remote execution engine. This module explains how we
+    can use SaltStack to install a Mesos cluster with Marathon and a few other tools
+    in production. SaltStack is an alternative to Puppet, Ansible, Chef, and others.
+    As with the others, it is used to automate the deployment and configuration of
+    software on multiple servers. The SaltStack architecture consists of one node
+    as the SaltStack master and other nodes as the minions (slaves). There are also
+    two different roles: one master role to perform cluster actions and a slave role
+    to run the Docker containers.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following packages will be installed for the role master:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: ZooKeeper
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: The Mesos master
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Marathon
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Consul
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'The slave role will have the following packages installed:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: The Mesos slave
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Docker
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: cAdvisor (used to export metrics to prometheus)
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Registrator (used to register services with Consul)
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Weave (provides an overlay network between containers)
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Now, let''s take a look at how these components look in the cluster. The following
+    figure shows all these components connected together in the cluster (source: [https://github.com/Marmelatze/saltstack-mesos-test](https://github.com/Marmelatze/saltstack-mesos-test)):'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Deploying and configuring a Mesos cluster using SaltStack](img/B05186_05_03.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: SaltStack installation
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'We need to install the Salt-Master to coordinate all the Salt-Minions. SaltStack
+    requires the masters to be an odd number. One of these masters can be used as
+    the Salt-Master, and the others will then become the minions. Let''s follow the
+    steps mentioned here to install SaltStack:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Execute the following command to set up the master and minion:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE25]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Edit the `/etc/salt/master` file and change the configurations, as follows:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE26]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Now restart the master:'
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: '[PRE27]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Edit the minion configuration file located at `/etc/salt/minion` via the following
+    code:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE28]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Now, edit the `salt-grains` file located at `/etc/salt/grains` by executing
+    the following code:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE29]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: Then, replace the ID with a numerical value starting from 1; this ID is similar
+    to the ZooKeeper ID that we used earlier.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'Now, restart the minion via the following command:'
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: '[PRE30]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Public key authentication is used for authentication between the minion and
+    the master. Execute the following command to do so:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE31]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Once we are done with the preceding steps, we can run SaltStack with the following
+    command:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE32]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: If everything is successfully executed, then Mesos services will be up and running
+    in the cluster.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Deploying and configuring a Mesos cluster using Chef
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'Chef is both the name of a company and the name of a configuration management
+    tool written in Ruby and Erlang. It uses a pure Ruby domain-specific language
+    (DSL) to write system configuration "recipes". This module will explain how to
+    install and configure the Apache Mesos master and slave using the Chef cookbook.
+    Chef is a configuration management tool to automate large-scale server and software
+    application deployments. We will assume that the reader is already familiar with
+    Chef. The following repository will be used for reference:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[https://github.com/everpeace/cookbook-mesos](https://github.com/everpeace/cookbook-mesos).'
+  prefs: []
+  type: TYPE_NORMAL
+- en: The Chef cookbook version at the time of writing this book supports the Ubuntu
+    and CentOS operating systems. The CentOS version is experimental and is not recommended
+    for use in a production environment. Ubuntu 14.04 or higher is required to make
+    use of the cgroups isolator or Docker container features. Only Mesos 0.20.0 and
+    later supports Docker containerization.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'This cookbook supports installation in both ways—that is, building Mesos from
+    source and from the Mesosphere package. By default, this cookbook builds Mesos
+    from source. One can switch between the source and Mesosphere by setting the following
+    type variable:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE33]'
+  prefs: []
+  type: TYPE_PRE
+- en: Recipes
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'The following are the recipes used by this cookbook to install and configure
+    Mesos:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`mesos::default`: This installs Mesos using the source or Mesosphere recipe,
+    depending on the type variable discussed before.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`mesos::build_from_source`: This installs Mesos in the usual way—that is, download
+    zip from GitHub, configure, make, and install.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`mesos::mesosphere`: This variable installs Mesos using Mesosphere''s `mesos`
+    package. Along with it, we can use the following variable to install the ZooKeeper
+    package.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`node[:mesos][:mesosphere][:with_zookeeper]`'
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`mesos::master`: This configures the Mesos master and cluster deployment configuration
+    files and uses `mesos-master` to start the service. The following are the variables
+    associated with the configurations:'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`node[:mesos][:prefix]/var/mesos/deploy/masters`'
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`node[:mesos][:prefix]/var/mesos/deploy/slaves`'
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`node[:mesos][:prefix]/var/mesos/deploy/mesos-deploy-env.sh`'
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`node[:mesos][:prefix]/var/mesos/deploy/mesos-master-env.sh`'
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'If we select `mesosphere` as the type to build, then the default ":" prefix
+    attribute location will be `/usr/local` as the package from Mesosphere installs
+    Mesos in this directory. This recipe also configures the upstart files at the
+    following locations:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`/etc/mesos/zk`'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`/etc/defaults/mesos`'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`/etc/defaults/mesos-master`'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Configuring mesos-master
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'The `mesos-master` command-line parameters can be used to configure the `node[:mesos][:master]`
+    attribute. An example is given here:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE34]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'The `mesos-master` command will be invoked with the options given in the configuration
+    as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE35]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'The `mesos::slave` command provides configurations for the Mesos slave and
+    starts the `mesos-slave` instance. We can use the following variable to point
+    to the `mesos-slave-env.sh` file:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`node[:mesos][:prefix]/var/mesos/deploy/mesos-slave-env.sh`'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'The upstart configuration files for `mesos-slave` are as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`/etc/mesos/zk`'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`/etc/defaults/mesos`'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`/etc/defaults/mesos-slave`'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Configuring mesos-slave
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'The `mesos-slave` command-line options can be configured using the `node[:mesos][:slave]`
+    hash. An example configuration is given here:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE36]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'The `mesos-slave` command is invoked as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE37]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Now, let''s take a look at how we can put all this together in a vagrant file
+    and launch a standalone Mesos cluster. Create a `Vagrantfile` with the following
+    contents:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE38]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Now, type in the following command to have a fully functional standalone Mesos
+    cluster:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE39]'
+  prefs: []
+  type: TYPE_PRE
+- en: Deploying and configuring a Mesos cluster using Terraform
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: Terraform is an infrastructure building, changing, and versioning tool to handle
+    the existing popular services as well as custom in-house solutions safely and
+    efficiently that is owned by HashiCorp and written in Go language. In this module,
+    we will first discuss how we can install Terraform, and then, we will consider
+    how we can use Terraform to spin up a Mesos cluster.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Installing Terraform
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'Head to [https://www.terraform.io/downloads.html](https://www.terraform.io/downloads.html),
+    download the appropriate version for your platform, and unzip it, as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE40]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'You will note that the `terraform` archive is a bunch of binaries once you
+    unzip them, which looks similar to the following:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Installing Terraform](img/B05186_05_04.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Now, add the path to the directory in the `PATH` variable so that you can access
+    the `terraform` command from any directory.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'If everything goes well, then you can see the usage of `terraform` once you
+    execute the `terraform` command in the Terminal:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Installing Terraform](img/B05186_05_05.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Spinning up a Mesos cluster using Terraform on Google Cloud
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: To spin up a Mesos cluster in Google Cloud Engine (GCE) with Terraform, you
+    are required to have a JSON key file to authenticate. Head to [https://console.developers.google.com](https://console.developers.google.com)
+    and then generate a new JSON key by navigating to the **Credentials** **|** **Service**
+    account. A file will then be downloaded, which will be needed later to launch
+    machines.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'We can now create a `terraform` configuration file for our Mesos cluster. Create
+    a `mesos.tf` file with the following contents:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE41]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'As we can note, a few of these configurations can be used to control versions,
+    such as:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`mesos_version`: This specifies the version of Mesos'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`image`: This is the Linux system image'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Now, execute the following commands to start the deployment:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE42]'
+  prefs: []
+  type: TYPE_PRE
+- en: Destroying the cluster
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'We can execute the following command to destroy the cluster:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE43]'
+  prefs: []
+  type: TYPE_PRE
+- en: Deploying and configuring a Mesos cluster using Cloudformation
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'In this module, we will discuss how we can use Cloudformation scripts to launch
+    a Mesos cluster on Amazon AWS. Before jumping into it, first make sure you install
+    and configure aws-cli on the machines where you want to launch the cluster. Take
+    a look at the instructions from the following repository to set up aws-cli:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[https://github.com/aws/aws-cli](https://github.com/aws/aws-cli).'
+  prefs: []
+  type: TYPE_NORMAL
+- en: The next thing that we need after setting up aws-cli is the `cloudformation-zookeeper`
+    template for an exhibitor-managed ZooKeeper cluster.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Setting up cloudformation-zookeeper
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'We first need to clone the following repository as it contains the JSON file
+    that has the parameters, descriptors, and configuration values:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE44]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Log in to the AWS console and open up the following ports for security group:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'SSH Port: 22'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'ZooKeeper Client Port: 2181'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Exhibitor HTTP Port: 8181'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'We can now use `aws-cli` to launch the cluster using the following command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE45]'
+  prefs: []
+  type: TYPE_PRE
+- en: Using cloudformation-mesos
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'You can clone the project repository from the following URL:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE46]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'The project primarily includes three templates in the JSON format, which defines
+    the parameters, configurations, and descriptors, as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`mesos-master.json`: This is used to launch a set of Mesos masters, which run
+    Marathon in an autoscaling group.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`mesos-slave.json`: Similar to the preceding one, this launches a set of Mesos
+    slaves in an autoscaling group.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`mesos.json`: This creates both the `mesos-master` and `mesos-slave` stacks
+    from the corresponding templates, which were listed previously. This is the general
+    template used to launch a Mesos cluster.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'A few configurable properties from `master.json` are listed as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE47]'
+  prefs: []
+  type: TYPE_PRE
+- en: '`MasterInstanceCount` and `MasterQuorumCount` control the number of master
+    machines that are required in the cluster. Take a look at the following code:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE48]'
+  prefs: []
+  type: TYPE_PRE
+- en: Similarly, `SlaveInstanceCount` is used to control the number of slave instances
+    in the cluster.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Cloudformation updates the autoscaling groups, and Mesos then transparently
+    handles the scaling up by adding more nodes and scaling down by removing nodes.
+    Take a look:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE49]'
+  prefs: []
+  type: TYPE_PRE
+- en: We can also use the `InstanceType` configuration property for both the master
+    (`MasterInstanceType`) and slave (`SlaveInstanceType`) to control the size of
+    the machine in the AWS cloud.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Again, in the security group that we created earlier, open up the following
+    ports for Mesos communication:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Mesos master port: 5050'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Marathon port : 8080'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Once we configure the values in the `mesos-master.json`, `mesos-slave.json`
+    files, we can upload these files into S3 using the following command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE50]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'We can now use aws-cli to launch our Mesos cluster with the following command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE51]'
+  prefs: []
+  type: TYPE_PRE
+- en: Creating test environments using Playa Mesos
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'Apache Mesos test environments can be quickly created using Playa Mesos. You
+    can take a look at the official repository from the following URL:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[https://github.com/mesosphere/playa-mesos](https://github.com/mesosphere/playa-mesos).'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Before using this project, make sure in your environment that you install and
+    configure VirtualBox, Vagrant, and an Ubuntu machine image that contains Mesos
+    and Marathon preinstalled.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Installations
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: Follow the below instructions to get started with Playa Mesos
+  prefs: []
+  type: TYPE_NORMAL
+- en: '**Install VirtualBox**: You can navigate to [https://www.virtualbox.org/wiki/Downloads](https://www.virtualbox.org/wiki/Downloads)
+    and download and install the appropriate version for your environment'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**Install Vagrant**: You can use the methods described in the *Installing Aurora*
+    section of [Chapter 4](ch04.html "Chapter 4. Service Scheduling and Management
+    Frameworks"), *Service Scheduling and Management Frameworks*, to get started with
+    Vagrant'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**Playa**: You can clone the repository with the following command:'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '[PRE52]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: If everything goes well, we will be able to see the Mesos master Web UI by pointing
+    the browser to `10.141.141.10:5050` and the Marathon Web UI from `10.141.141.10:8080`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Once the machine is started, then we can use `ssh` to log in to the machine
+    with the following command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE53]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'We can also use the following command to halt and terminate the test environment:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE54]'
+  prefs: []
+  type: TYPE_PRE
+- en: Apart from this, if you wish to tweak the configurations a bit, then you can
+    do this by editing the `config.json` file located at the root of the `playa-mesos`
+    repository.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'We can use the following configuration properties in the `config.json` file:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`platform`: This is the virtualization platform. We will use VirtualBox, although
+    VMware Fusion and VMware workstation can also be used.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`box_name`: This is the name of the vagrant instance.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`base_url`: This is the base URL where Vagrant images are stored.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`ip_address`: This is the private network IP address of the VM.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`mesos_release`: This parameter is optional, which specifies the version of
+    Mesos. This should be the full string returned by `apt-cache policy mesos`. An
+    example would be `0.22.1-1.0.ubuntu1404`.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`vm_ram`: This is the memory allocated to the Vagrant VM.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`vm_cpus`: This is the number of cores allocated to the Vagrant VM.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'We can create a sample `config.json` file by putting up all these configuration
+    parameters, and it would look similar to the following:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE55]'
+  prefs: []
+  type: TYPE_PRE
+- en: As you can note here, we allocated 2,040 MB memory and two cores, and the machine
+    will run on the `10.141.141.10` IP address.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Monitoring the Mesos cluster using Nagios
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: Monitoring is a vital part of keeping the infrastructure up and running. Mesos
+    integrates well with the existing monitoring solutions and has plugins for most
+    monitoring solutions, such as **Nagios**. This module will give you a walkthrough
+    of how to install Nagios on your cluster and enable monitoring to send you e-mail
+    alerts whenever something goes wrong in your cluster.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Installing Nagios 4
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'The first thing we need to do before installing Nagios is to add an Nagios
+    user to the system from which the Nagios process can run and send out alerts.
+    We can create a new user and a new usergroup for Nagios by executing the following
+    commands:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE56]'
+  prefs: []
+  type: TYPE_PRE
+- en: Here, we created a user, Nagios, and a user group, `nagcmd`, which is assigned
+    to the user Nagios in the third command listed before.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Now, install the dependency packages with the following command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE57]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Once the dependencies are installed and the user is added, we can start downloading
+    and installing `nagios` by executing the following commands:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE58]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Once `nagios` is installed, we can install the `nagios` plugin by downloading
+    and building it by issuing the following commands:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE59]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Once the plugins are installed, we can install **NRPE** (**Nagios Remote Plugin
+    Executor**) to take status updates from remote machines. It can be installed by
+    executing the following commands:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE60]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'For security reasons, edit the file located at `/etc/xinetd.d/nrpe` with the
+    following content:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE61]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Replace the IP address with our `nagios` server IP address so that only our
+    `nagios` server is able to make remote calls. Once this is done, save the file
+    and exit and then restart the `xintend` service by executing the following command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE62]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Now that `nagios` is installed, we can configure the contact e-mail addresses
+    to which the notifications will be sent by editing the following file:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE63]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Find and replace the following line with your own e-mail address:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE64]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Add a user to `nagios` so that we can log in from the browser and see the activities
+    by executing the following command. Here, we used `nagiosadmin` as the username
+    and password, as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE65]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Now, restart the `nagios` service by issuing the following command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE66]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'We can now log in to the `nagios` admin panel by accessing the following URL
+    from the browser:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`http://MachineIP/nagios`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`MachineIP` is the IP address of the machine on which we installed `nagios`,
+    and it will prompt you with an authentication form in which you can give the username
+    and password as `nagiosadmin`.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Installing Nagios 4](img/B05186_05_06.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'Upon authentication, you will reach the Nagios home page. To view which hosts
+    are being monitored by Nagios, click on the **Hosts** link present on the left-hand
+    side, as shown in the following screenshot (source: [https://www.digitalocean.com/community/tutorials/how-to-install-nagios-4-and-monitor-your-servers-on-ubuntu-14-04](https://www.digitalocean.com/community/tutorials/how-to-install-nagios-4-and-monitor-your-servers-on-ubuntu-14-04)):'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Installing Nagios 4](img/B05186_05_07.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Now, we will discuss how we can use NRPE to monitor the nodes in our Mesos cluster.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The following section will add a machine to Nagios to monitor, and we can repeat
+    the same steps to add as many machines as required. For the time being, we will
+    choose the Mesos master node to be monitored, and it will trigger an e-mail if
+    the disk usage for a particular drive exceeds the given amount.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Now, on the master machine, install the Nagios plugins and `nrpe-server` with
+    the following command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE67]'
+  prefs: []
+  type: TYPE_PRE
+- en: As mentioned earlier, for security reasons, edit the `/etc/nagios/nrpe.cfg`
+    file and put the `nagios` server IP address for communication under the `allowed_hosts`
+    property.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Now, edit the `nrpe` configuration file with the properties to monitor the
+    disk usage via the following command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE68]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Then, add the following content:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE69]'
+  prefs: []
+  type: TYPE_PRE
+- en: Here, `server_address` is the IP address of the machine, `allowed_hosts` is
+    the `nagios` server address, and the command is the actual command to pull the
+    disk usage. We used the `check_disk` plugin that comes with `nagios` and passes
+    the arguments to the command as `-w 20%` `-c 10%`. Whenever the server exceeds
+    20% disk usage, Nagios will trigger an e-mail alert.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Once we edit the file, restart the `nrpe` server with the following command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE70]'
+  prefs: []
+  type: TYPE_PRE
+- en: Now that we have configured the Mesos master to check the disk usage, we also
+    need to add this Mesos master to the `nagios` server so that it can keep on checking
+    the disk usage and alert the administrators when it exceeds the quota.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Add a new configuration file on the `nagios` server to monitor, and we can
+    add the file in `/usr/local/nagios/etc/servers/`, as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE71]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Then, add the following content:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE72]'
+  prefs: []
+  type: TYPE_PRE
+- en: This configuration will keep monitoring the Mesos master machine to check whether
+    it is still running. The administrator (or others, as specified in the e-mail
+    list) will get an e-mail notification if the Mesos master machine goes down.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'We can also enable the network usage checking by adding the following service:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE73]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Once we set the configurations for the new host, we need to restart `nagios`
+    by executing the following command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE74]'
+  prefs: []
+  type: TYPE_PRE
+- en: We can create new configuration files for slave nodes, as well, by following
+    the steps listed previously.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Monitoring the Mesos cluster using Satellite
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: Satellite is another tool for monitoring Mesos, and the Satellite project is
+    maintained by Two Sigma Investments, which is written in Clojure. The Satellite
+    master instance monitors the Mesos masters and receives the monitoring information
+    from Mesos slaves through the Satellite slaves. For each Mesos master and Mesos
+    slave, there exists a Satellite master and slave process, with the `satellite-slave`
+    processes sending one type of message to all `satellite-masters` in the cluster.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Aggregate statistics of the cluster, such as the utilization of resources, the
+    number of lost tasks and events specific to the master, such as how many leaders
+    are currently active and so on, are usually pulled. Satellite also provides a
+    **Representational State Transfer** (**REST)** interface to interact with the
+    Mesos master whitelist. Whitelists are text files that contain the list of hosts
+    to which the master will consider sending tasks. It also provides a REST interface
+    to access the cached Mesos tasks metadata. Satellite itself never caches any of
+    this information and only provides an interface to retrieve it if it is cached.
+    This is an optional feature, but it is useful if we have persisted tasks metadata
+    within Mesos itself.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Satellite adds two additional conceptual whitelists to the mix:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '**Managed whitelist**: These are the hosts that are are entered automatically'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**Manual whitelist**: If a host is present in this whitelist, then its status
+    overrides that in the managed whitelist discussed previously. These are the REST
+    endpoints taking the `PUT` and `DELETE` requests.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: At intervals, a merge operation actually merges these two into the whitelist
+    file.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Satellite installation
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'Satellite needs to be installed on all the machines that are present in the
+    Mesos cluster. We will need to install `satellite-master` on the Mesos master
+    machines and the `satellite-slave` on the Mesos slave machines. Run the following
+    code:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE75]'
+  prefs: []
+  type: TYPE_PRE
+- en: The preceding command will create a `jar` in the target directory, which we
+    can copy to all the Mesos master machines.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Executing the following command by passing the configuration will run the satellite
+    process on the machines:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE76]'
+  prefs: []
+  type: TYPE_PRE
+- en: Common deployment issues and solutions
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'This module contains a few common issues that are faced while installing or
+    setting up the tools and modules described in this chapter:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: For the Ansible python-setup tools, take a look at the following screenshot:![Common
+    deployment issues and solutions](img/B05186_05_08.jpg)
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'If your Ansible installation shows the preceding message, then execute the
+    following command to resolve it:'
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: '[PRE77]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: SSH runs on a different port, and `nagios` shows a `connection refused` error.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'You will get the following exception if you run your `ssh` server on a different
+    port:'
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: '[PRE78]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'This can be fixed by editing the following line from `/etc/nagios/conf.d/services_nagios.cfg`:'
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: '[PRE79]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: Here, we used `6666` as the `ssh` port, rather than `22`, to get rid of the
+    error message.
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: Chef fails to unzip packages.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'Sometimes, the Chef setup fails to retrieve the packages and gives the following
+    error stack:'
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: '[PRE80]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'This error shows up when your apt''s key is old. To resolve this issue, you
+    need to update the keys by executing the following command:'
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: '[PRE81]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: ZooKeeper throws an error "no masters are currently leading".
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'This is a known ZooKeeper error due to the incorrect configuration of the ZooKeeper
+    properties. We can resolve this error by editing the ZooKeeper configuration file
+    located at `/etc/zookeeper/conf/zoo.cfg` properly. Add the following properties
+    beside the server IP listed in the file:'
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: '[PRE82]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: Summary
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: After reading this chapter, you should now be able to use any standard deployment
+    tool to launch and configure a Mesos cluster on a distributed infrastructure.
+    You would also be able to understand various security, multitenancy, and maintenance
+    features supported by Mesos and learn how to implement them for production-grade
+    setups.
+  prefs: []
+  type: TYPE_NORMAL
+- en: In the next chapter, we will explore Mesos frameworks in greater detail. We
+    will discuss the various features of frameworks and the process of porting an
+    existing framework on Mesos and understand how to develop custom frameworks on
+    top of Mesos to address specific applications.
+  prefs: []
+  type: TYPE_NORMAL

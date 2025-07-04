@@ -1,0 +1,1896 @@
+- en: Chapter 4. CoreOS Primary Services – Etcd, Systemd, and Fleet
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'This chapter will cover the internals of CoreOS'' critical services—Etcd, Systemd,
+    and Fleet. For each of the services, we will cover installation, configuration,
+    and their applications. CoreOS ships with Etcd, Systemd, and Fleet by default.
+    They can also be installed as standalone components in any Linux system. The following
+    topics will be covered in this chapter:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Etcd—installation, access methods, configuration options, use cases, tuning,
+    cluster management, security, authentication, and debugging
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Systemd—unit types, specifiers, templates, and special units
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Fleet—installation, access methods, templates, scheduling, HA, and debugging
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Service discovery options using Etcd and Fleet
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Etcd
+  prefs: []
+  type: TYPE_NORMAL
+- en: Etcd is a distributed key-value store used by all the machines in the CoreOS
+    cluster to read/write and exchange data. An overview of etcd is provided in [Chapter
+    1](index_split_023.html#filepos77735), CoreOS Overview. This section will cover
+    the internals of etcd.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Versions
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Etcd is under continuous development, and frequent releases are done to add
+    enhancements as well as fix bugs. The following are some major updates from recent
+    etcd releases:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Version 2.0 is the first stable release and was released in January 2015\. Pre-version
+    2.0 is available as etcd and post-version 2.0 is available as etcd2 in CoreOS
+    nodes.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Version 2.0 added IANA-assigned ports `2379` for client-to-server communication
+    and `2380` for server-to-server communication. Previously, port `4001` was used
+    for client-to-server communication and port `7001` was used for server-to-server
+    communication.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Version 2.1 introduced authentication and metrics collection features and these
+    are in experimental mode.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: The latest release as of September 2015 is 2.2.0.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: An experimental v3 API (some examples are multikey reads, range reads, and binary
+    keys) is available now as a preview and will be available officially in version
+    2.3.0 scheduled at the end of October 2015.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: All examples in this chapter are based on etcd version 2.1.0 and above.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Installation
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'CoreOS ships with etcd. Both the etcd and etcd2 versions are available in the
+    base CoreOS image. The following are the etcd versions available in the CoreOS
+    alpha image 779.0.0:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00049.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Standalone installation
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Etcd can also be installed on any Linux machine. The following is the installation
+    command tried out on Ubuntu 14.04 to install etcd version 2.2:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`curl -L  https://github.com/coreos/etcd/releases/download/v2.2.0/etcd-v2.2.0-linux-amd64.tar.gz -o etcd-v2.2.0-linux-amd64.tar.gz``tar xzvf etcd-v2.2.0-linux-amd64.tar.gz`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following example shows you how to try out etcd in the standalone mode.
+    To start the server run the following command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`etcd -name etcdtest`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Now, check whether we can connect to the etcd server using some basic commands:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`etcdctl cluster-health`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following screenshot is the output of the preceding command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00053.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'The following is an example of a simple set and get operation using the curl
+    interface:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`curl –L –X PUT http://127.0.0.1:2379/v2/keys/message -d value="hello"``curl –L http://127.0.0.1:2379/v2/keys/message`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following screenshot is the output of the preceding command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00055.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Accessing etcd
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Etcd can be accessed using either etcdctl CLI or REST API. This applies to
+    both the standalone etcd as well as etcd in CoreOS. The following figure shows
+    you the different ways to access etcd:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00058.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: REST
+  prefs: []
+  type: TYPE_NORMAL
+- en: The etcd database can be accessed and modified through the REST API. The etcd
+    database can be accessed either locally or remotely using this approach.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following example shows the `curl` method to access the CoreOS node to
+    get all the keys:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`curl –L http://localhost:2379/v2/keys/?recursive=true`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following screenshot is the output of the preceding command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00060.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'The following example shows the `curl` method to access the remote CoreOS node
+    to get all the keys:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`curl –L http://172.17.8.101:2379/v2/keys/?recursive=true`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following screenshot is the output of the preceding command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00063.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Etcdctl
+  prefs: []
+  type: TYPE_NORMAL
+- en: Etcdctl is a CLI wrapper on top of the REST interface. Etcdctl can be used for
+    local or remote access.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following example shows etcdctl method to access the CoreOS node to get
+    all the keys:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`etcdctl ls / --recursive`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following screenshot is the output of the preceding command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00067.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'The following example shows etcdctl method to access the remote CoreOS node
+    to get all the keys:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`etcdctl --peers=http://172.17.8.101:2379 ls / --recursive`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following screenshot is the output of the preceding command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00070.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Etcd configuration
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Etcd configuration parameters can be used to modify the etcd member property
+    or cluster-wide property. Etcd options can be set either in the command line or
+    using environment variables. The command line will override the environment variables.
+    The following are the broad categories and their critical configuration parameters/environment
+    variables:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Member: Name, data-dir, and heartbeat interval'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Cluster: Discovery token and initial cluster nodes'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Proxy: Proxy on/off and proxy intervals'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Security: Certificate and key'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Logging: Enable/disable logging and logging levels'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Experimental
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'The following is an etcd invocation example, where we use some of the preceding
+    configuration parameters:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`etcd -name infra0 -data-dir infra0  --cacert=~/.etcd-ca/ca.crt -cert-file=/home/smakam14/infra0.crt -key-file=/home/smakam14/infra0.key.insecure  -advertise-client-urls=https://192.168.56.104:2379 -listen-client-urls=https://192.168.56.104:2379`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Etcd environment variables can also be specified in `cloud-config`. The following
+    is a `cloud-config` example to specify etcd environment variables:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`etcd2:     #generate a new token for each unique cluster from https://discovery.etcd.io/new
+        discovery: https://discovery.etcd.io/d93c8c02eedadddd3cf14828f9bec01c     # multi-region and multi-cloud deployments need to use $public_ipv4
+        advertise-client-urls: http://$public_ipv4:2379     initial-advertise-peer-urls: http://$private_ipv4:2380
+        # listen on both the official ports and the legacy ports     listen-client-urls: http://0.0.0.0:2379,http://0.0.0.0:4001
+        listen-peer-urls: http://$private_ipv4:2380,http://$private_ipv4:7001`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Etcd2 environment variables from cloud-config are stored in the following directory:
+    `/run/systemd/system/etcd2.service.d`.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: The etcd2 service needs to be restarted if the environment variables are changed.
+  prefs: []
+  type: TYPE_NORMAL
+- en: A complete list of configuration parameters and environment variables for etcd
+    can be found at [https://coreos.com/etcd/docs/latest/configuration.html](https://coreos.com/etcd/docs/latest/configuration.html).
+  prefs: []
+  type: TYPE_NORMAL
+- en: Etcd operations
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following are some examples of major operations that can be done using
+    etcd:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Set, get, and delete operations of a key-value pair
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Set a key with timeout where the key expires automatically
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Set a key based on the atomic condition check
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Hidden keys
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Watching and waiting for key changes
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Creating in-order keys
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Using these operations, etcd can be used for a variety of distributed application
+    use cases. The following is an example TTL use case where we check for the liveliness
+    of the Apache service and update service details such as the IP address and port
+    number in etcd, which other applications can use to determine if the service is
+    running or not. If the Apache service dies, the etcd key-value pair will be deleted
+    after 30 seconds in this case:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`## Test whether service is accessible and then register useful information like IP address, port
+    ExecStart=/bin/bash -c ''\   while true; do \     curl -f ${COREOS_PUBLIC_IPV4}:%i; \
+        if [ $? -eq 0 ]; then \       etcdctl set /services/apachet/${COREOS_PUBLIC_IPV4} \''{"host": "%H", "ipv4_addr": ${COREOS_PUBLIC_IPV4}, "port": %i}\'' --ttl 30; \
+        fi; \     sleep 20; \   done''`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: We can find statistics about the etcd node as well as the key-related operations.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following output shows the etcd node statistics:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`curl http://127.0.0.1:2379/v2/stats/self | jq .`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following screenshot is the output of the preceding command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00072.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'The following output shows the etcd key statistics:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`curl http://127.0.0.1:2379/v2/stats/store | jq .`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following screenshot is the output of the preceding command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00076.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Etcd tuning
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following are some etcd parameters that can be tuned to achieve optimum
+    cluster performance based on the operating environment:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Cluster size: A bigger cluster size provides you with better redundancy. The
+    disadvantage with big cluster sizes is that updates can take a long time. In [Chapter
+    1](index_split_023.html#filepos77735), CoreOS Overview, we saw the failure tolerance
+    limit with different cluster sizes.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Heartbeat interval: This is the time interval at which the master node sends
+    a heartbeat message to its followers. The default heartbeat interval is 100 ms.
+    It is necessary to choose a heartbeat interval based on the average round-trip
+    time taken for the ping between nodes. If the nodes are geographically distributed,
+    then the round-trip time will be longer. The suggested heartbeat interval is 0.5-1.5
+    x the average round-trip time. If we choose a small heartbeat interval, the overhead
+    will be a higher number of packets. If we choose a large heartbeat interval, it
+    will take a longer time to detect leader failure. The heartbeat interval can be
+    set using the `heartbeat-interval` parameter in the etcd command line or the `ETCD_HEARTBEAT_INTERVAL`
+    environment variable.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Election timeout: When the follower nodes fail to get a heartbeat message for
+    the election timeout value, they become the leader node. The default election
+    timeout is 1,000 ms. The suggested value for election timeout is 10 times the
+    heartbeat interval. Keeping the election timeout too low can cause false leader
+    election. The election timeout can be set using the `election-timeout` parameter
+    in the etcd command line or the `ETCD_ELECTION_TIMEOUT` environment variable.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Etcd proxy
+  prefs: []
+  type: TYPE_NORMAL
+- en: An etcd proxy is used when worker nodes want to use the master node or master
+    cluster to provide etcd service. In this case, all etcd requests from the worker
+    node are proxied to the master node and the master node replies to the worker
+    node.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Let''s say that we have a working three-node master cluster as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00080.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'The following example shows the `cloud-config` for the fourth node that is
+    a worker node and acting as a proxy. Here, the master cluster members are mentioned
+    statically:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`#cloud-config coreos:   etcd2:     proxy: on     listen-client-urls: http://localhost:2379
+        initial-cluster: etcdserver=http://172.17.8.101:2380, http://172.17.8.102:2380, http://172.17.8.103:2380
+      fleet:     etcd_servers: "http://localhost:2379"     public-ip: $public_ipv4
+      units:     - name: etcd2.service       command: start     - name: fleet.service
+          command: start`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: In the preceding Etcd configuration section, we have turned on the proxy and
+    pointed to the `etcd_server` cluster. The fourth node needs to be started with
+    the preceding `cloud-config`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following example shows the `cloud-config` for the fourth node that is
+    acting as a proxy and using a discovery token. We need to use the same discovery
+    token as we did for the three-node cluster:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`#cloud-config coreos:   etcd2:     proxy: on     # use the same discovery token as for master, these nodes will proxy to master
+        discovery: <your token>     # listen on both the official ports and the legacy ports
+        listen-client-urls: http://0.0.0.0:2379,http://0.0.0.0:4001   fleet:     etcd_servers: "http://localhost:2379"
+        public-ip: $public_ipv4   units:     - name: etcd2.service       command: start
+        - name: fleet.service       command: start`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following is the etcd member output in the new node. As we can see, the
+    etcd cluster is composed of only three nodes and the new node is proxying to the
+    master etcd cluster:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00085.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'The following is the Fleet machine''s output in the new node. As we can see,
+    there are four nodes and this includes the fourth worker node and the three-node
+    etcd cluster:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00482.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Adding and removing nodes from a cluster
+  prefs: []
+  type: TYPE_NORMAL
+- en: There will be scenarios where we need to add and remove nodes from a working
+    etcd cluster. This section illustrates how to add and remove nodes in a working
+    etcd cluster.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Let''s say that we have a three-node working cluster and we want to add a fourth
+    node to the cluster. The following command can be executed in one of the three
+    working nodes to add the fourth node detail:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00093.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'The following `cloud-config` can be used to start the new fourth node:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`#cloud-config coreos:   etcd2:     name: core-04     initial_cluster: "core-01=http://172.17.8.101:2380,core-02=http://172.17.8.102:2380,core-03=http://172.17.8.103:2380,core-04=http://172.17.8.104:2380"
+        initial_cluster_state: existing     advertise-client-urls: http://$public_ipv4:2379
+        initial-advertise-peer-urls: http://$private_ipv4:2380     # listen on both the official ports and the legacy ports
+        # legacy ports can be omitted if your application doesn''t depend on them
+        listen-client-urls: http://0.0.0.0:2379,http://0.0.0.0:4001     listen-peer-urls: http://$private_ipv4:2380,http://$private_ipv4:7001
+      fleet:     public-ip: $public_ipv4   units:     # Note: this requires a release that contains etcd2
+        - name: etcd2.service       command: start     - name: fleet.service       command: start`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'From the following output, we can see that the new member has been successfully
+    added:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00095.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'The following command can be used to remove the fourth number that we added
+    before:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00138.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'Let''s check the member list and cluster health now. We can see that the three
+    nodes are part of the cluster and that the fourth node has been removed:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00103.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Node migration and backup
+  prefs: []
+  type: TYPE_NORMAL
+- en: Node migration is necessary to handle failure of the node and cluster and also
+    to replicate the cluster to a different location.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'To take a backup of the etcd database, we can perform the following:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`Sudo etcdctl backup --data-dir=/var/lib/etcd2 --backup-dir=/tmp/etcd2`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: This approach allows us to reuse the backed-up etcd data in another cluster.
+    In this approach, `nodeid` and `clusterid` are overwritten in the backup directory
+    to prevent unintentional addition of a new node to the old cluster.
+  prefs: []
+  type: TYPE_NORMAL
+- en: To preserve the node ID and cluster ID, we have to manually make a copy, and
+    the copy can be used to restart the service.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following are the steps to move the etcd2 data directory:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Stop the service:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '![](img/00106.jpg)'
+  prefs:
+  - PREF_IND
+  type: TYPE_IMG
+- en: 'Make a copy of the `/var/lib/etcd2` etcd data directory in `/tmp/etcd2_backup`:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '![](img/00196.jpg)'
+  prefs:
+  - PREF_IND
+  type: TYPE_IMG
+- en: 'Start etcd2 manually using the new data directory, `/tmp/etcd2_backup`:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '![](img/00115.jpg)'
+  prefs:
+  - PREF_IND
+  type: TYPE_IMG
+- en: 'There are two approaches to handle the migration:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Add a new member and remove the old member. We can use `etcdctl member add`
+    and `etcdctl member remove`.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Make a copy of the etcd database, move it to the new node, and update it.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: With the first approach, the new member has a different identity. With the second
+    approach, we can have the new node retain the same old identity. With the first
+    approach, there is no need to stop the etcd service, while we need to stop the
+    etcd service before taking the backup in the second approach.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Etcd security
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'A secure etcd is needed to ensure that the client-to-server communication and
+    server-to-server communication are secure. The following figure shows you the
+    different components involved in providing etcd security. Certificate authority
+    is used to provide and verify certificates for the etcd client-to-server and server-to-server
+    communication:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00117.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Certificate authority – etcd-ca
+  prefs: []
+  type: TYPE_NORMAL
+- en: Certificate authority is a trusted source that issues certificates to a trusted
+    server. Other than using standard certificate authorities (CA), etcd allows for
+    a custom CA. Etcd-ca ([https://github.com/coreos/etcd-ca](https://github.com/coreos/etcd-ca))
+    is a GO application that can be used as a CA for testing purposes. Recently, etcd
+    has migrated to CFSSL ([https://github.com/cloudflare/cfssl](https://github.com/cloudflare/cfssl))
+    as the official tool for certificates.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Installing etcd-ca
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'I installed etcd-ca in my Linux VM running Ubuntu 14.04 using the following
+    steps:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`git clone https://github.com/coreos/etcd-ca``cd etcd-ca``./build`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Note
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Note: The GO application needs to be installed before the etcd-ca installation.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Following three steps are needed to setup etcd-ca:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Creating a CA using etcd-ca.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Creating server keys.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Creating client keys.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'The following command, `etcd-ca init`, is used to create a CA. This is a one-time
+    procedure. The following screenshot shows you the output when creating a CA:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00317.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'The following commands can be used to create a server certificate:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`etcd-ca new-cert -ip  172.17.8.101 core-01``etcd-ca sign core-01``etcd-ca chain core-01``etcd-ca export --insecure core-01 | tar xvf –`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: In the preceding command, `172.17.8.101` is the CoreOS node IP and `core-01`
+    is the node name. These steps will create `core-01.crt` and `core-01.key.insecure`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following commands can be used to create a client certificate:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`etcd-ca new-cert -ip 192.168.56.104 client``etcd-ca sign client``etcd-ca chain client``etcd-ca export --insecure client | tar xvf -`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: In the preceding command, `192.168.56.104` is the client node IP. These steps
+    will create `client.crt` and `client.key.insecure`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Etcd secure client-to-server communication using a server certificate
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'A server certificate is used by the client to ensure the server''s identity.
+    The following command starts the etcd server using a server certificate and the
+    key that was generated in the previous section:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`etcd2 -name core-01 --cert-file=/home/core/core-01.crt --key-file=/home/core/core-01.key  --advertise-client-urls=https://172.17.8.101:2379 --listen-client-urls=https://172.17.8.101:2379`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following is an example to set a key and retrieve it using a secure mechanism:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`curl --cacert /home/smakam14/.etcd-ca/ca.crt https://172.17.8.101:2379/v2/keys/foo -XPUT -d value=bar -v``curl --cacert /home/smakam14/.etcd-ca/ca.crt https://172.17.8.101:2379/v2/keys/foo`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following example uses etcdctl to do the key retrieval:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`etcdctl --ca-file /home/smakam14/.etcd-ca/ca.crt --peers https://172.17.8.101:2379 get /foo`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Etcd secure client-to-server communication using server certificate and client
+    certificate
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'In the previous example, only the server had a certificate. In this example,
+    we will generate a client certificate so that the server can verify the client''s
+    identity. The following command starts the etcd server using a server certificate
+    and key and enabling client authentication. The server certificate and keys are
+    the same as generated in the previous section:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`etcd2 -name core-01 --data-dir=core-01 -client-cert-auth -trusted-ca-file=/home/core/ca.crt -cert-file=/home/core/key.crt  -key-file=/home/core/key.key -advertise-client-urls https://172.17.8.101:2379 -listen-client-urls https://172.17.8.101:2379`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following is an example to set a key and retrieve it using a secure client
+    and server mechanism. The client certificate and key are the same as generated
+    in the previous section:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`curl --cacert /home/smakam14/.etcd-ca/ca.crt --cert /home/smakam14/client.crt --key /home/smakam14/client.key.insecure -L https://172.17.8.101:2379/v2/keys/foo -XPUT -d value=bar -v``curl --cacert /home/smakam14/.etcd-ca/ca.crt --cert /home/smakam14/client.crt --key /home/smakam14/client.key.insecure https://172.17.8.101:2379/v2/keys/foo`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following example uses etcdctl to do the key retrieval:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`etcdctl --ca-file /home/smakam14/.etcd-ca/ca.crt --cert-file /home/smakam14/client.crt --key-file /home/smakam14/client.key.insecure --peers https://172.17.8.101:2379 get /foo`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: A secure cloud-config
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following is a sample `cloud-config` that sets up the etcd security environment
+    variables as well as the necessary certificate and keys:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`cloud-config write_files:   - path: /run/systemd/system/etcd2.service.d/30-configuration.conf
+       permissions: 0644    content: |      [Service]      Environment=ETCD_NAME=core-01
+         Environment=ETCD_VERBOSE=1      # Encryption      Environment=ETCD_CLIENT_CERT_AUTH=1
+         Environment=ETCD_TRUSTED_CA_FILE=/home/core/ca.crt      Environment=ETCD_CERT_FILE=/home/core/server.crt
+         Environment=ETCD_KEY_FILE=/home/core/server.key       - path: /home/core/ca.crt
+       permissions: 0644    content: |      -----BEGIN CERTIFICATE-----       -----END CERTIFICATE-----
+         - path: /home/core/server.crt    permissions: 0644    content: |      -----BEGIN CERTIFICATE-----
+         -----END CERTIFICATE-----   - path: /home/core/server.key    permissions: 0644
+       content: |      -----BEGIN RSA PRIVATE KEY-----      -----END RSA PRIVATE KEY-----  coreos:
+     etcd2:     # Static cluster     initial-cluster-token: etcd-cluster-1     initial-cluster: core-01=http://$private_ipv4:2380
+        initial-cluster-state: new     advertise-client-urls: http://$public_ipv4:2379
+        initial-advertise-peer-urls: http://$private_ipv4:2380     # listen on both the official ports and the legacy ports
+        # legacy ports can be omitted if your application doesn''t depend on them
+        listen-client-urls: http://$public_ipv4:2379     listen-peer-urls: http://$private_ipv4:2380,http://$private_ipv4:7001
+     units:    - name: etcd2.service      command: start`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Authentication
+  prefs: []
+  type: TYPE_NORMAL
+- en: Before the introduction of the authentication feature, there were no restrictions
+    on access to the etcd database. The authentication feature was introduced as an
+    experimental feature in etcd 2.1.0 and allows access to a specific set of keys
+    based on the username and password.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'There are two entities associated with authentication:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Users: Users can be created with a username and password. Before enabling the
+    authentication feature, a root user needs to be created. The root user has substantially
+    more privileges/permissions to add users and roles and assign role permissions.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Roles: Roles can be used to restrict access to a specific key or directory
+    that holds multiple keys. Roles are assigned to users, and manipulations of the
+    keys can be done based on the username.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: To get started with authentication, we need to first create a root user and
+    then enable authentication.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Create a root user first, as shown in the following screenshot:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00424.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'Enable authentication as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00428.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: The following example illustrates the etcd authentication.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Let''s create a sample keyset, user, and role:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Create `/dir1/key1` and `/dir2/key2` keys.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Create a `role_dir1` role that has access to `/dir1/*` only.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Create a `role_dir2` role that has access to `/dir2/*` only.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Create `user1` and grant the `role_dir1` role.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Create `user2` and grant the `role_dir2` role.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: At this point, `user1` will be able to access `/dir1/*` only and `user2` will
+    be able to access `/dir2/*` only.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following is a breakdown of the steps:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Create `/dir1/key1` and `/dir2/key2` keys:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00432.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: '![](img/00435.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'Create a `role_dir1` role that has access to `/dir1/*` only:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00438.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: '![](img/00443.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'Create a `role_dir2` role that has access to `/dir2/*` only:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00446.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: '![](img/00450.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'Create `user1` and grant the `role_dir1` role:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00453.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: '![](img/00456.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'Create `user2` and grant the `role_dir2` role:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00459.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: '![](img/00463.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'Now, we can verify that `user1` has access only to `/dir1/key1`. As shown in
+    the following screenshot, `user1` is not able to access `/dir2/key1`:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00466.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'Similarly, `user2` has access only to `/dir2/key1`:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00471.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Etcd debugging
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Etcd log files can be checked using the following command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`Journalctl –u etcd2.service`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Default logging is set to `INFO`. For more elaborate logging, we can set `ETCD_DEBUG=1`
+    in the environment file or use the `-debug` command-line option.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Sometimes, it''s useful to check the curl command associated with the etcdctl
+    CLI command. This can be achieved using the `--debug` option. The following is
+    an example:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00475.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Systemd
+  prefs: []
+  type: TYPE_NORMAL
+- en: An overview of Systemd was provided in [Chapter 1](index_split_023.html#filepos77735),
+    CoreOS Overview. Systemd is the init system used by CoreOS and is always on by
+    default. In this section, we will walk through some of the Systemd internals.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Unit types
+  prefs: []
+  type: TYPE_NORMAL
+- en: Units describe a particular task along with its dependencies and the execution
+    order. Some units are started on the CoreOS system by default. CoreOS users can
+    also start their own units. System-started units are at `/usr/lib64/systemd/system`
+    and user-started units are at `/etc/systemd/system`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following are some of the common unit types:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Service unit: This is used to start a particular daemon or process. Examples
+    are `sshd.service` and `docker.service`. The `sshd.service` unit starts the SSH
+    service, and `docker.service` starts the docker daemon.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Socket unit: This is used for local IPC or network communication. Examples
+    are `systemd-journald.socket` and `docker.socket`. There is a corresponding service
+    associated with a socket that manages the socket. For example, `docker.service`
+    manages `docker.socket`. In `docker.service`, `docker.socket` is mentioned as
+    a dependency. `Docker.socket` provides remote connectivity to the docker engine.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Target unit: This is used mainly to group related units so that they can be
+    started together. All user-created services are in `multi-user.target`.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Mount unit: This is used to mount disks to the filesystem. Examples are `tmp.mount`
+    and `usr-share-oem.mount`. The following is a relevant section of `usr-share-oem.mount`
+    that mounts `/usr/share/oem`:'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '![](img/00479.jpg)'
+  prefs:
+  - PREF_IND
+  type: TYPE_IMG
+- en: 'Timer unit: These are units that are started periodically based on the interval
+    specified. Examples are `update-engine-stub.timer` and `logrotate.timer`. The
+    following is a relevant section of `update-engine-stub.timer`, where `update-engine-stub.service`
+    is invoked every `41 minutes` to check for CoreOS updates:'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '![](img/00483.jpg)'
+  prefs:
+  - PREF_IND
+  type: TYPE_IMG
+- en: Unit specifiers
+  prefs: []
+  type: TYPE_NORMAL
+- en: When writing systemd units, it is useful to access system environment variables
+    such as hostname, username, IP address, and so on so that we can avoid hardcoding
+    and use the same systemd unit across systems. For this, systemd provides you with
+    unit specifiers, which are shortcuts to get to the system environment.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following are some common unit specifiers:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`%H`: Hostname'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`%m`: Machine ID'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`%u`: Username'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: A complete list of unit specifiers is specified at [http://www.freedesktop.org/software/systemd/man/systemd.unit.html#Specifiers](http://www.freedesktop.org/software/systemd/man/systemd.unit.html#Specifiers).
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following service example illustrates the usage of unit specifiers. In
+    this example, we are setting the key-value pair associated with different specifiers
+    in etcd in ExecStartPre. In ExecStartPost, we are getting the key-value and then
+    cleaning up in the end:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`[Unit] Description=My Service  [Service] KillMode=none ExecStartPre=/usr/bin/etcdctl set hostname %H ; /usr/bin/etcdctl set machinename %m ; /usr/bin/etcdctl set bootid %b ; /usr/bin/etcdctl set unitname %n ; /usr/bin/etcdctl set username %u
+    ExecStart=/bin/echo hello, set done, will echo and remove ExecStartPost=/usr/bin/etcdctl get hostname ; /usr/bin/etcdctl get machinename ; /usr/bin/etcdctl get bootid ; /usr/bin/etcdctl get unitname ; /usr/bin/etcdctl get username ;
+    ExecStartPost=/usr/bin/etcdctl rm hostname ; /usr/bin/etcdctl rm machinename ; /usr/bin/etcdctl rm bootid ; /usr/bin/etcdctl rm unitname ; /usr/bin/etcdctl rm username ;  [Install]
+    WantedBy=multi-user.target`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'To execute this service, it is necessary to execute all the following operations
+    with sudo:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Create the `unitspec.service` file in `/etc/systemd/system` with the preceding
+    content.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Enable the service with `systemctl enable unitspec.service`.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Start the service with `systemctl start unitspec.service`.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: If we change the service after this, we need to execute command `systemctl daemon-reload`
+    before starting the service.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'The following are the `journalctl` logs associated with the service where we
+    can see the key being set and retrieved and the corresponding unit specifier value:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`journalctl –u unitspec.service`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00487.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Unit templates
+  prefs: []
+  type: TYPE_NORMAL
+- en: Systemd units can be created as a template, and the same template unit can be
+    used to instantiate multiple units based on the invocation of templates.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Templates are created as `unitname@.service`. The invocation of templates can
+    be done using `unitname@instanceid.service`. In the unit file, the `unit name`
+    can be accessed with `%p` and `instanceid` can be accessed using `%i`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following is an example template file, `unitspec@.service`:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`[Unit] Description=My Service  [Service] ExecStartPre=/usr/bin/etcdctl set instance%i %i ; /usr/bin/etcdctl set prefix %p
+    ExecStart=/bin/echo Demonstrate systemd template  [Install] WantedBy=multi-user.target`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'To execute this service, it is necessary to execute all the following operations
+    with sudo:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Create the `unitspec@.service` file in `/etc/systemd/system`.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Enable the service with `systemctl enable unitspec@.service`.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Start multiple services with `systemctl start unitspec@1.service` and `systemctl
+    start unitspec@2.service`.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'If we look at the etcd content, we can see that the instance value gets updated
+    based on the `%i` argument supplied in the unit name and creates the `instance1`
+    and `instance2` keys:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00490.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'The following example gives a more practical example of instantiated units.
+    It uses a template nginx service, `nginx@.service`, where the port number of the
+    web service is passed dynamically:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`[Unit] Description=Apache web server service After=etcd.service After=docker.service  [Service]
+    TimeoutStartSec=0 Restart=always EnvironmentFile=/etc/environment ExecStartPre=-/usr/bin/docker kill nginx%i
+    ExecStartPre=-/usr/bin/docker rm nginx%i ExecStartPre=/usr/bin/docker pull nginx
+    ExecStart=/usr/bin/docker run --name nginx%i -p ${COREOS_PUBLIC_IPV4}:%i:80 nginx
+    ExecStop=/usr/bin/docker stop nginx%i  [Install] WantedBy=multi-user.target`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'There are two service options used in the preceding code:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`Timeoutstartsec`: This specifies the time taken to start the service, and
+    if the service is not started by this time, it gets killed. The `none` parameter
+    disables this option and is useful when downloading big containers.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`Restart`: This controls the restartability of the service. Here we have specified
+    `always` to restart the service in case there is a failure associated with this
+    service.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Let''s create two instances of this service using the following commands:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`Sudo systemctl enable nginx@.service``Sudo systemctl start nginx@8080.service``Sudo systemctl start nginx@8081.service`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: This creates two docker containers with nginx service; the first one exposing
+    port `8080` and the second one exposing port `8081`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Let''s look at `docker ps`:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00494.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'Let''s look at the status of the two units. As we can see in the following
+    screenshot, the units are in an active (running) state:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00497.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: '![](img/00258.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Drop-in units
+  prefs: []
+  type: TYPE_NORMAL
+- en: Drop-in units are useful to change system unit properties at runtime. There
+    are four ways of creating drop-in units.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Default cloud-config drop-in units
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Parameters specified in the `cloud-config` user data will automatically be
+    configured as drop-in units. For example, let''s look at the `etcd2.service cloud-config`:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00260.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'Let''s look at the `etcd2.service` status:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00262.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: As we can see in the preceding output, the default drop-in unit is `20-cloudinit.conf`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`20-cloudinit.conf` will contain the parameters specified in `etcd2 cloud-config`
+    as environment variables, as shown in the following screenshot:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00265.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Cloud-config custom drop-in units
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'We can specify the drop-in unit as part of the `cloud-config`. The following
+    is an example of the `fleet.service` drop-in unit, where we change the default
+    `Restart` parameter from `Always` to `No`:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00267.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'When we use this `cloud-config`, the `norestart.conf` drop-in file gets automatically
+    created as can be seen from the `fleet.service` status:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00269.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: This configuration change will keep `fleet.service` non-restartable.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Runtime drop-in unit – specific parameters
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'We can change specific properties of the service using the drop-in configuration
+    file. The following is the service section of `fleet.service`, which shows the
+    default parameters:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00272.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: This specifies that the service needs to be started in 10 seconds in case the
+    service dies because of some error. Let's check whether the restart works by killing
+    the Fleet service.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'We can kill the service as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`Sudo kill -9 <fleet pid>`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following is a log showing the Fleet service restarting in 10 seconds,
+    which is due to `Restartsec` specified in the service configuration:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00274.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: To prove the runtime drop-in configuration change, let's create a configuration
+    file where we disable the restart for the Fleet service.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Create `norestart.conf` under `/etc/systemd.system/system/fleet.service.d`:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00276.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'Now, let''s restart the systemd configuration:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`Sudo systemd daemon-reload`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Let''s check the status of `fleet.service` now:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00279.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: We can see that other than `20-cloudinit.conf`, we also have a `norestart.conf`
+    drop-in unit.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Now, if we kill the Fleet service, it does not get restarted as the restart
+    option has been disabled by the `restart.conf` drop-in unit. `Fleet.service` stays
+    in a failed state, as shown in the following screenshot:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00281.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Runtime drop-in unit – full service
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'In this approach, we can replace the complete system service using our own
+    service. Let''s change the restart option by creating this `fleet.service` file
+    in `/etc/systemd/system`:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`[Unit] Description=fleet daemon  After=etcd.service After=etcd2.service  Wants=fleet.socket
+    After=fleet.socket  [Service] ExecStart=/usr/bin/fleetd Restart=no  [Install]
+    WantedBy=multi-user.target`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'We can start the `fleet.service` as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`Sudo systemctl start fleet.service`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Let''s see the status of `fleet.service`:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00283.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: From the preceding output, we can see that `fleet.service` is picked up from
+    `/etc/systemd/system`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: If we compare this option (a drop-in unit with a complete service change) with
+    the previous option (a drop-in unit with a specific parameter change), the previous
+    option gives the flexibility to change specific parameters and not touch the original
+    set. This makes it easier to handle upgrades when new versions of the service
+    allow additional options.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Network units
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The `systemd-networkd` service manages networks. System-configured networks
+    are specified in `/usr/lib64/systemd/network` and user-configured networks are
+    specified in `/etcd/systemd/network`. The following is a sample Vagrant configured
+    systemd-network file to configure the `eth1` IP address:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00286.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'The `ifconfig` output associated with `eth1` shows the IP address that Vagrant
+    configured, as shown in the following screenshot:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00288.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'As an example, let''s try to change the `eth1` IP address. There are three
+    steps:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Stop `systemd-networkd.service`.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Flush the IP address.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Set a new IP address.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Let's create a service file to flush the `eth1` IP address and another network
+    file specifying the new IP address for `eth1`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Create a service file to flush the `eth1` IP address as follows. We need to
+    place this in `/etc/systemd/system/down-eth1.service`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`[Unit] Description=eth1 flush  [Service] Type=oneshot ExecStart=/usr/bin/ip link set eth1 down
+    ExecStart=/usr/bin/ip addr flush dev eth1  [Install] WantedBy=multi-user.target`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following is the network file to specify the `eth1` new address. We need
+    to place this in `/etc/systemd/network/40-eth1.network`:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`[Match] Name=eth1  [Network] Address=172.17.8.110/24 Gateway=172.17.8.1`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The steps to change the IP address are as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Stop the system-networkd service by `sudo systemctl stop systemd-networkd.service`.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Flush the `eth1` IP address by `sudo systemctl start down-eth1.service`.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Start `systemd-networkd.service` by `sudo systemctl start systemd-networkd.service`.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'If we look at the ifconfig output now, we should see the new IP address `172.17.8.110`:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00290.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Fleet
+  prefs: []
+  type: TYPE_NORMAL
+- en: Fleet is a cluster manager/scheduler that controls service creation at the CoreOS
+    cluster level. We can think of Fleet as Systemd for the cluster. For an overview
+    of Fleet, refer to [Chapter 1](index_split_023.html#filepos77735), CoreOS Overview.
+    Fleet is used mainly for the orchestration of critical system services, while
+    other orchestration solutions such as Kubernetes are used for application service
+    orchestration. Fleet is not under active development and is mostly under the maintenance
+    mode.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Installation
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Fleet is installed and started by default in CoreOS. The following is the Fleet
+    version in the CoreOS stable 766.3.0 release:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00293.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Fleet can also be installed in a standalone Linux machine. Fleet releases can
+    be found at [https://github.com/coreos/fleet/releases](https://github.com/coreos/fleet/releases).
+  prefs: []
+  type: TYPE_NORMAL
+- en: Accessing Fleet
+  prefs: []
+  type: TYPE_NORMAL
+- en: The following are different approaches to access Fleet.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Local fleetctl
+  prefs: []
+  type: TYPE_NORMAL
+- en: The `fleetctl` command is present in each CoreOS node and can be used to control
+    Fleet services.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Remote fleetctl
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The `fleetctl` command can be used to access non-local CoreOS nodes by specifying
+    an endpoint argument. The following is an example:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`Fleetctl --endpoint=http://172.17.8.101:2379 list-machines`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00295.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Remote fleetctl with an SSH tunnel
+  prefs: []
+  type: TYPE_NORMAL
+- en: The previous example did not use any authentication. To make access to fleetctl
+    secure, we can use the SSH authentication scheme. It is necessary to add the CoreOS
+    node private key to the local SSH authentication agent for this mode. For a Vagrant
+    CoreOS cluster, the private key is stored in `~/.vagrant.d/insecure_private_key`.
+    For an AWS CoreOS cluster, the private key can be downloaded as part of the initial
+    key creation.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'To add a private key to the authentication agent:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`` eval `ssh-agent -s` ```ssh-add <private key>`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00298.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: '![](img/00301.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'Now, we can use fleetctl to use a secure SSH to access the CoreOS cluster:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`Fleetctl --tunnel=http://172.17.8.101 list-unit-files`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00303.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Remote HTTP
+  prefs: []
+  type: TYPE_NORMAL
+- en: Remote HTTP Fleet API access is disabled by default.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'To enable remote access, create a `.socket` file to expose the Fleet API port.
+    The following is an example Fleet configuration file to expose port `49153` for
+    external API access:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00305.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'It is necessary to restart the systemd, `fleet.socket`, and `fleet.service`
+    after creating the remote API configuration file for it to take effect:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`Sudo systemctl daemon-reload``Sudo systemctl restart fleet.socket``Sudo systemctl restart fleet.service`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Now, we can access the remote API. The following is an example using `fleetctl`
+    and `curl`:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`Fleetctl --endpoint=http://172.17.8.101:49153 list-units`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00356.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'The following output shows you the unit list using the Fleet HTTP API. The
+    following curl output is truncated to show partial output:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`Curl –s http://172.17.8.101:49153/fleet/v1/units | jq .`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00310.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Using etcd security
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'We can also use the secure etcd approach to access Fleet. Setting up a secure
+    etcd is covered in the section on Etcd security. The following example shows the
+    `fleetctl` command with a server certificate:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`fleetctl --debug --ca-file ca.crt  --endpoint=https://172.17.8.101:2379 list-machines`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Templates, scheduling, and HA
+  prefs: []
+  type: TYPE_NORMAL
+- en: Fleet supports unit specifiers and templates similar to systemd. A unit specifier
+    provides you with shortcuts within a service file, and templates provide reusable
+    service files. The earlier section on systemd covered details on unit specifiers
+    and templates. [Chapter 1](index_split_023.html#filepos77735), CoreOS Overview
+    covered the basics of Fleet scheduling and HA.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Fleet metadata for a node can be specified in the Fleet section of `cloud-config`.
+    The following example sets the Fleet node metadata for `role` as `web`. Metadata
+    can be used in Fleet service files to control scheduling:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`metadata: "role=services"`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Fleet uses a pretty simple scheduling algorithm, and X-fleet options are used
+    to specify constraints while scheduling the service. The following are the available
+    X-fleet options:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`MachineMetaData`: Service gets scheduled based on matching metadata.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`MachineId`: Service gets scheduled based on the specified `MachineId`.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`MachineOf`: Service gets scheduled based on other services running in the
+    same node. This can be used to schedule tightly coupled services in the same node.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`Conflict`: This option can be used to avoid scheduling conflicting services
+    in the same node.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`Global`: The same service gets scheduled in all the nodes of the cluster.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'The following example uses unit specifiers and templates and illustrates Fleet
+    scheduling and HA. The following are some details of the application:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: An application consists of a WordPress container and MySQL container
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: The WordPress container uses the database from the MySQL container and is linked
+    using Docker container linking
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Linking across containers is done using the `--link` option, and it works only
+    if both containers are on the same host
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Fleet's template feature will be used to launch multiple services using a single
+    WordPress and MySQL template, and Fleet's X-fleet constraint feature will be used
+    to launch the related containers on the same host
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: When one of the nodes in the cluster dies, Fleet's HA mechanism will take care
+    of rescheduling the failed units, and we will see it working in this example
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'The MySQL template service is as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`[Unit] Description=app-mysql  [Service] Restart=always RestartSec=5 ExecStartPre=-/usr/bin/docker kill mysql%i
+    ExecStartPre=-/usr/bin/docker rm mysql%i ExecStartPre=/usr/bin/docker pull mysql
+    ExecStart=/usr/bin/docker run --name mysql%i -e MYSQL_ROOT_PASSWORD=mysql mysql
+    ExecStop=/usr/bin/docker stop mysql%i`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The WordPress template service is as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`[Unit] Description=wordpress  [Service] Restart=always RestartSec=15 ExecStartPre=-/usr/bin/docker kill wordpress%i
+    ExecStartPre=-/usr/bin/docker rm wordpress%i ExecStartPre=/usr/bin/docker pull wordpress
+    ExecStart=/usr/bin/docker run --name wordpress%i --link mysql%i:mysql wordpress
+    ExecStop=/usr/bin/docker stop wordpress%i  [X-Fleet] MachineOf=mysql@%i.service`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following are some notes on the service:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: We have used `%i` as an instance specifier
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: WordPress has an X-fleet constraint to schedule the corresponding MySQL container
+    in the same node
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'The first step is to submit the services:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00311.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'The next step is to load each instance of the service:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00425.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'Let''s check whether all the services are running. As can be seen in the following
+    screenshot, we have three instances of the WordPress application and the associated
+    MySQL database:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00313.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: To demonstrate HA, let's kill CoreOS `node2`. This can be done by shutting down
+    the node.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'As we can see, there are only two nodes in the cluster now:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00467.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'From the following new service output, we can see that the services running
+    on the old `node2` have been moved to `node3` now as `node2` is not available:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00316.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Debugging
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The status of the Fleet service can be checked using `fleetctl status`. The
+    following is an example:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00011.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'Logs of the Fleet service can be checked using `fleetctl journal`. The following
+    is an example:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00319.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'For debugging and to get the REST API corresponding to the `fleetctl` command,
+    we can use the `--debug` option as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00040.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Service discovery
+  prefs: []
+  type: TYPE_NORMAL
+- en: Microservices are dynamic, and it is important for services to discover other
+    services dynamically to find the IP address, port number, and metadata about the
+    services. There are multiple schemes available to discover services, and in this
+    section, we will cover a few schemes using etcd and Fleet for service discovery.
+    In the later chapters of the book, we will cover advanced service discovery options.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Simple etcd-based discovery
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following figure shows you the simplest possible service discovery mechanism,
+    where a service updates etcd with service-related details that other services
+    can access from etcd:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00323.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'The following is an example Apache service, `apacheupdateetcd@.service`, that
+    updates the hostname and port number in etcd when the service is started:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`[Unit] Description=My Advanced Service After=etcd2.service After=docker.service  [Service]
+    TimeoutStartSec=0 ExecStartPre=-/usr/bin/docker kill apache%i ExecStartPre=-/usr/bin/docker rm apache%i
+    ExecStartPre=/usr/bin/docker pull coreos/apache ExecStart=/usr/bin/docker run --name apache%i -p %i:80 coreos/apache /usr/sbin/apache2ctl -D FOREGROUND
+    ExecStartPost=/usr/bin/etcdctl set /domains/example.com/%H:%i running ExecStop=/usr/bin/docker stop apache%i
+    ExecStopPost=/usr/bin/etcdctl rm /domains/example.com/%H:%i  [X-Fleet] # Don''t schedule on the same machine as other Apache instances
+    X-Conflicts=apache*@*.service`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Let''s start the service and create two instances:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00324.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: '![](img/00327.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'Now, we can verify that etcd gets updated with the service details of the two
+    services:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00330.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Sidekick discovery
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'In the preceding scheme, there is no way to know if the service is alive and
+    running after it has been started. The following figure shows you a slightly advanced
+    service discovery scheme where a sidekick service updates etcd with the details
+    of the service:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00333.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: The purpose of the Side kick container is to monitor the main service and update
+    etcd only if the Service is active. It is important to run the Side kick container
+    in the same node as the main service that Side kick is monitoring.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The following is a Sidekick example using the Apache service and a sidekick
+    for the Apache service.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Following is the `Apache.service` unit file:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`[Unit] Description=Apache web server service on port %i  # Requirements Requires=etcd2.service
+    Requires=docker.service Requires=apachet-discovery@%i.service  # Dependency ordering
+    After=etcd2.service After=docker.service Before=apachet-discovery@%i.service  [Service]
+    # Let processes take awhile to start up (for first run Docker containers) TimeoutStartSec=0  # Change killmode from "control-group" to "none" to let Docker remove
+    # work correctly. KillMode=none  # Get CoreOS environmental variables EnvironmentFile=/etc/environment  # Pre-start and Start
+    ## Directives with "=-" are allowed to fail without consequence ExecStartPre=-/usr/bin/docker kill apachet.%i
+    ExecStartPre=-/usr/bin/docker rm apachet.%i ExecStartPre=/usr/bin/docker pull coreos/apache
+    ExecStart=/usr/bin/docker run --name apachet.%i -p ${COREOS_PUBLIC_IPV4}:%i:80 coreos/apache /usr/sbin/apache2ctl -D FOREGROUND  # Stop
+    ExecStop=/usr/bin/docker stop apachet.%i`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Following is the Apache sidekick service unit file:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`[Unit] Description=Apache Sidekick  # Requirements Requires=etcd2.service
+    Requires=apachet@%i.service  # Dependency ordering and binding After=etcd2.service
+    After=apachet@%i.service BindsTo=apachet@%i.service  [Service]  # Get CoreOS environmental variables
+    EnvironmentFile=/etc/environment  # Start ## Test whether service is accessible and then register useful information
+    ExecStart=/bin/bash -c ''\   while true; do \     curl -f ${COREOS_PUBLIC_IPV4}:%i; \
+        if [ $? -eq 0 ]; then \       etcdctl set /services/apachet/${COREOS_PUBLIC_IPV4} \''{"host": "%H", "ipv4_addr": ${COREOS_PUBLIC_IPV4}, "port": %i}\'' --ttl 30; \
+        else \       etcdctl rm /services/apachet/${COREOS_PUBLIC_IPV4}; \     fi; \
+        sleep 20; \   done''  # Stop ExecStop=/usr/bin/etcdctl rm /services/apachet/${COREOS_PUBLIC_IPV4}  [X-Fleet]
+    # Schedule on the same machine as the associated Apache service X-ConditionMachineOf=apachet@%i.service`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: The preceding Side kick container service does a periodic ping to the main service
+    and updates the etcd output. If the main service is not reachable, the service-related
+    details are removed from etcd.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Let''s start two instances of the service:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00337.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'Let''s see the etcd output. As shown in the following screenshot, etcd reflects
+    the two nodes where Apache is running:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00341.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'Let''s see the docker output in node1:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00345.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'To demonstrate the sidekick service, let''s stop the docker container and check
+    whether the sidekick service updates etcd in order to remove the appropriate service:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00349.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Let's check the status of the units. As can be seen below, `apachet@2.service`
+    has failed and the associated sidekick service `apachet-discovery@2.service` is
+    inactive.
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00352.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'From the following output, we can see that the `apachet@2.service` details
+    are removed from etcd:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00355.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: ELB service discovery
+  prefs: []
+  type: TYPE_NORMAL
+- en: This is a variation of the Sidekick discovery in which, instead of Sidekick
+    updating etcd, Sidekick updates the IP address to the load balancer and the load
+    balancer redirects the web query to the active nodes. In this example, we will
+    use the AWS Elastic load balancer and CoreOS elb-presence container available
+    in the Quay repository. The elb-presence container takes care of checking the
+    health of the nginx container and updates AWS ELB with the container's IP address.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following figure shows you a high-level architecture of this approach:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00264.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'The first step is to create ELB in AWS, as shown in the following screenshot.
+    Here we have used AWS CLI to create ELB, `testlb`:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00124.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: We need to use `testlb` created in the preceding screenshot in the Sidekick
+    service.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Following is the `nginx.service` unit file:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`[Unit] Description=nginx  [Service] ExecStartPre=-/usr/bin/docker kill nginx-%i
+    ExecStartPre=-/usr/bin/docker rm nginx-%i ExecStart=/usr/bin/docker run --rm --name nginx-%i -p 80:80 nginx
+    ExecStop=/usr/bin/docker stop nginx-%i  [X-Fleet] Conflicts=nginx@*.service`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Following is the nginx sidekick service that updates AWS ELB based on the health
+    of `nginx.service`:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`[Unit] Description=nginx presence service BindsTo=nginx@%i.service  [Service]
+    ExecStartPre=-/usr/bin/docker kill nginx-presence-%i ExecStartPre=-/usr/bin/docker rm nginx-presence-%i
+    ExecStart=/usr/bin/docker run --rm --name nginx-presence-%i -e AWS_ACCESS_KEY=<key> -e AWS_SECRET_KEY=<secretkey> -e AWS_REGION=us-west-2 -e ELB_NAME=testlb quay.io/coreos/elb-presence
+    ExecStop=/usr/bin/docker stop nginx-presence-%i  [X-Fleet] MachineOf=nginx@%i.service`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following is the Fleet status after creating two instances of the service:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00128.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'As we can see in the following screenshot, AWS ELB has both the instances registered,
+    and it will load-balance between these two instances:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00130.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: At this point, if we stop any instance of the nginx service, the Sidekick service
+    will take care of removing this instance from ELB.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Summary
+  prefs: []
+  type: TYPE_NORMAL
+- en: In this chapter, we covered the internals of Etcd, Systemd, and Fleet with sufficient
+    hands-on examples, which will allow you to get comfortable with configuring and
+    using these services. By keeping the development of the critical services open
+    source, CoreOS has encouraged the usage of these services outside CoreOS as well.
+    We also covered the basic service discovery options using Etcd, Systemd, and Fleet.
+    In the next chapter, we will cover container networking and Flannel.
+  prefs: []
+  type: TYPE_NORMAL
+- en: References
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Etcd docs: [https://coreos.com/etcd/docs/latest/](https://coreos.com/etcd/docs/latest/)'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Fleet docs: [https://coreos.com/fleet/docs/latest/](https://coreos.com/fleet/docs/latest/)'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Systemd docs: [http://www.freedesktop.org/wiki/Software/systemd/](http://www.freedesktop.org/wiki/Software/systemd/)'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Fleet service discovery: [https://coreos.com/fleet/docs/latest/examples/service-discovery.html](https://coreos.com/fleet/docs/latest/examples/service-discovery.html)'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Etcd-ca: [https://github.com/coreos/etcd-ca](https://github.com/coreos/etcd-ca)'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Etcd security: [https://github.com/coreos/etcd/blob/master/Documentation/security.md](https://github.com/coreos/etcd/blob/master/Documentation/security.md)'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Further reading and tutorials
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Etcd security and authentication: [http://thepracticalsysadmin.com/etcd-2-1-1-encryption-and-authentication/](http://thepracticalsysadmin.com/etcd-2-1-1-encryption-and-authentication/)'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Etcd administration: [https://github.com/coreos/etcd/blob/master/Documentation/admin_guide.md](https://github.com/coreos/etcd/blob/master/Documentation/admin_guide.md)'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Why systemd: [http://blog.jorgenschaefer.de/2014/07/why-systemd.html](http://blog.jorgenschaefer.de/2014/07/why-systemd.html)'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Comparing init systems: [http://centos-vn.blogspot.in/2014/06/daemon-showdown-upstart-vs-runit-vs.html](http://centos-vn.blogspot.in/2014/06/daemon-showdown-upstart-vs-runit-vs.html)'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Systemd talk by the Systemd creator: [https://www.youtube.com/watch?v=VIPonFvPlAs](https://www.youtube.com/watch?v=VIPonFvPlAs)'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Service discovery overview: [http://www.gomicro.services/articles/service-discovery-overview](http://www.gomicro.services/articles/service-discovery-overview)
+    and [http://progrium.com/blog/2014/07/29/understanding-modern-service-discovery-with-docker/](http://progrium.com/blog/2014/07/29/understanding-modern-service-discovery-with-docker/)'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Highly available Docker services using CoreOS and Consul: [http://blog.xebia.com/2015/03/24/a-high-available-docker-container-platform-using-coreos-and-consul/](http://blog.xebia.com/2015/03/24/a-high-available-docker-container-platform-using-coreos-and-consul/)
+    and [http://blog.xebia.com/2015/04/23/how-to-deploy-high-available-persistent-docker-services-using-coreos-and-consul/](http://blog.xebia.com/2015/04/23/how-to-deploy-high-available-persistent-docker-services-using-coreos-and-consul/)'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL

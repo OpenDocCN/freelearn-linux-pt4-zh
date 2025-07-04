@@ -1,0 +1,613 @@
+- en: Chapter 3. CoreOS Autoupdate
+  prefs: []
+  type: TYPE_NORMAL
+- en: One of the missions of CoreOS is to keep the operating system as secure as possible.
+    One way to achieve this is to keep the OS up to date with the latest patches.
+    The CoreOS automatic update scheme provides you with a secure, reliable, and robust
+    mechanism that provides pushed updates. CoreOS provides enough controls to the
+    user to control the update based on their environment.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'This chapter will cover the following topics:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: The CoreOS release cycle
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: The partition scheme used in CoreOS
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: The CoreOS automatic update infrastructure
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: The configuration of the CoreOS update
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: The CoreUpdate commercial service from CoreOS
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: All examples from this chapter will use CoreOS in the AWS environment. There
+    is a section on Vagrant CoreOS update where Vagrant-specific CoreOS updates are
+    mentioned.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The CoreOS release cycle
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Alpha, Beta, and Stable are release channels within CoreOS. CoreOS releases
+    progress through each channel in this order: Alpha->Beta->Stable. An Alpha channel
+    is a development channel. An Alpha release in the Alpha channel gets promoted
+    to the Beta channel after reaching defined quality level and becomes a Beta release.
+    A Beta release in the Beta channel gets promoted to the Stable channel when it
+    gets to production quality and becomes a Stable release. All releases get started
+    as Alpha, but the promotion to Beta and Stable happens on the basis of testing.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The CoreOS release page reflects the latest Alpha, Beta, and Stable releases
+    ([https://coreos.com/releases/](https://coreos.com/releases/)). The following
+    are the latest releases as of August 19, 2015:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00401.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: The major version number (for example, 766 in 766.3.0) is the number of days
+    from July 13, 2013, which was the CoreOS epoch.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'As CoreOS is composed of multiple system components such as etcd, fleet, flannel,
+    Docker, and RKT, every release will have a particular version of the system components
+    based on the stability of individual components. For example, the following are
+    the versions of the critical system components as of CoreOS version 808.0.0:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00404.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'The following command can be used to check the CoreOS version in the node.
+    The node here is running image `723.3.0`, which was a stable release at that point:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00036.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'The following command can be used to check the CoreOS Linux kernel version:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00411.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'The following are versions of critical system components in CoreOS release
+    723.3.0:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00413.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: The partition table on CoreOS
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The partition table shows you the disk partitions maintained by the OS. The
+    following image shows you a partition table in one of the CoreOS cluster nodes
+    using the `sudo cgpt show /dev/xvda` command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00084.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'The following screenshot shows the `df –k` output in the same node:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00105.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'The following are some notes on the preceding two outputs:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: There are nine partitions in total. The key partitions are `USR-A`, `USR-B`,
+    `OEM`, and `ROOT`.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: System files are in the `USR` partition, user files are in the `ROOT` partition,
+    and provider-related files are in the `OEM` partition.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: The `USR` partition is mounted as read-only, and the `ROOT` partition is mounted
+    as read-write.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: The `ROOT` partition gets mounted as `/`, the `USR-A` or `USR-B` partition gets
+    mounted in `/usr`, and the `OEM` partition gets mounted in `/usr/share/oem`.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: There are two `/usr` partitions, `USR-A` and `USR-B`. By default, the system
+    comes up with the `USR-A` partition. When the CoreOS update is done, the root
+    partition is downloaded to `USR-B` and, using persistent flags such as `priority`,
+    `tries`, and `successful`, the CoreOS bootloader selects the appropriate USR partition
+    on bootup. In the preceding example, the `USR-A` partition has priority set to
+    `1` and the `USR-B` partition has priority set to `0`, and the CoreOS bootloader
+    picks `USR-A`.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'I did a manual update of OS and the following output shows the active partition
+    being `USR-B` with priority for `USR-B` being higher. The manual update of the
+    CoreOS system can be done using the command specified in the following Update
+    examples section. The `/usr` directory is now pointing to `/dev/xvda4`, which
+    is `USR-B`, and it was earlier pointing to `/dev/xvda3`, which was `USR-A`:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00257.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: CoreOS automatic update
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'CoreOS relies on the automatic update mechanism to keep the OS up to date.
+    The following are some aspects of the CoreOS update:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: The CoreOS update mechanism is based on Google's open source Omaha protocol
+    ([https://code.google.com/p/omaha/](https://code.google.com/p/omaha/)) that is
+    used in the Chrome browser.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Either CoreOS public servers or private servers can be used as an image repository.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: The dual partition scheme is used where an update is done to the secondary partition
+    while the primary partition is not touched. On reboot, there is a binary swap
+    from the primary to the secondary partition. This keeps the update scheme robust.
+    If there are issues with the new image, CoreOS automatically rolls back to the
+    working image in the other partition.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Images are signed and verified on each update.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'The following screenshot shows you the steps for the automatic update:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00259.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Update and reboot services
+  prefs: []
+  type: TYPE_NORMAL
+- en: There are two critical services controlling update and reboot in CoreOS. They
+    are `update-engine.service` and `locksmithd.service`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Update-engine.service
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`Update-engine.service` takes care of periodically checking for updates from
+    the appropriate release channel specified. A default check for update is done
+    10 minutes after reboot or at one-hour intervals.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following output shows you the status of update-engine.service:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00261.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'The release channel is specified in `/etc/coreos/update.conf`. In the following
+    node, the release channel is selected as stable. The release channel is derived
+    from `cloud-config`:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00263.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: '`Update-engine.service` takes care of updating the appropriate partition, `USR-A`
+    or `USR-B`. The currently used partition is not touched.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following command can be executed to trigger a manual update:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`update_engine_client -check_for_update`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Debugging update-engine.service
+  prefs: []
+  type: TYPE_NORMAL
+- en: Logs for the update service can be checked using `journalctl –u update-engine.service`.
+    From the logs, we can identify the Omaha protocol request and response, and debugging
+    can be done using error codes in the response.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Locksmithd.service
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`Locksmithd.service` takes care of rebooting the CoreOS node using the selected
+    reboot strategy. `Locksmithd.service` runs as a daemon.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following output shows you the status of `locksmithd.service`:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00266.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Locksmith strategy
+  prefs: []
+  type: TYPE_NORMAL
+- en: The following are the four configurable strategies for the CoreOS node reboot
+    after a new image update.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The etcd-lock scheme
+  prefs: []
+  type: TYPE_NORMAL
+- en: In this scheme, the reboot is done after first taking a lock from `etcd`. In
+    a multinode cluster, this works out really well as it prevents all the nodes from
+    rebooting at the same time and maintains cluster integrity. We can control the
+    number of nodes that can reboot together using the lock count mechanism. The lock
+    `max` count specifies the number of nodes that can acquire a lock simultaneously.
+    In a three-node cluster, we need to limit the lock `max` count to `1`, but in
+    a five-node cluster, we can keep the lock `max` count up to `2`, which allows
+    a maximum of two nodes to acquire lock and reboot simultaneously.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following example shows you how the available lock count varies when we
+    do the locking and unlocking operation:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00268.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Reboot
+  prefs: []
+  type: TYPE_NORMAL
+- en: In this scheme, the node is rebooted immediately without taking a lock from
+    the cluster. This is useful in scenarios where the upgrade is manually controlled
+    by the administrator.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Best-effort
+  prefs: []
+  type: TYPE_NORMAL
+- en: In this scheme, it is first checked whether `etcd` is running. If `etcd` is
+    running, the `etcd` lock is acquired and then the rebooting is done. Otherwise,
+    reboot is done immediately. This is a variation of the etcd-lock scheme mentioned
+    before.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Off'
+  prefs: []
+  type: TYPE_NORMAL
+- en: This causes locksmithd to exit and do nothing. This option should not be chosen
+    unless the administrator wants to control the upgrades with great precision.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Groups
+  prefs: []
+  type: TYPE_NORMAL
+- en: Locksmith groups were introduced in locksmithd version 0.3.1\. With groups,
+    we can group a set of CoreOS nodes and locking will be applicable to this group.
+    For example, let's say that we have a five-node cluster and two nodes are running
+    load balancers. If we set the lock-max-count to `2`, it is possible that both
+    the nodes running load balancers can reboot at the same time and we can lose that
+    service during this period. To avoid this issue, we can set a different lock `max`
+    count for the default group and the `lb` group.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'In the example shown in following screenshot, we have set the lock count of
+    `2` for the default group and lock count of `1` for the `lb` group. Groups can
+    be defined as part of starting the `locksmithd service`. To put a CoreOS node
+    in a locksmith group, we need to start locksmithd with the `--group` option or
+    set the `LOCKSMITHD_GROUP` environment variable and restart the locksmithd service:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00270.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Locksmithctl
+  prefs: []
+  type: TYPE_NORMAL
+- en: Locksmithctl is a frontend CLI to control locksmith. Using this, we can get
+    the status of locksmith service, lock and unlock groups, set the `lock max` count,
+    and so on.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Debugging locksmithd.service
+  prefs: []
+  type: TYPE_NORMAL
+- en: Logs for this service can be checked with `journalctl –u locksmithd.service`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Setting update options
+  prefs: []
+  type: TYPE_NORMAL
+- en: CoreOS update options can be set using either `cloud-config` or by changing
+    configuration files manually. Using `cloud-config`, update options are configured
+    as part of the node configuration after reboot. With the manual approach, we need
+    to start the appropriate update services for changes to take effect. The manual
+    approach is used mainly to debug.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Using cloud-config
+  prefs: []
+  type: TYPE_NORMAL
+- en: The following is a sample `cloud-config` with the release channel group set
+    to `stable` and the locksmith reboot strategy set to `etcd-lock`. (The default
+    server used is [https://public.update.core-os.net/](https://public.update.core-os.net/),
+    so this is not specified here.)
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`#cloud-config coreos:   etcd2:     # specify the initial size of your cluster with ?size=X
+        discovery: https://discovery.etcd.io/eb32a1397bd087f84e65ab802b6aa2f7     advertise-client-urls: http://$private_ipv4:2379,http://$private_ipv4:4001
+        initial-advertise-peer-urls: http://$private_ipv4:2380     listen-client-urls: http://0.0.0.0:2379,http://0.0.0.0:4001
+        listen-peer-urls: http://$private_ipv4:2380,http://$private_ipv4:7001   update:
+        reboot-strategy: "etcd-lock"     group: "stable"   units:     - name: etcd2.service
+          command: start     - name: fleet.service       command: start`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'After starting the cluster using the preceding `cloud-config`, we can check
+    whether `/etc/coreos/update.conf` is updated with the correct parameters:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00273.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Manual configuration
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The default reboot strategy is `best-effort`. In the following node, the reboot
+    strategy is not specified, so it is using best-effort:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00275.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'Let''s change the reboot strategy to `reboot` in `/etc/coreos/update.conf`.
+    We need to restart `locksmithd.service`:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00277.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'As shown in the following logs, the reboot strategy is taking effect:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00280.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Update examples
+  prefs: []
+  type: TYPE_NORMAL
+- en: We can do updates within the same release channel or across release channels.
+    If we do updates in the same release channel, the node gets updated to the latest
+    version in that release channel. If we do updates across release channels, the
+    node gets updated to the latest version in the new release channel.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Updating within the same release channel
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Let''s look at the initial version and reboot strategy. The node is running
+    stable version 723.3.0 as shown in the following screenshot:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00282.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Looking at the CoreOS releases page, the latest STABLE release is 766.3.0\.
+    If we do an update on the STABLE channel, the node should get updated to 766.3.0.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Let''s trigger the update manually with the following command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`update_engine_client -check_for_update`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: If we don't trigger the update manually, `update-engine` will still do the update
+    based on its periodic checks.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following logs from `update-engine.service` show the Omaha request to the
+    CoreOS public imaging server:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00284.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'The following logs from update-engine show the Omaha response from the CoreOS
+    public server giving the image with version 766.3.0:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00287.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'After the update is successful, the following message appears on the node from
+    `locksmithd.service,` indicating that the node will be updated with the new image.
+    The new image is updated to the non-active USR partition:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00289.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'The following is the node version after reboot. We can see that the version
+    is upgraded successfully to 766.3.0:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00291.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Updating from one release channel to another
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'We can switch release channels by updating `/etc/coreos/update.conf`. These
+    are the steps:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Update the release channel group from `stable` to `alpha`, as shown in the
+    following screenshots:'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '![](img/00294.jpg)'
+  prefs:
+  - PREF_IND
+  type: TYPE_IMG
+- en: 'Restart `update-engine.service`:'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`sudo systemctl restart update-engine`'
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: 'The `update-engine` service will check for an update after 10 minutes. We can
+    force the update with the following command:'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`update_engine_client -check_for_update`'
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: 'The following log shows you that the version 808.0.0 image is being fetched
+    now:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00296.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'The following is the version after the node is rebooted. We can see that the
+    image is upgraded to the latest alpha release `808.0.0`:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00300.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: CoreUpdate
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'CoreUpdate is a commercial service provided by CoreOS to manage the customer
+    updates of CoreOS clusters. The following are some of the features provided by
+    the CoreUpdate service:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: The GUI dashboard provides you with a summary and detailed view of all the updates.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Custom image servers will be provided on a per customer basis.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Server groups can be created so that updates can be done in groups and rate
+    limiting can be done on a per group basis.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: An HTTP API is provided so that CoreUpdate can be integrated with existing DevOps
+    systems available with the customer.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Images can be hosted on public servers or customer's local servers. This is
+    useful from a security perspective so that customers don't have to worry about
+    opening up their firewall.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`Updateservicectl` is provided as a frontend CLI.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Vagrant CoreOS update
+  prefs: []
+  type: TYPE_NORMAL
+- en: If the Vagrant box is already downloaded, the new CoreOS version will be updated
+    only if the box is updated.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Even though we change the version in Vagrantfile from stable to alpha to beta,
+    the new CoreOS version does not get updated on `vagrant reload --provision`. Only
+    when we perform vagrant destroy and restart, the new version gets loaded. We can
+    directly trigger an update from the CoreOS node using `update-engine`, and it
+    works irrespective of the VBOX version.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'We get the following message when Vagrant CoreOS is not up to date:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00302.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'To update the Vagrant box version, we can perform `vagrant box update` as shown
+    in the following screenshot:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00304.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: The `vagrant reload` command or `vagrant reload --provision` command do not
+    help to update the CoreOS version. We need to destroy and recreate the cluster
+    to get the latest version.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Summary
+  prefs: []
+  type: TYPE_NORMAL
+- en: In this chapter, we covered different aspects of the CoreOS update, including
+    the CoreOS release cycle, services controlling the CoreOS update, and options
+    available to customers to control their cluster's update strategy. The CoreOS
+    update mechanism is simple, unique, and robust, and it takes care of the biggest
+    concern in the cloud, which is security. In the next chapter, we will cover details
+    on critical CoreOS services—`systemd`, `etcd`, and `fleet`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: References
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'CoreOS releases: [https://coreos.com/releases/](https://coreos.com/releases/)'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'CoreOS update philosophy: [https://coreos.com/using-coreos/updates/](https://coreos.com/using-coreos/updates/)'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'CoreUpdate service: [https://coreos.com/products/coreupdate/](https://coreos.com/products/coreupdate/)'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Locksmith GitHub page: [https://github.com/coreos/locksmith](https://github.com/coreos/locksmith)'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Update strategies: [https://coreos.com/os/docs/latest/update-strategies.html](https://coreos.com/os/docs/latest/update-strategies.html)'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Further reading and tutorials
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The anatomy of a CoreOS update: [https://www.youtube.com/watch?v=JeICd9XyXfY](https://www.youtube.com/watch?v=JeICd9XyXfY)'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'The Omaha update protocol: [https://github.com/google/omaha](https://github.com/google/omaha)
+    and [https://coreos.com/docs/coreupdate/custom-apps/coreupdate-protocol/](https://coreos.com/docs/coreupdate/custom-apps/coreupdate-protocol/)'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL

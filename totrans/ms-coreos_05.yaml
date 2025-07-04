@@ -1,0 +1,1628 @@
+- en: Chapter 5. CoreOS Networking and Flannel Internals
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Microservices increased the need to have lots of containers and also connectivity
+    between containers across hosts. It is necessary to have a robust Container networking
+    scheme to achieve this goal. This chapter will cover the basics of Container networking
+    with a focus on how CoreOS does Container networking with Flannel. Docker networking
+    and other related container networking technologies will also be covered. The
+    following topics will be covered in this chapter:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Container networking basics
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Flannel internals
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: A CoreOS Flannel cluster using Vagrant, AWS, and GCE
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Docker networking and experimental Docker networking
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Docker networking using Weave and Calico
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Kubernetes networking
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Container networking basics
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following are the reasons why we need Container networking:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Containers need to talk to the external world.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Containers should be reachable from the external world so that the external
+    world can use the services that Containers provide.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Containers need to talk to the host machine. An example can be sharing volumes.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: There should be inter-container connectivity in the same host and across hosts.
+    An example is a WordPress container in one host talking to a MySQL container in
+    another host.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Multiple solutions are currently available to interconnect Containers. These
+    solutions are pretty new and actively under development. Docker, until release
+    1.8, did not have a native solution to interconnect Containers across hosts. Docker
+    release 1.9 introduced a Libnetwork-based solution to interconnect containers
+    across hosts as well as perform service discovery. CoreOS is using Flannel for
+    container networking in CoreOS clusters. There are projects such as Weave and
+    Calico that are developing Container networking solutions, and they plan to be
+    a networking container plugin for any Container runtime such as Docker or Rkt.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Flannel
+  prefs: []
+  type: TYPE_NORMAL
+- en: Flannel is an open source project that provides a Container networking solution
+    for CoreOS clusters. Flannel can also be used for non-CoreOS clusters. Kubernetes
+    uses Flannel to set up networking between the Kubernetes pods. Flannel allocates
+    a separate subnet for every host where a Container runs, and the Containers in
+    this host get allocated an individual IP address from the host subnet. An overlay
+    network is set up between each host that allows Containers on different hosts
+    to talk to each other. In [Chapter 1](index_split_023.html#filepos77735), CoreOS
+    Overview we provided an overview of the Flannel control and data path. This section
+    will delve into the Flannel internals.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Manual installation
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Flannel can be installed manually or using the `systemd` unit, `flanneld.service`.
+    The following command will install Flannel in the CoreOS node using a container
+    to build the flannel binary. The flanneld Flannel binary will be available in
+    `/home/core/flannel/bin` after executing the following commands:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`git clone https://github.com/coreos/flannel.git``docker run -v /home/core/flannel:/opt/flannel -i -t google/golang /bin/bash -c "cd /opt/flannel && ./build"`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following is the Flannel version after we build flannel in our CoreOS node:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00132.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Installation using flanneld.service
+  prefs: []
+  type: TYPE_NORMAL
+- en: Flannel is not installed by default in CoreOS. This is done to keep the CoreOS
+    image size to a minimum. Docker requires flannel to configure the network and
+    flannel requires Docker to download the flannel container. To avoid this chicken-and-egg
+    problem, `early-docker.service` is started by default in CoreOS, whose primary
+    purpose is to download the flannel container and start it. A regular `docker.service`
+    starts the Docker daemon with the flannel network.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following figure shows you the sequence in `flanneld.service`, where the
+    early Docker daemon starts the flannel container, which, in turn starts `docker.service`
+    with the subnet created by flannel:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00136.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'The following is the relevant section of `flanneld.service` that downloads
+    the flannel container from the Quay repository:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00285.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'The following output shows the early docker''s running containers. Early-docker
+    will manage Flannel only:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00142.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'The following is the relevant section of `flanneld.service` that updates the
+    docker options to use the subnet created by flannel:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00146.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'The following is the content of `flannel_docker_opts.env`—in my case—after
+    flannel was started. The address, `10.1.60.1/24`, is chosen by this CoreOS node
+    for its containers:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00042.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'Docker will be started as part of `docker.service`, as shown in the following
+    screenshot, with the preceding environment file:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00151.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Control path
+  prefs: []
+  type: TYPE_NORMAL
+- en: There is no central controller in flannel, and it uses etcd for internode communication.
+    Each node in the CoreOS cluster runs a flannel agent and they communicate with
+    each other using etcd.
+  prefs: []
+  type: TYPE_NORMAL
+- en: As part of starting the Flannel service, we specify the Flannel subnet that
+    can be used by the individual nodes in the network. This subnet is registered
+    with etcd so that every CoreOS node in the cluster can see it. Each node in the
+    network picks a particular subnet range and registers atomically with etcd.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following is the relevant section of `cloud-config` that starts `flanneld.service`
+    along with specifying the configuration for Flannel. Here, we have specified the
+    subnet to be used for flannel as `10.1.0.0/16` along with the encapsulation type
+    as `vxlan`:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00155.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'The preceding configuration will create the following etcd key as seen in the
+    node. This shows that `10.1.0.0/16` is allocated for flannel to be used across
+    the CoreOS cluster and that the encapsulation type is `vxlan`:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00309.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'Once each node gets a subnet, containers started in this node will get an IP
+    address from the IP address pool allocated to the node. The following is the etcd
+    subnet allocation per node. As we can see, all the subnets are in the `10.1.0.0/16`
+    range that was configured earlier with etcd and with a 24-bit mask. The subnet
+    length per host can also be controlled as a flannel configuration option:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00161.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'Let''s look at `ifconfig` of the Flannel interface created in this node. The
+    IP address is in the address range of `10.1.0.0/16`:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00165.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Data path
+  prefs: []
+  type: TYPE_NORMAL
+- en: Flannel uses the Linux bridge to encapsulate the packets using an overlay protocol
+    specified in the Flannel configuration. This allows for connectivity between containers
+    in the same host as well as across hosts.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following are the major backends currently supported by Flannel and specified
+    in the JSON configuration file. The JSON configuration file can be specified in
+    the Flannel section of `cloud-config`:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'UDP: In UDP encapsulation, packets from containers are encapsulated in UDP
+    with the default port number `8285`. We can change the port number if needed.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'VXLAN: From an encapsulation overhead perspective, VXLAN is efficient when
+    compared to UDP. By default, port `8472` is used for VXLAN encapsulation. If we
+    want to use an IANA-allocated VXLAN port, we need to specify the port field as
+    `4789`.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'AWS-VPC: This is applicable to using Flannel in the AWS VPC cloud. Instead
+    of encapsulating the packets using an overlay, this approach uses a VPC route
+    table to communicate across containers. AWS limits each VPC route table entry
+    to 50, so this can become a problem with bigger clusters.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'The following is an example of specifying the AWS type in the flannel configuration:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00168.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'GCE: This is applicable to using Flannel in the GCE cloud. Instead of encapsulating
+    the packets using an overlay, this approach uses the GCE route table to communicate
+    across containers. GCE limits each VPC route table entry to `100`, so this can
+    become a problem with bigger clusters.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'The following is an example of specifying the GCE type in the Flannel configuration:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00171.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Let's create containers in two different hosts with a VXLAN encapsulation and
+    check whether the connectivity is fine. The following example uses a Vagrant CoreOS
+    cluster with the Flannel service enabled.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Configuration in Host1:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Let''s start a `busybox` container:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00175.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'Let''s check the IP address allotted to the container. This IP address comes
+    from the IP pool allocated to this CoreOS node by the flannel agent. `10.1.19.0/24`
+    was allocated to `host1` and this container got the `10.1.19.2` address:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00177.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'Configuration in Host2:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Let''s start a `busybox` container:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00180.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'Let''s check the IP address allotted to this container. This IP address comes
+    from the IP pool allocated to this CoreOS node by the flannel agent. `10.1.1.0/24`
+    was allocated to `host2` and this container got the `10.1.1.2` address:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00184.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'The following output shows you the ping being successful between container
+    1 and container 2\. This ping packet is travelling across the two CoreOS nodes
+    and is encapsulated using VXLAN:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00326.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Flannel as a CNI plugin
+  prefs: []
+  type: TYPE_NORMAL
+- en: As explained in [Chapter 1](index_split_023.html#filepos77735), CoreOS Overview,
+    APPC defines a Container specification that any Container runtime can use. For
+    Container networking, APPC defines a Container Network Interface (CNI) specification.
+    With CNI, the Container networking functionality can be implemented as a plugin.
+    CNI expects plugins to support APIs with a set of parameters and the implementation
+    is left to the plugin. The plugin implements APIs like adding a container to a
+    network and removing container from the network with a defined parameter list.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'This allows the implementation of network plugins by different vendors and
+    also the reuse of plugins across different Container runtimes. The following figure
+    shows the relationship between the RKT container runtime, CNI layer, and Plugin
+    like Flannel. The IPAM Plugin is used to allocate an IP address to the containers
+    and this is nested inside the initial networking plugin:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00328.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Setting up a three-node Vagrant CoreOS cluster with Flannel and Docker
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following example sets up a three-node Vagrant CoreOS cluster with the
+    `etcd`, `fleet`, and `flannel` services turned on by default. In this example,
+    `vxlan` is used for encapsulation. The following is the `cloud-config` used for
+    this:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`#cloud-config coreos:   etcd2:     discovery: <update this>     advertise-client-urls: http://$public_ipv4:2379
+        initial-advertise-peer-urls: http://$private_ipv4:2380     listen-client-urls: http://0.0.0.0:2379,http://0.0.0.0:4001
+        listen-peer-urls: http://$private_ipv4:2380,http://$private_ipv4:7001   fleet:
+        public-ip: $public_ipv4   flannel:     interface: $public_ipv4   units:     - name: etcd2.service
+          command: start     - name: fleet.service       command: start     - name: flanneld.service
+          drop-ins:         - name: 50-network-config.conf           content: |             [Service]
+                ExecStartPre=/usr/bin/etcdctl set /coreos.com/network/config ''{ "Network": "10.1.0.0/16", "Backend": {"Type": "vxlan"}}''
+          command: start`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following are the steps for this:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Clone the CoreOS Vagrant repository.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Change the instance count to three in `config.rb`.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Update the discovery token in the `cloud-config` user data.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Perform `vagrant up` to start the cluster.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: For more details on the steps, refer to [Chapter 2](index_split_048.html#filepos153225),
+    Setting up the CoreOS Lab. We can test the container connectivity by starting
+    `busybox` containers in both the hosts and checking that the ping is working between
+    the two Containers.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Setting up a three-node CoreOS cluster with Flannel and RKT
+  prefs: []
+  type: TYPE_NORMAL
+- en: Here, we will set up a three-node CoreOS cluster with RKT containers using the
+    Flannel CNI networking plugin to set up the networking. This example will allow
+    RKT containers across hosts to communicate with each other.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following is the `cloud-config` used:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`#cloud-config coreos:   etcd2:     discovery: <update token>     advertise-client-urls: http://$public_ipv4:2379
+        initial-advertise-peer-urls: http://$private_ipv4:2380     listen-client-urls: http://0.0.0.0:2379,http://0.0.0.0:4001
+        listen-peer-urls: http://$private_ipv4:2380,http://$private_ipv4:7001   fleet:
+        public-ip: $public_ipv4   flannel:     interface: $public_ipv4   units:     - name: etcd2.service
+          command: start     - name: fleet.service       command: start     - name: flanneld.service
+          drop-ins:         - name: 50-network-config.conf           content: |             [Service]
+                ExecStartPre=/usr/bin/etcdctl set /coreos.com/network/config ''{ "network": "10.1.0.0/16" }''
+          command: start # Rkt configuration write_files:   - path: "/etc/rkt/net.d/10-containernet.conf"
+        permissions: "0644"     owner: "root"     content: |       {         "name": "containernet",
+            "type": "flannel"       }`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: The `/etc/rkt/net.d/10-containernet.conf` file sets up the CNI plugin type as
+    Flannel and RKT containers use this.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following are the steps for this:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Clone the CoreOS Vagrant repository.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Change the instance count to three in `config.rb`.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Update the discovery token in the `cloud-config` user data.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Perform `vagrant up` to start the cluster.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'Let''s start a `busybox` container in `node1`:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00329.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'The `ifconfig` output in `busybox node1` is as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00331.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'Start a `busybox` container in `node2`:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00332.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'The `ifconfig` output in `busybox node2` is as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00334.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'The following screenshot shows you the successful ping output across containers:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00336.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Note
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Note: `Docker.service` should not be started with RKT containers as the Docker
+    bridge uses the same address that is allocated to Flannel for Docker container
+    communication. Active work is going on to support running both Docker and RKT
+    containers using Flannel. Some discussion on this topic can be found at [https://groups.google.com/forum/#!topic/coreos-user/Kl7ejtcRxbc](https://groups.google.com/forum/#!topic/coreos-user/Kl7ejtcRxbc).'
+  prefs: []
+  type: TYPE_NORMAL
+- en: An AWS cluster using Flannel
+  prefs: []
+  type: TYPE_NORMAL
+- en: Flannel can be used to provide Container networking between CoreOS nodes in
+    the AWS cloud. In the following two examples, we will create a three-node CoreOS
+    cluster in AWS using Flannel with VXLAN and Flannel with AWS VPC networking. These
+    examples are based on the procedure described at [https://coreos.com/blog/introducing-flannel-0.5.0-with-aws-and-gce/](https://coreos.com/blog/introducing-flannel-0.5.0-with-aws-and-gce/).
+  prefs: []
+  type: TYPE_NORMAL
+- en: An AWS cluster using VXLAN networking
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following are the prerequisities for this:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Create a token for the three-node cluster from the discovery token service.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Set up a security group exposing the ports `ssh`, `icmp`, `2379`, `2380`, and
+    `8472`. `8472` is used for VXLAN encapsulation.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Determine the AMI image ID using this link ([https://coreos.com/os/docs/latest/booting-on-ec2.html](https://coreos.com/os/docs/latest/booting-on-ec2.html))
+    based on your AWS Zone, and update the channel based on your AWS zone and update
+    channel. For the following example, we will use ami-150c1425, which is the latest
+    815 alpha image.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Create `cloud-config-flannel-vxlan.yaml` with the same content used for the
+    Vagrant CoreOS cluster with Flannel and Docker, as specified in the previous section.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Use the following AWS CLI to start the three-node cluster:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`aws ec2 run-instances --image-id ami-85ada4b5 --count 3 --instance-type t2.micro --key-name "yourkey" --security-groups "coreos " --user-data`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: We can test connectivity across containers using two `busybox` containers in
+    two CoreOS nodes as specified in the previous sections.
+  prefs: []
+  type: TYPE_NORMAL
+- en: An AWS cluster using AWS-VPC
+  prefs: []
+  type: TYPE_NORMAL
+- en: AWS VPC provides you with an option to create custom networking for the instances
+    created in AWS. With AWS VPC, we can create subnets and route tables and configure
+    custom IP addresses for the instances.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Flannel supports the encapsulation type, `aws-vpc`. When using this option,
+    Flannel updates the VPC route table to route between instances by creating a custom
+    route table per VPC based on the container IP addresses allocated to the individual
+    node. From a data path perspective, there is no encapsulation such as UDP or VXLAN
+    that's used. Instead, AWS VPC takes care of routing the packets to the appropriate
+    instance using the route table configured by Flannel.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following are the steps to create the cluster:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Create a discovery token for the three-node cluster.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Set up a security group exposing the ports `ssh`, `icmp`, `2379`, and `2380`.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Determine the AMI image ID using this link ([https://coreos.com/os/docs/latest/booting-on-ec2.html](https://coreos.com/os/docs/latest/booting-on-ec2.html)).
+    For the following example, we will use `ami-150c1425`, which is the latest 815
+    alpha image.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'Create a VPC using the VPC wizard with a single public subnet. The following
+    diagram shows you the VPC created from the AWS console:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '![](img/00338.jpg)'
+  prefs:
+  - PREF_IND
+  type: TYPE_IMG
+- en: 'Create an IAM policy, `demo-policy`, from the AWS console. This policy allows
+    the instance to modify routing tables:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '`{     "Version": "2012-10-17",     "Statement": [     {             "Effect": "Allow",
+                "Action": [                 "ec2:CreateRoute",                 "ec2:DeleteRoute",
+                    "ec2:ReplaceRoute"             ],             "Resource": [                 "*"
+                ]     },     {             "Effect": "Allow",             "Action": [
+                    "ec2:DescribeRouteTables",                 "ec2:DescribeInstances"
+                ],             "Resource": "*"     }     ] }`'
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: Create an IAM role, `demo-role`, and associate `demo-policy` created in the
+    preceding code with this role.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'Create `cloud-config-flannel-aws.yaml` with the following content. We will
+    use the type as `aws-vpc`, as shown in the following code:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '`Cloud-config-flannel-aws.yaml: #cloud-config coreos:   etcd2:     discovery: <your token>
+        advertise-client-urls: http://$private_ipv4:2379,http://$private_ipv4:4001
+        initial-advertise-peer-urls: http://$private_ipv4:2380     listen-client-urls: http://0.0.0.0:2379,http://0.0.0.0:4001
+        listen-peer-urls: http://$private_ipv4:2380   units:     - name: etcd2.service
+          command: start     - name: fleet.service       command: start     - name: flanneld.service
+          drop-ins:         - name: 50-network-config.conf           content: |             [Service]
+                ExecStartPre=/usr/bin/etcdctl set /coreos.com/network/config ''{ "Network": "10.1.0.0/16" , "Backend": {"Type": "aws-vpc"}}''
+          command: start`'
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: 'Create a three-node CoreOS cluster with a security group, IAM role, `vpcid/subnetid`,
+    `security group`, and `cloud-config` file as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`aws ec2 run-instances --image-id ami-150c1425 --subnet subnet-a58fc5c0 --associate-public-ip-address --iam-instance-profile Name=demo-role --count 3 --security-group-ids sg-f22cb296 --instance-type t2.micro --key-name "smakam-oregon"  --user-data file://cloud-config-flannel-aws.yaml`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Note
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Note: It is necessary to disable the source and destination checks to allow
+    traffic from containers as the IP address for the containers is allocated by flannel
+    and not by AWS. To do this, we need to go to each instance in the AWS console
+    and select Networking | change source/dest check | disable.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Looking at the `etcdctl` output in one of the CoreOS nodes, we can see the following
+    subnets allocated to each node of the three-node cluster.
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00339.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'Flannel will go ahead and update the VPC route table to route the preceding
+    subnets based on the instance ID on which the subnets are present. If we check
+    the VPC route table, we can see the following routes, which match the networks
+    created by Flannel:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00343.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: At this point, we can test connectivity across containers using two `busybox`
+    containers in two CoreOS nodes, as specified in the previous sections.
+  prefs: []
+  type: TYPE_NORMAL
+- en: A GCE cluster using Flannel
+  prefs: []
+  type: TYPE_NORMAL
+- en: Flannel can be used to provide Container networking between CoreOS nodes in
+    the GCE cloud. In the following two examples, we will create a three-node CoreOS
+    cluster using Flannel with VXLAN and Flannel with GCE networking. These examples
+    are based on the procedure described at [https://coreos.com/blog/introducing-flannel-0.5.0-with-aws-and-gce/](https://coreos.com/blog/introducing-flannel-0.5.0-with-aws-and-gce/).
+  prefs: []
+  type: TYPE_NORMAL
+- en: GCE cluster using VXLAN networking
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following are the prerequisities for this:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Create a token for the three-node cluster from the discovery token service.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Set up a security group exposing the ports `ssh`, `icmp`, `2379`, `2380`, and
+    `8472`. `8472` is used for VXLAN encapsulation.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Determine the AMI image ID using this link ([https://coreos.com/os/docs/latest/booting-on-google-compute-engine.html](https://coreos.com/os/docs/latest/booting-on-google-compute-engine.html)).
+    We will use alpha image 815 for the following example.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Create `cloud-config-flannel-vxlan.yaml` with the same content that was used
+    for the Vagrant CoreOS cluster with Flannel and Docker specified in the previous
+    section.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following command can be used to set up a three-node CoreOS cluster in
+    GCE with Flannel and VXLAN encapsulation:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`gcloud compute instances create core1 core2 core3 --image https://www.googleapis.com/compute/v1/projects/coreos-cloud/global/images/coreos-alpha-815-0-0-v20150924 --zone us-central1-a --machine-type n1-standard-1 --tags coreos --metadata-from-file user-data=cloud-config-flannel-vxlan.yaml`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: A ping test across containers in different hosts can be done to verify that
+    the Flannel control and data path is working fine.
+  prefs: []
+  type: TYPE_NORMAL
+- en: A GCE cluster using GCE networking
+  prefs: []
+  type: TYPE_NORMAL
+- en: Similar to AWS VPC, the Google cloud also has its cloud networking service that
+    provides you with the capability to create custom subnets, routes, and IP addresses.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following are the steps to create a three-node CoreOS cluster using flannel
+    and GCE networking:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Create a token for the three-node cluster from the discovery token service.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'Create a custom network, `customnet`, with firewall rules allowing TCP ports
+    `2379` and `2380`. The following is the custom network that I created with subnet
+    `10.10.0.0/16`:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '![](img/00344.jpg)'
+  prefs:
+  - PREF_IND
+  type: TYPE_IMG
+- en: 'Create `cloud-config-flannel-gce.yaml` with the following content. Use the
+    Flannel type as `gce`:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '`#cloud-config coreos:   etcd2:     discovery: <yourtoken>     advertise-client-urls: http://$private_ipv4:2379,http://$private_ipv4:4001
+        initial-advertise-peer-urls: http://$private_ipv4:2380     listen-client-urls: http://0.0.0.0:2379,http://0.0.0.0:4001
+        listen-peer-urls: http://$private_ipv4:2380   units:     - name: etcd2.service
+          command: start     - name: fleet.service       command: start     - name: flanneld.service
+          drop-ins:         - name: 50-network-config.conf           content: |             [Service]
+                ExecStartPre=/usr/bin/etcdctl set /coreos.com/network/config ''{ "Network": "10.1.0.0/16" , "Backend": {"Type": "gce"}}''
+          command: start`'
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: 'Create three CoreOS instances with a `customnet` network, IP forwarding turned
+    on, and scope for the instance to modify the route table:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '`gcloud compute instances create core1 core2 core3 --image https://www.googleapis.com/compute/v1/projects/coreos-cloud/global/images/coreos-alpha-815-0-0-v20150924 --zone us-central1-a --machine-type n1-standard-1 --network customnet --can-ip-forward --scopes compute-rw --metadata-from-file user-data=cloud-config-flannel-gce.yaml`'
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: 'The following are the Flannel networks for containers created by each node:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00346.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'Let''s look at the routing table in GCE. As shown by the following output,
+    Flannel has updated the GCE route table for the container networks:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00348.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: At this point, we should have Container connectivity across nodes.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Experimental multitenant networking
+  prefs: []
+  type: TYPE_NORMAL
+- en: By default, Flannel creates a single network, and all the nodes can communicate
+    with each other over the single network. This poses a security risk when there
+    are multiple tenants using the same network. One approach to achieve multitenant
+    networking is using multiple instances of flannel managing each tenant. This can
+    get cumbersome to set up. As of version 0.5.3, Flannel has introduced multinetworking
+    in the experimental mode, where a single Flannel daemon can manage multinetworks
+    with isolation. When there are multiple tenants using the cluster, a multinetwork
+    mode would help in isolating each tenant's traffic.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following are the steps for this:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Create subnet configurations for multiple tenants. This can be done by reserving
+    a subnet pool in `etcd`. The following example sets up three networks, `blue`,
+    `green`, and `red`, each having a different subnet:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '`etcdctl set /coreos.com/network/blue/config  ''{ "Network": "10.1.0.0/16", "Backend": { "Type": "vxlan", "VNI": 1 } }''``etcdctl set /coreos.com/network/green/config ''{ "Network": "10.2.0.0/16", "Backend": { "Type": "vxlan", "VNI": 2 } }''``etcdctl set /coreos.com/network/red/config   ''{ "Network": "10.3.0.0/16", "Backend": { "Type": "vxlan", "VNI": 3 } }''`'
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: 'Start the Flannel agent with the networks that this Flannel agent needs to
+    be part of. This will take care of reserving the IP pool per node per network.
+    In this example, we have started the flannel agent to be part of all three networks,
+    `blue`, `green`, and `red`:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '`sudo flanneld --networks=blue,green,red &`'
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: 'Flannel picked three subnet ranges for the three networks, as shown in the
+    following screenshot. `10.1.87.0/24` is allocated for the `blue` network, `10.2.4.0/24`
+    is allocated for the `green` network, and `10.3.93.0/24` is allocated for the
+    `red` network:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00350.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'Under `/run/flannel`, multiple networks can be seen, as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00351.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Now, we can start the Docker or Rkt container with the appropriate tenant network
+    created. At this point, there is no automatic integration of `flanneld.service`
+    with multinetworks; this has to be done manually.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following link is a related Google discussion on this topic:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[https://groups.google.com/forum/#!topic/coreos-user/EIF-yGNWkL4](https://groups.google.com/forum/#!topic/coreos-user/EIF-yGNWkL4)'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Experimental client-server networking
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'In the default Flannel mode, there is a flannel agent in each node, and the
+    backend data is maintained in `etcd`. This keeps Flannel stateless. In this mode,
+    there is a requirement for each Flannel node to run `etcd`. Flannel client-server
+    mode is useful in the following scenarios:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Only the master node runs `etcd` and Worker nodes need not run `etcd`. This
+    is useful from both the performance and security perspectives.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: When using other backends such as AWS with flannel, it's necessary to store
+    the AWS key, and when using the client-server model, the key can be present in
+    the master node only; this is again important from a security perspective.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Flannel client-server feature is currently in experimental mode as of Flannel
+    version 0.5.3.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following figure describes the interconnection between different components
+    for the Flannel client-server networking:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00353.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: If necessary, we can use secure (HTTPS) means of communication both from the
+    flanneld server to the etcd as well as between the flanneld client and server.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Setting up client-server Flannel networking
+  prefs: []
+  type: TYPE_NORMAL
+- en: Let's start with a three-node CoreOS cluster without Flannel running on any
+    node. Start the `flanneld` server and client in `node1` and client in `node2`
+    and `node3`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Start flannel server as shown in the following screenshot:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00354.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'Start flannel client as shown in the following screenshot:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'It is necessary to specify the interface with `eth1` as an argument as `eth0`
+    is used as the NAT interface and is common across all nodes, eth1 is unique across
+    nodes:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00357.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'After starting the client in `node2` and `node3`, let''s look at the `etcd`
+    output in `node1` showing the three subnets acquired by three CoreOS nodes:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00308.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'To start `docker.service` manually, we first need to create `flannel_docker_opts.env`
+    as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`/usr/bin/docker run --net=host --rm -v /run:/run \``  quay.io/coreos/flannel:0.5.3 \``  /opt/bin/mk-docker-opts.sh -d /run/flannel_docker_opts.env –i`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following image is the created `flannel_docker_opts.env`:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00469.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Now, we can start `docker.service`, which uses environment variables in `flannel_docker_opts.env`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Start `docker.service`:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`sudo systemctl start docker.service`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'As we can see, the docker bridge gets the IP address in the range allocated
+    to this node:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00052.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: This feature is currently experimental. There are plans to add a server failover
+    feature in future.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Docker networking
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following is the Docker networking model to interconnect containers in
+    a single host:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00312.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'Each Container resides in its own networking namespace and uses a Linux bridge
+    on the host machine to talk to each other. More details on Docker networking options
+    can be found at [https://docs.docker.com/engine/userguide/networking/dockernetworks/](https://docs.docker.com/engine/userguide/networking/dockernetworks/).
+    The following are the networking options available as of Docker release 1.9:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`--net=bridge`: This is the default option that Docker provides, where containers
+    connect to the Linux `docker` bridge using a veth pair.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`--net=host`: In this option, there is no new network namespace created for
+    the container, and the container shares the same network namespace as the host
+    machine.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`--net= (the container name or ID)`: In this option, the new container shares
+    the same network namespace as the specified container in the `net` option. (For
+    example: `sudo docker run -ti –name=ubuntu2 –net=container:ubuntu1 ubuntu:14.04
+    /bin/bash`. Here, the `ubuntu2` container shares the same network namespace as
+    the `ubuntu1` container.)'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`--net=none`: In this option, the container does not get allocated a new network
+    namespace. Only the loopback interface is created in this case. This option is
+    useful in scenarios where we want to create our own networking options for the
+    container or where there is no need for connectivity.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`--net=overlay`: This option was added in Docker release 1.9 to support overlay
+    networking that allows Containers across hosts to be able to talk to each other.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Docker experimental networking
+  prefs: []
+  type: TYPE_NORMAL
+- en: As of Docker release 1.8, Docker did not have a native solution to connect Containers
+    across hosts. With the Docker experimental release, we can connect Containers
+    across hosts using the Docker native solution as well as external networking plugins
+    to connect Containers across hosts.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following figure illustrates this:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00447.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'The following are some notes on the Docker libnetwork solution:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Docker runtime was previously integrated with the networking module and there
+    was no way to separate them. Libnetwork is the new networking library that provides
+    the networking functionality and is separated from Core Docker. Docker 1.7 release
+    has already included the libnetwork and is backward-compatible from the end user's
+    perspective.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Drivers implement the APIs provided by libnetwork. Docker is leaning towards
+    a plugin approach for major functionalities such as Networking, Storage, and Orchestration
+    where Docker provides a native solution that can be substituted with technologies
+    from other vendors as long as they implement the APIs provided by the common library.
+    In this case, Bridge and Overlay are the native Docker networking drivers and
+    remote drivers can be implemented by a third party. There are already many remote
+    drivers available, such as Weave and Calico.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Docker experimental networking has the following concepts:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: The Docker container attaches to the network using the endpoint or service.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Multiple endpoints share a network. In other words, only endpoints located in
+    the same network can talk to each other.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: When creating the network, the network driver can be mentioned. This can be
+    a Docker-provided driver, such as Overlay, or an external driver, such as Weave
+    and Calico.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Libnetwork provides service discovery, where Containers can discover other endpoints
+    in the same network. There is a plan in the future to make service discovery a
+    plugin. Services can talk to each other using the service name rather than the
+    IP address. Currently, Consul is used for service discovery; this might change
+    later.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Shared storage such as `etcd` or `consul` is used to determine the nodes that
+    are part of the same cluster.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: A multinetwork use case
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'With the latest Docker networking enhancements, Containers can be part of multiple
+    networks and only Containers in the same network can talk to each other. To illustrate
+    these concepts, let''s take a look at the following example:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Set up two nginx containers and one HAProxy Container in the backend network,
+    `be`.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Add the HAProxy Container in the frontend network, `fe`, as well.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Connect to the HAProxy Container using the busybox Container in the frontend
+    network, `fe`. As the busybox Container is in the `fe` network and nginx Containers
+    are in the `be` network, they cannot talk to each other directly.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: The Haproxy Container will load balance the web connection between the two nginx
+    backend Containers.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'The following are the command details:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Create the `fe` and `be` networks:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`docker network create be``docker network create fe`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Create two nginx containers in the `be` network:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`docker run --name nginx1 --net be -v ~/haproxy/nginx1.html:/usr/share/nginx/html/index.html -d nginx``docker run --name nginx2 --net be -v ~/haproxy/nginx2.html:/usr/share/nginx/html/index.html -d nginx`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Create `haproxy` in the `be` network:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`docker run -d --name haproxy --net be -v ~/haproxy/haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg haproxy`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Attach `haproxy` to the `fe` network:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`docker network connect fe haproxy`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Create a busybox container in the `fe` network accessing the `haproxy` web
+    page:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`docker run -it --rm --net fe busybox wget -qO- haproxy/index.html`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: If we try running the busybox container multiple times, it will switch between
+    `nginx1` and `nginx2` web server outputs.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The Docker overlay driver
+  prefs: []
+  type: TYPE_NORMAL
+- en: The following example shows you how to do multihost container connectivity using
+    the Docker experimental overlay driver. I have used a Ubuntu VM for the following
+    example and not CoreOS because the experimental docker overlay driver needs a
+    new kernel release, which is not yet available in CoreOS.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following figure illustrates the use case that is being tried in this example:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00314.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'The following is a summary of the steps:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Create two hosts with experimental Docker installed.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Install Consul on both the hosts with one of the hosts acting as the consul
+    server. Consul is needed to store common data that is used for inter-container
+    communication.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Start Docker with Consul as the key store mechanism on both hosts.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Create containers with different endpoints on both hosts sharing the same network.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: The first step is to create 2 host machines with experimental Docker installed.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following set of commands creates two Docker hosts using docker-machine.
+    We have used docker-machine with a custom ISO image for experimental Docker:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`docker-machine create -d virtualbox --virtualbox-boot2docker-url=http://sirile.github.io/files/boot2docker-1.9.iso dev1``docker-machine create -d virtualbox --virtualbox-boot2docker-url=http://sirile.github.io/files/boot2docker-1.9.iso dev2`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Install Consul on both nodes. The following command shows you how to download
+    and install consul:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`curl -OL https://dl.bintray.com/mitchellh/consul/0.5.2_linux_amd64.zip``unzip 0.5.2_linux_amd64.zip``sudo mv consul /usr/local/bin/`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Start the consul server and docker daemon with the consul keystore in `node1`:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following set of commands starts the consul server and Docker daemon with
+    the consul agent in `node1`:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`Docker-machine ssh dev1``consul agent -server -bootstrap -data-dir /tmp/consul -bind=192.168.99.100 &``sudo docker -d --kv-store=consul:localhost:8500 --label=com.docker.network.driver.overlay.bind_interface=eth1`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Start the consul agent and Docker daemon with the consul keystore in `node2`:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following set of commands starts the consul agent and Docker daemon with
+    the consul agent in `node2`:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`Docker-machine ssh dev2``consul agent -data-dir /tmp/consul -bind 192.168.99.101 &``consul join 192.168.99.100 &``sudo docker -d --kv-store=consul:localhost:8500 --label=com.docker.network.driver.overlay.bind_interface=eth1 --label=com.docker.network.driver.overlay.neighbor_ip=192.168.99.100`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Start the container with the `svc1` service, `dev` network, and `overlay` driver
+    in `node1`:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`docker run -i -t --publish-service=svc1.dev.overlay busybox`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Start the container with the `svc2` service, `dev` network, and `overlay` driver
+    in node2:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`docker run -i -t --publish-service=svc2.dev.overlay busybox`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'As we can see, we are able to ping `svc1` and `svc2` from `node1` successfully:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00491.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Note
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Note: The overlay driver needs the Linux kernel version 3.16 or higher.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: The external networking calico plugin
+  prefs: []
+  type: TYPE_NORMAL
+- en: In this example, we will illustrate how to do Container networking using Calico
+    as a plugin to the Docker libnetwork. This support was available originally in
+    experimental networking and later in the Docker 1.9 release. More details about
+    the Calico networking approach are mentioned in the following Calico networking
+    section. This example is based on [https://github.com/projectcalico/calico-containers/blob/master/docs/calico-with-docker/docker-network-plugin/README.md](https://github.com/projectcalico/calico-containers/blob/master/docs/calico-with-docker/docker-network-plugin/README.md).
+    To set up a CoreOS Vagrant cluster for Calico, we can use the procedure in [https://github.com/projectcalico/calico-containers/blob/master/docs/calico-with-docker/VagrantCoreOS.md](https://github.com/projectcalico/calico-containers/blob/master/docs/calico-with-docker/VagrantCoreOS.md).
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'After setting up a Vagrant CoreOS cluster, we can see the two nodes of the
+    CoreOS cluster. We should make sure that `etcd` is running successfully, as shown
+    in the following output:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00318.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'The following are the steps to get Calico working with Docker as a networking
+    plugin:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Start Calico in both nodes with the libnetwork option:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`sudo calicoctl node --libnetwork`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'We should see the following Docker containers in both nodes:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00028.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'Create the `net1` network with Calico driver:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`docker network create --driver=calico --subnet=192.168.0.0/24 net1`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'This gets replicated to all the nodes in the cluster. The following is the
+    network list in `node2`:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00320.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'Create container 1 in `node1` with the `net1` network:'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`docker run --net net1 --name workload-A -tid busybox`'
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: 'Create container 2 in `node2` with the `net1` network:'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`docker run --net net1 --name workload-B -tid busybox`'
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: 'Now, we can ping the two containers as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00050.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: The Docker 1.9 update
+  prefs: []
+  type: TYPE_NORMAL
+- en: Docker 1.9 got released at the end of October 2015 that transitioned the experimental
+    networking into production. There could be minor modifications necessary to the
+    Docker networking examples in this chapter, which were tried with the Docker 1.8
+    experimental networking version.
+  prefs: []
+  type: TYPE_NORMAL
+- en: With Docker 1.9, multihost networking is integrated with Docker Swarm and Compose.
+    This allows us to orchestrate a multicontainer application spread between multiple
+    hosts with a single command and the multi-host Container networking will be handled
+    automatically.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Other Container networking technologies
+  prefs: []
+  type: TYPE_NORMAL
+- en: Weave and Calico are open source projects, and they develop Container networking
+    technologies for Docker. Kubernetes is a Container orchestration open source project
+    and it has specific networking requirements and implementations for Containers.
+    There are also other projects such as Cisco Contiv ([https://github.com/contiv/netplugin](https://github.com/contiv/netplugin))
+    that is targeted at Container networking. Container technologies like Weave, Calico
+    and Contiv have plans to integrate with Rkt Container runtime in the future.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Weave networking
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Weaveworks has developed a solution to provide Container networking. The following
+    are some details of their solution:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Weave creates a Weave bridge as well as a Weave router in the host machine.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: The Weave router establishes both TCP and UDP connections across hosts to other
+    Weave routers. A TCP connection is used for discovery- and protocol-related exchange.
+    UDP is used for data encapsulation. Encryption can be done if necessary.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: The Weave bridge is configured to sniff the packets that need to be sent across
+    hosts and redirected to the Weave router. For local switching, the Weave router
+    is not used.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Weave's Weavenet product provides you with container connectivity. They also
+    have Weavescope that provides container visibility and Weaverun that provides
+    service discovery and load balancing.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Weave is also available as a Docker plugin integrated with the Docker release
+    1.9.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'The following figure illustrates the solution from Weave:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00068.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: To run Weave on CoreOS, I used cloud-config from [https://github.com/lukebond/coreos-vagrant-weave](https://github.com/lukebond/coreos-vagrant-weave).
+    In the following example, we will create containers in two CoreOS nodes and use
+    Weave to communicate with each other. In this example, we have not used the Docker
+    Weave plugin but used environment variables to communicate between Docker and
+    Weave.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following are the steps to create a Weave cluster:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Clone the repository (`git clone https://github.com/lukebond/coreos-vagrant-weave.git`).
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Change the number of instances in `config.rb` to `3`.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Get a new discovery token for node count 3 and update it in the user data.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Perform `vagrant up` to start the cluster.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: The `cloud-config` file takes care of downloading Weave agents in each node
+    and starting them.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following section of the service file downloads the Weave container:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00421.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'The following section of the service file starts the Weave container:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00340.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'On each of the nodes, we can see the following Weave containers started:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00278.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'Before starting application containers, we need to set the environment variables
+    so that Weave can intercept Docker commands and create their own networking. As
+    part of starting Weave in `Weave.service`, environment variables have already
+    been set up. The following command in the node shows this:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00292.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'Source the Weave environment as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00366.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'Let''s start busybox containers in two CoreOS nodes:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00315.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'Let''s look at the Weave interface created in the busybox container of CoreOS
+    node1:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00325.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'Let''s look at the Weave interface created in the busybox container of CoreOS
+    node2:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00374.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Now, we can successfully ping between the two containers. As part of Docker
+    1.9, Weave is available as a Docker networking plugin and this makes configuration
+    much easier.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Calico networking
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Calico provides you with a Container networking solution for Docker similar
+    to Weave. The following are some details of Calico''s implementation:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Calico provides container networking directly at L3 without using overlay technologies
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Calico uses BGP for route distribution
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'There are two components of Calico: BIRD, which is used for route distribution
+    and FELIX, which is an agent in each node that does discovery and routing'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Calico is also available as a Docker networking plugin integrated with Docker
+    release 1.9
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'The following figure illustrates the Calico data path:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00365.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Setting up Calico with CoreOS
+  prefs: []
+  type: TYPE_NORMAL
+- en: I followed the procedure at [https://github.com/projectcalico/calico-containers/blob/master/docs/calico-with-docker/VagrantCoreOS.md](https://github.com/projectcalico/calico-containers/blob/master/docs/calico-with-docker/VagrantCoreOS.md)
+    to set up a two-node CoreOS cluster.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The first step is checking out the repository:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`git clone https://github.com/projectcalico/calico-docker.git`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'There are three approaches described by Calico for Docker networking:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Powerstrip: Calico uses an HTTP proxy to listen to Docker calls and set up
+    networking.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Default networking: Docker Containers are set up with no networking. Using
+    Calico, network endpoints are added and networking is set up.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Libnetwork: Calico is integrated with Docker libnetwork as of Docker release
+    1.9\. This will be the long-term solution.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: In the following example, we have used the default networking approach to set
+    up Container connectivity using Calico.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following are the steps needed to set up the default networking option
+    with Calico:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Start calicoctl in all the nodes.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Start the containers with the `--no-net` option.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Attach the calico network specifying the IP address to each container.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Create a policy profile. Profiles set up the policy that allows containers to
+    talk to each other.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Attach profiles to the container.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: The following commands set up a container in `node1` and `node2` and establish
+    a policy that allows containers to talk to each other.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Execute the following commands on `node1`:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`docker run --net=none --name workload-A -tid busybox``sudo calicoctl container add workload-A 192.168.0.1``calicoctl profile add PROF_A_B``calicoctl container workload-A profile append PROF_A_B`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: This starts the docker container, attaches the calico endpoint, and applies
+    the profile to allow Container connectivity.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Execute the following commands on `node2`:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`docker run --net=none --name workload-B -tid busybox``sudo calicoctl container add workload-B 192.168.0.2``calicoctl container workload-B profile append PROF_A_B`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: This starts the docker container, attaches the calico endpoint, and applies
+    the same profile as in the preceding commands to allow Container connectivity.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Now, we can test intercontainer connectivity:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00383.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Kubernetes networking
+  prefs: []
+  type: TYPE_NORMAL
+- en: Kubernetes is a Container orchestration service. Kubernetes is an open source
+    project that's primarily driven by Google. We will discuss about Kubernetes in
+    the next chapter on Container orchestration. In this chapter, we will cover some
+    of the Kubernetes networking basics.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following are some details as to how Kubernetes does the networking of
+    containers:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Kubernetes has a concept called Pods, which is a collection of closely-tied
+    containers. For example, a service and its logging service can be a single pod.
+    Another example of a pod could be a service and sidekick service that checks the
+    health of the main service. A single pod with its associated containers is always
+    scheduled on one machine.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Each pod gets an IP address. All containers within a pod share the same IP address.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Containers within a pod share the same network namespace. For containers within
+    a pod to communicate, they can use a regular process-based communication.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Pods can communicate with each other using a cloud networking VPC-based approach
+    or container networking solution such as Flannel, Weave, or Calico.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: As pods are ephemeral, Kubernetes has a unit called service. Each service has
+    an associated virtual IP address and proxy agent running on the nodes' load balancers
+    and directs traffic to the right pod.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'The following is an illustration of how Pods and Containers are related and
+    how they communicate:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00403.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Summary
+  prefs: []
+  type: TYPE_NORMAL
+- en: In this chapter, we covered different Container networking technologies with
+    a focus on Container networking in CoreOS. There are many companies trying to
+    solve this Container networking problem. CNI and Flannel have become the default
+    for CoreOS and Libnetwork has become the default for Docker. Having standards
+    and pluggable networking architecture is good for the industry as this allows
+    interoperability. Container networking is still in the early stages, and it will
+    take some time for the technologies to mature in this area. In the next chapter,
+    we will discuss about CoreOS storage management.
+  prefs: []
+  type: TYPE_NORMAL
+- en: References
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Flannel docs: [https://coreos.com/flannel/docs/latest/](https://coreos.com/flannel/docs/latest/)'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Flannel GitHub page: [https://github.com/coreos/flannel](https://github.com/coreos/flannel)'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'CNI spec: [https://github.com/appc/cni/blob/master/SPEC.md](https://github.com/appc/cni/blob/master/SPEC.md)'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Flannel with AWS and GCE: [https://coreos.com/blog/introducing-flannel-0.5.0-with-aws-and-gce/](https://coreos.com/blog/introducing-flannel-0.5.0-with-aws-and-gce/)'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Weaveworks: [https://github.com/weaveworks/weave](https://github.com/weaveworks/weave)'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Libnetwork: [https://github.com/docker/libnetwork](https://github.com/docker/libnetwork)'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Docker experimental: [https://github.com/docker/docker/tree/master/experimental](https://github.com/docker/docker/tree/master/experimental)'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Calico: [https://github.com/projectcalico/calico-docker](https://github.com/projectcalico/calico-docker)'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Kubernetes: [http://kubernetes.io/](http://kubernetes.io/)'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Further reading and tutorials
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The Flannel CoreOS Fest presentation: [https://www.youtube.com/watch?v=_HYeSaGtEYw](https://www.youtube.com/watch?v=_HYeSaGtEYw)'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'The Calico and Weave presentation: [https://giantswarm.io/events/2015-04-20-docker-coreos/](https://giantswarm.io/events/2015-04-20-docker-coreos/)'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Contiv netplugin: [https://github.com/contiv/netplugin](https://github.com/contiv/netplugin)'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Kubernetes networking: [https://github.com/kubernetes/kubernetes/blob/release-1.1/docs/admin/networking.md](https://github.com/kubernetes/kubernetes/blob/release-1.1/docs/admin/networking.md)'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL

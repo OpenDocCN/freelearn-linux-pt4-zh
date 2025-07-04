@@ -1,0 +1,535 @@
+- en: Summarizing Logs with AWK
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: In the previous chapter, we talked about regular expressions and we saw how
+    to use them to empower `sed` and AWK. In this chapter, we will discuss some practical
+    examples of using AWK.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'One of the tasks that AWK is really good at is filtering data from log files.
+    These log files may be many lines in length, perhaps 250,000 or more. I have worked
+    with data with over a million lines. AWK can process these lines quickly and effectively.
+    As an example, we will work with a web server access log with 30,000 lines to
+    show how effective and well-written AWK code can be. As we work our way through
+    the chapter, we will also see different log files and review some of the techniques
+    that we can employ with the `awk` command and the AWK programming language to
+    help with the reporting and administration of our services. In this chapter, we
+    will cover the following topics:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: HTTPD log file format
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Displaying data from web logs
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Displaying the highest ranking client IP addresses
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Displaying the browser data
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Working with email logs
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Technical requirements
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'The source code for this chapter can be downloaded from here:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[https://github.com/PacktPublishing/Mastering-Linux-Shell-Scripting-Second-Edition/tree/master/Chapter12](https://github.com/PacktPublishing/Mastering-Linux-Shell-Scripting-Second-Edition/tree/master/Chapter12)'
+  prefs: []
+  type: TYPE_NORMAL
+- en: The HTTPD log file format
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: When working with any file, the first task is to become familiar with the file
+    schema. In simple terms, we need to know what is represented by each field and
+    what is used to delimit the fields. We will be working with the access log file
+    from an Apache HTTPD web server. The location of the log file can be controlled
+    from the `httpd.conf` file. The default log file location on a Debian-based system
+    is `/var/log/apache2/access.log`; other systems may use the `httpd` directory
+    in place of `apache2`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The `log` file is already in the code bundle, so you can download it and use
+    it directly.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Using the `tail` command, we can display the end of the `log` file. Although,
+    to be fair, the use of `cat` will do just as well with this file, as it will have
+    just a few lines:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE0]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'The output of the command and the contents of the file are shown in the following
+    screenshot:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/9b3f97e4-b874-4381-89a5-3f60d78dd4e8.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'The output does wrap a little onto the new lines, but we do get a feel of the
+    layout of the log. We can also see that even though we feel that we access just
+    one web page, we are in fact accessing two items: the `index.html` and the `ubuntu-logo.png`.
+    We also failed to access the `favicon.ico` file. We can see that the file is space
+    separated. The meaning of each of the fields is laid out in the following table:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '| **Field** | **Purpose** |'
+  prefs: []
+  type: TYPE_TB
+- en: '| 1 | Client IP address. |'
+  prefs: []
+  type: TYPE_TB
+- en: '| 2 | Client identity as defined by RFC 1413 and the `identd` client. This
+    is not read unless `IdentityCheck` is enabled. If it is not read, the value will
+    be with a hyphen. |'
+  prefs: []
+  type: TYPE_TB
+- en: '| 3 | The user ID of the user authentication if enabled. If authentication
+    is not enabled, the value will be a hyphen. |'
+  prefs: []
+  type: TYPE_TB
+- en: '| 4 | The date and time of the request in the format of `day/month/year:hour:minute:second
+    offset`. |'
+  prefs: []
+  type: TYPE_TB
+- en: '| 5 | The actual request and method. |'
+  prefs: []
+  type: TYPE_TB
+- en: '| 6 | The return status code, such as `200` or `404`. |'
+  prefs: []
+  type: TYPE_TB
+- en: '| 7 | File size in bytes. |'
+  prefs: []
+  type: TYPE_TB
+- en: 'Even though these fields are defined by Apache, we have to be careful. The
+    time, date, and time zone is a single field and is defined within square braces;
+    however, there are additional spaces inside the field between that data and the
+    time zone. To ensure that we print the complete time field if required, we need
+    to print both `$4` and `$5`. This is shown in the following command example:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE1]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'We can view the command and the output it produces in the following screenshot:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/71c919e5-13bb-4764-9402-d54f64c1d840.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: Displaying data from web logs
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: We have already had a preview of how we can use AWK to view the log files from
+    the Apache web server; however, we will now move onto our demonstration file that
+    has greater and more varied content.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Selecting entries by date
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'Having seen how we can display the date, we should perhaps look at how we print
+    entries from just one day. To do this, we can use the match operator in `awk`.
+    This is denoted by the tilde or squiggly line, if you prefer. As we only need
+    the date element, there is no need for us to use both the date and time zone field.
+    The following command shows how to print entries from September 10, 2014:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE2]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'For completeness, this command and partial output is shown in the following
+    screenshot:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/1cd97c0b-241d-484c-9072-4fb73de7885e.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'The round brackets or parentheses embrace the range of lines that we are looking
+    for and we have omitted the main block, which ensures that we print the complete
+    matching lines from the range. There is nothing stopping us from further filtering
+    on the fields to print from the matching lines. For example, if we want to print
+    out just the client IP address that is being used to access the web server, we
+    can print field `1`. This is shown in the following command example:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE3]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'If we want to be able to print the total number of accesses on a given date,
+    we could pipe the entries through to the `wc` command. This is demonstrated in
+    the following:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE4]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'However, if we want to use `awk` to do this for us, this will be more efficient
+    than starting a new process and we can count the entries. If we use the built-in
+    variable `NR`, we can print entire lines in the files, not just those within the
+    range. It is best to increment our own variable in the main block instead of matching
+    the range for each line. The `END` block can be implemented to print the `count`
+    variable we use. The following command line acts as an example:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE5]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'The output of the count from both `wc` and the internal counter will give us
+    `16205` as a result from the demonstration file. We should use the variable increment
+    within the main block if we want to count and nothing else:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE6]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'We can see this in the following output:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/5a3b0cfe-80b4-4adf-b946-15e89e22cd86.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: Summarizing 404 errors
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: The status code of the request page is shown in field `9` of the log. The `404`
+    status will represent the page not found error on the server. I am sure we have
+    all seen that in our browsers at some stage. This may be indicative of a misconfigured
+    link on your site or just produced by a browser searching for the icon image to
+    display in tabbed browsers for the page. You can also identify potential threats
+    to your site by requests looking for standard pages that may give access to additional
+    information on PHP driven sites, such as WordPress.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Firstly, we can solely print the status of the request:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE7]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'We can now extend the code a little as well as ourselves and just print the
+    `404` errors:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE8]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'We can extend this a little further by printing both the status code and the
+    page that was being accessed. This will need us to print field `9` and field `7`.
+    Simply put, this will be as shown in the following code:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE9]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Many of these failed accessed pages will be duplicated. To summarize these
+    records, we can use the command pipeline to achieve this with the `sort` and `uniq`
+    commands:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE10]'
+  prefs: []
+  type: TYPE_PRE
+- en: To use the `uniq` command, the data must be pre-sorted; hence, we use the `sort`
+    command to prepare the data.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Summarizing HTTP access codes
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'It is time for us to leave the pure command line and start working with the
+    AWK control files. As always, when the complexity of the required result set increases,
+    we see an increase in the complexity of the `awk` code. We will create a `status.awk`
+    file in our current directory. The file should look similar to the following file:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE11]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'First, we will strip down the main code block and this is very simple and sparse.
+    This is a simple way to count each unique occurrence of a status code. Instead
+    of using a simple variable, we feed this into an array. The array in this case
+    is called a record. An array is a multi-values variable and the slots in the array
+    are known as keys. So we will have a collection of variables stored in the array.
+    For example, we expect to see entries for `record[200]` and `record[404]`. We
+    populate each key with their occurrence count. Each time we find a `404` code,
+    we increment the count that is stored in the associated key:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE12]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'In the `END` block, we create the summary information using a `for` loop to
+    print out each key and value from the array:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE13]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'To run this, the associated command line will be similar to the following:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE14]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'To view the command and output, we have included the following screenshot:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/979b1d94-c4a5-47df-a82e-101b6c030214.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'We can take this further and focus on the `404` errors. You could, of course,
+    choose any of the status codes. We can see from the results that we have `4382
+    404` status codes. To summarize these `404` codes, we will copy the `status.awk`
+    to a new file named `404.awk`. We can edit the `404.awk` adding an `if` statement
+    to work only on the `404` codes. The file should be similar to the following code:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE15]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'If we execute the code with the following command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE16]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'The output will be similar to the following screenshot:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/a26e123c-4f6c-49d1-a770-3e239e236898.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: Resources hits
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'You can check how many times a specific page or a resource was requested using
+    AWK:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE17]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'The preceding command will sort the requested resources from the highest requested
+    resource to the lowest:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/407e25dc-56a9-4b51-bffb-34a501f600ae.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: The resources could be images, text files, or CSS files.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'If you want to look at the requested PHP files, you can use `grep` to get PHP
+    files only:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE18]'
+  prefs: []
+  type: TYPE_PRE
+- en: '![](img/029c03ca-516f-449d-a193-880605109e0e.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: Alongside each page, there is the number of hits.
+  prefs: []
+  type: TYPE_NORMAL
+- en: You can grab any statistics from the `log` file and get unique values and sort
+    them the same way.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Identify image hotlinking
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: As we talk about resources, there is a problem that you may face, which is image
+    hotlinking. It's about using your images from other servers by linking to them.
+    This behavior of image hotlinking can leak your bandwidth.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'And since we are talking about AWK, we will see how to use AWK to find out
+    how it is using our images:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE19]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Note that you can prevent image hotlinking by a small `.htaccess` file if you
+    are using Apache, by checking if the referrer is not your domain:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE20]'
+  prefs: []
+  type: TYPE_PRE
+- en: Displaying the highest ranking IP address
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'You should now be aware of some the powers of `awk` and how immense the language
+    structure is in itself. The data we have been able to produce from the 30,000
+    line file is truly powerful and easily extracted. We just need to replace the
+    field we have used before with `$1`. This field represents the client IP address.
+    If we make use of the following code, we will be able to print each IP Address
+    and also the number of times it has been used to access the web server:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE21]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'We want to be able to extend this to show only the highest ranking IP address,
+    the address that has been used the most to access the site. The work, again, will
+    mainly be in the `END` block and will make use of a comparison against the current
+    highest ranking address. The following file can be created and saved as `ip.awk`:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE22]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'We can see the output of the command in the following screenshot. Part of the
+    client IP address has been obscured as it is from my public web server:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/b821d655-ea19-4f24-8550-2dd28c60b366.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: The functionality of the code comes from within the `END` block. On entering
+    the `END` block, we run into a `for` loop. We iterate through each entry in the
+    `ip` array. We use the conditional `if` statement to see whether the current value
+    that we are iterating through is higher than the current maximum. If it is, this
+    becomes the new highest entry. When the `loop` has finished, we print the IP address
+    that has the highest entry.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Displaying the browser data
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'The browser that is used to access the website is contained within the log
+    file in field `12`. It may be interesting to display the list of browsers used
+    to access your site. The following code will assist you in displaying the list
+    of accesses by the reported browser:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE23]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'You can see how we can create little plugins to `awk` with these files and
+    adjust the field and array names to suit. The output is shown in the following
+    screenshot:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/8c801f02-d3dc-4623-8779-435026722d5a.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: Interestingly, we see that Mozilla 4 and 5 make up the majority of the requesting
+    client. We see that Mozilla 4 is listed here `1713` times. The Mozilla/5.0 entry
+    here is malformed with an extra double quote. It appears later with 27,000 accesses.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Working with email logs
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: We have worked with logs from the Apache HTTP web server. The reality is that
+    we can apply the same ideals and methodology to any log file. We will take a look
+    at Postfix mail logs. The mail log holds all activity from the SMTP server and
+    we can then see who has been sending emails to whom. The log file is usually located
+    at `/var/log/mail.log`. I will access this on my Ubuntu 15.10 server that has
+    a local email delivery. All this means is that the STMP server is listening only
+    to the localhost interface of `127.0.0.1`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The log format will change a little depending on the type of message. For example,
+    `$7` will contain `from` logs on outbound messages, whereas inbound messages will
+    contain `to`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'If we want to list all the inbound messages to the SMTP server, we can use
+    the following command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE24]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'As the string `to` is very short, we can add identification to it by ensuring
+    that the field begins with `to` using the `^`. The command and output is shown
+    in the following screenshot:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/2b73c3f8-6754-47d5-8092-c7885c69ab43.png)'
+  prefs: []
+  type: TYPE_IMG
+- en: It will be easy to extend the `to` or `from` searches to also include usernames.
+    We can see the format of the delivered or received mail. Working with the same
+    template we used with the Apache logs, we can easily display the highest recipient
+    or sender.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Summary
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: We now have some heavy ammunition behind our text processing and we can begin
+    to understand just how powerful AWK can be. Working with real data is particularly
+    useful in gauging the performance and accuracy of our searches. Having begun working
+    with simple Apache entries on the newly installed Ubuntu 15.10 Apache web server,
+    we soon migrated to the larger sample data from a live web server. With 30,000
+    lines, this file gives us some real meat to work with and in no time, we were
+    able to produce credible reports. We closed up the return to the Ubuntu 15.10
+    server to analyze the Postfix SMTP logs. We can see that we can very much drag
+    and drop the technology that we have previously used into the new log files.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Next up, we stick with AWK and look at how we can report on the `lastlog` data
+    and on flat XML files.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Questions
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: Which field in the `access_log` file contains the IP address?
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: What is the command used to count the lines processed by AWK?
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: How do you get IP addresses of unique visitors from the Apache access log file?
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: How do you get the most visited PHP page from the Apache access log file?
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Further reading
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'Please see the following for further reading relating to this chapter:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[https://httpd.apache.org/docs/1.3/logs.html](https://httpd.apache.org/docs/1.3/logs.html)'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL

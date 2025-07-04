@@ -1,0 +1,750 @@
+- en: Chapter 10. Securing the System with SELinux
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: All too often you will find a tutorial or a blog that will advise you to disable
+    SELinux. This will be in order to get a particular feature of vservice working.
+    In many cases, people have to do is to follow the blog or tutorial instructions
+    because very little is known about SELinux. The aim of this chapter is to provide
+    you a remedy to this and help you become more familiar with how SELinux works.
+    This chapter will provide you with the protection that SELinux provides so that
+    next time you are better equipped to deal with a blog that metaphorically advises
+    you to leave the keys in the ignition of your parked car.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'In this chapter, we will cover the following topics:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: What is SELinux
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Understanding SELinux
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Working with the targeted policy type
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Policies in SELinux
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: SELinux tools
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Troubleshooting SELinux
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: What is SELinux
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: SELinux is a **MAC** (**Mandatory Access Control**) system working together
+    with the existing **DAC** (**Discretionary Access Control**) list we are familiar
+    with, such as the file permissions list.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Tip
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: SELinux can only restrict permissions; it cannot add permissions. If the DAC
+    does not allow access, SELinux cannot allow.
+  prefs: []
+  type: TYPE_NORMAL
+- en: In order to work with labeled objects, access is granted based on these labels
+    and controlled via policies. All objects—such as users, processes, and files—have
+    labels. The label that you have or (more often) the process that you run must
+    match the label supplied to the resource that you need to access. In simple terms,
+    think of this like bathrooms; humans with the label MEN have access to the bathroom
+    labeled MEN. In Linux terms, the Apache web server process is labeled as `httpd_t`
+    and can access files with the `httpd_sys_content_t` label. In this way, your system
+    is protected against a rogue or **pwned** (compromised) web server as the scope
+    of files that has access to it is limited by SELinux.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'SELinux is maintained by Red Hat, NSA, and Secure Computing, so it has a rich
+    pedigree. It comprises of four major components that we will investigate in this
+    chapter:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Modes
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Labels
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Policy types
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Policy packages
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'To help you work with SELinux, we will install some additional packages. These
+    RPM packages are shown in the following command line. For ease of layout, we have
+    added line breaks:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE0]'
+  prefs: []
+  type: TYPE_PRE
+- en: Understanding SELinux
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: Let's start pulling the covers off SELinux and discover a little more about
+    what makes these controls work, starting with SELinux modes.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Modes
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'To begin with, we will discuss three modes that we can run with SELinux. These
+    modes are illustrated for you in the following figure:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Modes](img/image00304.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: The disabled mode
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: 'When SELinux is disabled, SELinux is not used and the objects are NOT labeled.
+    In the disabled mode, we rely solely on the original DAC. If we later need to
+    enable SELinux, the boot process is lengthened because all the objects need to
+    be relabeled again. Disabling SELinux completely like this is probably not a good
+    idea, but should it be required, it can be set in the /`etc/selinux/config` file
+    by changing the following line:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE1]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'One reason this is not a great idea is that a reboot is required for this to
+    take effect. As mentioned before, files need to be relabeled if SELinux is enabled
+    later. We can force a relabel if all filesystem objects are running by running
+    the the following command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE2]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Alternatively, we can create the `/.autorelabel` file, as shown in the following
+    command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE3]'
+  prefs: []
+  type: TYPE_PRE
+- en: The permissive mode
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: If you are having issues with a service and want to check whether SELinux is
+    a possible culprit, you may prefer to set SELinux in the permissive mode. In this
+    way, SELinux is still enabled and the objects maintain their labels; however,
+    events are not blocked, but logged to the `/var/log/audit/audit.log` file.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'To enter the permissive mode, we can perform this while the system is running
+    without performing a reboot on your system. The following line illustrates how
+    this is achieved:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE4]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'If the change is made in this way, then on a reboot, the permissive mode is
+    applied from `/etc/selinux/config`. To set the mode permanently to permissive,
+    we should set the permissive mode in the following line:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE5]'
+  prefs: []
+  type: TYPE_PRE
+- en: Although I do feel that setting the mode to permissive is acceptable as a quick
+    and simple test, the more you know about SELinux, the less likely you are to move
+    from the Enforcing mode where your protection is guaranteed. In this chapter,
+    you will learn how to correct issues and even add a process to be permissive rather
+    than the whole system.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'It''s also possible to set permissive or enforcing modes via the boot loader,
+    adding the following commands at the end of the kernel line (where `0` is off
+    or permissive and `1` is on or enforcing):'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE6]'
+  prefs: []
+  type: TYPE_PRE
+- en: The enforcing mode
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: The enforcing mode is very similar to the permissive mode, where you can switch
+    between permissive and enforcing on the command line with the `setenforce` command.
+    As the name suggests, SELinux is enforced in this mode and reported to the log
+    file as well.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'To interrogate your current SELinux mode, you can issue the `getenforce` command.
+    If you have installed additional tools, you will also be able to run the `sestatus`
+    command, which is part of the `policycoreutils` package. This command displays
+    the current mode and the mode from the configuration file; the output of `sestatus`
+    is shown in the following screenshot:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![The enforcing mode](img/image00305.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Labels
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: As mentioned previously, when SELinux is in the permissive or enforcing mode,
+    all objects—such as files, users, and processes—have labels. When accessing resources,
+    these labels are compared to see whether the match is compatible.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Each label consists of four colon delimited values:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: The SELinux user
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: The SELinux role
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: The SELinux type
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: The SELinux level
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: In general, a level is only used in very secure government environments, where
+    the secrecy level of the user must match the secrecy level of the document or
+    resource. The idea here is that the President will be able to read anything, but
+    only write to documents that match his security level. This even prevents him
+    from writing to documents holding a lower security level. Of course, this can
+    be read by lower authorized people and can perhaps be a security breach.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Using the `ls` command, we can list the label of a file using the `–Z` option.
+    The following command is an example of listing the SELinux label from the `/etc/hosts`
+    file:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE7]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'The output should look similar to the following screenshot:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Labels](img/image00306.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'After reading the label, we can determine the following values that are read
+    from left to right from the previous screenshot:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '| The SELinux user | `system_u` |'
+  prefs: []
+  type: TYPE_TB
+- en: '| The SELinux role | `object_r` |'
+  prefs: []
+  type: TYPE_TB
+- en: '| The SELinux type | `net_conf_t` |'
+  prefs: []
+  type: TYPE_TB
+- en: '| The SELinux level | `s0` |'
+  prefs: []
+  type: TYPE_TB
+- en: 'To read a label from a Linux user perspective, we can use the `id –Z <username>`
+    command. The following screenshot shows this for the currently logged in user,
+    where the `<username>` field can be left blank:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Labels](img/image00307.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'Similarly, we can examine the label of a process using the `–Z` option with
+    the `ps` command, as shown in the following command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE8]'
+  prefs: []
+  type: TYPE_PRE
+- en: '![Labels](img/image00308.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Policy types
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'The default SELinux policy type is targeted, but three policy types are listed
+    as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Minimum
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Targeted
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: MLS
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: They are all contained in packages that match the `selinux-policy-minimum`,
+    `selinux-policy-targeted`, and `selinux-policy-mls` names.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Minimum
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: 'As the name suggests, this is designed as a minimum configuration for SELinux.
+    As strange as it may sound, this is for situations where you want to target just
+    one service, such as the Apache web server. Starting with the basics, it''s easy
+    to include additional policies in your `Minimum` type. The following command shows
+    how we can use `semodule` to add the Apache policy:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE9]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'To configure SELinux to use the `Minimum` policy, we set the `SELINUXTYPE`
+    directive using the `/etc/selinux/config` file:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE10]'
+  prefs: []
+  type: TYPE_PRE
+- en: Targeted
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: 'This is the default policy type; by default, many policies are included. On
+    the demo system, there are 395 policies installed other than the basic policy.
+    We can use `semodule` to list all modules:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE11]'
+  prefs: []
+  type: TYPE_PRE
+- en: MLS
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: 'The multi-level security or MLS policy type will allow you to add additional
+    levels of security. These can be interrogated from labels to help you control
+    access to resources. This is generally used only in high security deployments.
+    Outside of MLS, the level element of a label is not used. To enable MLS, the `/etc/selinux/config`
+    file is configured with the following directive:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE12]'
+  prefs: []
+  type: TYPE_PRE
+- en: Policies
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: Once policies are installed, individual policies are installed in the appropriate
+    policy type directory; for the default targeted policy, enter `/etc/selinux/targeted/modules/active/modules/`.
+    Policy files have the `.pp` suffix.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Working with the targeted policy type
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'The default policy type is targeted. As such, most SELinux deployments will
+    work with this policy type. In the case of the targeted policy type, the primary
+    attribute from the label used for enforcement is `type`. For this reason, the
+    targeted policy type is often known as TE or `type` enforcement. The following
+    image highlights the importance of the type attribute of a label in the targeted
+    policy type:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Working with the targeted policy type](img/image00309.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'Using the `seinfo` command, which is part of the `setools-console` package,
+    we can display specific information about the current SELinux environment. Let''s
+    take a look at the available types that we can work with. To list all types, we
+    will use the following command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE13]'
+  prefs: []
+  type: TYPE_PRE
+- en: Wow, there are a lot. If we count them, we have around 4500 on RHEL 7; on RHEL
+    6, there were 3500\. These two figures are just a simple illustration of how much
+    the SELinux product is growing and its continued uptake, but Linux software developers.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'We can also see how to import the type attribute in a label with the user attribute:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE14]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Here, the numbers are not so impressive; it''s just 8\. These are not Linux
+    users, but SELinux users; Linux users can be mapped to SELinux users to help control
+    access to resources. To display any mapping, we can use `semanage`, as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE15]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Without any mapping being set up, we will see that the root is mapped to `unconfined_u`
+    because this is the default. This setting means that all other user accounts without
+    any specific mapping will be mapped to the `unconfined_u` SELinux user, which
+    means that we are ignoring the user attribute in the label as it''s unconfined
+    on SELinux. Similarly, let''s look at the ROLE attribute using `seinfo`:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE16]'
+  prefs: []
+  type: TYPE_PRE
+- en: The output should indicate 14 roles; again, this is not a large number. The
+    role attribute is not heavily used in the targeted policy type.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Unconfined domains
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'The `TYPE` attribute is often referred to as the `DOMAIN` when set on a process;
+    remember that we can view the SELinux label of a running process using the following
+    process status command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE17]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Many processes started in a user space will also be unconfined perhaps to the
+    `TYPE` attribute set to `unconfined_t`. If processes started in the user space
+    are generally unconfined, we can say that services, especially network facing
+    services, will be enforced in some way and this is very much representative of
+    why SELinux is here: to protect against attack from exposure to a network. It''s
+    not only the `aunconfined_t` tag that is unconfined by SELinux. To display all
+    unconfined types or domains, we can use `seinfo` running as root again as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE18]'
+  prefs: []
+  type: TYPE_PRE
+- en: The `-a` option tells `seinfo` that we are searching for an attribute; this
+    attribute needs to be pushed up next to the option with no additional white spaces.
+    The `-x` attribute expands to show all `TYPEs` that have the attribute, rather
+    than just listing the attribute itself. The output should confirm that it is mainly
+    domains that will be non-network facing that are unconfined, such as `bootloader_t`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following screenshot displays the start of the output from my system. In
+    total, there were 86 unconfined domains; this is not bad considering that we started
+    with 4500 types in all:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Unconfined domains](img/image00310.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: When policies are enforced, the default level of access is denied; this means
+    that rules must exist in the policy package in order to allow access to users,
+    roles, or types. Having the default access denied ensures security if a given
+    scenario is not considered; on the flip side, this also means that access needs
+    to be added if your given scenario has not been considered. A level of administration
+    may be required to tune the environment to your needs; however, once set up, you
+    have a secure system that will continue to run reliably with a lessened exposure
+    to risk.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Of course, although the default auction in a policy is to deny access to a
+    resource, there are many thousands of `allow rules` supplied within these polices
+    by default. Using the `sesearch` command, we can display them; sending results
+    to the `wc` command can count the number of rules. The following commands illustrate
+    this:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE19]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'On my system, there are over 100,000 rules created by default. If we want to
+    look at this in a little more detail, we can search for the `httpd_sys_content_t`
+    string. There are many rules with this label, but if we look at just one, the
+    easiest is to consider is the last one with the command tail. Here, we can see
+    that access is granted to resources with `httpd_sys_content_t` to process with
+    the `ftpd_t` label. In simple terms, the FTP server has access to your website
+    content, as shown in the following command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE20]'
+  prefs: []
+  type: TYPE_PRE
+- en: Now, we have a little more understanding of the default targeted policy type,
+    so let's take a look at how to use some of the tools and see SELinux at work.
+  prefs: []
+  type: TYPE_NORMAL
+- en: SELinux tools
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: Let's take a look at SELinux tools.
+  prefs: []
+  type: TYPE_NORMAL
+- en: chcon and restorecon
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: Two of the main tools that we can use to help manage SELinux are `chcon` and
+    `restorecon`. The `chcon` command helps to change the SELinux context or TYPE
+    of what will most often be a single or perhaps sometimes a few files that can
+    be referenced easily together with some form of wildcard. The `restorecon` command
+    can be used to reset a file or directory and its contents to their default SELinux
+    context. These default settings for directories are stored in the `/etc/selinux/targeted/contexts/files/file-context`
+    file.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'With `grep`, we can search for `httpd_sys_content_t`, whereas in the output,
+    we should see the default label for files under `/var/www`. This is the directory
+    were we would expect to find web server content:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE21]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'The output of the preceding command is as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE22]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'We can now try to break the system by changing the SELinux context of the `index.html`
+    page. We can do this with the `chcon` command as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE23]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Now, if we navigate to the website using the `localhost` URL, we should have
+    an access denied message of some description. This is because we have set the
+    `TYPE` of the file to `user_home_t`; access is not permitted to the `httpd_t`
+    context in which the web server runs. The following screenshot shows the use of
+    `chcon` and the subsequent denial message:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![chcon and restorecon](img/image00311.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'Of course, we can fix this manually by setting the type back to `httpd_sys_content_t`
+    using `chcon`; however, if we are unsure of the correct context, we can run the
+    `restorecon` command, as shown in the following command line:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE24]'
+  prefs: []
+  type: TYPE_PRE
+- en: Accessing the web page should now work. Technically, we can achieve the same
+    effect as achieved with `restorecon` by relabeling the complete filesystem at
+    reboot by creating the `/.autorelabel` file; as you can imagine, this is a little
+    overkill and will take a while. The effect of this though is to run `restorecon`
+    across the complete filesystem.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Boolean values
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'There are also simple Boolean values that we can toggle on and off as required,
+    to help tune our system to work the way we need to match our environment. On the
+    RHEL 7.1 system used in the book, we have 294 Boolean values that can be adjusted.
+    We can display these with the simple `getsebool` command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE25]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'We will drill down a little further and list those associated with the `httpd`
+    process. We can see this in the following screenshot:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Boolean values](img/image00312.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: To change a Boolean value, we can use the `setsebool` command which can be a
+    temporary or permanent fix. The use of the `-P` option is required if we want
+    the change the Boolean value to be permanent. This also will take a while because
+    the active policy is written to and recompiled.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'If we return to the earlier setting where the `index.html` page was set with
+    context to user home directories, we can remedy with `setsebool`. If the situation
+    was not appropriate to change the context, for example, if we need to host user
+    home directories on the web server temporarily until the next boot, we can use
+    the following command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE26]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'If we need this to be set permanently, we will use the following command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE27]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'The temporary setting is shown in the following screenshot. It also shows successful
+    access to the web page that still has the incorrect context set:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Boolean values](img/image00313.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Using these Booleans can go a long way in resolving issues you may have with
+    SELinux.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Troubleshooting SELinux
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: Let's take a look at different ways of troubleshooting SELinux.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The log file
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'If we were left uncertain as to the problem that was causing errors that we
+    encountered before with the web server, then our troubleshooting should always
+    start with log files. For SELinux, this is the `/var/log/audit/audit.log` file.
+    Logging in from SELinux will be marked as **AVC** (**Access Vector Cache**). We
+    can search the log file with `grep` using something similar to the following command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE28]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'However, more appropriately, there is also the `ausearch` command that we can
+    use. If an error has just occurred, we can use the `recent` time start code to
+    help reduce returned results. This is a shortcut for displaying errors within
+    the last 10 minutes:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE29]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Other than this, we can supply an actual time, date, or both. In the following
+    example, we will use `16:00` as the starting time to search. In the absence of
+    the date, today''s date is implied as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE30]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Taking a look at the output from the command in the following screenshot, we
+    can see that the process and resource have incompatible labels:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![The log file](img/image00314.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: The audit2allow command
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'Now, even after having checked the log file, you still may not be entirely
+    clear about the cause of the problem or its possible fix. For help, you can try
+    the `audit2allow` command. If used with the `-w` option, an explanation of the
+    problem along with possible solutions are included in the output. We still examine
+    the log, but this time we will pipe the output through to the `audit2allow` command
+    as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE31]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'The output from the test system looked like this when we had reset the original
+    Boolean value:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![The audit2allow command](img/image00315.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'We can see that the suggestion matches the Boolean setting we had previously
+    shown works. If the problem was more complex than changing a Boolean value, we
+    could create a new policy package using the `-M` option. Then using `semodule`,
+    we would import the `.pp` file as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE32]'
+  prefs: []
+  type: TYPE_PRE
+- en: Permissive domains
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: We can see that there are some pretty powerful tools designed to help with our
+    SELinux deployments, but if all else fails, there is another option called **Permissive
+    domains**.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Rather than setting the SELinux mode to Permissive, we can turn the Permissive
+    status on for just a single domain or process context. By default, permissive
+    domains are enabled and these are known as built-in permissive domains. Domains
+    that we add are customized domains.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Although the web server is a major network facing attach vector, maybe if we
+    cannot get SELinux working with `httpd`, but we do not want to risk SELinux disabled
+    for the rest of the system. We can turn on the permissive behavior for `httpd_t`
+    using the following command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE33]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Should we need to remove this behavior later, we can reverse it with:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE34]'
+  prefs: []
+  type: TYPE_PRE
+- en: In both cases, we will write to the active policy; this will take a little time.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Summary
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: In this chapter, you learned how to manage SELinux. I certainly hope that you
+    have a much fuller understanding of the mechanism involved. The aim of SELinux
+    is to protect a system, especially where network-facing services are involved.
+    Disabling or setting the Permissive mode for SELinux is, in general, the wrong
+    approach. With this, you should now be be able to choose the correct solution.
+  prefs: []
+  type: TYPE_NORMAL
+- en: In the next chapter, we will look at the new firewalling mechanism included
+    on RHEL 7 and the improvements made from the standard `IPtables` mechanism used
+    in the past. Again, we hope that we can convince you of the benefits of `firewalld`
+    and keep the service enabled.
+  prefs: []
+  type: TYPE_NORMAL

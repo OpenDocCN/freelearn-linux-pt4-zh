@@ -1,0 +1,342 @@
+- en: Chapter 4. Managing Services with User-Defined Constraints
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: This chapter takes the CoreOS cluster to the next level by putting constraints
+    on the services so that they run on the required members.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'This chapter covers the following topics:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Pre-defined constraints using metadata
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Service-level affinity/anti-affinity
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Node-level affinity
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: High availability
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Introduction to service constraints
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: Not all cluster members run all the services in a deployment. Some may run the
+    services running business logic, some may run management software, and some may
+    run logging or auditing software, and so on. Hence, it's imperative that cluster
+    management software provides mechanisms to control service deployment so they
+    run only on the members satisfying their properties. We will study the mechanisms
+    provided by CoreOS to control the deployment.
+  prefs: []
+  type: TYPE_NORMAL
+- en: CoreOS uses the `fleet` service to schedule the services on the members with
+    constraints. Unit file configuration options help to target a service on a particular
+    member or members meeting configured properties. In due course, we will also learn
+    to integrate the `fleet` service into the `cloud-config` file and auto start a
+    custom service inside a `docker` container.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Predefined constraints using metadata
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: This mechanism enables a service to be runn on a machine having matching metadata
+    configured in the `metadata` parameter of the `coreos.fleet` section. Metadata
+    can be used to describe a member properties such as disk type, region, platform,
+    and special member property like exposed public IPs and so on. Since it is provided
+    as a multiple key-value pair, the flexibility it provides is immense for defining
+    a member.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The metadata can then also be used to associate services to be run on those
+    members. For instance, we can say that a particular service is supposed to run
+    on members that are running in a particular region and/or having a particular
+    disk type and/or having a particular member type (bare metal, cloud, and so on)
+    and/or having a particular provider (machine vendor, cloud provider, and so on).
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'In our example, we will create three members, each having their own metadata,
+    and then bind the service to run on a metadata matching its property. The following
+    is the setup:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Predefined constraints using metadata](img/00018.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'The following is the `cloud-config` file used to create the cluster with services
+    running on their designated members:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE0]'
+  prefs: []
+  type: TYPE_PRE
+- en: The `write_files` section is added to generate the unit files for `fleet`. Three
+    unit files are created; each service would be running only one of the members.
+    Each unit file has the `X-Fleet` section adding a constraint that it should only
+    run on a machine having specific metadata.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The `fleet` section updated to start `fleet` and specify the IP address used
+    to contact the `etcd2` service. Additionally, the metadata parameter is added
+    to specify the metadata for the member. Instrumentation is required to generate
+    separate metadata for each of the members. `Vagrantfile` for the static cluster
+    in [Chapter 3](part0026_split_000.html#OPEK1-31555e2039a14139a7f00b384a5a2dd8
+    "Chapter 3. Creating Your CoreOS Cluster and Managing the Cluster"), *Creating
+    Your Coreos Cluster and Managing the Cluster*, is used as the base file and the
+    highlighted instrumentation is done to modify metadata for each of the members.
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE1]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'The units section is updated to start the `fleet` service and wrapper `oneshot`
+    service to invoke `fleetctl` upon startup. `Fleetctl` then manages the service.
+    The following is the sequence of events:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Unit files for the services `/home/core/example_01.service`, `/home/core/example_02.service`
+    and `/home/core/example_03.service` are created at the time of boot-up. Note that
+    `write_files` is kept before the `coreos` section so that the files are created
+    before services are started.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Services are started by `systemd` running on each member. A sleep of ten seconds
+    is added in the `oneshot` services `example_01.service`, `example_01.service`,
+    and `example_01.service` to allow initialization of `etcd2` and the `fleetd` service
+    before the job is submitted using `fleetctl`.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`Fleetd` then coordinates and schedules the services on respective members.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Boot the cluster using `Vagrant up`. Upon successful boot-up, we can see the
+    members in the cluster and the services running on the members. Note that `example_01.service`
+    is started on `member 01` having the metadata `service_01`, `example_02.service`
+    is started on `member 01` having the metadata `service_02`, and so on:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE2]'
+  prefs: []
+  type: TYPE_PRE
+- en: Now, let's modify the `cloud-config` file to create another deployment where
+    one instance of `example.service` is running on every member along with respective
+    services on member 2 and member 3 as the previous example.
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Predefined constraints using metadata](img/00019.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: We will now go through the modifications that are required in the `cloud-config`
+    file prepared earlier.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The unit files for `fleetctl` were modified for the first service to create
+    a template unit. A template file helps the creation of multiple units from a single
+    configuration file. While adding a unit, `Fleet/systemd` looks for the configuration
+    file with an exact name match. If such a file is not found, a filename with the
+    same name the `@` character is used. For example, to add the unit `common@1` file,
+    `common@.service` will be used.
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE3]'
+  prefs: []
+  type: TYPE_PRE
+- en: Additional constraints were added to the section `X-Fleet`. `MachineMetaData`
+    was changed to use the disk as `ssd`. Metadata `disk=ssd` is also added to all
+    the members using `Vagrantfile` instrumentation. This makes the service fit for
+    running on all members. The additional constraint `Conflicts` is added so that
+    only one instance of this service runs on a machine. This constraint means that
+    if a service is already running on the member, other instances of the service
+    can't be scheduled on the same machine. Note how the service name is provided
+    with a wildcard to match any of the instance numbers.
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE4]'
+  prefs: []
+  type: TYPE_PRE
+- en: The service section of the unit file is updated to be capable of spawning a
+    service for any instance. To refer to the instance string from within the configuration
+    file, we can use `%i specifier`. `%i` gets replaced with the instance number provided
+    during start. This feature was not required to be used in the example but is worth
+    a mention.
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE5]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'The wrapper service to invoke `fleetctl` is also updated to start three instances
+    of service:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE6]'
+  prefs: []
+  type: TYPE_PRE
+- en: '`Vagrantfile` was modified with the following instrumentation to add the metadata
+    `disk=ssd` to all the members:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE7]'
+  prefs: []
+  type: TYPE_PRE
+- en: Boot the cluster using `Vagrant up`. Upon successful boot-up, we can see the
+    members in the cluster and the services running on the members. Note that `common@.service`
+    is running on all the members, whereas `example_02.service` and `example_03.service`
+    are only instantiated on respective members.
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE8]'
+  prefs: []
+  type: TYPE_PRE
+- en: In this example, we also touched upon constraints based on running services
+    on the machine. We will discuss it further in the next section.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Service level affinity/anti-affinity
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: This mechanism enables clubbing services together, to be run on the same member
+    or vice versa; that is, making sure that if a particular service is running on
+    the member, the current service is not to be scheduled on that machine.
+  prefs: []
+  type: TYPE_NORMAL
+- en: In the second example for predefined constraints using metadata, we added a
+    constraint, `Conflicts`, so that only one instance of service is started on a
+    member. Hence, the constraint was added for the self-service name. This can also
+    be added for another service. This ensures that two services don't co-exist in
+    a member. To understand this, we will modify the example slightly so that `common@.service`
+    doesn't run along with `example_02.service`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Service level affinity/anti-affinity](img/00020.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Another `Conflicts` parameter is added for `example_02.server` in the unit configuration
+    file of `common@.service`. Also, the `units` section of `coreos` is modified to
+    add an entry for `example_fleet_02.service` before `example_fleet1.service`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE9]'
+  prefs: []
+  type: TYPE_PRE
+- en: Boot the cluster using `Vagrant up`. Upon successful boot-up, we can see the
+    members in the cluster and the services running on the members. Note that `common@.service`
+    is running on all the members except on the member where `example_02.service`
+    is running.
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE10]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Now let''s discuss a reverse use case: we want a particular service to run
+    on a member with another service. We will run the common service only where `example_02.service`
+    is running.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Service level affinity/anti-affinity](img/00021.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: The `X-Fleet` section is updated with the new parameter `MachineOf`. This ensures
+    that `common@.service` only runs along with `example_02.service`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE11]'
+  prefs: []
+  type: TYPE_PRE
+- en: Boot the cluster using `Vagrant up`. Upon successful boot-up, we can see the
+    members in the cluster and the services running on the members. Note that `common@1.service`
+    is running only on the member where `example_02.service` is running.
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE12]'
+  prefs: []
+  type: TYPE_PRE
+- en: Node-level affinity
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: This mechanism uses the `systemd` generated machine ID to schedule the services.
+    Upon member installation, `systemd` generates a machine ID that is the same across
+    subsequent system boots. Node-level affinity ensures the user targets a service
+    onto a member and nowhere else. When thinking about clusters where it's more flexible
+    to schedule a service based on member properties rather than on member identifiers,
+    this mechanism has limited use. Typical use cases can be running a service to
+    collect specific data from a machine, or for testing a service where a new service
+    can be scheduled on a test member for observing the behavior.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The following is the `cloud-config` file used to create the cluster. This file
+    also creates a service unit file in the home directory that will be used by fleet
+    to start the service.
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE13]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'This `cloud-config` file serves two main purpose: starting `fleetd` services
+    and creating the service file `/home/core/example_test.service`.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'We will now find the machine IDs of members in the cluster:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE14]'
+  prefs: []
+  type: TYPE_PRE
+- en: Modify the service file so that the service is instantiated on the machine ID
+    `f70fc5f45cdc49f99fc47757f6fe5ae6`. This can be any machine ID of your choice.
+    We are not able to automate using Vagrant as machine IDs are not known to us earlier.
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE15]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Launch the service and check that it''s running on the desired machine:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE16]'
+  prefs: []
+  type: TYPE_PRE
+- en: High availability
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: There are two key principles in designing a highly available system. One is
+    to avoid single point of failure; that is, the complete system should not fail
+    when a fault occurs. For example, there should not be a dependency on a single
+    process, interface, and so on. The second principle is how quickly the system
+    can recover in case of failure so that downtime is short.
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`Fleetd` helps design a highly available system by allowing the configuration
+    of multiple instances of the service on different members and not multiple instances
+    on the same member. This means that the failure of a single member doesn''t bring
+    down the complete service, but it can still perform the function it''s supposed
+    to do with reduced capacity until a recovery happens. Once the member is recovered
+    or another member is started by the orchestration application detecting member
+    failure, fleet will reschedule the service on the new member automatically.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Summary
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: In this chapter, we understood service constraints which help to deploy services
+    on suitable members.
+  prefs: []
+  type: TYPE_NORMAL
+- en: In the next chapter, we will understand more about discovering services running
+    in the CoreOS cluster.
+  prefs: []
+  type: TYPE_NORMAL

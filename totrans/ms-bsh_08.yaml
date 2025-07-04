@@ -1,0 +1,1282 @@
+- en: We Want to Chat
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'In the previous chapter, we just had a dive through the planning and coding
+    of a Nagios plugin. We studied the bits needed to understand what is a plugin,
+    what is expected from it, and how to integrate it with the monitoring system;
+    and this is because creating a script or program is not just the coding itself:
+    this is the last step of a long and complex workflow.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Now, we will venture into something a bit different, creating a small client
+    to send information to a Slack channel. This will allow us to touch on some new
+    topics, such as JSON, and have a look at how to interact with a cloud-based service.
+    We will not write a fully-fledged client with the capability to read and write,
+    but just the sending bit, since Bash is not the optimal tool to build a whole
+    interactive client. The goal here is to write a tool that we could use to send
+    notifications to a channel so that we can, for instance, notify the members of
+    the channel of the outcome of a task, a cronjob, and so on.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The Slack messaging service
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: '**Slack** is the acronym of **Searchable Log of All Conversation and Knowledge** and
+    it is a collaboration tool widely used by small and large teams to share information,
+    documentation, and ideas. Slack, at a glance, offers the following:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '**Chat rooms:** Public or private, the chat rooms allow team mates to discuss
+    any topic without interfering with other people. A channel is persistent, can
+    have a topic, and anyone invited can take part in it.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**Direct messages:** People can send direct messages to other people or groups
+    so that they can have private direct conversations.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**Integrated searches:** Everything in Slack is searchable, from the messages
+    shared in a chat, to the files uploaded to it, and to the people we dealt with;
+    and this is probably one of the most interesting features of this platform.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**Calls:** Direct or group calls can be made from inside a channel or on a
+    direct message; and this is without the need of an external application, so there
+    is no need to leave the platform.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**Teams:** Anyone can join a team using a URL or invitation provided by a team
+    owner; and this is probably the most community-like feature of this tool.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**Integration with external services:** Slack can connect to a variety of external
+    services so to enhance its offering, from Google Drive to Dropbox, from GitHub
+    to Zendesk, just to name a few.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**Clients:** The platform has plenty of clients, native or via web, for many
+    platforms such as Windows, macOS, Linux, Android, just to name some, so we do
+    not need another client.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'So we want to interact with Slack by sending messages to one channel and having
+    them displayed nicely. The first step will be to create a new team at the URL:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[https://slack.com/](https://slack.com/)'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00020.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Creating a new team
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'In our first step, we are going to create a new team. We have to do all the
+    usual stuff, insert an email, the confirmation code, and choose a team URL:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00021.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: A team URL will gather people with shared interests, invite some friend if you
+    are done; your team is ready to fill the ranks!
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00022.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'We are ready to share our messages. Once you are done creating the team space,
+    we will have two default channels available:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE0]'
+  prefs: []
+  type: TYPE_PRE
+- en: We can use the default channel or create a new one; in our case, we will create
+    a brand new public channel called `#test`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: There we will send there all the messages created by our script and conveyed
+    by a WebHook. Now, we have introduced a new term, WebHook, and this is crucial
+    to our script, since it is a method we use to interact with Slack. So, it is better
+    for us to stop a moment and deepen the concept of WebHook for Slack
+  prefs: []
+  type: TYPE_NORMAL
+- en: Slack WebHooks
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'What is a WebHook? We could define it as a method to make some web pages reactive
+    to user input based on a simple HTTP POST method to support a user-defined HTTP
+    callback. Still a bit obscure, isn''t it? Let''s put it this way: Slack has some
+    endpoints, sensitive URLs; and when you post something through HTTP to endpoints,
+    you actually communicate with Slack. What makes these WebHook interesting is that
+    they are stateless, since they do not rely on a continuously open connection to
+    the service; and you just ping Slack whenever you need to post or retrieve some
+    pieces of information. Slack supports two different kinds of WebHooks:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '**Incoming WebHook:** This is the URL that we will be posting to when we want
+    some messages to appear on our test channel'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**Outgoing WebHook:** This is the URL that Slack uses to notify us of some
+    events in a channel'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'We will be using the Incoming WebHook for our notification script. So, what
+    will we need? We will need the following things:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Slack incoming WebHook linked to one of our channels.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: A JSON holding the message we want to post.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: An application, which will connect to the URL and post the JSON. It will be
+    our script.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Our first task will be to create a new incoming WebHook and link it to our
+    test channel. As the administrator of the team login, we have to log in at [https://my.slack.com/services/new/incoming-webhook/](https://my.slack.com/services/new/incoming-webhook/). And
+    from the dropdown menu, we must select our test channel as shown here:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '![](img/00023.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'Select the #test channel from the drop-down menu.'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Now, let's click on the Add Incoming WebHooks Integration button; and we are
+    led to the Incoming WebHooks page, where we will find the URL that we have to
+    call to send a message to our test channel.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '![](img/00024.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: In the Incoming WebHooks page, you can find  your newly created WebHook.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: In our case, the WebHook has the following URL: [https://hooks.slack.com/services/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](https://hooks.slack.com/services/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).
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'As explained earlier, we have two options to send a message through this WebHook:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: As a JSON string in the payload parameter of a POST request
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: As a JSON string in the body of a POST request
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: So, JSON is something crucial for our messaging system, but what exactly is
+    a JSON?
+  prefs: []
+  type: TYPE_NORMAL
+- en: What is a JSON?
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: '**JSON**, or **JavaScript Object Notation**, is an open, standard format (ECMA-404)
+    widely used to exchange data between applications. Created in 2007 as a subset
+    of the JavaScript programing language, it quickly became adopted by many languages
+    as a means to deliver data regardless of the language of the sending and receiving
+    applications to be a neutral conveyor. We can find a JSON file modeled on two
+    different structures.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'An object composed by name: value pairs, opened and closed by a bracket with
+    each name separated from the corresponding value by a colon and each pair separated
+    by a comma, such as the following example:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE1]'
+  prefs: []
+  type: TYPE_PRE
+- en: An ordered list of values inside an array opened and closed by a square bracket
+    and the values separated by a comma: `[ "1", "2", "3"]`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: A value in JSON can be a number, object, array, string, true, false, or null.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'So, JSON will be the format that we will use to transmit our messages to the
+    channel using the WebHook, and it will be structured in an object made of name:value
+    pairs. The simplest message in Slack would bear a simple `"text"` keyword as the
+    name part of the JSON and the message to deliver as its value:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE2]'
+  prefs: []
+  type: TYPE_PRE
+- en: Now that we have our first message formatted into a neat JSON, we must proceed
+    to deliver this content to our `#test` channel.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Do you like cURLing?
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'One of the easiest ways to post JSON content is to use an external utility,
+    such as a cURL, whose task is to transfer data over URLs. We have two ways to
+    transfer data:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Directly as a JSON in the body of an HTTP POST request, with a specific content-type
+    header, and this is the preferred method
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: As a URL-escaped JSON inside the payload parameter as part of the POST body
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'In the first case, we are going to use cURL with the following bits:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE3]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'It specifies the method to use to communicate with an HTTP server. The default
+    method is `GET` , but here, we have to `POST` some information:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE4]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'This option allows us to send extra headers to the HTTP server. In our case,
+    we are sending a **Multipurpose Internet Mail Extensions** (**MIME**) type, informing
+    the Slack server that it has to expect a JSON (rfc4627) application type object
+    in the body:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE5]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'The `--data` option allows us to send the JSON object in the body of the `POST`
+    request so that it can be passed to the HTTP server to be processed:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[https://hooks.slack.com/services/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](https://hooks.slack.com/services/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)'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'This is the final bit: the address of the WebHook that `cURL` will call to
+    make its `POST` request. Now, we have all we need, so it''s just a matter of creating our
+    command line. Install it if you do not have it already; the `cURL` utility and
+    issue the following command on a single line:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE6]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'And here is our first message to the channel:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00025.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: A simple cURL gave us the first message to the channel.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The second way to send a message with `cURL` is to have its URL encoded inside
+    the payload parameter of the `POST` body. Your URL will become a messy string
+    filled by a bunch of percentage characters, but it is more of a traditional way,
+    so you could feel more confident using it.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'To send a JSON file inside the payload parameter, we need the following bits:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE7]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'This specifies the method to use to communicate with an HTTP server. The default
+    method is `GET` , but here, we have to `POST` some information:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE8]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'This URL encodes our JSON, so it can be posted. The structure of the data part
+    is a bit different because to be CGI compliant; it must begin with a keyword:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[https://hooks.slack.com/services/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](https://hooks.slack.com/services/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)'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Finally, we have the URL, which is the same as for the first method. Let''s
+    assemble our command line and try it out:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE9]'
+  prefs: []
+  type: TYPE_PRE
+- en: '![](img/00026.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Creating a new team.
+  prefs: []
+  type: TYPE_NORMAL
+- en: That's it, our second message is being displayed on the channel. It is still
+    in a basic form without any whistles and bells, but it does its job and helps
+    us in understanding how to interact with the Slack server. Anyway, basic is fine,
+    but why not try to embellish our conversations with some special effects?
+  prefs: []
+  type: TYPE_NORMAL
+- en: Formatting our messages
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'We can add some style to our messages, from text properties to links and buttons,
+    so that they can become something more than a simple bunch of text. Actually,
+    modifying by hand all the payloads to check what combinations of attributes best
+    suits your messages can be too much hassle, but Slack helps us with an online
+    *Message Builder* that lets you customize and preview your messages without the
+    need to post it anywhere. Just head to your browser at  [https://api.slack.com/docs/messages/builder,](https://api.slack.com/docs/messages/builder) and
+    let''s start having fun:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00027.jpeg)![](img/00028.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: The payload editor lets you try your message before sending it.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Inside the upper box, we can forge our payload as we wish and preview it in
+    the lower box, so let''s see some of the more interesting bits that we can add
+    to our messages:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '**Bold:** Well, this is a classic. You can turn any strings of text in bold
+    simply by wrapping it between two asterisks, try out this payload:'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '[PRE10]'
+  prefs: []
+  type: TYPE_PRE
+- en: '![](img/00029.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Here is how our bold lines appear in the Message Builder.
+  prefs: []
+  type: TYPE_NORMAL
+- en: '**Italics:** This stresses the importance of a word or a sentence, and you
+    can get this effect simply by wrapping a string between the two underlines:'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '[PRE11]'
+  prefs: []
+  type: TYPE_PRE
+- en: '**Code:** If you are writing some text that belongs to a command line or a
+    some kind of code, you can enclose it between to back tickles and have it outstanding:'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '[PRE12]'
+  prefs: []
+  type: TYPE_PRE
+- en: '![](img/00030.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Here is how your code is shown in the channel.
+  prefs: []
+  type: TYPE_NORMAL
+- en: '**Code block:** But how do you enclose a `multi line` code block? Let''s see:'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '[PRE13]y=1nx=y+1nx=2[PRE14]'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00031.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: A `multi line` code block appears a little different compare to a single line
+    code string.
+  prefs: []
+  type: TYPE_NORMAL
+- en: '**URL linking:** You can insert clickable links in a message by enclosing the
+    URL in `<>`. You can use two different ways to insert a link:'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Just put the link itself surrounded by `<>`: `<http://www.packtpub.com>`
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Add to the previous syntax  `"|linked"` to make the linked string referring
+    to the URL called `<http://www.zarrelli.org|this>"`
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'So, our payload with both syntaxes could well be this:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE15]'
+  prefs: []
+  type: TYPE_PRE
+- en: '![](img/00032.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'We have two different ways to link a URL:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '**Email address linking:** In a way similar to URL linking, just surround the
+    email link and a `"|linked"` by `<>`:'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '[PRE16]'
+  prefs: []
+  type: TYPE_PRE
+- en: '![](img/00033.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Click on the highlighted word, and your email client will fire up with the email
+    address that is filled in as the recipient.
+  prefs: []
+  type: TYPE_NORMAL
+- en: '**Date:** We can format a date in your message using a Unix epoch timestamp
+    and some selector to modify its appearance. We can optionally link a URL, but
+    we always have to provide some fallback text to be displayed to older clients
+    in case the time token conversion fails. The keyword to you in this case is `<!date>`,
+    but with a tad more complex syntax:'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '[PRE17]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'We have a bunch of different selectors available to modify how dates and times
+    will appear in the channel:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '**`{date}`:** Your date will appear as classic *March 26th*, so try out the
+    following payload:'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '[PRE18]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'So, our `cURL` line would be:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE19]'
+  prefs: []
+  type: TYPE_PRE
+- en: '![](img/00034.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'Here is how our messages will appear in the channel:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '**`{date_short}`**: As the name states, this is an even more compact `"Mar
+    26"`'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**`{date_long}`**:  This gives you an extended date called `"Sunday, March
+    26th"`'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**`{date_pretty}`**: This displays the date as `{date}`, but it uses `"yesterday`,
+    `"today"` or `"tomorrow"` when it fits'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**`{date_short_pretty}`**: This displays the date as `{date_short}`, but it
+    uses `"yesterday`, `"today"` , or `"tomorrow"` when it fits'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**`{date_long_pretty}`**: This displays the date as `{date_long}`, but it uses
+    `"yesterday`, `"today"` , or `"tomorrow"` when it fits'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**`{time}`**: This displays the time in a 12-hour format, and in our example,
+    it is `1:34 PM`; but if the client is set on a 24-hour format, it would be displayed
+    as `13:34`'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**`{time_secs}`**: This displays the time to the seconds bit in a 12-hour format
+    `1:34:55 PM`; but if the client is set on a 24-hour format, it would be displayed
+    as `13:34:55`'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'We can also add a URL to the date so that when you click on the date/time,
+    you will be brought the website pointed as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE20]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Obviously, you can mix the formatter to have a more meaningful message as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE21]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'And the complete `cURL` line would be as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE22]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Apart from the dates, we can use some special commands in your messages to
+    get our audience to head up and pay attention to us:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '**`<!here>`:** This will notify all our team members in the channel who are
+    active:'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '[PRE23]'
+  prefs: []
+  type: TYPE_PRE
+- en: '**`<!channel>`:** This will notify all our team members in the channel regardless
+    of their status. A notify icon will appear close to the channel name.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**`<!group>`:** This is a synonym of `<!channel>` and both can be used inside
+    a channel or a group.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**`<!everyone>`:** This notifies all of our team members. This can be used
+    in the team wide channel, which is usually called #general.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '![](img/00035.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Using one of the notification tags will cause a notification icon to appear
+    closer to the channel name.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'If we want to have the attention of our audience, we can make use of the classical
+    tools that are popular in the social networks: the so-called emojis. Slack will
+    let us display any emoji we like, so let''s just go to [https://unicodey.com/emoji-data/table.htm,](https://unicodey.com/emoji-data/table.htm) and
+    choose the little drawings you like the most.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Once we have chosen our emojis, we can then forge a payload like this:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE24]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'And `cURL` it:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE25]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'The results, in the following screenshot, are really nice: they attract attention
+    in a fancy way, so our team members will not be haunted by our messages!'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00036.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'A fancy message can nicely convey the urgency of a statement. Finally, we can
+    address a single user just using `<@user| Optional handle>` , and we can also
+    override the channel we want to send the message to using this:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE26]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'So, we could address the user called `Giorgio` who is in the channel called `#general`,
+    asking him to join the test channel:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE27]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'So, the complete `cURL` line would be as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE28]'
+  prefs: []
+  type: TYPE_PRE
+- en: With this message, the user Giorgio will receive a notification in the `#general`
+    channel; and the content will be brought to his attention.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'You do not need to convert in HTML the entire text of your message, but there
+    are three characters that must be necessarily turned into HTML entities:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '& must be replaced with &amp'
+  prefs: []
+  type: TYPE_NORMAL
+- en: < must be replaced with &lt
+  prefs: []
+  type: TYPE_NORMAL
+- en: must be replaced with &gt
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+- en: What we did so far was pretty--all you can do with a plain JSON without any
+    hurdles, but if we want to further spice up our messages, we have to reply to
+    message attachments, which will enable us to send images, attach buttons, and
+    much more. So, our next step will be the message attachments to see not only how
+    to embellish our messages, but how to make them more useful and effective.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Message attachments
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'A message attachment lets us convey more content to the user, and lets it be
+    displayed with more whistles and bells; but we have to keep an eye on a restriction
+    imposed by Slack: no more than 20 attachments per message. It makes sense, otherwise
+    our messages would be so messy that it would distract the average user.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'What we have seen so far is a simple JSON: a one-level object, which is more
+    or less like this example:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE29]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'In a message attachment, though we are going to see more details, more content
+    modifier, and a flat structure like the one we just saw that has not enough complexity
+    to convey all the information. We need structured container, still a JSON; but
+    this time, it will be an array holding several properties, which will resemble
+    this snippet:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE30]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'What does this snippet look like? We can see in the following screenshot how
+    the attachment gets displayed:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00037.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Lots of things in a single message, with a touch of pink!
+  prefs: []
+  type: TYPE_NORMAL
+- en: This is a nice output, much better than the previous basic examples; but things
+    get a bit more complicated, since the structure of the JSON becomes more complex,
+    and we have more fields available. So, let's have a look at the main directives,
+    so we can use their meaning and limitations.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'What we are looking at is one out of 20 possible attachments, which start with
+    a fallback. As the name states, it is plain text without any markup, which is
+    to be displayed if a client does not support formatted text:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '**`color`**: You can color code your message giving a hue to the left-side
+    bar. This can be useful either to make your message stand out in the discussion
+    flow or to have a quick glance at its severity. The color can have three predefined
+    attributes:'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`good`: This turns the side bar to green'
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`warning`: This turns the side bar to yellow'
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`danger`: This turns the side bar to red'
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Apart from these predefined settings, you can use whatever color defined in
+    hex code to turn your left-side bar into an attractive highlighted sign:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '**`Pretext`**: This is optional text that is shown above the attachment.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**`author_name`**: This is the name of the author of the message.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**`author_link`**: Any valid URL and it will turn the author''s name content
+    into a link. It only works if author_name is available.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**`author_icon`**: Any valid URL pointing to a 16x16 pixels image, which will
+    be displayed to the left of `author_name`: This only works if the author''s name
+    is available.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: The author's information, if available, will be displayed at the very beginning
+    of each message.
+  prefs: []
+  type: TYPE_NORMAL
+- en: '**`title`**: As the name states, this is the title of the message and it gets
+    displayed in a bigger size and bold text at the top of the message, but preceding the
+    author''s information.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**`title_link`**: This is a full blown URL that will  turn the tile in a clickable
+    link.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**`Text`**: This is the actual body of the message, and the content can be
+    formatted with the basic attributes that we saw in the previous pages. If the
+    content exceeds the 500 characters of 5 line breaks, the content will collapse
+    and a Show more link will allow the user to expand the content. Any URLs inside
+    the text field will not unfurl.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**`Fields`**: This is an array in the main array, and the bits inside it will
+    be displayed in a table in the attachment. You can have more than one hash inside
+    the array, just separate them with a comma, such as in the following example:'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '[PRE31]'
+  prefs: []
+  type: TYPE_PRE
+- en: '**`title`**: This is plain text shown in bold just above the value. It cannot
+    contain any markup.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**`value`**: This can contain multiline text formatted with the markups that
+    we saw in the previous pages.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**`short`**: This optional bit will mark the value short enough to be displayed
+    side by side with other values as shown here:'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '![](img/00038.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Values can be displayed side by side.
+  prefs: []
+  type: TYPE_NORMAL
+- en: '**`image_URL`:** This is any valid URL of our choice, which points to a valid
+    image in the PNG, JPEG, GIF, and BMP formats. The displayed size is of 400 x 500
+    pixels, and any wider or higher images will be automatically resized keeping the
+    original aspect ratio. The image will be displayed inside the message attachment.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**`thumb_URL`:** This is any URL pointing to an image file in the PNG, JPEG,
+    GIF, and BMP format. It will be displayed on the right side of the message of
+    the attachment, and it will be rescaled to 75 x 75 pixels keeping the aspect ratio.
+    There is a file size limit to less than 500 KB.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**`footer`:** This is the small chunk of text, limited to 300 characters to
+    give some extra information to the readers.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**`footer_icon`:** Provide a valid URL to an image, and it will be displayed
+    beside your footer text. The image will be displayed with a fixed size of 16 x
+    16 pixels and only if you provided a footer.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**`ts`:** Each message has its own timestamp when published, but we can attach
+    a specific timestamp to an event or happening mentioned into the message attachment
+    using the ts field and time info expressed in epoch time.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: For what we are interested in, it is all about the message formatting. There
+    are some fancy things such as buttons, but that would require a full-blown application
+    able to read from the channel and react to the user actions. As of now, we will
+    stick to a simpler interaction with our script by just sending nicely formatted
+    information to the channel; but no one will prevent you from starting off this
+    example and build up some more complex and suited to your needs.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Our wee chatty script for Slack
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'Time to start planning our script for Slack, and the first step is to ask ourselves
+    what do we want out of it. Let''s recap our requirements, the script has to do
+    as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Accept the text message to display: required'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Accept a title for the message: required'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Accept a title_link: optional and only if a title is available'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Accept a fallback message: required'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Accept an author_name: optional'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Accept an author_link: optional and only if an author_link available'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Accept an author_icon: optional and only if an author_link available'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Accept a color: required'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Accept a pretext: optional'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Accept fields: required and required title, value and short'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Accept image_URL: optional'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Accept thumb_URL: optional'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Accept footer: optional'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Accept footer_icon: optional and only if the footer is available'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Accept ts: optional'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Now, we have a matrix to start building our bits and to parse the command line,
+    and we are ready to start coding. We know what to do, but due to the complexity
+    of the task, we will proceed step by step, adding bits to bits; and since the
+    core of our message is the JSON, we will start coding its structure. But what
+    to do before the first step? We have to think about which utilities we are going
+    to use. As a start, we would say at least cURL, so check if you have it installed
+    on your system; and if you don''t, install it. The first lines of our script will
+    have a sha-bang, and try to locate the utility in our `PATH`:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE32]'
+  prefs: []
+  type: TYPE_PRE
+- en: These first lines resemble the previous Nagios plugin, and this script starts
+    off with a license statement as well. It can be quite useless to state a license,
+    but if we plan to make our scripts available to the public, it is upon us to let
+    the potential user know what they can do with our scripts. The author of this book
+    encourages distributing the software under the GNU GPL license, as it makes it
+    easier to use it to create new programs from it and reutilizing the code. But
+    it is up to the creator of the program what kind of license to use. To have a
+    glance at the various GNU licenses available, we can just go to [https://www.gnu.org/licenses/licenses.html](https://www.gnu.org/licenses/licenses.html) and
+    have a look at the numerous licenses on one of them, which will surely fit our
+    purposes. Notice that for this script, we will use lower case variables just to
+    get used to the different kinds of notations adopted by different coders.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'So, we pointed to the `cURL` utility, but how can we be sure that it is installed
+    and we can reach it? Well, we have to bear in mind that the command substitution
+    given to the variable the output of which and this latter will print out something
+    only if the argument passed to it is reachable in one of the directories pointed
+    out by the user `$PATH` environment variable. Just for a test, let''s call which
+    with cURL as an argument:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE33]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Now, let''s call which with some blurb:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE34]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'We get nothing in the output, so our `cURL` variable will bear no value. One
+    more check, let''s test ifconfig as the root:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE35]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Then, let''s check it again as a non-privileged user:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE36]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'So, since the path to `ifconfig` is in the `$PATH` variable of the root user
+    only, which, for the non-privileged user, will return nothing. Based on this,
+    we can implement a check with just a few lines:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE37]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'So, if the `$cURL` variable is not empty, the utility is reachable; if not,
+    we receive a warning and exit from the script with an error:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE38]'
+  prefs: []
+  type: TYPE_PRE
+- en: Great, it seems to work. Now let's change `cURL=$(which cURL)` into `cURL=$(which
+    cur1l2)`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Let''s run the script again:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE39]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Correct, the script exits because which cannot find that non sense string in
+    the user `$PATH` variable. So, this check can come in handy, but as it is written
+    it is not so useful, so let''s make a function out of it:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE40]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'We simply check if which outputs the path to the utility checked; if it outputs
+    nothing, then the variable is empty and we exit with a message and an exit code.
+    If the variable holds something, then we do nothing since we assume this is the
+    path to the utility. This check resembles the one we used for the Nagios plugin:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE41]'
+  prefs: []
+  type: TYPE_PRE
+- en: This other one check tests if the content of the variable actually points to
+    a file. Which is better? Depends on what you are checking for. If we need to verify
+    that the variable points to a real file, then `[ -e "$i" ]` is what we are looking
+    for. Otherwise, when we want a more generic check, `[ -z "$i" ]` will do the job
+    for us.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'What do we need next in our script? Let''s recall a `cURL` that we made a few
+    pages ago:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE42]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Once we deal with the `cURL` command, we have to manage the headers:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE43]'
+  prefs: []
+  type: TYPE_PRE
+- en: These are static and will not change, so we can use them without enclosing in
+    a variable.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'We must not forget our WebHook URL:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE44]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Now, it is time to build our first, static payload; and here comes the tricky
+    part. Since the payload is a long multiline JSON, writing it in a single long
+    line would be cumbersome, so we are going to give this burden to a function, which
+    will create this content on our behalf; and it will be nicely formatted too:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE45]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'We used a *here* document which, as we saw previously, is one of the best ways
+    to deal with multiline content in Bash scripts. The function will create the content
+    for us, so let''s check whether this is true by adding `generate_payload` at the
+    bottom of our script; and let''s run it:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE46]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Great, it works! Our content is here, and so we can proceed in building the
+    command line. Let''s delete the call to the function at the bottom of the script
+    and add the following line:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE47]'
+  prefs: []
+  type: TYPE_PRE
+- en: '`$(generate_payload)` is a command substitution that will give`--data` the
+    output generated by the function; but do not forget to enclose it in double quotes,
+    or your output will be taken line by line and not as a single object. Time to
+    save and execute the script and check our `#test` channel:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE48]'
+  prefs: []
+  type: TYPE_PRE
+- en: '![](img/00039.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: We checked our script just to be sure that it works as intended.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Nice, the script works, we can see the results in the `#test` channel and a
+    tiny `OK` in the command line. Well, nice, but we cannot rely on a third-party
+    output to know if anything went wrong, so let''s modify our command line to get
+    some useful response:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE49]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'We added a `-f` flag to `cURL` so that it exits silently in case of error,
+    letting us write something meaningful on the output. It is not 100% failsafe and,
+    as we will see, sometimes an error message slips through, but it is still usable.
+    Then we add this:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE50]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'We have already seen this kind of test before. We are checking if the command
+    was successful or not and echoing the exit code called `"$?"` to the `stdout`.
+    Let''s have a look:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE51]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Great! cURL just printed `ok` on the command line, and since the execution
+    went fine, we printed a `Success` message with `exit code`. Now, let''s remove
+    `k` from `$webhook` on the last line and execute the script again:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE52]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'There was an error, exit code: `3`.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: It should have failed silently, but anyway, we were able to write our meaningful
+    error message; and this is all we want.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Our first step is accomplished: we can send a static message to our WebHook
+    and have the message displayed in the `#test` channel. This is interesting, but
+    not so flexible. What we really want is to be able to modify the message based
+    on our input. To reach this goal, we have to turn into variables all the bits
+    inside our attachment so that we will be able to pass the values on the command
+    line. Let''s start creating a couple of variables:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE53]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Now, we just have to modify the payload:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE54]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Now, let''s run the script to see if our modifications are taken into account:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE55]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'It seems it worked; a check to the `#test` channel will confirm the outcome,
+    as we can see in the following screenshot:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00040.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Our variables are being taken into account by the script.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Since our variables seem to be working, let''s create a new whole bunch of
+    them:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE56]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Obviously, the payload must be modified accordingly:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE57]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Again, let''s test our code:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE58]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'The screenshot here shows our newly formatted message:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00041.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: It seems that our new payload works well.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Now that we have all the variables in place, it is time to create a menu that
+    will help us manage the user input. Let''s start writing a help function; we already
+    saw how to do this in the previous chapter, but this time, we have a lot of options
+    to deal with, so we start associating a switch to each variable:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE59]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'What we use as short and long options is up to us, but we must keep in mind
+    a golden rule: these must be meaningful not for us, but for the potential users
+    of the script, so we have to take a step aside and try to think as our users.
+    Once we have decided on the best options, we must proceed creating the actual
+    command-line parser:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE60]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'And now the `print_help` function:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE61]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Now, let''s comment the last line of the script: the one calling cURL. Then,
+    let''s call the script with the `-h` switch:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE62]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'There is a small issue: even the Nagios plugin had it, so it is time to solve
+    it. Let''s call the script without any parameters:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE63]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Nothing, we do not have anything as feedback, so we do not even know if we
+    can use a `-h` switch to get more information. How do we solve this hindrance?
+    Well, we have different options available; we could modify the while clause for
+    instance or adopt a different strategy:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE64]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'We have to put these lines before the menu creation, and they will check the
+    input: if nothing is given on the command line, it will write an error message
+    and call the `print_help` function. Time to test our script now and see what happens:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE65]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'It seems it worked, and the screenshot of the `#test` channel confirms our
+    guess:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![](img/00042.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Our script now accepts the command-line parameters.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Summary
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'We are now able to send formatted messages to the `#test` channel, but is this
+    all we can do with this script? No, as you will learn over time with a bit more
+    experience, programming is also setting a scope to our efforts: we must define
+    our goals, plan accordingly, accomplish them, and assess the results. Overdoing,
+    in a professional environment, breaks one of the fundamental rules of the project
+    management, the so-called *iron triangle* that defines the quality of a project
+    as the intersection between scope, time, and costs that are the top three constrains
+    driving us in creating our programs. Spend too long on a program or exceed the
+    goals, the cost will levitate and the overall quality, not the quality of the
+    code, but of our project, will be impacted.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: This script was an example on how to plan and execute, how to check for the
+    information we need to code a working script, and how to write down our steps.
+    There are many ways to improve this framework, for example, by allowing the user
+    to pass a date on the command line, not as epoch time, but in one format allowed
+    by the date command, and then translating it with a tiny function or even inline
+    into the code. We can, for instance, put a check on the option arguments so that
+    the user will be forced to pass an argument if they specify an option on the command
+    line. This is a play field and these can be advises on how to have fun and develop
+    the script further. We are now moving further to deepen what we can do with a
+    subshell, how to execute a bunch of processes in parallel and, as always, how
+    to have fun!
+  prefs: []
+  type: TYPE_NORMAL

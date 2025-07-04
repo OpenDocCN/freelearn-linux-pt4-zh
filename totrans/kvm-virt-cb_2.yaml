@@ -1,0 +1,1927 @@
+- en: Using libvirt to Manage KVM
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'In this chapter, we will cover the following topics:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Installing and configuring libvirt
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Defining KVM instances
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Starting, stopping, and removing KVM instances
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Inspecting and editing KVM configs
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Building new KVM instances with virt-install and using the console
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Managing CPU and memory resources in KVM
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Attaching block devices to virtual machines
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Sharing directories between a running VM and the host OS
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Autostarting KVM instances
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Working with storage pools
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Managing volumes
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Managing secrets
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Introduction
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: In the previous chapter, we saw examples of provisioning virtual machines using
+    the QEMU toolset and the KVM kernel modules. The QEMU commands are convenient
+    for quickly starting virtual instances; however, they don't provide an easy way
+    of configuring and administering the life cycle of the virtual machines.
+  prefs: []
+  type: TYPE_NORMAL
+- en: In this chapter, we are going to work with the libvirt toolset. Libivrt provides
+    various userspace commands and language bindings in order to build, configure,
+    start, stop, migrate, terminate, and do other functions to manage your virtual
+    machines. It provides support for different virtualization technologies, such
+    as QEMU/KVM, XEN, and containers with LXC.
+  prefs: []
+  type: TYPE_NORMAL
+- en: We will start by installing and configuring the libvirt tools, then move on
+    to creating virtual machines using the XML configuration files that libvirt supports
+    and explore many of the functionalities that the toolkit provides in order to
+    manage the life cycle of KVM instances. All the recipes in this chapter are going
+    to be in the context of building highly available, multitenant environments.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Installing and configuring libvirt
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: In this recipe, we are going to install libvirt from packages provided by the
+    Linux distribution of choice and see what configuration files and options are
+    available for configuring it. As with any other production-ready tools, we recommend
+    using packages for your production environment for ease and consistency of deployment;
+    however, compiling the latest version from the source is also an option if the
+    packages from your Linux vendor are older.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Getting ready
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: Depending on your Linux distribution, the package name and installation commands
+    will differ. You can use your system's package manager, such as `apt`, `dnf`,
+    or `yum` to search for any packages containing the `libvirt` string and get familiar
+    with what is available for your particular Linux variant. The source code can
+    be downloaded from the official libvirt project website at [http://www.qemu-project.org/download/#source](https://libvirt.org/downloads.html).
+  prefs: []
+  type: TYPE_NORMAL
+- en: How to do it...
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'To install libvirt from packages and source follow the following steps:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'On Ubuntu, install the package by running:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE0]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Ensure that the `libvirt` daemon is running by executing:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE1]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Examine the default configuration:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE2]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Disable the security driver in QEMU by editing the `qemu` configuration file
+    as follows:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE3]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Restart the `libvirt` daemon:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE4]'
+  prefs: []
+  type: TYPE_PRE
+- en: Depending on your Linux distribution, the name of the `libvirt` service may
+    be different. On RHEL/CentOS, the name of the service is `libvirtd`; to restart
+    it, run `service libvirtd restart`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Examine all configuration files in the `libvirt` directory:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE5]'
+  prefs: []
+  type: TYPE_PRE
+- en: How it works...
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: In step 1, we installed the package on Ubuntu. The postinstall script started
+    the `libvirt` daemon after the package was successfully installed. We verified
+    that in step 2.
+  prefs: []
+  type: TYPE_NORMAL
+- en: In step 3, we examined the main configuration file for the service-side daemon
+    - `libvirtd`. The process runs on the host OS and manages tasks for the virtual
+    machines, such as configuration, life cycle management, migration, storage, and
+    networking, as we are going to see later in this chapter. The userspace tools
+    provided by the package we installed communicate with the daemon by sending requests
+    on a local Unix domain socket. The default options we saw in step 3 are sufficient
+    for the recipes in this chapter, but the configuration file is rather large. We
+    encourage you to go through it and get familiar with the rest of the available
+    configuration options. The file is very well documented.
+  prefs: []
+  type: TYPE_NORMAL
+- en: In step 4, we disabled the security driver for QEMU. By default on RHEL/CentOS
+    systems, QEMU is configured to use SELinux. Ubuntu distributions use **AppArmor**.
+    For simplicity, we disable that functionality in this step; however, in production,
+    you should take advantage of the extra security that a mandatory access control
+    system such as SELinux provides.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Any change to the `libvirt` configuration file requires a restart. We restart
+    the `libvirt` service in step 5.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'There are few important configuration files that we need to be familiar, which
+    are listed in step 6:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`libvirt.conf` is the client-side configuration file for the `virsh` command
+    that we are going to use in this recipe. We can specify URI aliases in it. The
+    defaults should be sufficient.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`libvirtd.conf` is the server-side configuration file, as we saw in step 3. It
+    provides various security options, request limits, and logging controls. For the
+    purpose of this book, the defaults are sufficient.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`qemu.conf` is the main configuration file for the QEMU driver that `libvirt`
+    uses. We can configure options such as the VNC server address, the security driver
+    that we saw in step 4 and the user and group for the QEMU process.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Once we create a QEMU/KVM virtual machine, the `/etc/libvirt/qemu/` directory will
+    contain the XML configuration definition for that instance, as we are going to
+    see in the following recipes.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Finally, the `/etc/libvirt/qemu/networks/` directory contains configuration
+    files for the networking. We are going to explore those in more detail later in
+    this chapter.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Defining KVM instances
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: In this recipe, we are going to define a virtual instance by creating a simple
+    XML configuration file that `libvirt` can use to build the virtual machine. We
+    are going to describe some of the XML schema blocks and look at examples of how
+    to generate the XML definition file using the `virt-install` command rather than
+    writing it manually.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Getting ready
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'For this recipe, we are going to need the following:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: The QEMU binaries, provided after following the *Installing and configuring
+    QEMU* recipe from [Chapter 1](part0026.html#OPEK0-c1e587dcccb14690b55c247c1809e6ce)*,
+    Getting Started with QEMU and KVM*.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: The custom raw Debian image we built in the *Installing a custom OS on the image
+    with debootstrap* recipe from the previous chapter.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: You can use your own virtual machine image or download one from the Internet,
+    as we showed in the *Using pre-existing images* recipe in [Chapter 1](part0026.html#OPEK0-c1e587dcccb14690b55c247c1809e6ce)*,
+    Getting Started with QEMU and KVM.*
+  prefs: []
+  type: TYPE_NORMAL
+- en: How to do it...
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'To define a new KVM virtual machine, run the commands outlined here:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'List all virtual machines on the host OS:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE6]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Create the following XML definition file:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE7]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Define the virtual machine:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE8]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'List all instances in all states:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE9]'
+  prefs: []
+  type: TYPE_PRE
+- en: How it works...
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: In step 1, we used the `virsh` command and supplied all argument to list all
+    active and inactive instances. As expected, we started with no instances defined.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'In step 2, we created a definition file for a new KVM instance. We used a small
+    subsection of the available XML schema attributes to set the following options:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: The root element of the XML file is required for all virtual machine definitions
+    and is named **domain**. It has two attributes--`type` and `id`. We specified
+    `kvm` as the `type` and an `id` as `1` because this is our first KVM virtual machine.
+    All other attributes are defined under the domain root element.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: We specified a name for the instance with the name attribute.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: The memory attribute defines the available memory to the VM, in our case, 1
+    GB.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: The `vcpu` element defines the maximum number of virtual CPUs allocated for
+    the guest OS. We specified `1`, and we used the optional attribute placement that
+    indicates the CPU placement mode; in this example, static. Static placement indicates
+    that the virtual instance will be pinned to all the available physical CPUs.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: The OS element defines the architecture of the VM with the use of the type element.
+    The `hvm` option indicates that we are going to use full virtualization, which
+    is going to be KVM, as specified in the domain type attribute we saw earlier.
+    We specify the boot device the VM will start from with the `<boot dev>` element.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: The next three elements specify the action to be taken when the guest requests
+    a power off, reboot or it crashes. In our example, the VM will be destroyed when
+    the guest OS is powered off and restarted when the guest reboots or crashes.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: The largest section of the XML definition is the devices section, where we use
+    various XML elements to describe devices provided to the guest OS. The emulator
+    element specifies the path to the emulator binary. We are going to use the same
+    QEMU emulator binary `qemu-system-x86_64` we used in [Chapter 1,](part0026.html#OPEK0-c1e587dcccb14690b55c247c1809e6ce) *Getting
+    Started with QEMU and KVM*. In the last few sections of the devices attribute,
+    we define the type of virtual disk we are using, in this example, the raw image
+    we built in the previous chapter. In a similar fashion, we describe the VNC server
+    that the guest should start and the network interface inside the guest OS.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: With the `config` file in place, we defined the instance in step 3, using the
+    image we created earlier in `/tmp`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Once a new instance has been defined, it does not automatically start by default.
+    We can see that the status of the new instance is `shut off` in step 4.
+  prefs: []
+  type: TYPE_NORMAL
+- en: For information on all of the available XML elements and their attributes, please
+    refer to the official documentation at [http://libvirt.org/formatdomain.html](http://libvirt.org/formatdomain.html).
+  prefs: []
+  type: TYPE_NORMAL
+- en: There's more...
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: Configuring a virtual machine by writing the XML file, can be quite tedious
+    and error-prone. An easier way of creating the VM from an existing image, or from
+    an installation media (which can be physical, virtual, or a network location),
+    is using the `virt-install` tool. Lets see an example of creating the same KVM
+    instance using that tool.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'We start by installing the package:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE10]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Next, we define and start the new instance by invoking the `virt-install` command
+    (if an instance with the same name already exist, you''ll need to destroy and
+    undefine it first):'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE11]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'The new VM has now been defined and started. To confirm, execute:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE12]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'We can see the virtual machine definition file that was automatically generated
+    by running the following code:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE13]'
+  prefs: []
+  type: TYPE_PRE
+- en: Starting, stopping, and removing KVM instances
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: In the previous recipe, we saw how to define new KVM virtual machine by either
+    manually writing the XML definition file or using the `virt-install` tool to define
+    the instance for us.
+  prefs: []
+  type: TYPE_NORMAL
+- en: If you define a new instance from an XML file, by default the instance will
+    not start automatically. In this recipe, we will see how to start an instance
+    that was previously configured.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Getting ready
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'For this recipe, we are going to need the following:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: The QEMU binaries, provided after following the *Installing and configuring
+    QEMU* recipe from [Chapter 1](part0026.html#OPEK0-c1e587dcccb14690b55c247c1809e6ce)*,
+    Getting Started with QEMU and KVM*.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: The custom raw Debian image we built in the *Installing a custom OS on the image
+    with debootstrap* recipe from the previous chapter.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: The virsh tool provided by completing the *Installing and configuring libvirt*
+    recipe.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: The defined instance from the *Defining KVM instances* recipe in a `shut off`
+    state.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: How to do it...
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'The following steps outline the process of listing, starting, and stopping
+    KVM instances using the `virsh` command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'List all instances in all states:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE14]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Start the newly defined instance and verify its status:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE15]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Examine the running process for the virtual machine:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE16]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Terminate the VM and ensure its status changed from running to `shut off`:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE17]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Remove the instance definition:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE18]'
+  prefs: []
+  type: TYPE_PRE
+- en: How it works...
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: In step 1, we list all defined instances, regardless of their state. From the
+    output, we can see that we currently have one instance that we defined in the
+    earlier recipe.
+  prefs: []
+  type: TYPE_NORMAL
+- en: In step 2, we started the virtual machine and ensured its status had changed
+    to running.
+  prefs: []
+  type: TYPE_NORMAL
+- en: If you completed the *Running Virtual Machines with qemu-system-** recipe from
+    [Chapter 1](part0026.html#OPEK0-c1e587dcccb14690b55c247c1809e6ce)*, Getting Started
+    with QEMU and KVM*, you might note that the XML definition for this VM is very
+    similar to all the command-line options we used to start the QEMU instance. We
+    can see the similarities of how the new instance was started  in step 3\. The
+    main difference is the larger number of parameters that `libvirt` passed to the
+    QEMU executable.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Finally, in steps 4 and 5, we stopped the VM and removed its definition file.
+    The raw image we used for the VM is still available however and can be used again.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Inspecting and editing KVM configs
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: In this recipe, we are going to use the `virsh` tool to inspect and edit the
+    configuration for an existing virtual machine. As we saw earlier, once we define
+    and start a KVM instance, `libvirt` creates the XML definition file in the `/etc/libvirt/qemu/`
+    directory. We can dump the guest configuration to disk, for inspection, or to
+    back it up. With the `virsh` command we can also perform updates to the configuration
+    in place, as we will see later in this recipe.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Getting ready
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'For this recipe, we are going to need the following:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: The QEMU binaries, provided after following the *Installing and configuring
+    QEMU* recipe from [Chapter 1](part0026.html#OPEK0-c1e587dcccb14690b55c247c1809e6ce)*,
+    Getting Started with QEMU and KVM*
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: The custom raw Debian image we built in the *Installing custom OS on the image
+    with debootstrap* recipe from the previous chapter, or any other virtual machine
+    image, in either `raw` or `qcow2` format
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: The `virsh` tool provided by completing the *Installing and configuring libvirt *recipe
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: A running `libvirt` KVM instance
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: How to do it...
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'The following steps outline the process of inspecting and editing the XML definition
+    of a KVM instance:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Ensure that you have a running KVM instance with libvirt, if not, follow the
+    steps in the previous recipe:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE19]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Dump the instance configuration file to **standard output** (**stdout**). For
+    more information on stdout refer to folllowing link:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[https://en.wikipedia.org/wiki/Standard_streams](https://en.wikipedia.org/wiki/Standard_streams)'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE20]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Save the configuration to a new file, as follows:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE21]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Edit the configuration in place and change the available memory for the VM:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE22]'
+  prefs: []
+  type: TYPE_PRE
+- en: How it works...
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: Libvirt provides two main ways to manipulate the configuration definitions of
+    the virtual instances. We can either dump the config from an existing instance,
+    as we did in steps 2 and 3, or edit the XML definition in place, as we did in
+    step 4.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Saving the current configuration to a file is a convenient way to back up the
+    VM definition. It also provides a way of defining a new instance by editing the
+    saved file and just changing the name and ID of the virtual machine. We can then
+    use that file to start a new VM on the same, or a different host, assuming that
+    the filesystem or image is also available. We are going to see examples of migrating
+    and backing up virtual machines with `libvirt` in later recipes.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'When making changes in place, as shown in step 4, the default system `$EDITOR`
+    will be used. Once in the editing mode, note that the XML file contains information
+    about the current state of the virtual instance. The `<uuid>` and `<currentMemory>`
+    attributes are such examples. If you would like to change the available memory
+    for the VM, after updating the `<memory>` attribute, you might need to delete
+    the `<currentMemory>` stanza. If there are any issues with the edit, libvirt will
+    complain with an error message and present the following options:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE23]'
+  prefs: []
+  type: TYPE_PRE
+- en: Also keep in mind that, if you would like to create a new instance from the
+    dump of an existing one, you will need to change the `<name>` and delete the `<uuid>`
+    attributes, as the latter will be autogenerated once the new instance has been
+    defined.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Building new KVM instances with virt-install and using the console
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: In the *Connecting to the running instance with VNC* recipe from [Chapter 1](part0026.html#OPEK0-c1e587dcccb14690b55c247c1809e6ce)*,
+    Getting Started with QEMU and KVM,* you learned how to connect to a QEMU/KVM virtual
+    machine that was running a VNC server. This is a great way to connect to an instance
+    that is being installed or in the process of booting in order to interact with
+    it.
+  prefs: []
+  type: TYPE_NORMAL
+- en: So far, we've used the custom raw image that we created earlier, which contains
+    an installation of Debian. Recall from [Chapter 1](part0026.html#OPEK0-c1e587dcccb14690b55c247c1809e6ce)*,
+    Getting Started with QEMU and KVM,* that we used the `debootstrap` command to
+    install the OS inside the image file. In this recipe, we are going to use the
+    `virt-install` tool to install a new Linux distribution, using the provided upstream
+    Internet repository, as the source of the installation and then use the `virsh`
+    command to attach to the running instance, using the console.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Getting ready
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'For this recipe, we are going to need the following:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: The `virsh` command
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: The `virt-install` command
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Internet connectivity in order to download the installation files
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: How to do it...
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'To build a new KVM instance and connect to it using the console, perform the
+    following steps:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Install a new KVM virtual machine using the official Debian repository:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE24]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Attach to the console to complete the installation by running the following
+    code:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE25]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Once connected to the console, you should be presented with a screen similar
+    to the one here:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '![](img/00007.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: The console output once connected with the virsh console command
+  prefs: []
+  type: TYPE_NORMAL
+- en: Complete the installation by following the text menu prompts.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'Start the newly provisioned VM:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE26]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Using your favorite VNC client, connect to the instance, log in with the username
+    and password you created during the installation process in step 3 and enable
+    the serial console access by running the following command:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE27]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Close the VNC session and connect to the virtual instance from the host OS,
+    using `virsh`:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE28]'
+  prefs: []
+  type: TYPE_PRE
+- en: Disconnect from the console using the *Ctrl* + *]* key combination.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'Examine the `image` file created after the installation:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE29]'
+  prefs: []
+  type: TYPE_PRE
+- en: If you are not using systemd-based `init` system on the distribution for the
+    KVM machine, in order to allow access to the serial console of the instance, you
+    will need to edit the `/etc/securetty` or the `/etc/inittab` files.
+  prefs: []
+  type: TYPE_NORMAL
+- en: How it works...
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: A lot happened in this recipe, so lets go through all the steps in more detail.
+  prefs: []
+  type: TYPE_NORMAL
+- en: In step 1, we started the installation process for a new KVM instance using
+    the `virt-install` utility. We specified the serial console to be enabled during
+    the installation process with the `--extra-args` parameter. We also used the `--location`
+    flag to tell `libvirt` the location of the installation files for the latest Debian
+    distribution. We then specified the location and size of the image file that will
+    contain the guest OS filesystem. Since this file did not exist, `virt-install`
+    created it as a raw image, as shown in step 9.
+  prefs: []
+  type: TYPE_NORMAL
+- en: With console access enabled for the installation, we were able to connect to
+    the console in step 2 and complete the installation process in steps 3 and 4.
+  prefs: []
+  type: TYPE_NORMAL
+- en: After the installation completed, the console session was terminated and the
+    new KVM instance ready to be started. We started the instance in step 5.
+  prefs: []
+  type: TYPE_NORMAL
+- en: In order to enable console access on the serial port, we first connected to
+    the running VM using a VNC client and instruct systemd to started the console
+    service in step 6.
+  prefs: []
+  type: TYPE_NORMAL
+- en: With console access enabled, we were able to connect to the serial console using
+    the virsh tool in step 7.
+  prefs: []
+  type: TYPE_NORMAL
+- en: With all this completed, we now have two ways of connecting to a running KVM
+    instance using either VNC or the console.
+  prefs: []
+  type: TYPE_NORMAL
+- en: In the later recipe, we will enable networking in the guest OS and provide a
+    third way to connect using SSH.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Managing CPU and memory resources in KVM
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: Changing the amount of allocated memory or the number of CPUs can be done either
+    by editing the XML definition for the VM or using the `libvirt` toolset. In this
+    recipe, we are going to look at examples of changing both the memory and the CPU
+    count for a KVM instance.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Getting ready
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'For this recipe, we are going to need the following:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: A running KVM instance with 1 GB of memory, 1 CPU allocated, and console access
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: The `libvirt` package
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: A guest OS with at least 4 GB of available memory and minimum of 4 CPUs
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: How to do it...
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'To inspect and update the memory and CPU resources assigned to a virtual machine
+    follow the process outlined here:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Get memory statistics for the running instance:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE30]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Update the available memory for the VM to 2 GB:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE31]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Stop the running instance:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE32]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Set the maximum usable memory to 2 GB:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE33]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Start the instance:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE34]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Check the current allocated memory:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE35]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Connect to the KVM instance and check the memory in the guest OS:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE36]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Check the memory settings in the instance XML definition:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE37]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Get information about the guest CPUs:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE38]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'List the number of virtual CPUs used by the guest OS:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE39]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Change the number of allocated CPUs to 4 for the VM:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE40]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Ensure that the CPU count update took effect:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE41]'
+  prefs: []
+  type: TYPE_PRE
+- en: How it works...
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: In step 1, we gathered some memory statistics for the running KVM instance.
+    From the output, we can see that the VM is configured with 1 GB of memory indicated
+    by the actual parameter, and it's currently using 333644 KB of memory.
+  prefs: []
+  type: TYPE_NORMAL
+- en: In step 2, we updated the available memory to 2 GB and then proceeded to update
+    the maximum memory that can be allocated to the instance in step 4\. In order
+    to perform that operation, the instance had to be stopped first, as shown in step
+    3.
+  prefs: []
+  type: TYPE_NORMAL
+- en: In steps 6, 7, and 8, we made sure that the updates took place by first invoking
+    the `dommemstat` subcommand, then connected to the VMs console and finally checked
+    the current configuration by dumping the instance definition.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The `virsh` command provides few subcommands to inspect the CPU state for a
+    running VM. In steps 9 and 10, we listed the allocated virtual CPUs for the `kvm1`
+    instance, in this case, just one and the current state, load, and affinity.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Finally, in steps 11 and 12, we update the XML definition of the instance, allocating
+    four CPUs and listed the new count.
+  prefs: []
+  type: TYPE_NORMAL
+- en: There's more...
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'In this recipe, we used the `virsh` command with various subcommands in one
+    liners. This is particularly useful if we need to run the commands from a script.
+    The `virsh` command also provides an interactive terminal, which saves some typing,
+    and provides contextual help. To start the virtualization-interactive terminal,
+    run the following code:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE42]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Typing `help` will list all available subcommands with a short description.
+    To obtain more information for a particular subcommand type:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE43]'
+  prefs: []
+  type: TYPE_PRE
+- en: All the steps we performed in this recipe can be done in the interactive terminal.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Attaching block devices to virtual machines
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: In this recipe, we are going to examine a few different ways of adding new block
+    devices to a KVM instance. The new block device can then be partitioned, formatted,
+    and used as a regular block device inside the guest OS. We can add disks to live
+    running instances, or we can attach them persistently by creating XML definitions
+    for the individual block devices offline. From the host OS, we can present any
+    type of block device file to the guest, including iSCSI targets, LVM logical volumes,
+    or image files.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Getting ready
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'For this recipe, we will need:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: A running KVM instance with console access
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: The `dd` utility
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: How to do it...
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'To attach a new block device to a KVM guest, run the following:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Create a new 1 GB image file:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE44]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Attach the file as a new disk to the KVM instance:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE45]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Connect to the KVM instance via the console:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE46]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Print the kernel ring buffer and check for the new block device:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE47]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Examine the new block device:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE48]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Dump the instance configuration from the host OS:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE49]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Get information about the new disk:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE50]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Detach the disk:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE51]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Copy or create a new raw image:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE52]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Write the following `config` file:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE53]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Attach the new device:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE54]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Detach the block device:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE55]'
+  prefs: []
+  type: TYPE_PRE
+- en: How it works...
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: Attaching more disks to running KVM instances can be quite useful, especially
+    when using LVM inside the guest OS, as this allows for extending the logical volumes,
+    thus adding more disk space on the go. Libvirt provides two different methods
+    for this as we saw in the steps outlined earlier. We can use the `virsh attach-disk`
+    command by passing the location of the image file and the name of the new block
+    device for the guest VM as we saw in step 2.
+  prefs: []
+  type: TYPE_NORMAL
+- en: In step 1, we created a new raw image using the `dd` command; however, we could
+    have used the qemu-img tool as we saw in the *Managing Disk images with qemu-img*
+    and dd recipe from [Chapter 1](part0026.html#OPEK0-c1e587dcccb14690b55c247c1809e6ce)*,
+    Getting Started with QEMU and KVM*.
+  prefs: []
+  type: TYPE_NORMAL
+- en: After attaching the new disk in step 2, in steps 3, 4, and 5, we connected to
+    VM and verified that a new block device is indeed present. This is also reflected
+    in the XML definition of the instance in step 6.
+  prefs: []
+  type: TYPE_NORMAL
+- en: To make the new device available after a VM restart and persist the XML definition
+    changes, pass the `--persist` option to the `virsh attach-disk` command.
+  prefs: []
+  type: TYPE_NORMAL
+- en: In step 7, we display some information about the new disk. This data is quite
+    useful in order to monitor the read/write requests for the block device, without
+    having to attach to the virtual instance.
+  prefs: []
+  type: TYPE_NORMAL
+- en: In step 8, we detached the disk from the running KVM instance. If you dump the
+    instance definition at this point, you will note the absence of the extra disk.
+  prefs: []
+  type: TYPE_NORMAL
+- en: An alternative way of attaching a block device is shown in step 10\. We first
+    create a new XML file with the definition of the block device we are attaching.
+    Note how similar the definition is to the output in step 6.
+  prefs: []
+  type: TYPE_NORMAL
+- en: In step 11, we detach the new device yet again. Note that we have to specify
+    the same device XML definition file in order to do that.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Once the disk is visible inside the guest OS, we can use it as a regular block
+    device, we can partition it, create a filesystem, and mount it.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Sharing directories between a running VM and the host OS
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: In the previous recipe, we saw two examples on how to attach disks to a running
+    KVM instance. In this recipe, we are going to share a directory from the host
+    OS and make it available in the virtual machine. We can only perform this action
+    on a stopped instance however. If you've been following along, you should already
+    have a libvirt KVM instance that you can use.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Getting ready
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'The prerequisites for this recipe are as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Stopped libvirt KVM instance with console access
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: A guest OS with the `9p` and `virtio` kernel modules (available on most Linux
+    distributions by default)
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: How to do it...
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'To share a directory from the host OS to the KVM guest, execute the following:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Create a new directory on the host OS and add a file to it:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE56]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Add the following definition to the stopped KVM instance:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE57]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Start the VM:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE58]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Connect to the console as follows:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE59]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Ensure that the `9p` and the `virtio` kernel modules are loaded:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE60]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Mount the shared directory to `/mnt`:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE61]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'List the new mount:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE62]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Ensure that the shared file is visible in the host OS:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE63]'
+  prefs: []
+  type: TYPE_PRE
+- en: How it works...
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: Let's get through the steps and see what was accomplished in more details in
+    the previous section.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'In step 1, we create a directory and a file that we want to share with the
+    guest OS. Then, on the stopped KVM instance, we added the new `<filesystem>` definition
+    in step 2\. We used the mount type because we are mounting a directory and specified
+    the `accessmode`, which specifies the security mode for accessing the shared resource.
+    There are three access modes:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`passthrough`: This is the default mode, which accesses the shared directory
+    using the permissions of the user inside the guest OS'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`mapped`: In this mode, the shared directory and its files are accessed using
+    the permissions of the QEMU user, inherited from the host'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`squash`: This mode is similar to the passthrough mode; however, the failures
+    of privileged operations such as `chmod` are ignored'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: With the new definition in place, we start the VM in step 3 and connect to it
+    in step 4.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'On the Debian virtual machine we have been using, the required kernel module
+    has been loaded when the VM started. If this is not the case for your VM, load
+    the modules by running:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE64]'
+  prefs: []
+  type: TYPE_PRE
+- en: The main action happens in step 6, where we mount the shared directory and ensure
+    that it has been successfully mounted and the file present in the subsequent steps.
+  prefs: []
+  type: TYPE_NORMAL
+- en: There's more...
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: In this chapter, we have been starting KVM virtual machines using the `virsh`
+    command, provided by the `libvirt` toolset and libraries. If you check the process
+    tree after starting a guest, you can see that `virsh` command actually calls the `/usr/bin/qemu-system-x86_64`
+    binary. If you recall from the *Running virtual machines with qemu-system-** recipe
+    in [Chapter 1](part0026.html#OPEK0-c1e587dcccb14690b55c247c1809e6ce)*, Getting
+    Started with QEMU and KVM;* this is exactly what we used to start QEMU/KVM virtual
+    machines.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Note the process that the `libvirt` daemon started when we ran started the
+    KVM instance in this recipe:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE65]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Instead of using libvirt, we can start a new guest OS with the same shared
+    directory we use in this recipe, by just running the following, just make sure
+    to stop the `libvirt` instance we started earlier first:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE66]'
+  prefs: []
+  type: TYPE_PRE
+- en: You should be able to use your VNC client to connect to the guest and perform
+    the same steps to mount the shared directory, as we did earlier.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Autostarting KVM instances
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: Once a KVM instance has been defined and started, it will run until the host
+    OS is up. Once the host OS restarts, instances build with libvirt will not automatically
+    start once the host is up and the `libvirt` daemon is running. In this recipe,
+    we are going to change this behavior and ensure virtual instance start when the
+    `libvirt` daemon starts.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Getting ready
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: For this recipe, we are going to need a single KVM instance build with libvirt.
+  prefs: []
+  type: TYPE_NORMAL
+- en: How to do it...
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'To configure a KVM guest to automatically start after a server, or `libvirtd` restart,
+    run the following:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Enable the VM `autostart`:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE67]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Obtain information for the instance:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE68]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Stop the running instance and ensure that it is in the `shut off` state:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE69]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Stop the `libvirt` daemon and ensure that it is not running:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE70]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Start back the `libvirt` daemon:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE71]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'List all running instances:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE72]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Disable the `autostart` option:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE73]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Verify the change:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE74]'
+  prefs: []
+  type: TYPE_PRE
+- en: How it works...
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: In this simple recipe, we enabled the `autostart` feature of a libvirt controlled
+    KVM instance.
+  prefs: []
+  type: TYPE_NORMAL
+- en: In step 1, we enabled `autostart` and verified that it has been enabled in step
+    2.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Next, to simulate a server restart, we first stop the running instance in step
+    3 and the `libvirt` daemon in step 4.
+  prefs: []
+  type: TYPE_NORMAL
+- en: In step 5, we started the `libvirt` daemon back and observe that it started
+    the virtual machine as well, as seen in step 6.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Finally, in steps 7 and 8, we disable the `autostart` feature and ensure that
+    it indeed has been disabled.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Working with storage pools
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: Libvirt provides a centralized way of managing instance volumes (being image
+    files or directories) by defining storage pools. A storage pool is a collection
+    of volumes that then can be assigned to virtual machines and used to host their
+    filesystems or added as additional block devices. The main benefits of using storage
+    pools is the ability for libvirt to present and manage the given storage type to
+    VMs in a centralized way.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'As of this writing, the following storage pool backends are available:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Directory backend
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Local filesystem backend
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Network filesystem backend
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Logical backend
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Disk backend
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: iSCSI backend
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: SCSI backend
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Multipath backend
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: RADOS block device backend
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Sheepdog backend
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Gluster backend
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: ZFS backend
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Virtuozzo storage backend
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: In this recipe, we are going to create a directory-backed storage pool, move
+    an existing image to it, and then provision a new KVM instance using the storage
+    pool and volume.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Getting ready
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'For this recipe, we are going to need the following:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: The Debian raw image we created in the *Building new KVM instances with virt-install
+    and using the console* recipe
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: The `libvirt` package
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: How to do it...
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'The following steps demonstrate how to create a new storage pool, inspect it,
+    and assign it to a virtual machine:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Copy the raw Debian image file we created in the *Building new KVM instances
+    with virt-install and using the console* recipe earlier in this chapter:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE75]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Create the following storage pool definition:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE76]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Define the new storage pool:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE77]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'List all storage pools:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE78]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Start the new storage pool and ensure that it''s active:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE79]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Enable the `autostart` feature on the storage pool:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE80]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Obtain more information about the storage pool:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE81]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'List all volumes that are a part of the storage pool:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE82]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Obtain information on the volume:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE83]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Start new KVM instance using the storage pool and volume, then ensure that
+    it''s running:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE84]'
+  prefs: []
+  type: TYPE_PRE
+- en: How it works...
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: We start this recipe with an image of a Debian OS that we installed earlier
+    in the book; however, you can use an `empty`, `raw`, or `qcow2` image, add it
+    to the storage pool, and install the virtual machine OS on it with almost no changes
+    to the recipe steps if you don't have that image already.
+  prefs: []
+  type: TYPE_NORMAL
+- en: In step 1, we copy the VM image to the default libvirt storage pool location
+    in `/var/lib/libvirt/images/`, but you can create your own directory, the location
+    does not matter as long as it's defined in the storage pool configuration file.
+    We do that in step 2.
+  prefs: []
+  type: TYPE_NORMAL
+- en: In step 3, we define the new storage pool, by specifying a name, target directory,
+    and the type of the pool, in this case, a directory backend pool. We then proceed
+    to list the new pool in step 4\. Note that, once defined, we still need to start
+    it, just like defining a new KVM instance from an XML file. By default, the `autostart`
+    option is not enabled on a new storage pool.
+  prefs: []
+  type: TYPE_NORMAL
+- en: In step 5, we start the storage pool and ensure that it's active. We then proceed
+    to enable the `autostart` feature so that the volumes can be used in case the
+    host server restarts in step 6.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Although not mandatory, we check the metadata provided for the storage pool
+    and its volumes in step 7\. Note that the allocation field shows how much space
+    is used by the volumes in the pool. We currently have a single raw image with
+    that exact size.
+  prefs: []
+  type: TYPE_NORMAL
+- en: In step 8, we list all volumes that are a part of the new storage pool and obtain
+    further information about the single volume in step 9.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Finally in step 10, we start a new KVM instance using the storage pool and volume
+    by passing the storage pool and volume names to the vol disk type.
+  prefs: []
+  type: TYPE_NORMAL
+- en: There's more...
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: Let's look at a slightly more complicated example of using storage pools by
+    defining an iSCSI-backed pool.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Creating an iSCSI target and logging it on the initiator  server is beyond
+    the scope of this recipe, so we assume that you have an iSCSI target ready to
+    be used from a remote server. The new storage pool definition is as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE85]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'The file is very similar to the directory-backed storage pool, the main difference
+    are the following attributes:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: The `<host>` attribute specifies the hostname of the iSCSI target server that
+    is exporting the iSCSI LUN
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: The `<device>` specifies the name of the iSCSI LUN we are going to log in
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Once a new iSCSI block device has been logged in, it will appear in the location
+    specified in `<path>`, on most Linux distributions in the `/dev/disk/by-path`
+    directory
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'We define and start the new storage pool the same way we did in steps 3 and
+    5 earlier in the recipe. Once the storage pool is active, libvirt will log the
+    remote iSCSI target LUNs. We can list the available iSCSI volumes as usual:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE86]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'To start a new installation process using the iSCSI volume as the target for
+    the guest OS filesystem, run the following code:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE87]'
+  prefs: []
+  type: TYPE_PRE
+- en: For more information about the XML definition of the other backend types, please
+    refer to [https://libvirt.org/storage.html](https://libvirt.org/storage.html).
+  prefs: []
+  type: TYPE_NORMAL
+- en: Managing volumes
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: In the previous recipe, we saw how to create new storage pools, add a volume
+    to it, and create a new KVM instance using that volume. In this recipe, we are
+    going to focus on manipulating volumes that are a part of an existing storage
+    pool. Strictly speaking, we are not required to use storage pools and volumes
+    in order to build VMs. We can use other tools to manage and manipulate the virtual
+    instance images, such as the `qemu-img` utility. Using volumes is just a convenience
+    for having a centralized storage repository of various backend types.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Getting ready
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: The main requirement of this recipe is to have an existing storage pool with
+    the directory backend. If you skipped the previous recipe, now is that time to
+    create a new one, as we'll be using it to manipulate volumes.
+  prefs: []
+  type: TYPE_NORMAL
+- en: How to do it...
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'To create, inspect and assign volumes to an instance, run the following:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'List the available storage pools:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE88]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'List the available volumes, that are a part of the storage pool:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE89]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Create a new volume with the specified size:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE90]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'List the volumes on the filesystem:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE91]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Obtain information about the new volume:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE92]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Use the `virsh` command to get even more information:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE93]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Dump the volume configuration:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE94]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Resize the volume and display the new size:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE95]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Delete the volume and list all available volumes in the storage pool:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE96]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Clone the existing volume:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE97]'
+  prefs: []
+  type: TYPE_PRE
+- en: How it works...
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: We start this recipe with the `file_virtimages` storage pool we created in the
+    previous recipe. We list all storage pools in step 1 to confirm that. In step
+    2, we see that our storage pool contains a single volume. No surprises here as
+    we created that in the last recipe in this chapter.
+  prefs: []
+  type: TYPE_NORMAL
+- en: In step 3, we create a new volume, by specifying its name, size, and the storage
+    pool we want it to be a part of. Since this is a directory-backed storage pool,
+    we can see the volume as a raw image file in step 4.
+  prefs: []
+  type: TYPE_NORMAL
+- en: In steps 5 and 6, we collect more information about the new volume. We can see
+    that it is a raw, therefore by default a sparse image. Sparse images don't allocate
+    all of the disk space and grow as more data is being written to it.
+  prefs: []
+  type: TYPE_NORMAL
+- en: In step 7, we dump the definition of the volume. We can use that to define a
+    new volume later on with the `virsh vol-create` command.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Libvirt provides a convenient way to resize existing images. This is what we
+    do in step 8--we resize the image to 10 GB. We can now see that the allocation
+    size is smaller than the capacity; this is because the image is raw.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Finally, in step 9, we delete the image, though we could have used it to install
+    a new virtual machine, as shown in the *Working with storage pools* recipe.
+  prefs: []
+  type: TYPE_NORMAL
+- en: In the last step, we use the existing Debian image and created a clone volume
+    from it. Starting a virtual machine using the cloned volume will result in an
+    identical KVM instance, as the one we cloned the volume from. This combined with
+    a dump of the instance definition is a great way to backup your KVM instances,
+    as long as you store the volume image file and the XML definition file to a remote
+    location. We are going to explore backing up KVM instances in later recipes.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Managing secrets
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: Libvirt provides an API to create, store, and use secrets. Secrets are objects
+    that contain sensitive information such as passwords, that can be associated with
+    different volume backend types. Recall from the *Working with storage pools* recipe,
+    which we created an iSCSI pool and volume from a remote iSCSI target and used
+    it as the image for a KVM guest. In production environments, more often than not
+    iSCSI targets are presented with CHAP authentication. In this recipe, we are going
+    to create a secret to be used with an iSCSI volume.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Getting ready
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'For this recipe, we are going to need the following:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: A storage pool with an iSCSI-backed volume
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: The `libvirt` package
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: How to do it...
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'To define and list secrets with libvirt, perform the steps outlined here:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'List all available secrets:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE98]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Create the following secrets definition:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE99]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Create the secret and ensure that it has been successfully created:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE100]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Set a value for the secret:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE101]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Create a new iSCSI pool definition file:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE102]'
+  prefs: []
+  type: TYPE_PRE
+- en: How it works...
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: In step 1, we list all available secrets that libvirt knows about. Since we
+    haven't created any, the list is empty.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'In step 2, we create the XML definition of the secret. The XML elements that
+    we use to define the secret are:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: The `<secret>` root element, with an optional `ephemeral` attribute, telling
+    `libvirt` that the password should only be stored in memory, if set to yes.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: The `<description>` attribute containing an arbitrary description.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: The `<usage>` element specifies what the secrets is going to be used for and
+    its type. In this example, the `type` attribute is set to iSCSI. The other available
+    types are `volume`, `ceph`, and `tls`. The `type` attribute is mandatory.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: The `<target>` element that specifies an arbitrary name is to be used in the
+    iSCSI pool definition.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: With the configuration file in place, we create the secret in step 3\. If the
+    operation is successful, libvirt returns an UUID that identifies the secret.
+  prefs: []
+  type: TYPE_NORMAL
+- en: In step 4, we set a value for the secret, by base64 encoding the `some_password`
+    string, which is the password for the iSCSI target we would like to use, as a
+    storage pool volume.
+  prefs: []
+  type: TYPE_NORMAL
+- en: And finally in step 5, we add the `<auth>` attribute under the `<source>` section
+    of the iSCSI pool definition. Note that the secret we would like the iSCSI volume
+    to use is specified in the `<secret usage='iscsi_secret'/>` attribute. Libvirt
+    can now use the `iscsi_secret` name to locate the actual password that it has
+    stored.
+  prefs: []
+  type: TYPE_NORMAL

@@ -1,0 +1,578 @@
+- en: Chapter 3. Extending Your Pi to Connect More Things
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: We're now going to look at ways to expand the number of things we can connect
+    to our Raspberry Pi, overcoming the limitation of having just the 8 digital pins
+    available. We're going to do this by building our own expansion board to give
+    us what could in theory be an unlimited number of digital inputs and outputs.
+  prefs: []
+  type: TYPE_NORMAL
+- en: We're also going to overcome the limitations of the +3.3V power available to
+    us by building our own +3.3V power supply that taps off the Raspberry Pi's +5V
+    supply.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'In this chapter, we will cover the following:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Looking at the I²C bus in detail
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Learning about serial-to-parallel and parallel-to-serial conversions
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Building a +3.3V power supply
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Building an I2C-based port expander to give us more inputs and outputs
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Looking at alternative ready-made expansion boards
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Prerequisites
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'Along with your Raspberry Pi, you''ll need the following parts for the projects
+    in this chapter:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: A copper strip board (or Veroboard®)
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: An LD1117V33 voltage regulator
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: A 2 x 100nF, 16V ceramic capacitor
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: A 10uF, 16V electrolytic capacitor
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: A 1 x MCP23017 16-bit port expander IC
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: A 4 x 10K-ohm resistor
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: A hook-up wire
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: The I2C bus
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: In the previous chapter, we briefly touched on the I2C bus (or Inter-Integrated
+    Circuit bus), which is a way to connect multiple devices together using just two
+    wires. I2C was invented in the early 1980s by Philips as a way to link computer
+    peripherals together using a common protocol. You can think of I2C as a kind of
+    early form of USB.
+  prefs: []
+  type: TYPE_NORMAL
+- en: I2C typically operates at relatively low speeds of up to 100kbit/s, compared
+    to much faster interfaces such as Ethernet, which typically operates at up to
+    1Gbit/s, or USB, which can operate at up to 480Mbit/s. However, this is fast enough
+    to connect basic sensors, display devices, or other peripherals such as real-time
+    clocks—in fact; there are faster versions of the protocol that some devices will
+    support.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Just 2 wires
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'I2C is a bi-directional serial communication protocol that operates over two
+    wires:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: The **Serial Data Line** (**SDA**) wire transmits the data to and from the master
+    device. Referring back to the GPIO reference in Chapter 2, *Connecting Things
+    to Your Pi with GPIO*, this is pin 3 of the GPIO connector.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: The **Serial Clock Line** (**SCL**) wire handles all timing and flow control
+    for the data on the bus. This is pin 5 of the GPIO connector.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: You'll remember that we spoke about pull-up resistors, in the previous chapter,
+    which ensure that the GPIO digital inputs are pulled to a known state. Well, this
+    is required for the two lines on the I2C bus, and by default the lines should
+    be pulled high with resistors. However, on the Raspberry Pi, this has already
+    been done for us, so we don't need to worry about it in our case.
+  prefs: []
+  type: TYPE_NORMAL
+- en: What's your address?
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: So, if we can use just two wires to communicate with multiple devices, how does
+    our Raspberry Pi know which device to talk to? This is where the I2C protocol
+    comes into its own. Each device connected to the bus has its own unique ID, or
+    address, made up of 7-bits or 10-bits. Some devices will allow you to set the
+    address to ensure that it's unique within your system, but other devices have
+    their addresses hardcoded by the manufacturer.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The two addressing methods (7- and 10-bit) are interoperable and you can have
+    devices on the same bus that use either method, since the Raspberry Pi itself
+    supports both methods. So, with a 10-bit addressing scheme, you can see that we
+    can connect a lot of things to our Raspberry Pi using the I2C bus, as compared
+    to the limited number of digital pins on the GPIO!
+  prefs: []
+  type: TYPE_NORMAL
+- en: There is a parallel universe
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: Data is normally transmitted in serial mode or parallel mode, depending on things
+    such as the required data speed, cable distance, and functionality. Most data
+    communication *between* systems is transmitted in serial mode over a couple of
+    wires, such as the I2C bus mentioned earlier, but this also includes things such
+    as the Ethernet, RS232/422, and USB.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Within a computer system, data is transmitted in parallel mode using *buses*
+    whose width matches the word size of the digital system communicating between
+    chips. In parallel mode, all bits of the data word are transmitted simultaneously
+    over their respective data lines within the bus, rather than as sequential bits
+    along a single line.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The digital I/O pins we've been talking about (including the ones on the Raspberry
+    Pi's GPIO connector) are usually grouped together as a parallel bus. On our system,
+    we'll be using parallel buses (groups of digital I/O pins) that are 8-bits wide.
+    That is, the bus has 8 wires that can be set or read using 8-bit binary values
+    (our word size).
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![There is a parallel universe](img/B04579_03_08.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: A representation of an 8-bit data bus
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'So, in the preceding diagram we have the 8 digital I/O wires on our bus. If
+    we wanted to make the bits (or wires) 0, 1, and 4 *high* or *on*, with the rest
+    *low* or *off*, then we''d address the bus and set it to the following values:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: In binary, this would be 00010011
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: In hex, this would be *0x13*
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: In decimal, this would be 19 (represented by *16+2+1*)
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: So, in other words, to switch on data lines 0, 1, and 4, we send the byte value,
+    19, to the bus's address.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Serial-to-parallel conversion
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: So, now that we know what numbers to send to our bus to switch on or switch
+    off certain digital outputs, or read certain digital inputs, how do we do this
+    using our I2C bus, which is a serial interface?
+  prefs: []
+  type: TYPE_NORMAL
+- en: Fortunately, there are many **integrated circuits** (**ICs**) available that
+    allow us to do this simply and easily. These ICs are called **shift registers**
+    and perform **serial-to-parallel conversions**, taking the data from the serial
+    I2C bus and converting the incoming bits to a parallel representation by setting
+    each of the parallel bus outputs.
+  prefs: []
+  type: TYPE_NORMAL
+- en: When reading the parallel bus data lines as inputs, the reverse happens, converting
+    the bits into a serial form on the I2C bus; this is known as **parallel-to-serial**
+    conversion.
+  prefs: []
+  type: TYPE_NORMAL
+- en: This is quite a simplistic overview and there are many resources available that
+    explain these operations; we'll see this in action later in the chapter, but first…
+  prefs: []
+  type: TYPE_NORMAL
+- en: Give me power
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: You'll remember from the previous chapter that most things to do with the GPIO
+    operate on a +3.3V level, rather than the +5V level that is often associated with
+    digital circuits. This is the same with our I2C-based shift registers—they need
+    to operate on +3.3V levels as well, in order to work with the Raspberry Pi.
+  prefs: []
+  type: TYPE_NORMAL
+- en: You'll also recall, however, that there's not much +3.3V juice available directly
+    from the Raspberry Pi—in fact, just 50mA. This is really not enough for our interface.
+    So, before we go any further, we're going to build our own +3.3V power supply,
+    which is sufficient for our system.
+  prefs: []
+  type: TYPE_NORMAL
+- en: For our power supply, we're going to use a basic 3.3V **voltage regulator**
+    (type **LD1117V33**) that will take our slightly more plentiful +5V supply from
+    the Raspberry Pi and regulate it to a nice smooth +3.3V supply. We should be able
+    to draw a few hundred milliamps from this supply—enough for the I/O circuitry
+    on our security system.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The parts required for our power supply are as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: A LD1117V33 voltage regulator
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: A 100nF, 16V ceramic capacitor
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: A 10uF, 16V electrolytic capacitor
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Here''s the circuit diagram for our +3.3V power supply:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Give me power](img/B04579_03_01.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: As with all our components, the LD1117V33 regulator is widely available from
+    many electronic component suppliers.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Our power supply can be easily built on a small piece of strip board like this:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Give me power](img/B04579_03_02.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Note
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: The strip board is shown from the top in the preceding layout. That is, the
+    copper tracks are on the underside of the board and the components are inserted
+    from the plain top-side and soldered to the strips underneath. In this layout,
+    it's not necessary to cut any of the tracks on the strip board.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Building an I2C expander
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: Right, now that we've worked out what we need to do to give us more digital
+    I/O pins, and built our power supply for it, we can build our expansion port.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'To do this, we''re going to use a chip designed exactly for the job: the **MCP23017**,
+    manufactured by Microchip and widely available from electronic suppliers.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: The MCP23017 is an integrated circuit that connects directly to the I2C bus
+    (the SDA and SCL pins we talked about earlier) and gives us 16 bi-directional
+    input and output pins. If required, we can connect up to 8 of these chips to the
+    same bus, giving us up to 128 inputs and outputs (yes, I know that I said "virtually
+    unlimited" previously, but I'll explain later).
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Building an I2C expander](img/B04579_03_03.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: An MCP23017 integrated circuit pinout
+  prefs: []
+  type: TYPE_NORMAL
+- en: Note
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: The full datasheet for the MCP23017 is available on Microchip's site, which
+    can be found at [www.microchip.com/MCP23017](http://www.microchip.com/MCP23017).
+  prefs: []
+  type: TYPE_NORMAL
+- en: The I2C port expander circuit
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'The basic parts you will need to build your port expander are as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: A 1 x MCP23017 16-bit port expander IC
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: A 4 x 10K-ohm resistor
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: A 1 x 100nF, 16V ceramic capacitor
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: A copper strip board (or Veroboard®)
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: A hook-up wire
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Here''s the circuit diagram for our I2C port expander circuit. It looks complicated,
+    but actually most of the lines are for connections to the outside world:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![The I2C port expander circuit](img/B04579_03_04.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Let's walk through the circuit
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: 'On the right-hand side, the connector, CN1, is our Raspberry Pi GPIO connector—note
+    that we''re only using four of the pins:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: The +5V Output (Pin 2)
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: The I2C SDA (Pin 3)
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: The I2C SCL (Pin 5)
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: The 0V/GND (Pin 6)
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: You'll see my friend, the +3.3V regulator (U1, C1, and C2), discussed earlier.
+    This takes the +5V output from the Raspberry Pi and gives us our +3.3V for use
+    by the rest of the circuit.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The main component is U2—our **MCP23017** **port expander** chip. Pins 9 and
+    10 on the chip are connected to the +3.3V supply and the GND, respectively, and
+    C3 is used as a discoupling capacitor close to the chip to reduce any noise on
+    the power supply.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The MCP23017 can be used as a 16-bit expander, or as 2 x 8-bit expanders. In
+    our circuit, we have split the device to give us 2 x 8-bit busses: I/O Bus A and
+    I/O Bus B. Each pin on the busses can be programmed to work as an input or output.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Tip
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: '**Connecting things to the input/output pins**'
+  prefs: []
+  type: TYPE_NORMAL
+- en: The input and output pins on our busses can't usually be connected to things
+    directly—they provide limited current and need to be interfaced correctly to things
+    such as buzzers and lights; they must also be protected against damaging input
+    signals. In the next chapter, we'll learn how to connect safely to our I/O ports.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The I2C SDA/SCL lines from the Raspberry Pi are connected to pins 12 and 13
+    of the chip. You'll see that there are also additional I2C outputs (PL1 to PL3)
+    to illustrate that we can connect other devices to the I2C bus, such as another
+    MCP23017 chip to give us a further 16 digital I/Os.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Resistor R1 is used to hold the RESET pin (18) high. By bringing this pin low,
+    you can reset the chip.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Resistors R2 to R4 are used to hold the address pins A0 to A2 (pins 15-17) low.
+  prefs: []
+  type: TYPE_NORMAL
+- en: '**Highs and lows**'
+  prefs: []
+  type: TYPE_NORMAL
+- en: When we use the terms *high* and *low* in respect to digital pins or inputs,
+    we are simply describing whether the logic level of the pin is at a binary 1 or
+    0, respectively. Digital pins don't like to be left *floating*—whereby they are
+    neither high nor low—as this can cause unpredictable operations. Therefore, we
+    always make sure they are held at a determined logic level. In general, connecting
+    the pin to 0V (or ground) ensures that it's held at logic level 0, and connecting
+    to the positive supply (e.g. 3.3V) ensures that it's held at logic level 1.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Remember I mentioned earlier that you can connect a large number of devices
+    to the I2C bus in order to give us a virtually unlimited number of I/O pins? Well,
+    actually in many cases, this is not strictly true. This is because of the addressing
+    scheme for I2C devices, which makes all devices identifiable when they are all
+    connected to the same two wires (their unique address). The address of each device
+    is agreed upon in advance by manufacturers to make sure that everyone's devices
+    will work together on the same bus without creating conflicts. As such, the address
+    is pre-programmed into the device.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The MCP23017 has been given its unique base address, but can be modified by
+    changing the address pins A0-A2 high or low; thus, in effect, it can be configured
+    to be one of 8 addresses. This is why you can only have a maximum of 8 of these
+    chips on the same I2C bus, giving us a theoretical maximum of 128 I/O pins (that
+    is, 16 I/Os x 8 chips).
+  prefs: []
+  type: TYPE_NORMAL
+- en: Building your expansion board
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: This circuit can easily be built on a small piece of stripboard. The following
+    image shows an example of the layout, which looks a bit simpler than the circuit
+    diagram. In the next chapter, we'll learn how to connect up our board and program
+    it so we can check that it works.
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Building your expansion board](img/B04579_03_05.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Tip
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: When using stripboard, make sure that you cut the tracks between the two rows
+    of pins on the MCP23017 so that they aren't shorted together. You can buy track
+    cutters, which make this task easy, from many electronic suppliers. Again, on
+    the preceding layout, the copper strips are underneath the board with the components
+    on the plain side.
+  prefs: []
+  type: TYPE_NORMAL
+- en: You might want to add the +3.3V power supply circuit to the same piece of stripboard
+    too, to keep everything contained together.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Note
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: In the next chapter, we will learn how to program the device so that we can
+    use it in our home security system.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Using ready-made expansion boards
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: While it's much more satisfying to build your own stuff, you might want to look
+    at buying some readily available expansion boards for your home security system
+    if you're not yet confident with your soldering iron, or if you just simply don't
+    have the time.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Following are some ready-made expansion boards that you can obtain; they should
+    work as part of our home security system with a bit of modification to our scripts
+    to support the libraries that are required by the hardware.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Hobbytronics MCP23017 expander port kit
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: This kit is almost identical to our own circuit in the previous section of this
+    chapter. The kit comes with an MCP23017, a PCB, and various connectors. The boards
+    are designed to be daisy-chained together so that you can have multiple expanders
+    to give you more input/output ports. Note that this kit is not pre-built and requires
+    soldering, but I thought I'd include it because it's the board that I use to build
+    such systems when prototyping. You can get it directly from Hobbytronics at [http://bit.ly/mcp23017](http://bit.ly/mcp23017).
+  prefs: []
+  type: TYPE_NORMAL
+- en: PiFace Digital I/O expansion board
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: The **PiFace Digital I/O expansion board** is a pre-built version of our board,
+    but it uses the **MSP23S17** chip variant that operates over the **SPI bus** instead
+    of the I2C bus. The board is designed with 8 inputs and 8 outputs, as well as
+    several additional pieces of hardware including a couple of relays, some LEDs,
+    and some switches. Note that the code in this book for our system will need to
+    be modified to work with this board, since it uses a different interface and different
+    libraries. It's available from Farnell element14 at [http://bit.ly/2434230](http://bit.ly/2434230).
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![PiFace Digital I/O expansion board](img/B04579_03_06.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: The PiFace Digital I/O Expansion Board
+  prefs: []
+  type: TYPE_NORMAL
+- en: Gertboard
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: The **Gertboard** is a Raspberry Pi add-on board designed by Gert van Loo—one
+    of the hardware engineers involved in the original design of the Raspberry Pi.
+  prefs: []
+  type: TYPE_NORMAL
+- en: It's a very capable and reasonably-priced board that comes fully assembled and
+    features 12 buffered input/output lines, open collector drivers for switching
+    on devices that need a fair bit of current (such as sounders and lights), plus
+    a digital-to-analog converter.
+  prefs: []
+  type: TYPE_NORMAL
+- en: You can only connect one of these boards to your Raspberry Pi, so if you need
+    more I/O lines you'll need to use something else as well. But it's a great board
+    to experiment with. Interestingly, it features an **ATmega microcontroller**,
+    which is the same as the one that the Arduino uses, and you can, in fact, use
+    the **Arduino** development environment for the device.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Once again, the code in this book for our system will need to be modified to
+    work with this board.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The Gertboard is available from Farnell element14 at [http://bit.ly/2250034](http://bit.ly/2250034).
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Gertboard](img/B04579_03_07.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Assembled Gertboard
+  prefs: []
+  type: TYPE_NORMAL
+- en: Summary
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: We've now looked at the I2C bus in detail, and learned how to build an expansion
+    port using this interface so that we can connect many more things to our Raspberry
+    Pi, rather than being restricted to just the 8 digital I/O pins offered by the
+    Raspberry Pi's GPIO port. In addition to that, we explored other ready-made boards
+    that can be used to connect lots of things to our Raspberry Pi. We have also built
+    a power supply that will give us more +3.3V power than we can obtain from the
+    Raspberry Pi directly.
+  prefs: []
+  type: TYPE_NORMAL
+- en: In the next chapter, we'll start to actually connect things to our home security
+    system, such as magnetic sensors and other types of contact devices, and learn
+    how to program our I2C expansion port using Bash scripts so that we can read the
+    state of our sensors and switch on warning LEDs. We'll also start developing the
+    control scripts for our system, which will allow us to arm and disarm the system
+    and add delay timers.
+  prefs: []
+  type: TYPE_NORMAL

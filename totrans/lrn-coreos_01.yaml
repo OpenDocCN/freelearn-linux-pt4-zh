@@ -1,0 +1,758 @@
+- en: Chapter 1. CoreOS, Yet Another Linux Distro?
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: As more and more applications move toward the cloud with server virtualization,
+    there is a clear necessity for deploying user applications and services very fast
+    and reliably with assured SLA by deploying the services in the right set of servers.
+    This becomes more complex when these services are dynamic in nature, which results
+    in making these services auto-provisioned and auto-scaled over a set of nodes.
+    The orchestration of the user application is not limited to deploying the services
+    in the right set of servers or virtual machines, rather to be extended to provide
+    network connectivity across these services to provide **Infrastructure as a Service**
+    (**IaaS**). Compute, network, and storage are the three main resources to be managed
+    by the cloud provider in order to provide IaaS. Currently, there are various mechanisms
+    to handle these requirements in a more abstract fashion. There are multiple cloud
+    orchestration frameworks that can manage compute, storage, and networking resources.
+    OpenStack, Cloud Stack, and VMware vSphere are some of the cloud platforms that
+    perform orchestration of these resource pools and provide IaaS. For example, the
+    Nova service in OpenStack manages the compute resource pool and creates VMs; the
+    Neutron service provides the required information to provide virtual network connectivity
+    across VMs; and so on.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The IaaS cloud providers should provide all three resources on-demand to the
+    customers, which provide a pay-as-you-go model. The cloud provider maintains these
+    resources as a pool and allocates the resource to a customer on-demand. This provides
+    flexibility for the customer to start and stop the services based on their business
+    needs and can save their OPEX. Typically, in an IaaS model, the cloud service
+    provider offers these resources as a virtualized resource, that is, a virtual
+    machine for compute, a virtual network for network, and virtual storage for storage.
+    The hypervisor running in the physical server/compute nodes provides the required
+    virtualization.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Typically, when an end user requests an IaaS offering with a specific OS, the
+    cloud provider creates a new **VM** (**Virtual Machine**) with the OS requested
+    by the user in their cloud server infrastructure. The end user can install their
+    application in this VM. When the user requests more than one VM, the cloud provider
+    should also provide the necessary network connectivity across these VMs in order
+    to provide connectivity across the services running inside these VMs. The cloud
+    orchestration framework takes care of instantiating the VMs in one of the available
+    compute nodes in the cluster, along with associated services like providing virtual
+    network connectivity across these VMs. Once the VM has been spawned, configuration
+    management tools like Chef or Puppet can be used to deploy the application services
+    over these VMs. Theoretically, this works very well.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'There are three main problems with this approach:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: All the VMs in the system should run their own copy of the operating system
+    with their own memory management and virtual device drivers. Any application or
+    services deployed over these VMs will be managed by the OS running in the VM.
+    When there are multiple VMs running in a server, all the VMs run a separate copy
+    of OS, which results in overhead with respect to CPU and memory. Also, as the
+    VMs run their own operating system, the time taken to boot/bring up a VM is very
+    high.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: The operating system doesn't provide service-level virtualization that is running
+    a service/application over a set of VMs which are part of cluster. The OS running
+    in the VM is a general purpose operating system that lacks the concept of clustering
+    and deploying the application or service over this cluster. In short, the operating
+    system provides machine-level virtualization and not service-level virtualization.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: The management effort required to deploy a service/software from a development
+    to a production environment is very high. This is because each software package
+    typically has dependencies with other software. There are thousands of packages;
+    each package comes with a different set of configuration, with most combinations
+    of configurations having dependency with respect to performance and scaling.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: CoreOS addresses all these problems. Before looking into how CoreOS solves these
+    problems, we will look at a small introduction to CoreOS.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Introduction to CoreOS
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: '**CoreOS** is a lightweight cloud service orchestration operating system based
+    on Google''s Chrome OS. CoreOS is developed primarily for orchestrating applications/services
+    over a cluster of nodes. Every node in the cluster runs CoreOS and one of the
+    CoreOS nodes in the cluster will be elected as the master node by the etcd service.
+    All the nodes in the cluster should have connectivity to the master node. All
+    the slave nodes in the system provide information about the list of services running
+    inside their system, along with the configuration parameter to the master node.
+    In order to do this, we may have to configure fleet units in such a way that when
+    we start a fleet unit with the `fleetctl` command, it should push its details
+    such as IP and port to the etcd service. It is the responsibility of the master
+    node to receive the service information and publish to all the other nodes in
+    the cluster. In normal circumstances, the slave nodes won''t talk to each other
+    regarding service availability. The etcd service running in all the nodes in the
+    cluster is responsible for electing the master node. All nodes in the system interact
+    with the etcd service of the master node to get the service and configuration
+    information of the services running in all other nodes. The following diagram
+    depicts the CoreOS cluster architecture, wherein all the nodes in the cluster
+    run CoreOS and other vital components of CoreOS like etcd, systemd, and so on.
+    The etcd and fleet services are used for service discovery and cluster management
+    respectively. In this, all three nodes are configured with the same cluster ID,
+    so that all these nodes can be part of a single cluster. It is not possible for
+    a node to be part of multiple clusters.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Introduction to CoreOS](img/00002.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: CoreOS cluster
+  prefs: []
+  type: TYPE_NORMAL
+- en: All the applications or services are deployed as a Linux container in the CoreOS.
+    The Linux container provides a lightweight server virtualization infrastructure
+    without running its own operating system or any hypervisor. It uses the operating
+    system-level virtualization techniques provided by the host OS using the namespace
+    concept. This provides drastic improvements in terms of scaling and performance
+    of virtualization instances running over the physical server. This addresses the
+    first issue of running the application inside a VM.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The following diagram depicts the difference between applications running inside
+    a VM and applications running in an LXC container. In the following diagram, the
+    VM way of virtualization has a guest OS installed in the VM along with the host
+    OS. In a Linux container-based implementation, the container doesn't have a separate
+    copy of the operating system; rather, it uses the service provided by the host
+    operating system for all the OS-related functionalities.
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Introduction to CoreOS](img/00003.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Virtual Machine versus Linux Container
+  prefs: []
+  type: TYPE_NORMAL
+- en: CoreOS extends the existing services provided by Linux to work for a distributed
+    cluster and not limited to a single node. As an example, CoreOS extends the system
+    management service provided by most of the Linux distribution for starting, stopping,
+    or restarting any applications/services to run on a cluster of nodes rather than
+    a single node using the fleet tool. Instead of running an application limited
+    to its own node, the services are submitted to fleet, which acts as a cluster
+    manager and instantiates the service in any one of the nodes in the cluster. It
+    is also possible to launch the container in a specific set of nodes by applying
+    a constraint. This addresses the second issue with using VMs, discussed earlier
+    in this chapter.
+  prefs: []
+  type: TYPE_NORMAL
+- en: CoreOS uses Docker/Rocket as a container to deploy services inside the CoreOS
+    cluster. Docker provides an easy way of bundling a service and its dependent module
+    as a single monolithic image that can be shipped from development. In the deployment,
+    the DevOps person can simply fetch the docker container from the development person
+    and can deploy directly into the CoreOS nodes without performing any operations
+    like building a compilation or build environment and rebuilding the image on the
+    target platform and so on. This bridges the gap between the development and deployment
+    of a service. This addresses the third issue with using VM, discussed earlier
+    in this chapter.
+  prefs: []
+  type: TYPE_NORMAL
+- en: CoreOS versus other Linux distributions
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'Even though CoreOS is yet another Linux distribution like Fedora/Centos, the
+    key difference between CoreOS and other standard Linux distributions are as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: CoreOS is not designed to run any applications or services directly. Any application
+    to be run inside CoreOS should be deployed as a container (which can either be
+    Docker/Rocket). So it is not possible to install any software packages in CoreOS
+    and hence CoreOS doesn't have any installation software packages like `yum`, `apt`,
+    and so on. In short, CoreOS is a stripped-down version of a Linux distribution
+    that doesn't have any inbuilt user applications or library installed.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Most of the Linux distributions are meant to run as a host operating system
+    either in a data center server or in a typical desktop PC. They are not developed
+    to manage a cluster of nodes/the cloud; rather, they will be part of the cloud
+    that is being managed by other cloud orchestration platforms. However, CoreOS
+    is a Linux distribution that is builtout for the management of a massive server
+    infrastructure with clustering. The CoreOS cluster is a group of physical or virtual
+    machines that runs CoreOS with the same cluster ID. The services running in the
+    cluster nodes are managed by fleet, which is the CoreOS orchestration tool. Software
+    updates in a traditional Linux distribution are done by updating the packages
+    one by one. However, CoreOS supports a scheme called **fast patch**, wherein the
+    entire CoreOS OS is updated once. The **CoreUpdate** program is used for updating
+    CoreOS in a server, cluster, or complete data center.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: CoreOS is extremely lightweight when compared to traditional Linux distributions.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: CoreOS high-level architecture
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'The CoreOS node in a cluster comprises the following main components:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: etcd
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: systemd
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: fleet
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Docker/Rocket containers![CoreOS high-level architecture](img/00004.jpeg)
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: CoreOS High-level Architecture
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: The CoreOS node runs etcd, systemd, and the fleet service in all of the nodes
+    in the cluster. etcd, which is running in all the nodes, talk to each other and
+    elects one node as the master node. All the services running inside the node will
+    be advertised to this master node, which makes etcd provide a service discovery
+    mechanism. Similarly, fleetd running in different nodes maintains the list of
+    services running in different nodes in its service pool, which provides service-level
+    orchestration. `fleetctl` and `etcdctl` are command-line utilities to configure
+    the fleet and etcd utilities respectively.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Refer to subsequent sections of this chapter to understand the functionality
+    of each component in detail.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'These components together provide three main functionalities for CoreOS as
+    follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Service discovery
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Cluster management
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Container management
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Service discovery
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: In the CoreOS environment, all user applications are deployed as services inside
+    a container that can either be a Docker container or a Rocket container. As different
+    applications/services are running as separate containers in the CoreOS cluster,
+    it is inevitable to announce the services provided by each node to all the nodes
+    in the cluster. Along with service availability, it is also required that each
+    service advertises the configuration parameters to other services. This service
+    advertisement is very important when the services are tightly coupled and dependent
+    on each other. For example, the web service should know details about the database
+    services, about the connection string, or type of database and so on. CoreOS provides
+    a way for each service to advertise its service and configuration information
+    using the etcd service. The data announced to the etcd service will be given/announced
+    to all the nodes in the cluster by the master node.
+  prefs: []
+  type: TYPE_NORMAL
+- en: etcd
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: '**etcd** is a distributed key value store that stores data across the CoreOS
+    cluster. The etcd service is used for publishing services running on a node to
+    all the other nodes in the cluster, so that all the services inside the cluster
+    discover other services and configuration details of other services. etcd is responsible
+    for electing the master node among the set of nodes in the cluster. All nodes
+    in the cluster publish their services and configuration information to the etcd
+    service of the master node, which provides this information to all the other nodes
+    in the cluster.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Container management
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: The key element of the CoreOS building block is a container that can either
+    be Docker or Rocket. The initial version of CoreOS officially supports Docker
+    as the means for running any service application in the CoreOS cluster. In the
+    recent version, CoreOS supports a new container mechanism called Rocket, even
+    though CoreOS maintains backward compatibility with Docker support. All customer
+    applications/services will be deployed as a container in the CoreOS cluster. When
+    multiple services are running inside a server for different customers, it is inevitable
+    to isolate the execution environment from one customer to another customer. Typically,
+    in a VM-based environment, each customer will be given a VM and inside this VM
+    the customer can run their own service, which provides complete isolation of the
+    execution environment between customers. The container also provides a lightweight
+    virtualization environment without running a separate copy of the VM.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Linux Container
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: '**Linux Container** (**LXC**) is a lightweight virtualization environment provided
+    by the Linux kernel to provide system-level virtualization without running a hypervisor.
+    LXC provides multiple virtualized environments, each of them being inaccessible
+    and invisible from the other. Thus, an application that is running inside one
+    Linux container will not have access to the other containers.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'LXC combines three main concepts for resource isolation as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Cgroups
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Namespaces
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Chroot
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'The following diagram explains in detail about LXC and the utilities required
+    to provide LXC support:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Linux Container](img/00005.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Linux Containers
+  prefs: []
+  type: TYPE_NORMAL
+- en: '**Libvirt** is a ''C'' library toolkit that is used to interact with the virtualization
+    capabilities provided by the Linux kernel. It acts as a wrapper layer for accessing
+    the APIs exposed by the virtualization layer of the kernel.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: cgroups
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+- en: Linux **cgroups** is a feature provided by the kernel to restrict access to
+    system resource for a process or set of processes. The Linux cgroup provides a
+    way to reserve or allocate resources, such as CPU, system memory, network bandwidth
+    and so on, to a group of processes/tasks. The administrator can create a cgroup
+    and set the access levels for these resources and bind one or more processes to
+    these groups. This provides fine-grained control over the resources in the system
+    to different processes. This is explained in detail in the next diagram. The resources
+    mentioned on the left-hand side are grouped into two different cgroups called
+    cgroups-1 and cgroups-2\. task1 and task2 are assigned to cgroups-1, which makes
+    only the resources allocated for cgroups-1 available for task1 and task2.
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![cgroups](img/00006.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Linux cgroups
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Managing cgroups consists of the following steps:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Creation of cgroups.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Assign resource limit to the cgroup based on the problem statement. For example,
+    if the administrator wants to restrict an application not to consume more that
+    50 percent of CPU, then he can set the limit accordingly.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Add the process into the group.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: As the creation of cgroups and allocation of resources happens outside of the
+    application context, the application that is part of the cgroup will not be aware
+    of cgroups and the level of resource allocated to that cgroup.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Namespace
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+- en: '**namespace** is a new feature introduced from Linux kernel version 2.6.23
+    to provide resource abstraction for a set of processes. A process in a namespace
+    will have visibility only to the resources and processes that are part of that
+    namespace alone. There are six different types of namespace abstraction supported
+    in Linux as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: PID/Process Namespace
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Network Namespace
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Mount Namespace
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: IPC Namespace
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: User Namespace
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: UTS Namespace
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**Process Namespace** provides a way of isolating the process from one execution
+    environment to another execution environment. The processes that are part of one
+    namespace won''t have visibility to the processes that are part of other namespaces.
+    Typically, in a Linux OS, all the processes are maintained in a tree with a child-parent
+    relationship. The root of this process tree starts with a specialized process
+    called init process whose `process-id` is `1`. The init process is the first process
+    to be created in the system and all the process that are created subsequently
+    will be part of the child nodes of the process tree. The process namespace introduces
+    multiple process trees, one for each namespace, which provides complete isolation
+    of the processes running across different namespaces. This also brings the concept
+    of a single process to have two different `pids`: one is the global context and
+    other in the namespace context. This is explained in detail in the following diagram.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'In the following diagram, for namespace, all processes have two process IDs:
+    one in the namespace context and the other in the global process tree.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Namespace](img/00007.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Process Namespace
+  prefs: []
+  type: TYPE_NORMAL
+- en: '**Network Namespace** provides isolation of the networking stack provided by
+    the operating system for each container. Isolating the network stack for each
+    namespace provides a way to run multiple same services, say a web server for different
+    customers or a container. In the next diagram, the physical interface that is
+    connected to the hypervisor is the actual physical interface present in the system.
+    Each container will be provided with a virtual interface that is connected to
+    the hypervisor bridging process. This hypervisor bridging process provides inter-container
+    connectivity across the container, which provides a way for an application running
+    in one container to talk to another application running in another container.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Namespace](img/00008.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Network Namespace
+  prefs: []
+  type: TYPE_NORMAL
+- en: Chroot
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+- en: '**Chroot** is an operation supported by Linux OS to change the root directory
+    of the current running process, which apparently changes the root directory of
+    its child. The application that changes the root directory will not have access
+    to the root directory of other applications. Chroot is also called **chroot jail**.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Combining the cgroups, namespace, and chroot features of the Linux kernel provides
+    a sophisticated virtualized resource isolation framework with clear segregation
+    of the data and resources across various processes in the system.
+  prefs: []
+  type: TYPE_NORMAL
+- en: In LXC, the chroot utility is used to separate the filesystem, and each filesystem
+    will be assigned to a container that provides each container with its own root
+    filesystem. Each process in a container will be assigned to the same cgroup with
+    each cgroup having its own resources providing resource isolation for a container.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Docker
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: '**Docker** provides a portable way to deploy a service in any Linux distribution
+    by creating a single object that contains the service. Along with the service,
+    all the dependent services can be bundled together and can be deployed in any
+    Linux-based servers or virtual machine.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Docker is similar to LXC in most aspects. Similar to LXC, Docker is a lightweight
+    server virtualization infrastructure that runs an application process in isolation,
+    with resource isolation, such as CPU, memory, block I/O, network, and so on. But
+    along with isolation, Docker provides *"Build, Ship and Run*" modeling, wherein
+    any application and its dependencies can be built, shipped, and run as a separate
+    virtualized process running in a namespace isolation provided by the Linux operating
+    system.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Dockers can be integrated with any of the following cloud platforms: Amazon
+    Web Services, Google Cloud Platform, IBM Bluemix, Jelastic, Jenkins, Microsoft
+    Azure, OpenStack Nova, OpenSVC, and configuration tools such as Ansible, CFEngine,
+    Chef, Puppet, Salt, and Vagrant. The following are the main features provided
+    by Docker.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: The main objective of Docker is to support micro-service architecture. In micro-service
+    architecture, a monolithic application will be divided into multiple small services
+    or applications (called micro-services), which can be deployed independently on
+    a separate host. Each micro-service should be designed to perform specific business
+    logic. There should be a clear boundary between the micro-services in terms of
+    operations, but each micro-service may need to expose APIs to different micro-services
+    similar to the service discovery mechanism described earlier. The main advantage
+    of micro-service is quick development and deployment, ease of debugging, and parallelism
+    in the development for different components in the system. One of the main advantage
+    of micro-services is based on the complexity, bottleneck, processing capability,
+    and scalability requirement; every micro-service can be individually scaled.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Docker versus LXC
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: Docker is designed for deploying applications, whereas LXC is designed to deploy
+    a machine. LXC containers are treated as a machine, wherein any applications can
+    be deployed and run inside the container. Docker is designed to run a specific
+    service or application to provide container as an application. However, when an
+    application or service has a dependency with other services, these services can
+    also be packed along with the same Docker image. Typically, the docker container
+    doesn't provide all the services that will be provided by any OS, such as init
+    systems, syslog, cron, and so on. As Docker is more focused on deploying applications,
+    it provides tools to create a docker container and deploy the services using source
+    code.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Docker containers are designed to have a layered architecture with each layer
+    containing changes from the previous version. The layered architecture provides
+    the docker to maintain the version of the complete container. Like any typical
+    version control tools like Git/CVS, docker containers are maintained with a different
+    version with operations like commit, rollback, version tracking, version diff,
+    and so on. Any changes made inside the docker application will be made as a read-only
+    layer until it is committed.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Docker-hub contains more than 14,000 containers available for various well-known
+    services that can be downloaded and deployed very easily.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Docker provides an efficient mechanism for chaining different docker containers,
+    which provides a good service chaining mechanism. Different docker containers
+    can be connected to each other via different mechanisms as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Docker link
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Using docker0 bridge
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Using the docker container to use the host network stack
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Each mechanism has its own benefits. Refer to [Chapter 7](part0043_split_000.html#190861-31555e2039a14139a7f00b384a5a2dd8
+    "Chapter 7. Creating a Virtual Tenant Network and Service Chaining Using OVS"),
+    *Creating a Virtual Tenant Network and Service Chaining Using OVS* for more information
+    about service chaining.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Docker uses libcontainer, which accesses the kernel's container calls directly
+    rather than creating an LXC.
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Docker versus LXC](img/00009.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Docker versus LXC
+  prefs: []
+  type: TYPE_NORMAL
+- en: Rocket
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: Historically, the main objective of CoreOS is to run the services as a lightweight
+    container. Docker's principle was aligning with the CoreOS service requirement
+    with simple and composable units as container. Later on, Docker adds more and
+    more features to make the Docker container provide more functionality than standard
+    containers inside a monolithic binary. These functionalities include building
+    overlay networks, tools for launching cloud servers with clustering, building
+    images, running and uploading images, and so on. This makes Docker more like a
+    platform rather than a simple container.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'With the previously mentioned scenario, CoreOS started working on a new alternative
+    to Docker with the following objectives:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Security
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Composability
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Speed
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Image distribution
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: CoreOS announced the development of Rocket as an alternative to Docker to meet
+    the previously mentioned requirements. Along with the development of Rocket, CoreOS
+    also started working on an App Container Specification. The specification explains
+    the features of the container such as image format, runtime environment, container
+    discovery mechanism, and so on. CoreOS launched its first version of Rocket along
+    with the App Container Specification in December 2014.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'CoreOS cluster management:'
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: '**Clustering** is the concept of grouping a set of machines to a single logical
+    system (called cluster) so that the application can be deployed in any one machine
+    in the cluster. In CoreOS, clustering is one of the main features provided by
+    CoreOS by running different services/docker container over the cluster of the
+    machine. Historically, in most of the Linux distribution, services can be managed
+    using the systemd utility. CoreOS extends the systemd service from a single node
+    to a cluster using fleet utility. The main reason for CoreOS to choose fleet to
+    orchestrate the services across the CoreOS cluster is as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Performance
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Journal support
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Rich syntax in deploying the services
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: It is also possible to have a CoreOS cluster with a combination of a physical
+    server and virtual machines as long as all the nodes in the cluster are connected
+    to each other and reachable. All the nodes that want to participate in the CoreOS
+    cluster should run CoreOS with the same cluster ID.
+  prefs: []
+  type: TYPE_NORMAL
+- en: systemd
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: 'systemd is an init system utility that is used to stop, start, and restart
+    any of the Linux services or user programs. systemd has two main terminologies
+    or concepts: unit and target. **unit** is a file that contains the configuration
+    of the services to be started, and **target** is a grouping mechanism to group
+    multiple services to be started at the same time.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: fleet
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: '**fleet** emulates all the nodes in the cluster to be part of a single init
+    system or system service. fleet controls the systemd service at the cluster level,
+    not in the individual node level, which allows fleet to manage services in any
+    of the nodes in the cluster. fleet not only instantiates the service inside a
+    cluster but also manages how the services are to be moved from one node to another
+    when there is a node failure in the cluster. Thus, fleet guarantees that the service
+    is running in any one of the nodes in the cluster. fleet can also take care of
+    restricting the services to be deployed in a particular node or set of nodes in
+    a cluster. For example, if there are ten nodes in a cluster and among the ten
+    nodes a particular service, say a web server, is to be deployed over a set of
+    three servers, then this restriction can be enforced when fleet instantiates a
+    service over the cluster. These restrictions can be imposed by providing some
+    information about how these jobs are to be distributed across the cluster. fleet
+    has two main terminologies or concepts: engine and agents. For more information
+    about systemd and fleet, refer to chapter Creating Your CoreOS Cluster and Managing
+    the Cluster.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: CoreOS and OpenStack
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: Is CoreOS yet another orchestration framework like OpenStack/CloudStack? No,
+    it is not. CoreOS is not a standalone orchestration framework like OpenStack/CloudStack.
+    In most server orchestration frameworks, the framework sits external to the managed
+    cloud. But in CoreOS, the orchestration framework sits along with the existing
+    business solution.
+  prefs: []
+  type: TYPE_NORMAL
+- en: '**OpenStack** is one of the most widely used cloud computing software platforms
+    to provide IaaS. OpenStack is used for orchestrating the compute, storage, and
+    network entities of the cloud, whereas CoreOS is used for service orchestration.
+    Once the compute, storage, or network entities are instantiated, OpenStack doesn''t
+    have any role in instantiating services inside these VMs.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Combining the orchestration provided by OpenStack and CoreOS provides a powerful
+    IaaS, wherein the cloud provider will have fine-grained control until the service
+    orchestration. So CoreOS can co-exist with OpenStack, wherein OpenStack can instantiate
+    a set of VMs that run the CoreOS instance and form a CoreOS cluster. That is,
+    OpenStack can be used to create a CoreOS cluster as infrastructure. The CoreOS
+    that is running inside the VM forms as a cluster and instantiates the service
+    inside any one of the nodes in the cluster.
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![CoreOS and OpenStack](img/00010.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: OpenStack and CoreOS
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'In the preceding diagram, OpenStack is used to manage the server farm that
+    consists of three servers: server1, server2, and server3\. When a customer is
+    requested for a set of VMs, OpenStack creates the necessary VM in any one of these
+    servers, as an IaaS offering. With CoreOS, all these VMs run the CoreOS image
+    with the same cluster ID, and hence can be part of the same cluster. In the preceding
+    diagram, there are two CoreOS clusters, each allocated for different customers.
+    The services/applications to be run on these VMs will be instantiated by the fleet
+    service of CoreOS, which takes care of instantiating the service in any one of
+    the VMs in the cluster. At any point in time, OpenStack can instantiate new VMs
+    inside the cluster in order to scale up the cluster capacity by adding new VMs
+    running the CoreOS image with the same cluster ID, which will be a candidate for
+    CoreOS to run new services.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Summary
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: CoreOS and Docker open up a new era for deploying the services in a cluster
+    to streamline easy development and deployment of applications. CoreOS and Docker
+    bridge the gap between the process of developing a service and deploying the service
+    in production and make the server and service deployment less effort and less
+    intensive work. With lightweight containers, CoreOS provides very good performance
+    and provides an easy way to auto-scale the application with less overhead from
+    the operator side. In this chapter, we have seen the basics of containers, Docker,
+    and the high-level architecture of CoreOS.
+  prefs: []
+  type: TYPE_NORMAL
+- en: In the next few chapters, we are going to see the individual building blocks
+    of CoreOS in detail.
+  prefs: []
+  type: TYPE_NORMAL

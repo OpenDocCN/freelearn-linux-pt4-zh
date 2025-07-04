@@ -1,0 +1,415 @@
+- en: Chapter 5. Path Planning and Your Biped
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: Now that your biped is up and mobile and able to find barriers, you can now
+    start to have it move around autonomously. However, you'll want to have your robot
+    planed his path, that is, if it knows where it has started and the desired end
+    point, it can move from the starting point to the end point.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'In this chapter, you will be learning about:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: How to add a compass to your biped, so you'll have a sense of direction
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Learning some basic path planning techniques for your robot
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Connecting a digital compass to the Raspberry Pi
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: One of the important pieces of information that might be useful for your robot,
+    it if is going to plan its own path, is its direction of travel. So, let's learn
+    how to hook up a digital compass to the Raspberry Pi.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'There are several chips that provide digital compass capability; one of the
+    most common is the **HMC5883L 3-Axis Digital Compass chip**. This chip is packaged
+    onto a module by several companies, but almost all of them result in a similar
+    interface. The following is a picture of one the **GY-271 HMC5883L Triple Axis
+    Compass Magnetometer Sensor Module**, which is available from a number of online
+    retailers:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Connecting a digital compass to the Raspberry Pi](img/B04591_05_01.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: This type of digital compass uses magnetic sensors to discover the earth's magnetic
+    field. The output of these sensors is then made accessible to the outside world
+    through a set of registers that allow the user to set things such as the sample
+    rate, and continuous or single sampling. The *x*, *y*, and *z* directions are
+    output-using registers as well.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The connections to this chip are straightforward and the device communicates
+    with the Raspberry Pi by using the I2C bus, a standard serial communications bus.
+    The I2C interface is a synchronous serial interface and provides more performance
+    than an asynchronous Rx/Tx serial interface. The SCL data line provides a clock,
+    while the data flows on the SDA line. The bus also provides addressing so that
+    more than one device can be connected to the master device at the same time. On
+    the back of the module, the connections are labeled, as shown in the following
+    image:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Connecting a digital compass to the Raspberry Pi](img/B04591_05_02.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'You''ll then connect the device to the GPIO pins on Raspberry Pi. The following
+    is the pin out of Raspberry Pi:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Connecting a digital compass to the Raspberry Pi](img/B04591_05_03.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Connect your device to the VCC on the device to Pin 1 (3.3 V) on Raspberry Pi.
+    Connect GND to Pin 9 (GND). Connect SCL on the device to Pin 5 (GPIO 3) and SDA
+    to Pin 3 (GPIO 2) on the device. Notice that you will not connect the **Data Ready**
+    (**DRDY**) line. Now, you are ready to communicate with the device.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Accessing the compass programmatically
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'In order to access the compass capability, you''ll need to enable the I2C library
+    on Raspberry. If you used the IR sensor and ADC additional hardware in [Chapter
+    4](ch04.html "Chapter 4. Avoiding Obstacles Using Sensors"), *Avoiding Obstacles
+    Using Sensors*, you will have already done this. If not, follow these instructions
+    to enable the I2C interface:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Run `raspi-config`. Select the **Configure advanced settings**, as shown in
+    the following screenshot:![Accessing the compass programmatically](img/B04591_05_04.jpg)
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'From the next selection page, select the Enable/disable automatic loading of
+    the I2C interface, as shown in the following screenshot:'
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: '![Accessing the compass programmatically](img/B04591_05_05.jpg)'
+  prefs:
+  - PREF_IND
+  type: TYPE_IMG
+- en: 'Then select **yes**, as shown in the following screenshot:'
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: '![Accessing the compass programmatically](img/B04591_05_06.jpg)'
+  prefs:
+  - PREF_IND
+  type: TYPE_IMG
+- en: 'You''ll also want to edit the file `/etc/modules` and add the lines `i2c-bcm2708`
+    and `i2c-dev`, as shown in the following screenshot:'
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: '![Accessing the compass programmatically](img/B04591_05_07.jpg)'
+  prefs:
+  - PREF_IND
+  type: TYPE_IMG
+- en: 'And one final edit, change the last line in `/boot/config.txt`, as shown in
+    the following screenshot:'
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: '![Accessing the compass programmatically](img/B04591_05_08.jpg)'
+  prefs:
+  - PREF_IND
+  type: TYPE_IMG
+- en: Now, reboot Raspberry Pi.
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: With the device connected, you can see if the system knows about your device.
+    To do this, type the following command:![Accessing the compass programmatically](img/B04591_05_09.jpg)
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: You can see the device at **1e**.
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: Now you communicate with your digital compass. To do this, you'll need to create
+    a Python program. But before you create your Python code, you'll want to download
+    a library that will make this all much easier. To do this, first create a directory
+    a directory called `compass` and `cd` to that directory. Then, type `git clone
+    https://github.com/quick2wire/quick2wire-python-api.git` to download the `quick2wire-python-api`
+    library. Finally, type `git clone https://bitbucket.org/thinkbowl/i2clibraries.git`
+    to get the i2clibraries.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'You''ll also need to set some environment variables. Do this by going to your
+    home directory and editing the `.bashrc` file, adding these two lines at the end:'
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: '![Accessing the compass programmatically](img/B04591_05_10.jpg)'
+  prefs:
+  - PREF_IND
+  type: TYPE_IMG
+- en: Now, you can create the following Python code:![Accessing the compass programmatically](img/B04591_05_11.jpg)
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Now, run the code by typing `python3 compass.py` command and you should see:![Accessing
+    the compass programmatically](img/B04591_05_12.jpg)
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Now, you can add direction to your project! As you move the device around, you
+    should see the **Heading** value change.
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: Note
+  prefs:
+  - PREF_IND
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: This is a basic program; you can find out more about other features that are
+    available with this library at [http://think-bowl.com/raspberry-pi/i2c-python-library-3-axis-digital-compass-hmc5883l-with-the-raspberry-pi/](http://think-bowl.com/raspberry-pi/i2c-python-library-3-axis-digital-compass-hmc5883l-with-the-raspberry-pi/).
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: 'One final step in developing your compass code is to make it a file where the
+    functions can then be imported to a different Python program. To do this, edit
+    the file so that all of the code is in functions, as shown by the following:'
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: '![Accessing the compass programmatically](img/B04591_05_13.jpg)'
+  prefs:
+  - PREF_IND
+  type: TYPE_IMG
+- en: Then you'll be able to use the import capability of Python to import this functionality
+    into a different Python file.
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: Dynamic path planning for your robot
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: Now that you can see barriers and also know direction, you'll want to do dynamic
+    path planning. Dynamic path planning simply means that you don't have a knowledge
+    of the entire world with all the possible barriers before you encounter them.
+    Your robot will have to decide how to proceed while it is in the middle and actually
+    moving. This can be a complex topic, but there are some basics that you can start
+    to understand and apply as you ask your robot to move around its environment.
+    Let's first address the problem of knowing where you want to go and needing to
+    execute a path without barriers, and then adding in barriers.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Basic path planning
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'In order to talk about dynamic path planning, that is, planning a path where
+    you don''t know what barriers you might encounter, you''ll need a framework to
+    understand where your robot is as well as to determine the location of the goal.
+    One common framework is an *x*-*y* grid. The following is a drawing of such a
+    grid:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Basic path planning](img/B04591_05_14.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'There are three key points:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: The lower left point is a fixed reference position. The directions *x* and *y*
+    are also fixed, and all other positions will be measured with respect to this
+    position and these directions.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Another important point is the starting location of your robot. Your robot will
+    then keep track of its location by using its *x* coordinate, or position itself
+    with respect to some fixed reference position in the *x* direction, and its *y*
+    coordinate, its position with respect to some fixed reference position in the
+    *y* direction to the goal. It will use the compass to keep track of these directions.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: The third important point is the position of the goal, also given in *x* and
+    *y* coordinates with respect to the fixed reference position. If you know the
+    starting location and the starting angle of your robot ,you can plan an optimum
+    (shortest distance) path to this goal. To do this, you can use the goal location
+    and the robot location, and some fairly simple math to calculate the distance
+    and angle from the robot to the goal.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'To calculate the distance, use the following equation:'
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: '![Basic path planning](img/B04591_05_24.jpg)'
+  prefs:
+  - PREF_IND
+  type: TYPE_IMG
+- en: 'Use the following equation to tell your robot how far to travel to the goal.
+    A second equation will tell your robot the angle it needs to travel:'
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: '![Basic path planning](img/B04591_05_26.jpg)'
+  prefs:
+  - PREF_IND
+  type: TYPE_IMG
+- en: 'The following is a graphical representation of these two pieces of information:'
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: '![Basic path planning](img/B04591_05_17.jpg)'
+  prefs:
+  - PREF_IND
+  type: TYPE_IMG
+- en: Now that you have a goal angle and distance, you can program your robot to move.
+    To do this, you will write a program to do path planning and call the movement
+    functions that you created in [Chapter 3](ch03.html "Chapter 3. Motion for the
+    Biped"), *Motion for the Biped*. You will, however, need to know the distance
+    that your robot travels in a step so that you can tell your robot how far to travel
+    in steps, not distance units.
+  prefs: []
+  type: TYPE_NORMAL
+- en: You'll also need to be able to translate the distance that might be covered
+    by your robot in a turn; however, this distance may be too small to be of any
+    importance. If you then know the angle and the distance, you can move your robot
+    to the goal.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following are the steps you will program:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Calculate the distance in units that your robot will need to travel in order
+    to reach the goal. Convert this to number of steps to achieve this distance.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Calculate the angle that your robot will need to travel to reach the goal. You'll
+    use the compass and your robot turn functions in order to achieve this angle.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Now, call the step functions the proper number of times required to move your
+    robot the correct distance.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: That's it. Now, we will use some very simple Python code that executes this
+    by using functions to move the robot forward and turn the robot. In this case,
+    it makes sense to create a file called `robotLib.py` with all of the functions
+    that do the actual servo settings to step the biped robot forward and turn the
+    robot. You'll then import these functions using the `from robotLib import *` statement,
+    and your Python program can call these functions. This makes the path planning
+    Python program much smaller and more manageable. You'll do the same thing with
+    the `compass` program, using the `from compass import *` command.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Note
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: For more information on how to import the functions from one Python file to
+    another, refer to [http://www.tutorialspoint.com/python/python_modules.htm](http://www.tutorialspoint.com/python/python_modules.htm).
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following is a listing of the program:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Basic path planning](img/B04591_05_18.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: In this program, the user enters the goal location and the robot first decides
+    the shortest direction to the desired angle by reading the angle. To make it simple,
+    the robot is placed in the grid with it heading in the direction of angle 0\.
+    If the goal angle is less than 180 degrees, the robot will turn right. If it is
+    greater than 180 degrees, the robot will turn left. The robot turns until the
+    desired angle and its measured angle are within a few degrees. Then, the robot
+    takes the number of steps to reach the goal.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Avoiding obstacles
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'Planning paths without obstacles, as has been shown, is quite easy. However,
+    it becomes a bit more challenging when your robot needs to walk around obstacles.
+    Let''s look at an instance where there is an obstacle in the path that you calculated
+    previously. It might look like the following:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Avoiding obstacles](img/B04591_05_19.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: You can still use the same path planning algorithm to find the starting angle;
+    however, you'll now need to use your sonar sensor to detect the obstacle. When
+    your sonar sensor detects the obstacle, you'll need to stop and recalculate a
+    path to avoid the barrier, and then recalculate the desired path to the goal.
+    One very simple way to do this, when your robot senses a barrier, is to turn right
+    90 degrees, go a fixed distance, and then recalculate the optimum path. When you
+    turn back to move toward the target, if you sense no barrier, you will be able
+    to move along the optimum path.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'However, if your robot encounters the obstacle again, it will repeat the process,
+    until it reaches the goal. In this case, using these rules, the robot will travel
+    the following path:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Avoiding obstacles](img/B04591_05_20.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'There is one more step you''ll need to take before adding the sonar sensor''s
+    capability to your robot. You''ll need to change the sonar sensor code so that
+    it can be added to the Python code as a library. The following is that code:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Avoiding obstacles](img/B04591_05_21.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'You''ll also import this code using the `from compass import *` statement.
+    You''ll also be using the time library and the `time.sleep` command to add delay
+    between different statements in the code. And the following is the first part
+    of the code that uses all of this to detect the barrier, turn to the right, then
+    first part of the Python code that utilizes the sonar sensor:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Avoiding obstacles](img/B04591_05_22.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'And the following is the final piece of the code:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Avoiding obstacles](img/B04591_05_22.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Now, this algorithm is quite simple; there are others that have much more complex
+    responses to barriers. You can also see that by adding sonar sensors to the sides
+    your robot could actually sense when the barrier has ended. You could also provide
+    more complex decision processes about which way to turn to avoid an object. Again,
+    there are many different path finding algorithms. See [http://www.academia.edu/837604/A_Simple_Local_Path_Planning_Algorithm_for_Autonomous_Mobile_Robots](http://www.academia.edu/837604/A_Simple_Local_Path_Planning_Algorithm_for_Autonomous_Mobile_Robots)
+    for an example of this. These more complex algorithms can be explored by using
+    the basic functionality that you have built in this chapter.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Summary
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: You've now added path planning to your robot's capability. Your robot can now
+    not only move from point A to point B, but can also avoid barriers that might
+    be in the way. In the next chapter, you'll learn how to add a webcam to your biped.
+    This will introduce a whole new set of ways for your robot to experience the world
+    around it.
+  prefs: []
+  type: TYPE_NORMAL

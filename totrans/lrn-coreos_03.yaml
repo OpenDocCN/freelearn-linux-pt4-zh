@@ -1,0 +1,940 @@
+- en: Chapter 3. Creating Your CoreOS Cluster and Managing the Cluster
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: This chapter covers CoreOS clustering, providing information on the concepts
+    and benefits of clustering. We will also learn how to set up clusters and get
+    familiar with all the services involved in clustering with greater detail.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'This chapter covers the following topics:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Introduction to clustering
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: The why and the benefits of clustering
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: CoreOS clustering
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Creating a CoreOS cluster
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Discovery using etcd
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Systemd
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Service deployment and High Availability (HA) using fleet
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Introduction to clustering
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: There are two ways to scale a system. One is to scale vertically, that is, by
+    adding more hardware resources to a machine. If the memory requirement of the
+    system increases, add more memory; if more processing is required, upgrade the
+    machine to one using higher-end processors or providing a higher number of cores.
+    Horizontal scaling is another way to scale a system to higher capacity. This means
+    adding more machines when required to form a cluster of nodes. This cluster of
+    nodes work in tandem to provide service. The nodes in the cluster may have applications
+    performing the same role like a pool or they may perform a different role.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The why and the benefits of clustering
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: Horizontal scalability of a system is limited by hardware resources available
+    in the market. For instance, scaling up RAM from 8 GB to 32 or 64 GB may be cost
+    effective, as many products may be commonly available, but increasing it further
+    may be cost inhibitive. Similarly, scaling up CPU is also limited by system configuration
+    available in the market. Further doubling the hardware capability doesn't result
+    in equal performance improvements. It's typically less.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'With virtualization and cloud services, the cost of buying and maintaining
+    hardware is coming down, making vertical scaling or clustering or scaling out
+    more is lucrative. The increased performance of communication networks has considerably
+    reduced the latency in the communication of nodes in the cluster. Clustering has
+    various advantages, such as:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '**On-demand scaling**: The nodes in the cluster can be added as and when required.
+    We can start with a dimensioned system and keep on adding nodes as capacity increases.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**Dynamic scaling**: Most of the clustering solutions provide a mechanism to
+    add/remove nodes at runtime. Hence, the system as a whole will be up and running
+    for providing service while cluster modifications are being performed.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**Redundancy**: A cluster can be configured with few spare nodes. Upon failure
+    of any nodes or during planned or unplanned maintenance of nodes, these spare
+    nodes can be assigned to the role of the failed node or nodes under maintenance
+    without impacting service capacity.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: It's also important to know about the shortcomings of clusters to make an informed
+    decision while architecting a system. As the number of nodes increase, the complexity
+    in the management of those nodes also increases. All the nodes need to be monitored
+    and maintained. The software also has to be designed to be able to run on multiple
+    nodes. There comes a requirement for an orchestration mechanism to orchestrate
+    the applications across different instances in the cluster. For instance, load
+    balancers to distribute load across worker nodes, or job serializers to synchronize
+    and serialize a job across nodes.
+  prefs: []
+  type: TYPE_NORMAL
+- en: CoreOS clustering
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: '[Chapter 1](part0014_split_000.html#DB7S1-31555e2039a14139a7f00b384a5a2dd8
+    "Chapter 1. CoreOS, Yet Another Linux Distro?"), *CoreOS, Yet Another Linux Distro*
+    covers CoreOS cluster architecture. We will summarize it here again. A CoreOS
+    member or node can contain multiple Docker containers. There can be multiple CoreOS
+    members forming a CoreOS cluster.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: CoreOS uses fleet to schedule and manage the services using `systemd` onto the
+    CoreOS members during initialization. This is similar to the `systemd` starting
+    and managing service on Linux machines. The scope of the Linux `systemd` process
+    is limited to a host node, whereas CoreOS `fleetd` is the init system for a complete
+    CoreOS cluster.
+  prefs: []
+  type: TYPE_NORMAL
+- en: CoreOS uses etcd for node discovery and storing key-value pairs of configuration
+    items accessible across a cluster member.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'It''s possible to set up a cluster in two ways:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '**etcd running on all members**: When the number of members of the cluster
+    is few, then etcd can be run on all the members running the services, also called
+    workers. This configuration is simpler as the same `cloud-config` can be used
+    to start all the members of the cluster.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**etcd running on few members**: When the number of members in the cluster
+    is large, typically greater than ten, it is advisable to run `etcd` and other
+    CoreOS cluster services exclusively on some of the machines. This becomes easier
+    to dimension the platform configuration of the worker members as they are exclusively
+    used for providing services. In this, two `cloud-config` files are required: one
+    for CoreOS cluster services including etcd, and the other for workers or proxies.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: The setting of CoreOS clusters is fairly simple. Prepare the `cloud-config`
+    file and start booting members using the file. Small scripting knowledge is required
+    to regenerate the configuration files per member. The discovery service and etcd
+    use the discovery token or static token provided to form a cluster as the members
+    are started.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Cluster discovery
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'This section describes the various discovery mechanisms used by CoreOS to form
+    a cluster. For the examples in this chapter, the following is the system configuration:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Cluster discovery](img/00015.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Static discovery
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: The **static discovery** mechanism is used when the IP addresses of the members
+    are known beforehand. IPs are preconfigured in the `cloud-config` file. They are
+    useful in scenarios where the cluster size is small and can be generally used
+    for test setups. Configuring large numbers of hardcoded IPs will be error prone
+    and a maintenance nightmare.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following is the `cloud-config` file that is used to create a cluster using
+    static discovery:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE0]'
+  prefs: []
+  type: TYPE_PRE
+- en: There are two new fields that were not discussed before. The `name` field provides
+    the name of the member. This is also used to correlate the member to the URL in
+    `initial-cluster`. The `initial-cluster` field provides the member name and URL
+    of all the members of the cluster.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Tip
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: The IP addresses provided in the initial-cluster field should contain the static
+    IP address.
+  prefs: []
+  type: TYPE_NORMAL
+- en: In order to create the previously mentioned `cloud-config` file, for all the
+    nodes that want to be part of the cluster, the following steps need to be performed.
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`Vagrantfile` should contain static IP addresses allocated to each member.
+    As shown in the following sample, IP `172.17.8.101` is assigned to the first member,
+    IP `172.17.8.102` is assigned to the second member, and so on:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE1]'
+  prefs: []
+  type: TYPE_PRE
+- en: You might have noticed the `cloud-config` file contains the name of only one
+    member, but the `systemd` `unit` file for the `etcd` service in each CoreOS VM
+    should contain its own member name. This requires the following instrumentation
+    in `Vagrantfile` to generate the `cloud-config` file specific to each member.
+    Without going into the specifics of `ruby`, the following code modifies the name
+    parameter for each member and stores in a separate file.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The generated file is `user-data-1` for the first member, `user-data-2` for
+    the second member, and so on. Except for the `name` field, all other parameters
+    are used from the `cloud-config` file provided. The generated files are used during
+    boot-up of Virtual Machines:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE2]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Set `$num_instances` to `3` in the `config.rb` file and setup is complete for
+    a three-member cluster:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Boot the cluster using `Vagrant up`. Upon successful boot-up, we can see the
+    members of the cluster.
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE3]'
+  prefs: []
+  type: TYPE_PRE
+- en: etcd discovery
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'The `etcd` discovery mechanism is used when the IP addresses of the members
+    are not known in advance or DHCP is used to assign IP addresses. There can be
+    two modes of discovery: public and custom.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: If the cluster has access to the public IP, the public discovery service `discovery.etcd.io`
+    can be used to generate a token and manage cluster membership. Access the website
+    [https://discovery.etcd.io/new?size=<clustersize>](https://discovery.etcd.io/new?size=<clustersize>)
+    and generate a token. Note that cluster size is required to be provided while
+    generating a token.
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![etcd discovery](img/00016.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'Generation of a token can be automated in the `config.rb` file by uncommenting
+    the following lines:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE4]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'The following is the `cloud-config` file that is used to create a cluster using
+    public `etcd` discovery:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE5]'
+  prefs: []
+  type: TYPE_PRE
+- en: Set `$num_instances` to `3` in the `config.rb` file and setup is complete for
+    a three-member cluster. Compared to static discovery, this is a simpler process
+    and no instrumentation is required in `Vagrantfile`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Boot the cluster using `Vagrant up`. Upon successful boot-up, we can see the
+    members of the cluster:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE6]'
+  prefs: []
+  type: TYPE_PRE
+- en: Instead of using a public discovery, an `etcd` instance can be used as the discovery
+    service to manage cluster membership. One of the `etcd` instances is configured
+    with the token and number of cluster instances and other `etcd` instances use
+    it to join to the cluster.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following is the `cloud-config` file that is used to create a cluster using
+    public `etcd` discovery:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE7]'
+  prefs: []
+  type: TYPE_PRE
+- en: The token can be generated using the `uuidgen` Linux command. The path `v2/keys/discovery`
+    is where cluster information is stored. Any path can be provided. Machine one
+    is used as the custom discovery node.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The `etcd` service running on machine one doesn''t need a discovery token since
+    it is not going to be part of the cluster. This requires the following instrumentation
+    in `Vagrantfile` to generate the `cloud-config` file separately for machine one
+    and other machines. The following code modifies the name parameter for each member,
+    removes unwanted parameters for machine one, and stores in a separate file for
+    each member. In the following sample, the parameters that are not required are
+    set to empty; they can be deleted:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE8]'
+  prefs: []
+  type: TYPE_PRE
+- en: Set `$num_instances` to `3` in the `config.rb` file and boot the cluster using
+    `Vagrant` `up`. Initially, the cluster formation will fail as the number of nodes
+    corresponding to the discovery token is not set. Set the number of nodes as `2`
+    in the cluster. The path provided in the discovery token URL should match the
+    path provided in the URL.
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE9]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Upon setting the node size, we can see the members in the cluster. This time,
+    we additionally need to provide the endpoint information on which `etcd` is listening
+    as the `cloud-config` file contains a specific IP address instead of wildcard
+    IPs in the previous examples:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE10]'
+  prefs: []
+  type: TYPE_PRE
+- en: DNS discovery
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: Cluster discovery can also be performed using DNS SRV records. Contact your
+    system administrator to create DNS SRV records to map the hostname to the service.
+    DNS A records should also be created to map the hostname to the IP address of
+    the members.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The DNS domain name containing the discovery SRV records is required to be
+    provided using the `discovery-srv` parameter. The following DNS SRV records are
+    looked up in the listed order:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: _etcd-server-ssl._tcp.<domain name>
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: _etcd-server._tcp.<domain name>
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: If `_etcd-server-ssl._tcp.<domain name>` is found then `etcd` will attempt the
+    bootstrapping process over SSL.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following SRV and DNS A records are to be created:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE11]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'The following is the `cloud-config` file that is used to create a cluster using
+    public `etcd` discovery:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE12]'
+  prefs: []
+  type: TYPE_PRE
+- en: Tip
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: The `cloud-config` file contains additional section write-files to point to
+    the DNS server where SRV and A records are created.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Set `$num_instances` to `3` in the `config.rb` file and setup is complete for
+    a three-member cluster. Compared to static discovery, this is a simpler process
+    and no instrumentation is required in `Vagrantfile`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Boot the cluster using `Vagrant up`. Upon successful boot-up, we can see the
+    members of the cluster:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE13]'
+  prefs: []
+  type: TYPE_PRE
+- en: systemd
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: '`systemd` is an init system that most of the Linux distribution, including
+    CoreOS, has adopted to start other services/daemons during boot-up. `systemd`
+    is designed to run multiple operations required to start services in parallel,
+    resulting in faster boot-up. `systemd` manages services, devices, sockets, disk
+    mounts, and so on, called units. systemd performs operations like start, stop,
+    enable, and disable on the units. Each unit has a corresponding configuration
+    file called **unit file** that contains information about actions to be performed
+    for each operation, dependencies on other units, execution pre-conditions and
+    post-conditions, and so on.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: In this section, we will understand how to configure a service using unit file
+    and perform basic operations on the services. Let's start by understanding the
+    contents of unit file.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Service unit files
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: Unit files are embedded in the `cloud-config` file and CoreOS copies the information
+    verbatim to corresponding unit files.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The unit name must be of the form `string.suffix` or `string@instance.suffix`,
+    where:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`string` must not be an empty string and can only contain alphanumeric characters
+    and any of `'':'', ''_'', ''.'', ''@'', ''-''`.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`instance` can be empty, and can only contain the same characters as are valid
+    for `string`.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`suffix` must be one of the following unit types: `service`, `socket`, `device`,
+    `mount`, `automount`, `timer`, `path`. `service` is used for describing service.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Unit files contain information grouped under sections. Each section contains
+    a list of parameters and their values. Each parameter can occur multiple times
+    in a section. Section and parameter names are case sensitive. As we will be dealing
+    mostly with services, we will discuss configuration relevant to it. The following
+    are the important section names used for services:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`[Unit]` section: This section is not used by `systemd` and contains information
+    for the user about the service. Some of the important parameters of the `Unit`
+    section are:'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`Description`:This specifies the description of the service such as name, service
+    provided, and so on.'
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`After`:This specifies service names that are supposed to be started before
+    starting this service.'
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`Before`:This specifies service names that are supposed to be started after
+    starting this service.'
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`[Service]` Section: This section contains the configuration for managing units.
+    Some of the important parameters of the `Service` section are:'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`Type`:This specifies the startup type for the service. The type can be one
+    of the following: `simple`, `forking`, `oneshot`, `dbus`, `notify`, or `idle`.'
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: The type `simple` indicates that the service is started by executing the command
+    configured in `ExecStart`, and proceeds with other unit file processing. This
+    is the default behavior.
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: The type `fork` indicates that the parent process will fork a child process
+    and exit upon completion of start. Exiting of the main process is the trigger
+    to process with other unit file processing. To allow systemd to take recovery
+    action upon service failure, the `pid` file containing `pid` if the process providing
+    the service can be configured using `PIDFile`.
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: The type `oneshot` indicates that the service is started by executing the command
+    configured in `ExecStart`, waits for the exit of the command, and then proceeds
+    with other unit file processing. `RemainAfterExit` can be used to indicate that
+    the service is an active event after the main process has exited.
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: The type `notify` indicates that the service is started by executing the command
+    configured in `ExecStart`, and waits for the notification using `sd_notify` to
+    indicate startup is complete. Upon notification, `systemd` starts executing other
+    units.
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: The type `dbus` indicates that the service is started by executing the command
+    configured in `ExecStart`, waits for the service to acquire the D-bus name as
+    specified in `BusName` and then proceeds with other unit file processing.
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: '`TimeoutStartSec`:This specifies the `systemd` wait time during starting the
+    service before marking it as failed.'
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`ExecStartPre`:This can be used to execute commands before starting the service.
+    This parameter can be provided multiple times in the section to execute multiple
+    commands prior to start. The value contains the full path of the command along
+    with arguments to the command. The value can be preceded by `-` to indicate that
+    the failure of the command will be ignored and next steps will be executed.'
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`ExecStart`:This specifies the full path and the arguments of the command to
+    be executed to start the service. If the path to the command is preceded by a
+    dash `-` character, non-zero exit statuses will be accepted without marking the
+    service activation as failed.'
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`ExecStartPost`:This can be used to execute commands after starting the service.
+    This parameter can be provided multiple times in the section to execute multiple
+    commands after the start. The value contains the full path of the command along
+    with arguments to the command. The value can be preceded by `-` to indicate that
+    the failure of the command will be ignored and next steps will be executed.'
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`ExecStop`:This indicates the command needed to stop the service. If this is
+    not given, the process will be killed immediately when the service is stopped.'
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`TimeoutStopSec`:This specifies the `systemd` wait time during stopping the
+    service before forcefully killing it.'
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`PIDFile`:This specifies the absolute filename pointing to the PID file of
+    this service. `systemd` reads the PID of the main process of the daemon after
+    startup of the service. `systemd` removes the file after the service has shut
+    down if it still exists.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`BusName`: This specifies the D-Bus bus name that this service is reachable
+    at. This option is mandatory for services where `Type` is set to `dbus`.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`RemainAfterExit`:This flag specifies whether the service shall be considered
+    active even when all its processes exited. Defaults to no.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Starting and stopping a service
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: '`systemd` provides an interface to monitor and manage the service using the
+    `systemctl` command. To start a service, invoke the `start` option with the service
+    name. To start the service permanently after reboot, invoke the `enable` option
+    with the service name.`.service` can be omitted when the service name is provided
+    to the `systemctl` command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE14]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'To stop the service, invoke the `stop` option with the service name:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE15]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'To check the status of the service, invoke the `status` option with the service
+    name:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE16]'
+  prefs: []
+  type: TYPE_PRE
+- en: fleet
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: CoreOS extends the init system to the cluster using fleet. fleet emulates all
+    the nodes in the CoreOS cluster to be part of a single init system or system service.
+    fleet controls the systemd service at the cluster level, not at the individual
+    node level, which allows fleet to manage services in any of the nodes in the cluster.
+    fleet handles scheduling a unit/service/container to a cluster member, handles
+    units by rescheduling to another member, and provides an interface for monitoring
+    and managing units locally or remotely. You don't have to care about the coupling
+    of a member to the service, as fleet does it for you. The unit is guaranteed to
+    be running on all the clusters meeting the constraint required for running the
+    service. Unit files are not only limited to launch a Docker, even though most
+    of the time unit files are used to start a Docker. Some of the valid unit types
+    are `.socket`, `.mount`, and so on.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Architectural overview
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'fleet consists of two main components: **fleet agent** and **fleet engine**.
+    Both these components are part of the `fleetd` module and will be running on all
+    the cluster nodes. Both the engine and agent components work with a reconciliation
+    model, wherein both these components take a snapshot of the current state of the
+    cluster and derive the desired state and try to emulate the derived state of the
+    cluster.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: fleet uses the D-Bus interface exposed by systemd. D-Bus is the message bus
+    system for IPC provided by the Linux OS, which provides one-to-one messaging methods
+    and the pub/sub type of message communication.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Tip
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: As fleet is written in Go language, fleet uses `godbus`, which is the native
+    GO binding for D-Bus.
+  prefs: []
+  type: TYPE_NORMAL
+- en: fleet uses `godbus` to communicate with `systemd` for sending the commands to
+    start/stop units in a particular node. It also uses `godbus` to get the current
+    state of the units periodically.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Engine
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: The fleetd engine is responsible for making the scheduling decision of the units
+    among the cluster of nodes based on the constraint, if any. The engine talks to
+    `etcd` for getting the current state of units and nodes in the cluster. All the
+    units, state of the units, and the nodes in the cluster are stored in the `etcd`
+    data store.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The scheduling decision happens in a timely fashion or is triggered by `etcd`
+    events. The reconciliation process is triggered by `etcd` events or time period,
+    wherein the engine takes a snapshot of the current state and the desired state
+    of the cluster, which includes the state of all the units running on the cluster
+    along with the state of all the nodes/agents in the cluster. Based on the current
+    state and desired state of the cluster, it takes necessary action to move from
+    the current state to the desired state and save the desired state as the current
+    state. By default, the engine uses the least-loaded scheduling algorithm, wherein
+    it chooses the node that is loaded less for running a new unit.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Agent
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: '**Agent** is responsible for starting the units in the node. Once the engines
+    choose the appropriate node for running the units, it is the responsibility of
+    the agent in that node to start the unit. To start the unit, the agent sends start
+    or stop unit commands to the local systemd process using the D-Bus. The agent
+    is also responsible for sending the state of the units to the etcd, which will
+    be later communicated to the engine. Similar to the engine, the agent also runs
+    a periodic reconciler process to compute the current state and desired state of
+    unit files and takes the necessary action to move to the desired state.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: The following diagram represents how the job/unit is scheduled by the fleet
+    engine to one of the nodes in the cluster. When the user wants to start a unit
+    using the `fleetctl start` command, the engine picks this job and adds it to the
+    job offer. The qualified agent running on the node bids for the job on behalf
+    of the node. Once the qualified agent is selected by the engine, it sends the
+    unit to the agent for deployment.
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Agent](img/00017.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: fleetctl
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: '`fleetctl` is the utility provided by the CoreOS distribution to interface
+    and manage the `fleetd` module. This is similar to `systemctl` for `systemd` to
+    fleet. `fleetctl` can either be executed on one of the nodes inside the CoreOS
+    cluster or it can be executed on a machine that is not part of the CoreOS cluster.
+    There are different mechanisms to run `fleetctl` to manage the fleet service.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'By default, `fleetctl` communicates directly with `unix:///var/run/fleet.sock,`
+    which is a Unix domain socket of the local host machine. To override and to contact
+    a particular node''s HTTP API, the `--endpoint` option should be used, as follows.
+    The `--endpoint` option can also be provided using `FLEETCTL_ENDPOINT` environmental
+    options:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE17]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'When the user want to execute the `fleetctl` command from an external machine,
+    the `--tunnel` option is used, which provides a way to tunnel `fleetctl` commands
+    to one of the nodes in the cluster using SSH:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE18]'
+  prefs: []
+  type: TYPE_PRE
+- en: '`fleetctl` contains the command to start, stop, and destroy units in the cluster.
+    The following table lists the commands provided by `fleetctl`:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '| Command | Description | Example |'
+  prefs: []
+  type: TYPE_TB
+- en: '| --- | --- | --- |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `fleetctl list-unit-files` | List all units in the fleet cluster. |'
+  prefs: []
+  type: TYPE_TB
+- en: '[PRE19]'
+  prefs: []
+  type: TYPE_PRE
+- en: '|'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '| `fleetctl start` | To start a unit. |'
+  prefs: []
+  type: TYPE_TB
+- en: '[PRE20]'
+  prefs: []
+  type: TYPE_PRE
+- en: '|'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '| `fleetctl stop` | To stop a unit. |'
+  prefs: []
+  type: TYPE_TB
+- en: '[PRE21]'
+  prefs: []
+  type: TYPE_PRE
+- en: '|'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '| `fleetctl load` | To schedule a unit in a cluster without starting the unit.
+    This unit will be in an inactive state. |'
+  prefs: []
+  type: TYPE_TB
+- en: '[PRE22]'
+  prefs: []
+  type: TYPE_PRE
+- en: '|'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '| `fleetctl unload` | To unschedule a unit in a cluster. This unit will be
+    visible in `fleetctl list-unit-files` but will not have any state. |'
+  prefs: []
+  type: TYPE_TB
+- en: '[PRE23]'
+  prefs: []
+  type: TYPE_PRE
+- en: '|'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '| `fleetctl submit` | To bring the units into the cluster. This unit will be
+    visible in `fleetctl list-unit-files` but will not have any state. |'
+  prefs: []
+  type: TYPE_TB
+- en: '[PRE24]'
+  prefs: []
+  type: TYPE_PRE
+- en: '|'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '| `fleetctl destroy` | The destroy command stops the unit and removes the unit
+    file from the cluster. |'
+  prefs: []
+  type: TYPE_TB
+- en: '[PRE25]'
+  prefs: []
+  type: TYPE_PRE
+- en: '|'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '| `fleetctl status` | To get the status of the unit. This command invokes the
+    `systemctl` command on the machine running a given unit over SSH. |'
+  prefs: []
+  type: TYPE_TB
+- en: '[PRE26]'
+  prefs: []
+  type: TYPE_PRE
+- en: '|'
+  prefs: []
+  type: TYPE_NORMAL
+- en: The `fleetctl` syntax looks similar to `systemctl`, which is the management
+    interface for `systemd`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Standard (local) and global units
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: Global units are units that are scheduled to run on all the members. Standard
+    or local units are units that are scheduled to run only on some machines. In case
+    of failures, these units are switched to another member in the cluster fit to
+    run those units.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Unit file options for fleet
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'Unit file format is the same as the file format for `systemd`. fleet extends
+    the configuration by adding another section, `X-Fleet`. This section is used by
+    fleet to schedule the units on a specific member based on the constraints specified.
+    Some of the important parameters of the `X-Fleet` section are:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`MachineID`: This specifies the machine on which the unit has to be executed.
+    Machine ID can be obtained from the `/etc/machine-id` file, or through the `fleetctl
+    list-machines -l` command. This option is to be used with discretion as it defies
+    the purpose of fleet, allowing a unit to be targeted specifically on the machine.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`MachineOf`: This instructs fleet to execute the unit on which the specified
+    unit is running. This option can be used to group units running on a member.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`MachineMetadata`: This instructs fleet to execute the units on the member
+    matching the specified metadata. If more than one metadata is provided, all metadata
+    should match. To match any of the metadata the parameter can include multiple
+    times. `Metadata` is provided for the member in the `cloud-config` fleet configuration.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`Conflicts`: This instructs fleet not to execute the unit on the specified
+    unit that is running.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`Global`: If this is set to true, the unit is scheduled to be executed on all
+    the members. Additionally, if `MachineMetadata` is configured, they run only on
+    members having matching metadata. Any other options, if provided, make the unit
+    configuration invalid.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Instantiating the service unit in the cluster
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'We have seen what CoreOS clustering is, how to form a cluster, and tools like
+    `fleet` and `fleetctl`. Now, let us see how a service unit can be started in one
+    of the nodes in the cluster using `fleet`. As mentioned already, `fleetctl` is
+    the command-line utility provided by the CoreOS distribution to perform various
+    operations, such as start the service, stop the service, and so on in a cluster.
+    Like `systemctl`, `fleetctl` also requires a service file to perform these operations.
+    Let us see a sample service file and using the service file, how fleet starts
+    the service in the cluster:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE27]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Save the preceding file as `example.service` on the CoreOS machine. Now, execute
+    the following command to start the service in the cluster:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE28]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'One of the major requirements for running a service is to provide high availability.
+    To provide a high-availability service, we may need to run multiple instances
+    of the same service. These different instances should be running on different
+    nodes. To provide high availability for a unit/service, we should make sure that
+    the different instances of the service are running on different nodes in the cluster.
+    This can be achieved in CoreOS by using the `conflicts` attribute. Let us have
+    a look at the service file for these two instances of the service, say, the service
+    as `redis.service`:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE29]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Save this content as `redis@1.service` and `redis@2.service`. The conflicts
+    attributes in the service file informs fleet not to start these two services in
+    the same node:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE30]'
+  prefs: []
+  type: TYPE_PRE
+- en: Recovering from node failure
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: CoreOS provides an inherent mechanism to reschedule the units from one node
+    to another node when there is a node failure or machine failure. All the nodes
+    in the cluster send a heartbeat message to the fleet leader. When the heartbeat
+    messages are not received from a particular node, all the units running on that
+    node are marked to be rescheduled in different nodes. The fleet engine identifies
+    the qualified node and starts the units in the qualified node.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Summary
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: In this chapter, we learned about CoreOS clusters and how members join a cluster
+    using cluster discovery. We got ourselves familiar with the init system used to
+    start the units in most of the Linux systems and how CoreOS extends it to a multi-member
+    cluster using the fleet service. We learned about starting and stopping a service
+    on a member using fleet.
+  prefs: []
+  type: TYPE_NORMAL
+- en: In the next chapter, we will understand more about the constraints on the service,
+    which helps fleet select the member suitable for it to run.
+  prefs: []
+  type: TYPE_NORMAL

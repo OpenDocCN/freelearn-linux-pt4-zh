@@ -1,0 +1,914 @@
+- en: Chapter 5. Implementing btrfs
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: In this chapter, we will investigate what is on offer with `btrfs` (pronounced
+    as *Better FS*). Although not directly related to networking, we will soon look
+    at how to share filesystems; for this reason and as `btrfs` is so incredibly good,
+    we will take a look at it right here and right now. `Btrfs` is a local filesystem
+    that provides the benefits of integrated volume management operations with easy
+    growth and a fault-tolerance built-in the filesystem. It's not fully supported
+    by Red Hat and ships as a technology preview; it has to be said that Red Hat is
+    cautious on this matter because SUSE has had `btrfs` as their default filesystem
+    since Enterprise Linux 11 SP2 and continues on SLES 12.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'In this chapter, we will cover the following topics:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Overview of `btrfs`
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Overview of the lab environment
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Creating the `btrfs` filesystem
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: The copy-on-write technology
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Resizing the `btrfs` filesystem
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Adding devices to the `btrfs` filesystem
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Mounting multidisk `btrfs` volumes from `/etc/fstab`
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Implementing RAID with `btrfs`
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Optimizing solid state drives
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Point-in-time data backups using snapshots
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Snapshot management with snappers
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Overview of btrfs
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'If there is one thing that Linux is able to offer you at present, it''s a choice
+    of filesystems with over 55 kernel-based filesystems on the Linux kernel tree.
+    So, why do we need more? We are already seeing that older filesystems such as
+    `xfs` are making a second coming with Red Hat championing this original filesystem
+    from SGI. The `btrfs` filesystem provides a unique solution that combines the
+    management of volume and a filesystem to a unified solution. `Btrfs` is licensed
+    under the **General Public License** (**GPL**) and ships as standard on Red Hat
+    Enterprise 7 and 7.1\. It does not just provide access to file management, but
+    also provides access to volume and the **Redundant Array of Inexpensive Disks**
+    (**RAID**) management. This simple administration means that you can create RAID
+    devices or extend volumes using single commands, rather than relying on LVM for
+    logical volumes or `mdadm` for RAID. Scalability is also a major factor in choosing
+    `btrfs`. This scales to 16 EB (Exabytes) and brings the following reliability
+    features not found previously:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Very fast filesystem creation
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Data and metadata checksums
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Snapshotting
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Online scrub to fix issues
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: When you look at organizations that use `btrfs` in production, which includes
+    Facebook and TripAdvisor among others, you will understand the importance of including
+    it in this book.
+  prefs: []
+  type: TYPE_NORMAL
+- en: In many ways, the `btrfs` filesystem was born from the failing of the ReiserFS
+    file system after it lost its lead developer, Hans Reiser. Chris Mason, who had
+    helped develop ReiserFS before moving on to SUSE, was hired by Oracle to develop
+    high-end filesystems. This was the start of `btrfs`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Overview of the lab environment
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'The Red Hat Enterprise Linux 7.1 virtual machine we will use for this book
+    will have additional drives added for this section. Currently, we will use three
+    disks:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`/dev/sda`: This disk is used by the root filesystem'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`/dev/sdb`: This disk is used to house the yum repository'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`/dev/sdc`: This disk is used as the iSCSI LUN store'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'To demonstrate some key features of `btrfs`, we will add four additional virtual
+    disks to the system so that we can use them while demonstrating the `btrfs` filesystem.
+    Feel free to do the same if you are using a virtualized system. The different
+    drives that we will add are as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`/dev/sdd`'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`/dev/sde`'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`/dev/sdf`'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`/dev/sdg`'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Using the `lsblk` command on the demonstration system, you will be able to
+    view the starting configuration that we will use from this point onward, as shown
+    in the following screenshot:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Overview of the lab environment](img/image00239.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Installing btrfs
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'Using Red Hat Enterprise Linux 7 or later, you will find that `btrfs` is installed
+    by default even on a minimal installation. However, if you are using earlier versions,
+    you can install the `btrfs` filesystem with yum in the normal way, as shown in
+    the following command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE0]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'With the filesystem installed, we can check the version that we have implemented
+    using the following command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE1]'
+  prefs: []
+  type: TYPE_PRE
+- en: On RHEL 7, the version is `3.12`, whereas on RHEL 7.1, the version is `3.16.2`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Now that we understand a little of the power behind `btrfs`, let's begin with
+    some simple implementation examples.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Creating the btrfs filesystem
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'To begin with, we will create a `btrfs` filesystem on the `/dev/sdd` complete
+    disk. We do not need to partition the disk first, saving us time from the outset.
+    This is shown in the following command line:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE2]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'With the filesystem created, we can take the time to become familiar with the
+    integrity check tool:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE3]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'The following screenshot shows the output from my system:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Creating the btrfs filesystem](img/image00240.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'To verify that the `btrfs` filesystem is in operation, we will create a directory
+    and mount it therein. We will also copy some data and display the usage information
+    for the disk:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE4]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'The output from the final command is shown in the following screenshot. We
+    can see that we have 5.96 MiB of file space used:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Creating the btrfs filesystem](img/image00241.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: The additional space used (which shows as `138.38MiB`) includes typical metadata
+    related to any filesystem, but additionally, by default, the `btrfs` filesystem
+    stores free space information on the disk so that it's quick to retrieve it rather
+    than searching the disk. This is controlled through the `space_cache` mount option,
+    which is set by default. If you would like to disable this feature, use the `nospace_cache`
+    mount option.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The Copy-On-Write technology
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: One of the underpinning technologies that helps with the success of the `btrfs`
+    filesystem is **Copy-On-Write** (**CoW**). `CoW` is used in logical volume management
+    filesystems, including **ZFS** used in Solaris (an Oracle product), Microsoft's
+    **Volume Shadow Copy**, and `btrfs`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: These CoW filesystems allow you to take instant snapshots or backups. This is
+    due to the fact that as a file is written and a copy of it is made; hence, Copy-on-Write.
+    As traditional filesystems implement this, the virtual disk technology can also
+    implement this `CoW` technology in `qcow2`. In this way, any allocated disk space
+    in the `qcow2` disk file is not used on the host until it's written to.
+  prefs: []
+  type: TYPE_NORMAL
+- en: For generic filesystems, you will find the `CoW` technology very useful. Being
+    able to revert to previous file versions is like gold dust on traditional file
+    servers. However, if you use `btrfs` to host very large data files, such as virtual
+    disk files, the `CoW` technology can perform slow writes.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Using the `chattr` command in Linux, we can set or change the attributes of
+    files and/or directories. Supported for `btrfs` filesystems, there is a file attribute
+    to disable CoW. This attribute is useful only when it is set on an empty file.
+    To ensure its effectiveness, we generally set this on a directory, so that all
+    the files inherit this attribute at the time of file creation. The following commands
+    show how to achieve this:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE5]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'In the following screenshot, we can see that creating a new file will automatically
+    assign the `NoDataCoW` option. It does not matter how this file was created:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![The Copy-On-Write technology](img/image00242.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Resizing btrfs filesystems
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'With `btrfs`, it''s possible to resize the `btrfs` filesystem when it is online
+    and is being accessed by users. The size of a filesystem will grow automatically
+    if we add or remove devices; we will see this in the next subsection of this chapter;
+    however; we can resize the filesystem should we need to even on a single device
+    that we have created. Using the following command, we will shrink the assigned
+    space to the filesystem by 500MiB:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE6]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'If we check the size of the filesystem before and after, we can see the dynamic
+    change that takes place:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Resizing btrfs filesystems](img/image00243.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Adding devices to the btrfs filesystem
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: We have already seen a little of volume management using LVM when we looked
+    at iSCSI in [Chapter 4](part0032.xhtml#aid-UGI01 "Chapter 4. Implementing iSCSI
+    SANs"), *Implementing iSCSI SANs*, and it's not exactly simple.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Volume management the old way
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'The following commands are used in order to manage the disk volumes in the
+    old, traditional way:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE7]'
+  prefs: []
+  type: TYPE_PRE
+- en: Volume management with btrfs
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'To start with, we will return the volume back to its original size before we
+    add the second disk. Using the `max` option, we will ensure that the `btrfs` filesystem
+    uses the maximum space available on the single disk we have in place so far:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE8]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'In LVM and traditional filesystems, there were a total of four commands to
+    be executed. In `btrfs`, we can perform this with a single command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE9]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'This is all we need to do. The device is added and the filesystem is automatically
+    increased to the available maximum space. We can use the `btrfs filesystem show`
+    command against either `/dev/sdd` or /`sdv/sde` because both devices will hold
+    a copy of the metadata by default. In the following commands, we can see that
+    this in place and the screenshot will reinforce this message:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE10]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'After reviewing the following screenshot, we can see the command and output
+    that is generated:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Volume management with btrfs](img/image00244.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'Having the metadata stored on both devices allow for fault-tolerance and weakens
+    the device to be queried:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE11]'
+  prefs: []
+  type: TYPE_PRE
+- en: Tip
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: Note that some subcommands can be shortened; in this case, `fi` is equivalent
+    to filesystem.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Balancing the btrfs filesystem
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'If the need to add the additional disk to the volume was due to it running
+    out of disk space, then we may choose to help performance by spreading the data
+    across both devices. This is achieved using the `balance` subcommand:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE12]'
+  prefs: []
+  type: TYPE_PRE
+- en: The `-m` argument represents metadata and `-d` represents data. In this way,
+    the disks are used at an equal ratio.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The output from the demonstration system is shown in the following command;
+    note that you can omit `filesystem` from the `balance` subcommand because it''s
+    optional in this case:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Balancing the btrfs filesystem](img/image00245.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Mounting multidisk btrfs volumes from /etc/fstab
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'If we are mounting the `btrfs` volumes from the `/etc/fstab` file, we need
+    to ensure that a `btrfs` scan is effected before we mount the `/data/simple` directory.
+    This will locate all the devices that participate within the volume. The `initramfs`
+    file system can complete this task for us on a later system including RHEL 7\.
+    If your existing filesystem was already using `btrfs`, the scan will be built-in
+    your current `initramfs`. If `btrfs` is new to your system, you will need to generate
+    a new initial RAM disk. Make sure that you use the correct `initramfs` and kernel
+    version for your system when running the following command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE13]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'We can then add an entry into the `/etc/fstab` file similar to the following:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE14]'
+  prefs: []
+  type: TYPE_PRE
+- en: Creating a RAID1 mirror
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'The **RAID** (**Redundant Array of Inexpensive Disks**) software is also supported
+    by `btrfs`. The following are the currently supported RAID levels:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '**RAID 0**: Striping without redundancy'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**RAID 1**: Disk mirroring'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**RAID 10**: Striped mirror'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Currently, we have a multidisk `btrfs` filesystem, but without fault-tolerance.
+    The implementation we used is RAID 0 / striping without parity. We can convert
+    this to a RAID 1 system and mirror the metadata and the filesystem data as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE15]'
+  prefs: []
+  type: TYPE_PRE
+- en: As you can see from the preceding command, the metadata and the filesystem data
+    are converted to the software mirror of RAID 1.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'We can create a mirrored device using `btrfs` from the outset easily and quickly.
+    Mirroring does not give us extra disk space, but this does provide great fault-tolerance
+    if the worst happens and we experience a disk failure. We can demonstrate this
+    on our demonstration system using the extra disk that we have not used so far:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE16]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'To create a mirror, we will use RAID1 for the metadata and the `-m` and `-d`
+    data, as we did in the preceding convert example. The disk space available is
+    1 GB. Whatever we write to `/dev/sdf` is mirrored to `/dev/sdg`; with mirror,
+    we lose 50 percent of the data storage, but have a high level of redundancy. We
+    will similarly need to add an entry to the `/etc/fstab` file to ensure that the
+    raid system mounts correctly at boot time. As `initramfs` now supports `btrfs`
+    by running the device scan for us, there is no requirement to create `initramfs`
+    at this stage:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE17]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Displaying the free disk space with standard tools—such as `df`—will not supply
+    correct information; we need to use `btrfs` tools. The following command will
+    list the free space available to the `/data/mirror` mount point:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE18]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'The output from the command is shown in the following screenshot:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Creating a RAID1 mirror](img/image00246.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: I know that we risk 7 years of bad luck even talking about it; however, mirrors
+    can break. Part of the reason to create a mirror is to provide fault-tolerance.
+    This is in itself an acceptance that hard disks can and do fail.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'For this demonstration, we will destroy the `/data/simple/` volume and reuse
+    the devices that we employed for the simple volume. To destroy the `btrfs` metadata,
+    the preferred utility is `wipefs`, which is part of the `util-linux` package.
+    Firstly, we need to run the `wipefs` command against the disk or partition we
+    need to wipe and then use the offset value with the `-o` option. Take a look at
+    how we can wipe `/dev/sdd` and `/dev/sde`:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE19]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'The output from the first drive is listed for convenience in the following
+    screenshot; the sequence is repeated from the second drive. Do not forget to remove
+    the entry from the `/etc/fstab` file:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Creating a RAID1 mirror](img/image00247.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: With these disks wiped, we can reuse them in other arrays.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'We will add data to the mirror volume in the same way that we did with the
+    simple volume. In this way, we can be sure that data stays intact:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE20]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'We will unmount the mirror volume now and emulate the failure of one of the
+    disks as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE21]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'We will now experience a problem when we try to remount the mirror volume using
+    the mount command, and we will have to mount the mirror volume using the `-o`
+    degraded option:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE22]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'At this stage, our data is available, so we can breathe a sigh of relief:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE23]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'We still have a RAID 1 array and the minimum number of members for this is
+    two, so we need to add a new device as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE24]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'We can now remove the failed or missing device:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE25]'
+  prefs: []
+  type: TYPE_PRE
+- en: The `missing` keyword will search for the first missing member in the array.
+    We can then delete this device. The RAID 1 array is now fully operational, provisioning
+    software mirroring across two devices again.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Using btrfs snapshots
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'Hopefully, what you have seen so far in `btrfs` will be of interest, but, of
+    course, there is always much more to see and learn. We will now look at snapshots.
+    Btrfs snapshots can be used as read-only or read/write copies of your data. With
+    `btrfs` as a Copy-on-Write-based filesystem, there is no need to copy large amounts
+    of data across because we only need to copy the data when it changes. In the meantime,
+    the original data is linked to the new location. In this way, a snapshot of a
+    large filesystem can be taken instantly. Snapshots can be put to use in a couple
+    of ways:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: As part of a backup solution where you may be concerned with open files affecting
+    the backup; the snapshot will be created as read-only. Subsequently, you will
+    implement a backup of the snapshot. In this way, the backup will be of the host
+    filesystem at the point in time that the snapshot was created.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Snapshots can be useful where you feel that rolling back to the original data
+    may be useful, perhaps in a testing environment where you need to implement many
+    changes and easily be able to restore back to the original data very quickly.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Btrfs snapshots rely on subvolumes; source and destination subvolumes need to
+    be within the same filesystem. If you'll recall the data is just linked until
+    it's changed; this is handled in the same way as traditional hard links.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Subvolumes within the `btrfs` filesystem are discrete management identities,
+    which allow more granular control of elements of a single filesystem. We will
+    begin by creating a single subvolume so that we may gain a little understanding
+    of this technology before creating snapshots. We will re-employ the `/dev/sde`
+    disk to be mounted as our simple volume and start by reformatting the mirror volume:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE26]'
+  prefs: []
+  type: TYPE_PRE
+- en: At this stage, the complete filesystem for `/dev/sde` is available and mounted
+    at the `/data/simple` directory. There is no data stored here yet, but we effectively
+    have a single view of the filesystem with the simple directory. Subvolumes allow
+    you to view the same filesystem in different ways by mounting elements of the
+    filesystem (subvolumes) to the directories that we choose and with selected mount
+    options appropriate for the data.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'We will create a new subvolume after the existing `/data/simple` directory:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE27]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'The output is quite minimal, as shown in the following screenshot:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Using btrfs snapshots](img/image00248.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'We can list the subvolumes, as shown in the following command and screenshot:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE28]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'The following screenshot shows the output of the preceding command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Using btrfs snapshots](img/image00249.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: We can also see that creating the subvolume also created the directory within
+    the filesystem itself. We will not be able to remove the directory from the filesystem
+    because this is not only a directory, but also a subvolume. To delete a directory,
+    you will need to delete the subvolume.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'We won''t delete the directory, but should we need to delete it at a later
+    stage, the command to delete it will be as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE29]'
+  prefs: []
+  type: TYPE_PRE
+- en: This will delete the subvolume along with the directory in very much the same
+    way as creating the subvolume also created the directory within the filesystem.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'We will now add some data to the subvolume; if you did delete it, you can simply
+    recreate it again. We can copy the PDF files that we have become familiar with
+    to this volume:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE30]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'If we need to make this data available elsewhere, we can mount the subvolume
+    wherever we need and with mount options that we feel appropriate. For example,
+    we have documentation in this directory so that we can mount it as read-only in
+    another directory:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE31]'
+  prefs: []
+  type: TYPE_PRE
+- en: At the root of the `/mnt` mount point, we will see the PDF files we added to
+    the `vol1` directory. They are still available in the original location under
+    `/data/simple/vol1`. In this way, we can control access to the data from how it's
+    mounted.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Now that we have some knowledge of subvolumes, we will investigate snapshots.
+    The snapshot must be created in the same filesystem as the target data; as we
+    mentioned before, the instant generation of a snapshot is affected by a form of
+    internal linking within the filesystem.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'We will generate the snapshot of the existing `vol1` data and also specify
+    the option `-r` to ensure that the backup is read-only. In this way, we can return
+    to this *point in time* backup by copying the data back from the `backup` directory.
+    No additional disk space is used unless the original data is changed:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE32]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'We can list the subvolumes easily using the following command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE33]'
+  prefs: []
+  type: TYPE_PRE
+- en: We may base the backup scenario around the fact that the documentation may be
+    written too frequently. Also, we want a solution to be able to recover from poorly
+    executed edits quickly.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'To create a read-only snapshot of the working subvolume, use the following
+    command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE34]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Listing the contents of the working directory and the backup directory should
+    reveal that the contents are the same:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE35]'
+  prefs: []
+  type: TYPE_PRE
+- en: The name `backup` is not important, but useful in the context of its use. As
+    always, a good naming scheme can help understand the directory's purpose unlike
+    the name we gave to `vol1`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Should we accidently delete all the files from `/data/simple/vol1`, the CoW
+    technology in `btrfs` will then write the changed data to the backup snapshot:
+    `/data/simple/backup`. This will also be the case if the files were modified in
+    any way rather than deleted; the snapshot holds files as they were at the time
+    the snapshot was created. We can simply copy the files back to the original location
+    in the event of a catastrophe.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'For the moment, we will look at how to delete this snapshot. Later in this
+    chapter, we will see how to use snapper as a simple mechanism in order to manage
+    snapshots on LVM and `btrfs` systems:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE36]'
+  prefs: []
+  type: TYPE_PRE
+- en: Optimizing btrfs for solid state drives
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'When creating a `btrfs` filesystem on multiple SSDs, using the single `-m`
+    option will ensure that the metadata is not duplicated. On an SSD, duplicating
+    metadata is thought of as a waste of space and has an overhead that can lessen
+    the life of the disk, as shown in the following code:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE37]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'The second way is to use the `ssd` mount option. This option will set a few
+    performance options:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Allows large metadata clusters
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Allows more sequential data allocation
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Disables leaf writing to match key and block order in the b-tree database
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Commits b-tree log fragments without batching multiple processes
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Managing snapshots with snapper
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: The snapshot command is included on RHEL 7 and can be used to manage snapshots
+    and view their differences with the original data easily. It can be employed along
+    with LVM or btrfs `systems.h`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'To install snapper, we fall back to RHEL''s package management:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE38]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Currently, there seems to be a bug or feature on SELinux that prevents snapper
+    from working if SELinux is enforced. We could allow the correct SELinux access
+    to our resources by creating a new policy or simply set `snapperd_t` to a permissive
+    domain. In this way, we can still use the power and security of SELinx, but just
+    have it disabled for snapper as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE39]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'At a later date, you can use the `-d` option to delete the enabled snapper
+    and the SELinux support:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE40]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'For the moment, we will leave snapper in the permissive mode and proceed to
+    create a configuration for snapper and our `/data/simple/vol1` data:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE41]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Using the following command, we can list the configurations that we have:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE42]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'The following screenshot shows the creation of the configuration and the listing
+    command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Managing snapshots with snapper](img/image00250.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Creating the configuration will create a hidden directory `.snapshots` at the
+    root `/data/simple/vol1` directory. The configuration itself is stored in `/etc/snapper/configs`;
+    a log file exits from troubleshooting located at `/var/log/snapper.log`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Now that we have the foundation created, we will create the snapshot:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE43]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'We can see that the process is very easy, quick, and saves us a lot of effort.
+    If we check the subvolumes that now exits after `/data/simple`, we will see`.snapshots`
+    and the numbered subvolume after this:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE44]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'The output is shown in the following screenshot:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Managing snapshots with snapper](img/image00251.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'More easily and normally though, we use snapper entirely to manage this, and
+    we should view snapshots with the following command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE45]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'To show how we can view the difference in data, we will delete a PDF file from
+    the original `vol1` location:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE46]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'With this file removed, we will now have a difference between the original
+    data and the snapshot. The CoW system will have the deleted file written to the
+    snapshot location as the deletion occurred. We can view the difference in the
+    data using the following command, where `0` is the original data and `1` is the
+    snapshot:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE47]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'The output of the command is shown in the following screenshot, which indicates
+    that the snapshot has the extra file now:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Managing snapshots with snapper](img/image00252.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'To restore the deleted file, we will use the `undochange` command; note that
+    we need to display the effect from the snapshot, to the original or `1..0`, as
+    shown in the following command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE48]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'We now have the `tutorial.pdf` file returned to us in the `vol1` directory
+    as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE49]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'From the following screenshot, you will be able to see the file restore command
+    and the listing of the returned file:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Managing snapshots with snapper](img/image00253.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Summary
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: In this chapter, we saw the power that can be unleashed with the `btrfs` filesystem
+    and the time we can save using it compared with other Linux logical volume systems
+    such as LVM. We also saw how to implement software RAID and then combined the
+    file management, logical volume management, and RAID management to a single command.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Using snapper to help manage snapshots works well for us on LVM and `btrfs`
+    systems. We used snapper with the `btrfs` filesystem in this chapter.
+  prefs: []
+  type: TYPE_NORMAL
+- en: In the next chapter, we will see how to share files on the network using **NFS**
+    (**Network File System**), the traditional UNIX way to share file resources on
+    your network.
+  prefs: []
+  type: TYPE_NORMAL

@@ -1,0 +1,468 @@
+- en: Chapter 5. Monitoring the Cluster Health
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: In [Chapter 2](part0018_split_000.html#H5A42-1d2c6d19b9d242db82da724021b51ea0
+    "Chapter 2. Installing Cluster Services and Configuring Network Components"),
+    *Installing Cluster Services and Configuring Network Components*, we mentioned
+    that becoming familiar with PCS and its myriad options would be helpful along
+    the path that might lead us to the installation of a full operational high availability
+    cluster. Although during the previous chapters we confirmed how true that statement
+    was, here we will make further use of PCS to monitor the performance and availability
+    of our cluster in order to identify and prevent possible bottlenecks and troubleshoot
+    any issue that may arise.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Cluster services and performance
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: Although every system administrator must be well acquainted with the widely
+    used Linux commands, such as `top` and `ps`, to quickly report a snapshot of running
+    daemons and other processes in each node, you must also learn to rely on the new
+    utilities provided by CentOS 7 to start our node monitoring, which we have introduced
+    in previous chapters. But even more importantly, we will also use PCS-based commands
+    to gain further insight into our cluster and its resources.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Monitoring the node status
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: As you can guess, perhaps the first thing that you always need to check is the
+    status of each node—whether they are online or offline. Otherwise, there is little
+    point in proceeding with further availability and performance analysis.
+  prefs: []
+  type: TYPE_NORMAL
+- en: If you have a network management system (such as **Zabbix** or **Nagios**) server,
+    you can easily monitor the status of your cluster members and receive alerts when
+    they are unreachable. If not, you must come up with a supplementary solution of
+    your own (which may not be as effective or errorproof) that you can use to detect
+    when a node has gone offline.
+  prefs: []
+  type: TYPE_NORMAL
+- en: One such solution is a simple bash script (we will name it `pingreport.sh`,
+    save it inside `/root/scripts`, and make it executable with `chmod +x /root/scripts/pingreport.sh`)
+    which will periodically ping your nodes from another host and report via an e-mail
+    to the system administrator if one of them is offline in order for you to take
+    appropriate action. The following shell script does just that for nodes with IP
+    addresses `192.168.0.2` and `192.168.0.3` (you can add as many nodes in the `NODES`
+    variable, which will be used in the following for loop, but remember to separate
+    them with a blank space). If both nodes are pingable, the report will be empty
+    and no e-mails will be sent.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'In order to take advantage of the following script, you will need to have an
+    e-mail solution in place in order to send out alerts. In this case, we use the
+    mail tool called mailx, which is available after installing a package (`yum install
+    mailx`):'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE0]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Even though the preceding script is enough to determine whether a node is pingable
+    or not, you can tweak that script as you like, and then add it to cron in order
+    for it to run automatically on the desired frequency. For example, the following
+    cron job will execute the script every five minutes, regardless of the day:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE1]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'If you want to run the script manually, you can do so as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE2]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'The following example indicates that both `192.168.0.2` and `192.168.0.3` were
+    not pingable when the script was last run. Note that for simplicity, the script
+    was executed from `node01`, a cluster member; however, under normal circumstances,
+    you will want to use a separate host for this:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Monitoring the node status](img/00053.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: We will resume working with the script later in this chapter and extend its
+    functionalities.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Now, it is time to dig a little deeper and view the status of the nodes configured
+    in `corosync`/`pacemaker` with the following command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE3]'
+  prefs: []
+  type: TYPE_PRE
+- en: In the preceding command, a vertical bar is used to indicate mutually exclusive
+    arguments.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'In the following screenshot, you can see how `pcs status nodes both` returns
+    the status of both `pacemaker` and `corosync` on both nodes:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Monitoring the node status](img/00054.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Note
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: Although you can check the cluster's overall status with `pcs status`, as we
+    have mentioned earlier, `pcs status nodes both` will give you the fine-grained
+    node status information. You can stop one (or both) of the services on either
+    node and run this same command to verify. This is equivalent to using `systemctl
+    is-active pacemaker | corosync` on each node.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Monitoring the resources
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: As we have explained in the previous chapters, a cluster resource is a highly
+    available service that is made available through at least one of the nodes. Among
+    the resources that we configured up until this point, we can mention the virtual
+    IP, the replicated storage device, the web server, and the database server. You
+    can refer to [Chapter 4](part0030_split_000.html#SJGS1-1d2c6d19b9d242db82da724021b51ea0
+    "Chapter 4. Real-world Implementations of Clustering"), *Real-world Implementations
+    of Clustering*, where we added constraints that indicated how (in what order)
+    and where (in which node) the cluster resources should be started.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Either `pcs status` or `pcs resource show`, the preferred alternative, will
+    list the names and status of all currently configured resources.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Note
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: If you specify a resource using its ID (that is, `pcs resource show virtual_ip`),
+    you will see the options for the configured resource. On the other hand, if `--full`
+    is specified (`pcs resource show --full`), all configured resource options will
+    be displayed instead.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'If a resource is started on the wrong node (for example, if it depends on a
+    service that is currently active on another node), you will get an informative
+    message when you attempt to use it. For example, the following screenshot shows
+    that `dbserver` is started on `node02`, whereas its associated underlying storage
+    device (`db_fs`) has been started on `node01`. You will recall from earlier chapters
+    that this is part of the output of `pcs status`:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Monitoring the resources](img/00055.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'For this reason, if you attempt to log on to the database server using the
+    virtual IP address (which is the common link to the cluster resources), you will
+    get the error message indicated in the following screenshot telling you that you
+    can''t connect to the MariaDB instance:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Monitoring the resources](img/00056.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'Let''s see what happens (as shown in the next screenshot) when we move the
+    `dbserver` resource to `node01` and enable it manually so that it starts right
+    away. The following constraint is intended to cause `dbserver` to prefer `node01`
+    so that it always runs on `node01` whenever such a node is available:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE4]'
+  prefs: []
+  type: TYPE_PRE
+- en: '![Monitoring the resources](img/00057.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Tip
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: If you need to remove a constraint, find out its id with `pcs constraint --full`
+    and locate the associated resource. Then, delete it with `pcs constraint remove
+    constraint_id`, where `constraint_id` is the identification as returned by the
+    first command. You can also manually remove resources from one node to another
+    with `pcs resource move <resource_id> <node_name>`, but be aware that the current
+    constraints may or may not allow you to successfully complete the operation.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Now we can access the database server resource as expected, as shown here:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Monitoring the resources](img/00058.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'Once in a while, you may encounter some errors during or after a failover procedure
+    or during boot—you name it. These messages are visible in the output of `pcs status`,
+    as in the excerpt shown here:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Monitoring the resources](img/00059.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'Before we proceed further, perhaps you will ask yourself: What if I want to
+    save all available information about cluster problems to properly analyze and
+    troubleshoot offline? If you are expecting PCS to have a tool to help you with
+    that, you are right. Put a date and time following the `--from` and `--to` options
+    and replace `dest` with a filename (a specific example is provided in the following
+    command as well):'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE5]'
+  prefs: []
+  type: TYPE_PRE
+- en: This will create a tarball containing every piece of information that is needed
+    when reporting cluster problems. If `--from` and `--to` are not used, the report
+    will include the data of the last 24 hours.
+  prefs: []
+  type: TYPE_NORMAL
+- en: In the screenshot that will follow, we have omitted the `--from` and `--to`
+    flags for brevity, and we can see yet another reason why setting up key-based
+    authentication via `ssh` during [Chapter 1](part0014_split_000.html#DB7S1-1d2c6d19b9d242db82da724021b51ea0
+    "Chapter 1. Cluster Basics and Installation on CentOS 7"), *Cluster Basics and
+    Installation on CentOS 7* was not a mere suggestion—you have to report cluster
+    information from both nodes.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'In our case, we will execute the following command to obtain a tarball named
+    `YYYY-MM-DD-report.tar.gz` in the current working directory. Note that the date
+    part in the filename is for identification purposes only:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE6]'
+  prefs: []
+  type: TYPE_PRE
+- en: '![Monitoring the resources](img/00060.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'Once the tarball with the report files has been created, you can untar and
+    examine it. You will notice that it contains the files and directories seen in
+    the following image. Before proceeding further, you may want to take a look at
+    some of them, shown as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE7]'
+  prefs: []
+  type: TYPE_PRE
+- en: '![Monitoring the resources](img/00061.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'Now, of course you want to purge records of the past failed actions that have
+    been resolved. For this reason, PCS allows you to instruct the cluster to forget
+    the operation history of a resource (or all of them), reset the fail count, and
+    redetect the current states:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE8]'
+  prefs: []
+  type: TYPE_PRE
+- en: Note that if `resource_id` is not specified, then all resources/STONITH devices
+    will be cleaned up.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Finally, while we are still talking about monitoring cluster resources, we
+    might as well ask ourselves: Is there a way we can backup the current cluster
+    configuration files and restore them later if needed, and can we easily go back
+    to a previous configuration? The answer to both questions is yes—let''s see how.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'In order to back up the cluster configuration files, you will use the following
+    command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE9]'
+  prefs: []
+  type: TYPE_PRE
+- en: Here, `<filename>` is a file identification of your choice to which PCS will
+    append the `tar.bz2` extension after creating the tarball.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Consider the following example:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE10]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'This will result in the tarball backup with the contents shown in the following
+    screenshot For our convenience, let us create a subdirectory named `cluster_config`
+    inside our current working directory. We will use this newly created subdirectory
+    to extract the contents of the report tarball:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE11]'
+  prefs: []
+  type: TYPE_PRE
+- en: '![Monitoring the resources](img/00062.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Note
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: If you have followed the installation process step by step, as outlined in this
+    book, bzip2 will most likely not be available. You will need to install it with
+    `yum update && yum install bzip2` in order to untar the cluster configuration
+    tarball.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Restoring the configuration is just as easy (you will need to stop the node
+    and then start it again after the restoration process is completed), use the following
+    command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE12]'
+  prefs: []
+  type: TYPE_PRE
+- en: This command will restore the backed-up cluster configuration files on all nodes
+    using the backup as source. If you only need to restore the files on the current
+    node, use the `--local flag`. Note that filename must be the `.tar.bz2` file (not
+    the extracted files).
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'You can also go back to a certain point in time, as far as cluster configuration
+    is concerned, using `pcs config checkpoint` with its associated options. With
+    no options, `pcs config checkpoint` will list all available configuration checkpoints,
+    as shown here:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Monitoring the resources](img/00063.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'The `pcs config checkpoint view <checkpoint_number>` command displays to standard
+    output the specified configuration checkpoint details, as shown in the next screenshot.
+    Consider the following example:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE13]'
+  prefs: []
+  type: TYPE_PRE
+- en: '![Monitoring the resources](img/00064.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: The `pcs config checkpoint restore <checkpoint_number>` command restores cluster
+    configuration to a specified checkpoint, which is why it's a great idea to check
+    the details of the desired checkpoint before restoring.
+  prefs: []
+  type: TYPE_NORMAL
+- en: When a resource refuses to start
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: Under normal circumstances, cluster resources will be managed automatically
+    without much intervention from the system administrator. However, there will be
+    times when something may prevent a resource from starting properly, and it will
+    be necessary to take immediate action.
+  prefs: []
+  type: TYPE_NORMAL
+- en: As the man page for PCS states,
+  prefs: []
+  type: TYPE_NORMAL
+- en: '*Starting resources on a cluster is (almost) always done by pacemaker and not
+    directly from PCS. If your resource isn''t starting, it''s usually due to either
+    a misconfiguration of the resource (which you debug in the system log), or constraints
+    preventing the resource from starting or the resource being disabled. You can
+    use `pcs resource debug-start` to test resource configuration, but it should not
+    normally be used to start resources in a cluster.*'
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+- en: 'Having said that, when `pacemaker` cannot, for some reason, properly start
+    a resource, execute the following command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE14]'
+  prefs: []
+  type: TYPE_PRE
+- en: This will force the specified resource to start on the current node, ignoring
+    the cluster recommendations. The result will be printed to the screen (use the
+    `--full` flag to obtain more detailed output) and will provide helpful information
+    to assist you in troubleshooting the resource and the cluster operation.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'In the following screenshot, the output of `pcs resource debug-start virtual_ip
+    --full` is truncated for the sake of brevity:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![When a resource refuses to start](img/00065.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'From this example, you can begin to glimpse how useful this command can be
+    as it provides you with very detailed information, step by step, of the resource
+    operation. For example, if the `dbserver` resource refuses to start and returns
+    errors even after repeatedly having cleaned it up, run the following command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE15]'
+  prefs: []
+  type: TYPE_PRE
+- en: With this, you will be able to view—with great detail—the steps that are usually
+    performed by the cluster when trying to bring up such a resource. If this process
+    fails at some point, you will be provided with a description of what went wrong
+    and when, and then you will be better able to fix it.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Checking the availability of core components
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: Before wrapping up, let's go back to the first example (checking the online
+    status of each node) and extend it so that we can also monitor the core components
+    of the cluster framework, that is, `pacemaker`, `corosync`, and `pcsd`, as outlined
+    earlier in [Chapter 2](part0018_split_000.html#H5A42-1d2c6d19b9d242db82da724021b51ea0
+    "Chapter 2. Installing Cluster Services and Configuring Network Components"),
+    *Installing Cluster Services and Configuring Network Components*.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Tip
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: 'In order to ensure a successful connection via `ssh` from a node to itself,
+    you will need to copy its key to `authorized_keys` Thus, to enable passwordless
+    user login for user root, run the following command on both nodes:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE16]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'In the best case scenario, during a graceful failover, you will want to be
+    notified whenever one (or more) of those services is stopped. Adding a few lines
+    to the script will also check for the status of the corresponding daemons and
+    alert you if they''re down:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE17]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'As a simple test, stop the cluster (`pcs cluster stop`) on `node02` (`192.168.0.3`),
+    run the script from the monitoring host or from any node, and check your mail
+    inbox to verify that it is working correctly. In the following screenshot, you
+    can see an example of what it should look like:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Checking the availability of core components](img/00066.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Summary
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: In this chapter, we have explained how to monitor, troubleshoot, and fix common
+    cluster problems and needs. Not all of these will be undesired or unexpected as
+    a sudden system crash. There will be times when you need to bring down the cluster
+    and the resources it is running for some planned maintenance or during a power
+    outage before your **uninterruptible power supply** (**UPS**) runs out.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Because prevention is your best ally in these circumstances, ensure that you
+    routinely monitor the health of your cluster. Follow the procedures outlined in
+    this chapter so that you don't run into any surprises when real emergencies come
+    up. Specifically, under either real or simulated cases, ensure that you back up
+    the cluster configuration, stop the cluster on both nodes separately, and then
+    and only then, halt the node.
+  prefs: []
+  type: TYPE_NORMAL

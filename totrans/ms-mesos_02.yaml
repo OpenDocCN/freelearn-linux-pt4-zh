@@ -1,0 +1,1629 @@
+- en: Chapter 2. Mesos Internals
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'This chapter provides a comprehensive overview of Mesos'' features and walks
+    the reader through several important topics regarding high availability, fault
+    tolerance, scaling, and efficiency. Mentioned here are the topics we will cover
+    in this chapter:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '**Scaling and efficiency**'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Resource allocation (the dominant resource fairness algorithm)
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Reservation (static and dynamic)
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Oversubscription
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Extendibility
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**High availability and fault tolerance**'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Slave recovery
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Reconciliation
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Persistent volumes
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Scaling and efficiency
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: Mesos aims to provide a highly scalable and efficient mechanism to enable various
+    frameworks to share cluster resources effectively. Distributed applications are
+    varied, can have different priorities in different contexts, and are continuously
+    evolving, a fact that led Mesos' design philosophy towards providing for customizable
+    resource allocation policies that users can define and set as per their requirements.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Resource allocation
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: The Mesos resource allocation module contains the policy that the Mesos master
+    uses to determine the type and quantity of resource offers that need to be made
+    to each framework. Organizations can customize it to implement their own allocation
+    policy, for example, fair sharing, priority, and so on, which allow for fine-grained
+    resource sharing. Custom allocation modules can be developed to address specific
+    needs.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The resource allocation module is responsible for making sure that the resources
+    are shared in a fair manner among competing frameworks. The choice of algorithm
+    used to determine whether the sharing policy has a great bearing on the efficiency
+    of a cluster manager.
+  prefs: []
+  type: TYPE_NORMAL
+- en: One of the most popular allocation algorithms, max-min fairness, works well
+    in a homogenous environment; this is the one where resource requirements are fairly
+    proportional between different competing users, such as the Hadoop cluster. However,
+    scheduling resources across frameworks with heterogeneous resource demands poses
+    a more complex challenge. What is a suitable fair share allocation policy if user
+    A runs the tasks that require two CPUs and 8 GB RAM each and user B runs tasks
+    that require four CPUs and 2 GB RAM each? As can be seen, user A's tasks are RAM-heavy,
+    while user B's tasks are CPU-heavy. How, then, should a set of combined RAM +
+    CPU resources be distributed between the two users?
+  prefs: []
+  type: TYPE_NORMAL
+- en: The latter scenario is a common one faced by Mesos, designed as it is to manage
+    resources primarily in a heterogeneous environment. To address this, Mesos has
+    the **Dominant Resource Fairness algorithm** (**DRF**) as its default resource
+    allocation policy, which is far more suitable for heterogeneous environments.
+    The algorithm is described in detail in the following sections.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The Dominant Resource Fairness algorithm (DRF)
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: Job scheduling in datacenters is not limited to only CPUs but extends to other
+    resources, such as the memory and disk, as well. In a scenario where resource
+    demands are varied, some tasks are CPU-intensive, while some are memory- or disk-intensive;
+    this is where the min-max fairness algorithm falls short. Herein lies the need
+    for a resource scheduling mechanism that provides every user in a heterogeneous
+    environment a fair share of the resources most required by it. In simple terms,
+    DRF is an adaptation of the **max-min fairness algorithm** to fairly share heterogeneous
+    resources among users.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Let's consider the following example to understand how the algorithm works.
+  prefs: []
+  type: TYPE_NORMAL
+- en: We will assume that the resources are given in multiples of demand vectors and
+    are divisible.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Consider a case where the total resources available are eight CPUs and 10 GB
+    memory. User 1 runs tasks that require one CPU and 3 GB memory, and user 2 runs
+    tasks that require three CPUs and 1 GB memory. Before we proceed to analyze how
+    the DRF algorithm will allocate tasks, let''s understand the concepts of the dominant
+    resource and share:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '**Dominant resource**: This refers to the resource (CPU or memory) that is
+    most required by the user. In this case, user 1 runs tasks that have higher memory
+    requirements (3 GB per task), so the dominant resource for user 1 is memory. On
+    the other hand, user 2 runs computation-heavy tasks (three CPUs per task) and
+    hence has CPU as its dominant resource.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**Dominant share**: This refers to the fraction of the dominant resource that
+    the user is allocated. Referring to our example, user 1''s dominant share is 30%
+    (3/10), while user 2''s dominant share is 37.5% (3/8).'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: The DRF allocation module tracks the dominant share of each user and makes a
+    note of the resources allocated to each user. DRF begins allocation by offering
+    resources (CPU or memory) to the user with the lowest dominant share among all
+    the competing users. The user then has the option to accept the offer if it meets
+    its requirement.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Now, let us look at each step taken by the DRF algorithm to allocate resources
+    for users 1 and 2\. For simplicity's sake, we will overlook the resources that
+    get released back into the pool after the completion of small tasks and assume
+    that every resource offer is accepted and that the users run an infinite number
+    of tasks having the resource requirements. Every user 1 task would consume one-eighth
+    of the total CPU and three-tenths of the total memory, making **memory** user
+    1's dominant resource. Every user 2 task would consume three-eighths of the total
+    CPU and one-tenth of the total memory, making **CPU** user 2's dominant share.
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![The Dominant Resource Fairness algorithm (DRF)](img/B05186_02_01.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'Each row provides the following information:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '**User Selected**: The user that has been offered resources by the algorithm'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**Resource share**: A fraction of the total available resources for each resource
+    type that is allocated to a user in the offer round.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**Dominant share**: The resource share of the dominant resource'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**Dominant share percentage:** The dominant share expressed as a percentage
+    (%)'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**CPU Total Allocation**: The sum of CPU resources allocated to all users in
+    the current offer round'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**Memory Total Allocation**: The sum of memory resources allocated to all users
+    in the current offer round'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Note
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: 'Note: The lowest dominant share in each row is highlighted in yellow.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'To begin with, both users have a dominant share of 0% (as no resource is allocated
+    as yet). We will assume that DRF chooses user 1 to offer resources to first, although
+    had we assumed user 2, the final outcome would have been the same. Here are the
+    steps it will follow:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: User 1 will receive the required set of resources to run a task. The dominant
+    share for its dominant resource (memory) will get increased to 30%.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: User 2's dominant share being 0%, it will receive resources in the next round.
+    The dominant share for its dominant resource (CPU) will get increased to 37.5%.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: As User 1 now has the lower dominant share (30%), it will receive the next set
+    of resources. Its dominant share rises to 60%.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: User 2 that has the lower dominant share (37.5%) will now be offered resources.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: The process will continue until there are no more resources to allocate to run
+    the user tasks. In this case, after step 4, the CPU resources will get saturated
+    (highlighted in red).
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: The process will continue if any resources are freed or the resource requirement
+    changes.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'Primarily, DRF aims to maximize the minimum dominant share across all users.
+    As in this example, DRF worked with the users to allocate the following:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Two tasks to user 1 with a total allocation of two CPUs, 6 GB memory, and a
+    dominant share % of 60 (Memory).
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Two tasks to user 2 with a total allocation of six CPUs, 2 GB memory, and a
+    dominant share % of 75 (CPU).
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'This can be diagrammatically depicted as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![The Dominant Resource Fairness algorithm (DRF)](img/B05186_02_02.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Weighted DRF
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: We have so far assumed that users have an equal probability of being offered
+    resources. There could also be a modification created in the algorithm, where
+    one user or a set of users is favored over others in terms of resource allocation.
+    This is referred to as Weighted DRF, wherein resources are not shared equally
+    among users. Sharing can be weighted on a per-user and per-resource-level basis,
+    the former being more popular.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Let's consider a per-user weighted computation of the previous example. For
+    every user *i* and resource *j*, the weights are stated as w[1,j] 3 and w[2,j]
+    = 1\. This implies that user 1 will have three times the proportion of all the
+    resources compared to user 2 in the system. If both the weights have the value
+    1, then allocation would be carried out in accordance with the normal DRF algorithm
+    (as described before).
+  prefs: []
+  type: TYPE_NORMAL
+- en: Now, let's look at each step taken by the DRF algorithm to allocate resources
+    for users 1 and 2.
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Weighted DRF](img/B05186_02_03.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'To begin with, both the users have a dominant share of 0% (as no resource is
+    allocated as yet). We will assume that Weighted DRF chooses user 1 to offer resources
+    to first, although had we assumed User 2, the final outcome would have been the
+    same. Here are the steps that it will follow:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: User 1 will receive the required set of resources to run a task. The dominant
+    share for its dominant resource (memory) gets increased to 10% (30% divided by
+    3).
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: User 2's dominant share being 0%, it will receive resources in the next round.
+    The dominant share for its dominant resource (CPU) will get increased to 37.5%.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: As user 1 now has the lower dominant share (10%), it will receive the next set
+    of resources. Its dominant share will rise to 20% (60% divided by 3).
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: User 1 still has the lower dominant share (20%) and is now offered resources
+    again to make it 30% (90% divided by 3).
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: The process will continues till there are no more resources to allocate to run
+    the user tasks. In this case, after step 4, the memory resources will get saturated
+    (highlighted in red).
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: The process will continue if any resources are freed or the resource requirement
+    changes.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'Weighted DRF aims to prioritize resource sharing based on the weight assigned
+    to every user. In this example, Weighted DRF worked with the users to allocate
+    the following:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Three tasks to user 1 with a total allocation of three CPUs and 9 GB memory
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Only one task to user 2 with a total allocation of three CPUs and 1 GB memory
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'This can be diagrammatically depicted as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Weighted DRF](img/B05186_02_04.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: In addition to this, it is possible to create custom modules that cater to an
+    organization or need specific resource allocation. This will be covered later
+    in the same chapter.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Let''s now look at some of the important properties that DRF follows/satisfies:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '**Progressive Filling**: Allocation by progressive filling in DRF increases
+    the dominant shares of all users at the same speed, while other resource allocations
+    of users increase proportionally based on the demand. This continues up to a point
+    at which at least one resource is saturated, after which the allocations of users
+    that require the saturated resource are halted, and these users are eliminated.
+    Progressive filling for other users proceeds in a recursive fashion and ends when
+    there is no user left whose dominant share can be increased.'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '**Share Guarantee**: The DRF algorithm allocates resources to users via "progressive
+    filling", which ensures that every user''s dominant share allocation increases
+    at the same rate and continues until one resource gets saturated and the resource
+    allocation is frozen. This indirectly ensures that all users are treated equally
+    and are guaranteed 1/n of at least one resource.'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '**Strategy-proofness**: This property of DRF ensures that users at any given
+    point of time cannot benefit from increased allocation by falsifying their resource
+    demands. In case a user does try to *game* the system by demanding extra resources,
+    the DRF algorithm is such that the allocation of resources may happen in a manner
+    that is deterrent to this user.'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '**Pareto efficiency**: This property of DRF implies that increasing the dominant
+    share of a given user will proportionally decrease the dominant share of other
+    users for this particular resource. Courtesy of the progressive filling algorithm,
+    it is but natural that allocation of more resources to one specific user will
+    hurt others.'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '**Envy-freeness**: DRF is envy-free because there is no need for any user to
+    prefer or envy the resource allocation of another. Envy comes into the picture
+    only when, for instance, user 1 envies user 2, whose dominant share for a particular
+    resource is higher. However, considering that resource allocation is done via
+    progressive filling, dominant shares of both users 1 and 2 will be the same by
+    the time the resource in question is saturated. This *envy* is neither beneficial
+    nor required.'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Configuring resource offers on Mesos
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: A common problem encountered is that sometimes, frameworks do not accept any
+    resource offers due to improper resource configuration settings on the slaves.
+    For example, the Elasticsearch framework requires ports `9200` and `9300`, but
+    the default port range configuration in the Mesos slaves is `31000` to `32000`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The slaves must be configured correctly so that the right resource offers are
+    made to frameworks that can then accept them. This can be done as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'In the `mesos-slave` command, add the necessary resource parameters Here''s
+    an example:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE0]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Create a *file* under`/etc/mesos-slave` called `resources` whose content is
+    the necessary resource string. Run the following command:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE1]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: Reservation
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: Mesos also provides the ability to reserve resources on specified slaves. This
+    is particularly useful in ensuring that important services get guaranteed resource
+    offers from a particular slave (for example, a database may need resource offers
+    only from a particular slave, which contains the necessary data). In the absence
+    of a reservation mechanism, there is the possibility that an important service
+    or job may need to wait for a long time before it gets a resource offer satisfying
+    its filter criteria, which would have a detrimental impact on performance.
+  prefs: []
+  type: TYPE_NORMAL
+- en: On the other hand, misusing the reservation feature can lead to the same kind
+    of problems, such as the resource underutilization that Mesos sought to resolve
+    in the first place. Thus, it is necessary to use this judiciously. The Mesos access
+    control mechanism makes sure that the framework requesting a reservation of resources
+    has the appropriate authorization to do so.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Mesos provides two methods of resource reservations:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Static reservation
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Dynamic reservation
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Static reservation
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: In this type of reservation, specified resources can be reserved on specific
+    slave nodes for a particular framework or group of frameworks. In order to reserve
+    resources for a framework, it must be assigned to a role. Multiple frameworks
+    can be assigned to a single role if necessary. Only the frameworks assigned to
+    a particular role (say, role X) are entitled to get offers for the resources reserved
+    for role X. Roles need to be defined first, then frameworks need to be assigned
+    to the required roles, and finally, resource policies must be set for these roles.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Role definition
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: 'Roles can be defined by starting the master with the following flag:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE2]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'For example, if we want to define a role called `hdfs`, then we can start the
+    master using the following:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE3]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Alternatively, you can do this by running the following:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE4]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Now, the master needs to be restarted by running the following:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE5]'
+  prefs: []
+  type: TYPE_PRE
+- en: Framework assignment
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: Now, we need to map the frameworks to specific roles. The method to do this
+    varies by the framework. Some, such as Marathon, can be configured using the `–mesos_role`
+    flag. In the case of HDFS, this can be done by changing `mesos.hdfs.role` in `mesos-site.xml`
+    to the value of `hdfs` defined before.
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE6]'
+  prefs: []
+  type: TYPE_PRE
+- en: Custom roles for frameworks can be specified by setting the `role` option within
+    `FrameworkInfo` to the desired value (the default is `*`).
+  prefs: []
+  type: TYPE_NORMAL
+- en: Role resource policy setting
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: Resources on each slave can be reserved for a particular role by leveraging
+    the slave's `–resources` flag. Slave-level resource policy setting has its drawbacks
+    as the management overhead can quickly become daunting as the cluster size and
+    number of frameworks being run increases.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'If we have eight cores and 24 GB (the number is specified in MBs in Mesos)
+    RAM available on a particular slave and seek to reserve 2 cores and 6 GB RAM for
+    the `hdfs` role, then we can make the following changes on the slave:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE7]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Once this is done, `mesos-slave` with these changed settings can be stopped
+    by executing the following:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE8]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'The older state on these slaves can be removed by the following command. Any
+    running tasks can be manually terminated as the task states will also get removed:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE9]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Now, the slave can be restarted with the following command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE10]'
+  prefs: []
+  type: TYPE_PRE
+- en: Dynamic reservation
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: The main drawback of static reservation is that the reserved resources cannot
+    be used by other roles during downtime, nor can they be unreserved and made available
+    as part of the wider pool. This leads to poor resource utilization. In order to
+    overcome this challenge, support for dynamic reservation was added in version
+    0.23.0, which allows users to reserve and unreserve resources more dynamically
+    as per workload requirements.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'For a resource offer, frameworks can send back the following two messages (through
+    the `acceptOffers` API) as a response:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`Offer::Operation::Reserve`'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`Offer::Operation::Unreserve`'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: These are described in detail in the following sections. Note that the framework's
+    principal is required for authorization, which will be discussed in more detail
+    in [Chapter 6](ch06.html "Chapter 6. Mesos Frameworks"), *Mesos Frameworks*.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Offer::Operation::Reserve
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: 'Each framework can reserve resources as part of the offer cycle. As an example,
+    let''s say that a resource offer with eight cores and 12 GB RAM unreserved is
+    received by a framework. Take a look at the following code:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE11]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'We can reserve four cores and 6 GB RAM for the framework by specifying the
+    quantity of each resource type that needs to be reserved and the framework''s
+    role and principal in the following message:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE12]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'The next resource offer will include the preceding reserved resources, as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE13]'
+  prefs: []
+  type: TYPE_PRE
+- en: Offer::Operation::Unreserve
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: Each framework can also unreserve resources as part of the offer cycle. In the
+    previous example, we reserved four cores and 6 GB RAM for the framework/role that
+    will continue to be offered until specifically unreserved. The way to unreserve
+    this is explained here.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'First, we will receive the reserved resource offer, as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE14]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'We can now unreserve four cores and 6 GB RAM for the framework by specifying
+    the quantity of each resource type that needs to be unreserved and the framework''s
+    role and principal in the following message:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE15]'
+  prefs: []
+  type: TYPE_PRE
+- en: In subsequent resource offers, these unreserved resources will become part of
+    the wider unreserved pool and start being offered to other frameworks.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The `/reserve` and `/unreserve` HTTP endpoints were also introduced in v0.25.0
+    and can be used for dynamic reservation management from the master.
+  prefs: []
+  type: TYPE_NORMAL
+- en: /reserve
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+- en: 'Let''s say that we are interested in reserving four cores and 6 GB RAM for
+    a role on a slave whose ID is `<slave_id>`. An `HTTP POST` request can be sent
+    to the `/reserve` HTTP endpoint, as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE16]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'The response can be one of the following:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`200 OK`: Success'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`400 BadRequest`: Invalid arguments (for example, missing parameters)'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`401 Unauthorized`: Unauthorized request'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`409 Conflict`: Insufficient resources to satisfy the reserve operation'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: /unreserve
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+- en: 'Now, if we are interested in unreserving the resources that were reserved before,
+    an `HTTP POST` request can be sent to the `/unreserve` HTTP endpoint, as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE17]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'The response can be one of the following:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`200 OK`: Success'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`400 BadRequest`: Invalid arguments (for example, missing parameters)'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`401 Unauthorized`: Unauthorized request'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`409 Conflict`: Insufficient resources to satisfy unreserve operation'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Oversubscription
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: Frameworks are generally provided with enough buffer resources by users to be
+    able to handle unexpected workload surges. This leads to an overall underutilization
+    of the entire cluster because a sizeable chunk of resources are lying idle. Add
+    this across frameworks, and you find that it adds up to significant wastage. The
+    concept of oversubscription, introduced in v0.23.0, seeks to address this problem
+    by executing low priority tasks, such as background processes or ad hoc noncritical
+    analytics, on these idle resources.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'To enable this, two additional components are introduced:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '**Resource estimator**: This is used to determine the number of idle resources
+    that can be used by best-effort processes'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '**Quality of Service (QoS) controller**: This is used to terminate these best-effort
+    tasks in case a workload surge or performance degradation in the original tasks
+    is observed'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: While the basic default estimators and controllers are provided, Mesos provides
+    users with the ability to create their own custom ones.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'In addition, the existing resource allocator, resource monitor, and Mesos slave
+    are also extended with new flags and options. The following diagram illustrates
+    how the oversubscription concept works (source: [http://mesos.apache.org/documentation/latest/oversubscription/](http://mesos.apache.org/documentation/latest/oversubscription/)):'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Oversubscription](img/B05186_02_05.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Revocable resource offers
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: 'The following steps are followed:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: The primary step involves collecting the usage statistics and estimating the
+    number of resources that are oversubscribed and available for use by low-priority
+    jobs. The resource monitor sends these statistics by passing `ResourceStatistics`
+    messages to something known as the resource estimator.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: The estimator identifies the quantity of resources that are oversubscribed by
+    leveraging algorithms that calculate these buffer amounts. Mesos provides the
+    ability to develop custom resource estimators based on user-specified logic.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Each slave polls the resource estimator to get the most recent estimates.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: The slave, then, periodically (whenever the estimate values change) transmits
+    this information to the allocator module in the master.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: The allocator marks these oversubscribed resources as "revocable" resources
+    and monitors these separately.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Frameworks that register with the `REVOCABLE_RESOURCES` set in the `FrameworkInfo`
+    method receive offers of these revocable resources and can schedule tasks on them
+    using the `launchTasks()` API. Note that these cannot be dynamically reserved.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Registering with the revocable resources capability
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+- en: 'Run the following code:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE18]'
+  prefs: []
+  type: TYPE_PRE
+- en: An example offer with a mix of revocable and standard resources
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+- en: 'Take a look at the following code:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE19]'
+  prefs: []
+  type: TYPE_PRE
+- en: The task is launched on the slave when the `runTask` request is received by
+    it. A container with even a single revocable resource can be terminated by the
+    QoS controller as it is considered a revocable container.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: The original task is also monitored continuously, and the revocable resources
+    are returned to it if any performance deterioration or workload spike is observed.
+    This is known as interference detection.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Currently, the Mesos resource estimator is pretty basic with two default estimators
+    called the **fixed** and **noop** resource estimators. In the first one, a fixed
+    set of resources can be tagged as oversubscribed, while the latter provides a
+    null estimate upon being polled by the slave, effectively saying that no resources
+    are available for oversubscription.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Active work is being done on introducing sophisticated and dynamic oversubscribed
+    resource estimation models (a module called **Project Serenity** by Mesosphere
+    and Intel, for instance) to maximize resource utilization while ensuring no impact
+    on Quality of Service at the same time.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Resource estimator
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: 'Run the following code:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE20]'
+  prefs: []
+  type: TYPE_PRE
+- en: The QoS controller
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: 'Execute the following code:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE21]'
+  prefs: []
+  type: TYPE_PRE
+- en: Configuring oversubscription
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: 'The slave now has four new oversubscription-related flags available, as shown
+    in the following table:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '| Flag | Explanation |'
+  prefs: []
+  type: TYPE_TB
+- en: '| --- | --- |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `--oversubscribed_resources_interval=VALUE` | The slave periodically transmits
+    oversubscribed resource estimates to the master. The interval of these updates
+    can be specified via this flag (default: 15 seconds) |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `--qos_controller=VALUE` | This is the QoS controller name that needs to
+    be used |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `--qos_correction_interval_min=VALUE` | The slave polls and carries out QoS
+    corrections, which are performed by the slave from the controller-based on the
+    performance degradation/deterioration levels of the original tasks. This flag
+    controls the interval of these corrections (default: 0 ns) |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `--resource_estimator=VALUE` | This is the resource estimator name that needs
+    to be used for the determination of oversubscribed resources |'
+  prefs: []
+  type: TYPE_TB
+- en: Extendibility
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: Different organizations have different requirements. Also, within the same organization,
+    different users run clusters in different ways with different scale and latency
+    requirements. Users need to deal with application-specific behavior, ensuring
+    that their industry-specific security compliances are met and so on. All this
+    means that Mesos needs to be extremely customizable and extendable if it is to
+    achieve its goal of serving as the OS for the entire datacenter for all organizations.
+    It required a feature that could keep the Mesos core small and lightweight while
+    making it powerful enough to allow as much customization/extendibility as required
+    at the same time.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'A number of software systems, such as browsers, support libraries to:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Extend feature support
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Abstract complexity
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Make development configuration-driven
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Mesos modules
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: Mesos modules, introduced in v0.21.0, build on this concept to allow users to
+    extend the functionality of Mesos through libraries that can be created as well
+    as shared without continuous recompilation. A module in the context of Mesos is
+    an entire component that can be added or replaced by any user. All external dependencies
+    are treated as separate libraries that can be loaded on demand. All users can
+    now develop their experimental features on top of Mesos without needing to understand
+    all the detailed inner workings or impacting other users. Custom allocation logic,
+    custom oversubscribed resource estimation algorithms, and many such use-case-specific
+    customized functionalities can be implemented. Different subsystems, such as load
+    balancers, isolation mechanisms, and service discovery mechanisms can also be
+    configured in a modular way.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Module invocation
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: The `--modules` cli flag is available for the master and slave to provide a
+    module list that needs to be made available.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The module list can be provided through a file with a JSON-formatted string
+    using `--modules=filepath`. The `filepath` can be of the `/path/to/file` or `file:///path/to/file`
+    type.
+  prefs: []
+  type: TYPE_NORMAL
+- en: To provide a module list inline, use `--modules="{...}"`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: There are two parameters, `name` and `file`; one of these must be provided for
+    every library. The `file` parameter can be an absolute path (for example, `/User/mesos/lib/example.so`),
+    a filename (for example, `example.so`) or a relative path (for example, `lib/example.so`).
+    The `name` parameter is the name of a library (for example, `example`). If this
+    is provided, it gets expanded to the appropriate library name for the current
+    OS automatically (for example, `example` gets expanded to `example.so` on Linux
+    and `example.dylib` on OS X). If both the parameters are provided, then the `name`
+    parameter is ignored.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'An example JSON string is given below:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Load a library `example.so` with two modules `org_apache_mesos_X` and `org_apache_mesos_Y`
+    as follows:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE22]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'From the library example, load the `org_apache_mesos_X` module and pass argument
+    A with value B (load the other module `org_apache_mesos_Y` without any parameters)
+    via the following code:'
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: '[PRE23]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'To specify modules inline, use the following code:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE24]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'An example `Hello World` module implementation is provided here: [http://mesos.apache.org/documentation/latest/modules/](http://mesos.apache.org/documentation/latest/modules/).'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Building a module
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: 'The following command assumes that Mesos is installed in the standard location—that
+    is, the Mesos dynamic library and header files are available:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE25]'
+  prefs: []
+  type: TYPE_PRE
+- en: Hooks
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: Mesos provides another way to extend its capabilities that doesn't involve having
+    to create an entire component from the ground up through something called **hooks**.
+    Hooks do not interfere with processing of a request; instead, they allow users
+    to add features as part of Mesos' life cycle. Some hooks can change the contents
+    of an object while it is in motion. These are called **decorators**.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The currently supported modules
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'The following are the currently supported modules on Mesos:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '**Allocator**: This is described in more detail in the subsequent section.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**Authenticator**: This module allows users to create and integrate new custom
+    authentication methods.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**Isolator**: Through this interface, users can develop bespoke isolators that
+    address a variety of use cases, such as networking (for example, Project Calico).'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**QoS controller**: Using this, a sophisticated logic for revoking best effort
+    tasks launched on oversubscribed resources can be implemented.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**Resource estimator**: This allows third party developers to experiment with
+    their own revocable resource estimation algorithms for maximizing cluster utilization.
+    Efforts such as Project Serenity are leveraging this module to try and come up
+    with a production quality dynamic resource estimation logic.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: The allocator module
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: The Mesos resource allocation module contains the policy that the Mesos master
+    uses to determine the type and quantity of resource offers that need to be made
+    to each framework. Organizations can customize it to implement their own allocation
+    policy—for example, fair sharing, priority, and so on—which allows for fine-grained
+    resource sharing. Custom allocation modules can be developed to address specific
+    needs. An example is the oversubscription module, which allows revocable resources
+    to be offered, something not supported by the default DRF allocator.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following steps are required to load a custom allocation module in the
+    master:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: List it in the `--modules` configuration
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Select it using the `--allocator` flag
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'For example, to run the master with a custom allocator called `ExternalAllocatorModule`,
+    the following command needs to be run:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE26]'
+  prefs: []
+  type: TYPE_PRE
+- en: Now, we shall take a look at how to implement a custom allocator and package
+    it as a module to load into the master as shown previously.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Implementing a custom allocator module
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+- en: 'Allocator modules are implemented in C++ and need to implement the interface
+    defined in `mesos/master/allocator.hpp` (the methods are listed in the following
+    table). They can also be developed using other languages via a C++ proxy that
+    redirects calls to the implementation defined in this other language:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '| Method | Description |'
+  prefs: []
+  type: TYPE_TB
+- en: '| --- | --- |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `initialize(flags, offerCallback, roles)` | Allocator initialization |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `addFramework(frameworkId, frameworkInfo, usedResources)``removeFramework(frameworkId,
+    frameworkInfo, usedResources)` | Framework addition/removal |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `activateFramework(frameworkId)``deactivateFramework(frameworkId)` | Framework
+    activation/deactivation |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `addSlave(slaveId, slaveInfo, totalResources, usedResources)``removeSlave(slaveId,
+    slaveInfo, totalResources, usedResources)` | Slave addition/removal |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `activateSlave(slaveId)``deactivateSlave(slaveId)` | Slave activation/deactivation
+    |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `requestResources(frameworkId, requests)` | Resource request callback |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `updateAllocation(frameworkId, slaveId, operations)` | Resource allocation
+    update |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `recoverResources(frameworkId, slaveId, resources, filters)` | Resource recovery
+    callback |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `reviveOffers(frameworkId)` | Offer revival callback |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `updateWhitelist(whitelist)` | Slave whitelist updating |'
+  prefs: []
+  type: TYPE_TB
+- en: 'The default hierarchical DRF allocator has a nonblocking actor-based implementation.
+    This can be utilized in the custom allocator by extending the `MesosAllocatorProcess`
+    class defined in `src/master/allocator/mesos/allocator.hpp`. Using the *Sorter*
+    abstraction, the default allocator can be extended, preventing the need to build
+    a new one from the ground up. The sorter API is defined in `src/master/allocator/sorter/sorter.hpp`,
+    and some of its methods are listed in the following table:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '| Method | Description |'
+  prefs: []
+  type: TYPE_TB
+- en: '| --- | --- |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `void add(client, weight=1)``void remove(client)` | This adds/removes client
+    from the allocation process |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `void deactivate(client)``void activate(client)` | This activates/deactivates
+    the client |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `void add(slaveId, resources)``void remove(slaveId, resources)``void update(slaveId,
+    resources)` | This adds/removes/updates the resource quantities to be allocated
+    |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `List<string> sort()` | This returns the list of clients sorted based on
+    a specified policy stating how they should receive resources |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `void allocated(client, slaveId, resources)``void update(client, slaveId,
+    oldResources, newResources)``void unallocated(client, slaveId, resources)` | This
+    decides the allocation/updating/deallocation of resources to the specified client
+    |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `Map<SlaveId, Resources> allocation(client)` | This returns the allocated
+    resource to the specified client |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `bool contains(client)` | This is true if a sorter contains a specified client
+    and is false otherwise |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `int count()` | This returns the client count |'
+  prefs: []
+  type: TYPE_TB
+- en: Once developed, the customized allocator needs to be set up as the allocator
+    to be used for resource allocation instead of the default one. This involves wrapping
+    the custom allocator in an allocator module and then loading it in the master.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The process to wrap a custom allocator (as implemented in `external_allocator.hpp`)
+    into a module called `ExternalAllocatorModule` is described in detail here: [http://mesos.apache.org/documentation/latest/allocation-module/](http://mesos.apache.org/documentation/latest/allocation-module/).'
+  prefs: []
+  type: TYPE_NORMAL
+- en: High availability and fault tolerance
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: High availability, in simple terms, means achieving very close to 100% system
+    uptime by ensuring that there is no single point of failure. This is typically
+    done by incorporating redundancy mechanisms, such as backup processes taking over
+    instantly from the failed ones and so on.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Mastering high availability
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: In Mesos, this is achieved using Apache ZooKeeper, a centralized coordination
+    service. Multiple masters are set up (one active leader and other backups), with
+    ZooKeeper coordinating the leader election and handling lead master detection
+    by other Mesos components such as slaves and frameworks.
+  prefs: []
+  type: TYPE_NORMAL
+- en: A minimum of three master nodes are required to maintain a quorum for a high
+    availability setting. The recommendation for production systems is however, at
+    least five. The leader election process is described in detail at [http://zookeeper.apache.org/doc/trunk/recipes.html#sc_leaderElection](http://zookeeper.apache.org/doc/trunk/recipes.html#sc_leaderElection).
+  prefs: []
+  type: TYPE_NORMAL
+- en: The state of a failed master can be recreated on whichever master gets elected
+    next by leveraging the information stored with the slaves and framework schedulers.
+    Upon the election of the new master, other components are apprised of this development
+    by ZooKeeper, allowing them to now register with this new master and pass along
+    status update messages to it. Based on this data, the newly elected master is
+    able to regenerate the state of the failed master.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Framework scheduler fault tolerance
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: This is achieved through the registration of multiple schedulers of each framework
+    with the current leading master. In the event of a scheduler failure, the secondary
+    scheduler is asked by the master to take charge. However, the state-sharing implementation
+    between multiple schedulers of each framework needs to be handled by the respective
+    frameworks themselves.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Slave fault tolerance
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: Mesos has a slave recovery mechanism for fault tolerance, which is discussed
+    at length in the subsequent section. The master monitors the status of all the
+    slaves. The master removes a particular slave node and tries to terminate it if
+    it doesn't respond to the heartbeats sent by it despite several communication
+    attempts.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Executor/task
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: In case of task or executor failures, the master notifies the corresponding
+    framework scheduler that launched the task. Based on the policies specified in
+    the scheduler's logic, it will handle the execution of the failed task, generally
+    by launching it on new slave nodes that match the resource requirement criteria.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Slave recovery
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: Slave recovery is a fault tolerance mechanism introduced in v0.14.0 through
+    which tasks can continue to run even if a slave process goes down and also enable
+    slave process to reestablish a connection with the tasks that are running on this
+    slave upon restart. The slave process may go down and need to be restarted during
+    either planned upgrades or following unexpected crashes.
+  prefs: []
+  type: TYPE_NORMAL
+- en: To achieve this, the slaves save information about the tasks being currently
+    executed to the local disk (also known as **checkpointing**). The data that they
+    write out includes task, executor, and status information. To enable this feature,
+    both the slave and the frameworks running on these need to be configured appropriately.
+    If checkpointing is enabled, then the slave restarts post-failure events and can
+    recover data from the most recent checkpoint, reestablish connection with the
+    executors, and continue running the task. When a slave goes down, both the master
+    and executors wait for it to restart and reconnect. As checkpointing involves
+    multiple writes to the local disk, the need for high availability needs to be
+    weighed against the latency overheads caused by these frequent writes.
+  prefs: []
+  type: TYPE_NORMAL
+- en: In addition, improvements have also been made to the executor driver, making
+    it more robust and tolerant of failure events. For instance, the driver caches
+    updates passed to it by the executor during the time a slave is down and resends
+    them to the slave once it reestablishes connection with the executor. This ensures
+    that the executors can continue running the tasks and transmitting messages while
+    not being concerned about the slave process.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Checkpointing also improves reliability by ensuring that messages regarding
+    task updates are passed on to the frameworks even if failures occur. For instance,
+    if a slave and master failed at the same time, frameworks would not receive the
+    required `TASK_LOST` status update message. Through checkpointing, a slave can
+    now recover information about the tasks from the last checkpointed state and can
+    send the required messages to the framework upon reconnection.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Slave recoverability is important for various reasons, such as ensuring that
+    stateful processes or long-running tasks can restart from the last recorded state,
+    performing seamless cluster upgrades, and reducing maintenance and management
+    overheads.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Enabling slave checkpointing
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: Slave checkpointing can be enabled in the following way.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Note
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: Note that slave checkpointing for all slaves is enabled by default since v0.22.0.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The relevant flags are as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`checkpoint`: This allows users to specify whether a slave needs to checkpoint
+    information to enable recovery [The default is `true`].'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: A restarted slave can recover updates and reestablish connection with (`--recover`=`reconnect`)
+    or terminate (`--recover`=`cleanup`) executors.
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Note
+  prefs:
+  - PREF_IND
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: Note that this flag will be removed starting v0.22.0 and enabled for all slaves.
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: '`strict`: This determines whether recovery should be carried out in strict
+    mode or not [the default is `true`].'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: If `strict`=`true`, then all the errors related to recovery are treated as fatal.
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: If `strict`=`false`, then the state is recovered on a best-effort basis in case
+    of any errors related to recovery, such as data corruption and so on.
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`recover`: This determines whether a slave should reconnect with or terminate
+    old executors [the default is `reconnect`].'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: If `recover`=`reconnect`, the slave can reestablish connection with the live
+    executors.
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: If `recover`=`cleanup`, the slave terminates the old executors. This option
+    is typically used when performing incompatible upgrades.
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Note
+  prefs:
+  - PREF_IND
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: Note that no recovery is performed if no checkpointed information is present.
+    Upon restart, the slave gets registered as a new slave with the master.
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: '`recovery_timeout`: This is the time within which the slave must recover [the
+    default is `15 mins`].'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: If the slave doesn't recover within the `recovery_timeout` value specified,
+    the master shuts the slave, which leads to all executors getting terminated as
+    well.
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Note
+  prefs:
+  - PREF_IND
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: Note that this is only applicable and available when `--checkpoint` is enabled.
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: Enabling framework checkpointing
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: Frameworks can enable checkpointing by setting the value of the optional checkpointing
+    field included in `FrameworkInfo` to true (`FrameworkInfo.checkpoint`=`True`)
+    before registration. If this option is enabled, then only offers from checkpointed
+    slaves will be received by such frameworks.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Reconciliation
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: Mesos implements an actor-style message passing programming model to enable
+    nonblocking communication between different Mesos components and leverages protocol
+    buffers for the same. For example, a scheduler needs to tell the executor to utilize
+    a certain number of resources, an executor needs to provide status updates to
+    the scheduler regarding the tasks that are being executed, and so on. Protocol
+    buffers provide the required flexible message delivery mechanism to enable this
+    communication by allowing developers to define custom formats and protocols, which
+    can be used across different languages.
+  prefs: []
+  type: TYPE_NORMAL
+- en: An at-most-once message delivery model is employed for this purpose except for
+    certain messages, such as status updates, a lot of which follow the at-least-once
+    delivery model by making use of acknowledgements. In case of failures, there is
+    a high chance that messages between the master and slaves can get lost leading
+    to state inconsistencies.
+  prefs: []
+  type: TYPE_NORMAL
+- en: For instance, there are multiple scenarios in which a task can be lost whenever
+    a framework issues a request to launch tasks. The master can fail after the request
+    is sent by the framework but before it receives it, or it can fail after a message
+    is received but before it can send it to the slave. The framework can fail after
+    expressing its desire to launch a task but before sending the required message
+    and so on. To tackle the inconsistencies created by such situations, there needs
+    to be a reconciliation mechanism between Mesos and the frameworks. Mesos needs
+    to make sure that the frameworks are aware of the failure events that might occur
+    and when these get resolved. Moreover, it must ensure that the states of all components
+    are in sync with each other once recovery occurs and maintain consistency.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Task reconciliation
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'A framework needs to explicitly reconcile tasks after a failure as the scheduler
+    doesn''t maintain task-related information. There are two kinds of reconciliations
+    available in Mesos:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: The first is "Explicit" reconciliation, in which the scheduler sends details
+    of the tasks for which it wants to know the state and the master sends back the
+    state of each of these tasks
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: The second is "Implicit" reconciliation, in which the scheduler doesn't specify
+    the tasks and just sends an empty list to the master for which the master returns
+    the state of all the known tasks
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'The way to implement this is as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE27]'
+  prefs: []
+  type: TYPE_PRE
+- en: The master inspects only the compulsory `TaskID` field and an optional `SlaveID`
+    field.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Offer reconciliation
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: Offers get automatically reconciled. They do not stay beyond the master's life
+    and are no longer valid if a failure occurs. They are reissued every time the
+    framework gets reregistered.
+  prefs: []
+  type: TYPE_NORMAL
+- en: For more information on reconciliation, refer to [http://mesos.apache.org/documentation/latest/reconciliation/](http://mesos.apache.org/documentation/latest/reconciliation/).
+  prefs: []
+  type: TYPE_NORMAL
+- en: Persistent Volumes
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: Since v0.23.0, Mesos has introduced experimental support for a new feature called
+    **Persistent Volumes**. One of the key challenges that Mesos faces is providing
+    a reliable mechanism for stateful services such as databases to store data within
+    Mesos instead of having to rely on external filesystems for the same.
+  prefs: []
+  type: TYPE_NORMAL
+- en: For instance, if a database job is being run, then it is essential for the task
+    to be scheduled on slave nodes that contain the data that it requires. Earlier,
+    there was no way to guarantee that the task would get resource offers only from
+    the slave nodes that contained the data required by it. The common method to deal
+    with this problem was to resort to using the local filesystem or an external distributed
+    filesystem. These methods involved either network latency or resource underutilization
+    (as the specific data-bearing nodes needed to be statically partitioned and made
+    available only to the frameworks requiring that data) issues.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The two new features that address this problem are:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '**Dynamic reservations**: In addition to the features discussed in the *Reservation*
+    section earlier in this chapter, another advantage of dynamic reservations is
+    the ability of a framework to reserve a persistent store, ensuring that it will
+    always be offered back to it when another task needs to be launched.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**Persistent volumes**: Mesos now gives the ability to create a persistent
+    volume from disk resources. A volume can be created when a new task is being launched,
+    which resides outside the sandbox of the task. This will remain persisted even
+    after the completion of the task and will be offered to the same framework again
+    so that it can launch another task on the same disk resources.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Note that persistent volumes can only be generated from statically or dynamically
+    reserved disk resources. If a persistent volume is created from dynamically reserved
+    disk resources, then it cannot be unreserved without the destruction of the volume.
+    This provides a security mechanism to prevent sensitive data from being accidentally
+    exposed to other frameworks. Garbage collection mechanisms to delete residual
+    data are in the works.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The interface for the creation of persistent volumes is described here:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Frameworks can send two messages through the `acceptOffers` API as offer responses:
+    `Offer::Operation::Create` and `Offer::Operation::Destroy`'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: The master can manage persistent volumes via the `/create` and `/destroy HTTP`
+    endpoints, which are currently in the alpha stage.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Note that the framework's principal is required for authorization, which shall
+    be discussed in more detail in [Chapter 6](ch06.html "Chapter 6. Mesos Frameworks"),
+    *Mesos Frameworks*
+  prefs: []
+  type: TYPE_NORMAL
+- en: Offer::Operation::Create
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'Volumes can be created by frameworks as part of the regular offer cycle. For
+    instance, let''s say a resource offer of a 6-GB dynamically reserved disk is received
+    as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE28]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'A persistent volume can now be created from these disk resources by sending
+    the following message. In it, the following need to be specified:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: A unique role-specific persistent volume ID
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: A relative path within a container where the volume needs to be stored
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Volume permissions
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'A persistent volume can now be created from these disk resources by sending
+    the following message:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE29]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'The next resource offer will include the persistent volume created before:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE30]'
+  prefs: []
+  type: TYPE_PRE
+- en: Offer::Operation::Destroy
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'Currently, persistent volumes need to be explicitly deleted. This can be done
+    in the following way as part of the regular offer cycle. First, the resource offer
+    with the persisted volume will be received. Taking the preceding example, this
+    will be:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE31]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Next, the persisted volume is destroyed through the `Offer::Operation::Destroy`
+    message, as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE32]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Note that deleting the persisted volume does not result in the disk resources
+    being unreserved. As such, the following resource offers will still contain them:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE33]'
+  prefs: []
+  type: TYPE_PRE
+- en: Summary
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: In this chapter, we dived deep into some of the most important features of Mesos
+    that make it efficient, scalable, and fault tolerant. Advanced topics such as
+    Mesos' resource allocation options and production-grade fault tolerance capabilities
+    were explained in detail. With this strong background, the reader will be guided
+    through the more practical aspects of Mesos installation, administration, and
+    framework setup in the subsequent chapters.
+  prefs: []
+  type: TYPE_NORMAL
+- en: In the next chapter, we will discuss how to set up a multi-node Mesos cluster
+    both on a public cloud service as well as on a private datacenter with a discussion
+    on the common issues faced and how to debug and troubleshoot them.
+  prefs: []
+  type: TYPE_NORMAL

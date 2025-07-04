@@ -1,0 +1,960 @@
+- en: Chapter 6. Measuring and Increasing Performance
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: Up to this point, we have created an active/passive cluster, added several resources
+    to it, and tested its failover capabilities. We also discussed how to troubleshoot
+    common issues. The final step in our journey consists of measuring and increasing
+    the performance of our cluster as it has been installed so far—as far as the services
+    running on it are concerned.
+  prefs: []
+  type: TYPE_NORMAL
+- en: In addition, we will provide the overall instructions to convert your A/P cluster
+    into an A/A one.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Setting up a sample database
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: In order to properly test our MariaDB database server, we need a database populated
+    with sample data. For this reason, we will use the Employees database, developed
+    by Patrick Crews and Giuseppe Maxia and provided by Oracle Corporation under a
+    Creative Commons Attribution-Share Alike 3.0 Unported License. It provides a very
+    large dataset (~160 MB and ~4 million records) spread over six tables, which will
+    be ideal for our performance tests.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Note
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: 'The Creative Commons Attribution-Share Alike 3.0 Unported License, available
+    at [http://creativecommons.org/licenses/by-sa/3.0/](http://creativecommons.org/licenses/by-sa/3.0/),
+    grants us the following freedoms regarding the Employees database:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '*Share: This lets us copy and redistribute the material in any medium or format*'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '*Adapt: This lets us remix, transform, and build upon the material*'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '*for any purpose, even commercially.*'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '*The licensor cannot revoke these freedoms as long as you follow the license
+    terms.*'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Downloading and installing the Employees database
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'Let''s proceed with downloading and installing the database using the following
+    steps:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: To download the Employees table, go to [https://launchpad.net/test-db/](https://launchpad.net/test-db/)
+    and grab the link for the tarball of the latest stable release (at the time of
+    writing this book, it is v1.0.6), as shown in the following screenshot:![Downloading
+    and installing the Employees database](img/00067.jpeg)
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'Then, download it to the node on which the database server is running (in our
+    case, it is `node01`). To do so, you will need to install two packages named `wget`
+    and `bzip2` first, using the following command:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE0]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Then, extract/unarchive its contents in your current working directory:'
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: '[PRE1]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'This will create a subdirectory named `employees_db`, where the main installation
+    script (`employees.sql`) resides, as can be seen in the output of the following
+    two commands:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE2]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Next, use the following command to connect to the cluster database server we
+    set up and configured in [Chapter 4](part0030_split_000.html#SJGS1-1d2c6d19b9d242db82da724021b51ea0
+    "Chapter 4. Real-world Implementations of Clustering"), *Real-world Implementations
+    of Clustering* (note that you will be prompted to enter the password for the root
+    MariaDB user):'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE3]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'This will also install the employees database and load the corresponding information
+    into its tables:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '`departments`'
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`employees`'
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`dept_emp`'
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`dept_manager`'
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`titles`'
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`salaries`'
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Note
+  prefs:
+  - PREF_IND
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: After you are done setting up the sample database, feel free to perform a forced
+    failover to verify that the resources and the database, along with their tables
+    and records, become available in the current passive node. Review chapter 4 to
+    recall instructions if you need.
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: 'Due to the high volume of data being loaded into the database, it is to be
+    expected that the installation may take around a minute or two to complete. While
+    we are at it, we will see the progress of the import process: the database structure
+    and the storage engine are instantiated, then the tables are created, and finally,
+    they are populated with data, as shown here:'
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: '![Downloading and installing the Employees database](img/00068.jpeg)'
+  prefs:
+  - PREF_IND
+  type: TYPE_IMG
+- en: 'We can verify by logging into the database server and issuing these commands
+    to first list all databases. Then, switch to the recently installed Employees
+    database, and use it for the subsequent queries:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE4]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: The output should be similar to the one shown in the preceding screenshot.![Downloading
+    and installing the Employees database](img/00069.jpeg)
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'Before we proceed with the actual performance tests (measuring general performance
+    before and after a failover event), feel free to investigate those tables (and
+    the fields they contain) using the `DESCRIBE` statement. Then browse the records
+    with the `SELECT` statement, as shown here:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE5]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: The result can be seen in the following screenshot:![Downloading and installing
+    the Employees database](img/00070.jpeg)
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Once you have taken some time to become acquainted with the structure of the
+    database, we are ready to proceed with the tests.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Introducing initial cluster tests
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: In addition, for the actual performance tests, you should note that MariaDB
+    comes with several database-related utilities that can come in handy for a variety
+    of administration tasks. One of them is `mysqlshow`, which returns complete information
+    about databases and tables in one quick command.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Its generic syntax is as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE6]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'So, we could use the following command to display the description for the titles
+    table in the `employees` database:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE7]'
+  prefs: []
+  type: TYPE_PRE
+- en: Note
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: You can list the complete set of utilities that are included in your MariaDB
+    installation using the `ls /bin | grep mysql` command. Each of those tools has
+    a corresponding manual page, which can be invoked from the command line as usual.
+  prefs: []
+  type: TYPE_NORMAL
+- en: We will use another of the tools that are included by MariaDB to see how our
+    database server performs when placed under significant load. The tool is `mysqlslap`,
+    a diagnostic program designed to emulate client load for a MariaDB/MySQL server
+    and to report the timing of each stage. It works as if multiple clients are accessing
+    the server simultaneously.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Before executing the actual commands that we will use in the following tests,
+    we will introduce a few of the flags available for `mysqlslap`:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`--create-schema`: This command specifies the database in which we will run
+    the tests'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`--query`: This is a string (or alternatively, a file) containing the `SELECT`
+    statements used to retrieve data'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`--delimiter`: This command allows you to specify a delimiter to separate multiple
+    queries in the same string in `--query`'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`--concurrency`: This command is the number of simultaneous connections to
+    simulate'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`--iterations`: This is the number of times to run the tests'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`--number-of-queries`: This command limits each client (refer to `--concurrency`)
+    to that amount of queries'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: In addition, there are other switches listed in the manual page for `mysqlslap`
+    that you can use if you want.
+  prefs: []
+  type: TYPE_NORMAL
+- en: That said, we will run the following tests against the database server in our
+    cluster.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Test 1 – retrieving all fields from all records
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'In this first test, we will perform a rather simple query that consists of
+    retrieving all fields from all records in the employees table. We will simulate
+    `10` concurrent connections and make `50` queries overall. This will result in
+    clients running `5` queries each (50/10 = 5):'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE8]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'After a couple of minutes, you will be able to see output similar to the one
+    shown in the following screenshot. Although here we list the result of an isolated
+    test, you may want to perform this operation several times on your own and write
+    down the results for a later comparison. However, if you choose to do so, make
+    sure that the query results are not cached by running the following command in
+    your MariaDB server session after each run:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE9]'
+  prefs: []
+  type: TYPE_PRE
+- en: '![Test 1 – retrieving all fields from all records](img/00071.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Test 2 – performing JOIN operations
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'In this second test, we will do a `JOIN` operation between the employees and
+    salaries tables (a more realistic example) and modify the number of connections,
+    queries, and iterations a bit:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE10]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'In the following screenshot, we can see an expected increase in the time it
+    took to run the queries this time:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Test 2 – performing JOIN operations](img/00072.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Before proceeding further, feel free to play around with the number of connections,
+    iterations, and queries, or with the query itself. Based on these values, you
+    may knock the database server down. That is to be expected at some point, since
+    we have been building our infrastructure and examples on a virtual machine-based
+    cluster. For this reason, you may want to increase the processing resources on
+    each node's Virtualbox configuration to the extent of the available capacity,
+    or consider acquiring real hardware to set up your cluster.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Note
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: Database administration and optimization are topics out of the scope of this
+    book. It is strongly recommended that you also take these subjects into account
+    before moving the cluster to a production environment. Since the performance of
+    the database and web servers can be optimized separately through their corresponding
+    settings, in this book, we will focus our efforts on analyzing and improving the
+    availability of these resources (which we have named `dbserver` and `webserver`
+    respectively) using their respective configuration files and internal settings.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Performing a failover
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'We will now force a failover by stopping the cluster functionality on the node
+    where all the resources are currently running (`node01`) so that they will move
+    to `node02`. Here, we will perform tests 1 and 2, and we expect to see a similar
+    behavior to what we saw earlier. It is important to keep in mind that during a
+    failover, data is not encrypted automatically. If you have concerns about sensitive
+    data being failed over an unsecured connection, you should take the necessary
+    precaution to use encryption either at the filesystem or at the Logical Volume
+    level. Before we do this, however, we must keep in mind that moving a sensitive
+    resource, such as a database server, around a cluster constantly may negatively
+    impact the availability of such resource. For this reason, we will want it to
+    remain in the node where it is active unless in the case that there is an actual
+    node shutdown. The concept of resource stickiness does exactly this: it allows
+    us to instruct all cluster resources to either fall back to their original node
+    when it becomes available again after an outage, or to remain where they are currently
+    active. The following syntax is used to specify the default value for all resources:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE11]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'The higher the value, the more the resource will prefer to stay where it is.
+    By default, Pacemaker uses `0` as value, which tells the cluster that it is desired
+    (and optimal) to move the resource around in the case of failover. To specify
+    the stickiness of a specific resource, use the following syntax to set the stickiness
+    for a specific resource:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE12]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Let''s assume that you use `INFINITY` as the value in the preceding command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE13]'
+  prefs: []
+  type: TYPE_PRE
+- en: (Where you need to replace `resource_id` with the actual resource identification)
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Then, both the default stickiness for all resources and for the resource identified
+    by `resource_id` will be set to `INFINITY`. That being said, let''s now perform
+    the failover. Take note of the current node and resource status by using the following
+    command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE14]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Then, stop the cluster by using the following command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE15]'
+  prefs: []
+  type: TYPE_PRE
+- en: Then, verify that all resources have been properly started on the other node.
+    If not, troubleshoot using the tools explained in [Chapter 5](part0041_split_000.html#173721-1d2c6d19b9d242db82da724021b51ea0
+    "Chapter 5. Monitoring the Cluster Health"), *Monitoring the Cluster Health*.
+    Finally, proceed to run tests 1 and 2 on `node02`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The results in our present case are explained here.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'For test 1, refer to the following screenshot:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Performing a failover](img/00073.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Summarizing results of test 1 on both nodes
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'For our convenience, let''s put both results in the following for a quick comparison:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '| TEST 1 [seconds] | Node01 | Node02 |'
+  prefs: []
+  type: TYPE_TB
+- en: '| --- | --- | --- |'
+  prefs: []
+  type: TYPE_TB
+- en: '| Average, all queries | 20.770 | 20.179 |'
+  prefs: []
+  type: TYPE_TB
+- en: '| Minimum, all queries | 20.242 | 19.930 |'
+  prefs: []
+  type: TYPE_TB
+- en: '| Maximum, all queries | 21.298 | 20.428 |'
+  prefs: []
+  type: TYPE_TB
+- en: 'On the other hand, for test 2, the following screenshot and the next table
+    show the details:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Performing a failover](img/00074.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Summarizing results of test 2 on both nodes
+  prefs: []
+  type: TYPE_NORMAL
+- en: '| TEST 2 [seconds] | Node01 | Node02 |'
+  prefs: []
+  type: TYPE_TB
+- en: '| --- | --- | --- |'
+  prefs: []
+  type: TYPE_TB
+- en: '| Average, all queries | 40.008 | 39.084 |'
+  prefs: []
+  type: TYPE_TB
+- en: '| Minimum, all queries | 38.713 | 38.779 |'
+  prefs: []
+  type: TYPE_TB
+- en: '| Maximum, all queries | 41.304 | 39.389 |'
+  prefs: []
+  type: TYPE_TB
+- en: As you can see, the results are very similar in both cases, which confirms that
+    the failover did not affect the performance of the database server running on
+    top of our cluster. While it is true that the failover did not improve performance
+    either, we can see that the availability of the resource during a failover has
+    been confirmed with a negative impact on the functionality of the cluster.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Measuring and improving performance
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: You will recall from earlier chapters that by definition, a resource is a service
+    that is made highly available by the cluster. Every resource is assigned what
+    is called a **resource agent**, an external shell script that manages the actual
+    resource for the cluster, independently of how those services would be managed
+    by systemd if they were left to its care. Thus, the actual operation of the resource
+    is transparent to the cluster, since it is being managed by the resource agent.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Resource agents are found inside `/usr/lib/ocf/resource.d`, so feel free to
+    take a look at them to become better acquainted with their structure. In most
+    circumstances, you will not need to modify them, but work on the specific resources'
+    configuration files, as we shall see. You will recall from earlier chapters that
+    adding a cluster resource involved using an argument of the `standard:provider:resource_agent`
+    form (`ocf:heartbeat:mysql`, for example).You can also view the complete list
+    of resource standards and providers with `pcs resource standards` and `pcs resource
+    providers` respectively. Additionally, you can view the available agents for each
+    `standard:provider` pair with `pcs resource agents standard:provider`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Apache's configuration and settings
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: When the Apache web server is first installed, by default, it comes with several
+    modules in the form of **Dynamic Shared Objects** (**DSOs**) that extend its functionality.
+    The downside is that some of them may consume resources unnecessarily if they
+    remain loaded and your applications don't' use them. As you can probably guess,
+    this may lead to performance loss over time.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'In CentOS 7, you can view the list of currently loaded and shared modules with
+    `httpd -M`. The following output is truncated for the sake of brevity, but should
+    be very similar in your case:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE16]'
+  prefs: []
+  type: TYPE_PRE
+- en: A careful inspection of the module list and solid knowledge of what your applications
+    actually needs will help you define which modules are not needed, and thus, they
+    can be unloaded for the time being.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Look at the following line in `/etc/httpd/conf/httpd.conf`:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE17]'
+  prefs: []
+  type: TYPE_PRE
+- en: This line indicates that Apache will look in the `conf.modules.d` directory
+    for instructions to load module inside `.conf` files. For example, in the standard
+    installation, `00-base.conf` contains ~70 `LoadModule` directives that point to
+    DSOs inside /`etc/httpd/modules`. It is in these `.conf` files that you can enable
+    or disable (by prepending each `LoadModule` directive with a `#` symbol, thus
+    commenting that line) Apache modules. Note that this must be performed on both
+    nodes.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Loading and disabling modules
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'In the following screenshot, `userdir_module` modules, `version_module`, and
+    `vhost_alias_module` are loaded, whereas `buffer_module`, `watchdog_module`, and
+    `heartbeat_module` are disabled through `00-base.conf`:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Loading and disabling modules](img/00075.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'For example, in order to disable the `userdir` module, comment the corresponding
+    `LoadModule` directive in `/etc/httpd/conf.modules.d/00-base.conf` on both nodes:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE18]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Restart the cluster resource on the node where it is currently active:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE19]'
+  prefs: []
+  type: TYPE_PRE
+- en: Placing limits on the number of Apache processes and children
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: In order for Apache to be able to handle as many simultaneous requests as needed,
+    but preventing it from consuming more RAM than you can afford for your application(s),
+    you need to set the `MaxRequestWorkers` (called `MaxClients` before version 2.3.13)
+    directive to an appropriate value based mostly on the available physical memory
+    that can be allotted in your specific environment. Note that if this value is
+    set too high, you may bring the web server (and the resource altogether) to its
+    knees.
+  prefs: []
+  type: TYPE_NORMAL
+- en: On the other hand, setting it to an appropriate value, which is calculated based
+    on the memory usage of each Apache process compared to the allotted RAM, will
+    allow the web server to respond to that many requests at once. If the number of
+    requests surpasses the capacity of the server, the extra requests will be served
+    once the first ones have already been served, thus avoiding the resource from
+    hanging for all connections.
+  prefs: []
+  type: TYPE_NORMAL
+- en: For further details, refer to the Apache MPM Common directives documentation
+    at [http://httpd.apache.org/docs/2.4/mod/mpm_common.html](http://httpd.apache.org/docs/2.4/mod/mpm_common.html).
+    Keep in mind that Apache fine-tuning is out of the scope of this book, and the
+    actions mentioned here are generally not enough for production use.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Database resource
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: Since you will seldom use a web server without an accompanying database server,
+    you also need to look on that side of things to improve performance. Here are
+    some basic things you will want to look at.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Creating indexes
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: A database containing tables of hundreds of thousands or million of records
+    can quickly become a performance bottleneck when a typical `SELECT-FROM-WHERE`
+    statement is made to retrieve a specific record. Going through every row in a
+    table to accomplish this is considered highly inefficient as it is performed at
+    the hard disk level.
+  prefs: []
+  type: TYPE_NORMAL
+- en: With indexes, the operation is performed in memory instead of disk, and records
+    can be automatically sorted so that it's faster to find the one we want because
+    an index only contains the actual sorted data and a link to the original data
+    record. In addition, we can create an index for each column we need to sort by,
+    so using indexes becomes a handy tool to improve performance.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'To begin, exit your MariaDB session and run test 3 to measure performance without
+    indexes:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE20]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Now, let''s create indexes on the `emp_no` field in the employees and salaries
+    tables since we will use them in our `WHERE` clause, and then perform test 3 again.
+    Perform these steps:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'First, log in to the database server using the following command:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE21]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Then, issue the following commands from the MariaDB shell:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE22]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: After that, exit the MariaDB shell and run the test again to compare performance.
+    The results are shown in the following screenshots and summarized against the
+    previous example (without indexes) in the next table:![Creating indexes](img/00076.jpeg)
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'Now, let''s look at the results of the same test, but this time using indexes:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Creating indexes](img/00077.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Summarizing results of test 2 with and without indexes on node01
+  prefs: []
+  type: TYPE_NORMAL
+- en: '| TEST 3 (in seconds) | Node01 (without indexes) | Node01 (with indexes) |'
+  prefs: []
+  type: TYPE_TB
+- en: '| --- | --- | --- |'
+  prefs: []
+  type: TYPE_TB
+- en: '| Average, all queries | 0.043 | 0.038 |'
+  prefs: []
+  type: TYPE_TB
+- en: '| Minimum, all queries | 0.035 | 0.037 |'
+  prefs: []
+  type: TYPE_TB
+- en: '| Maximum, all queries | 0.055 | 0.046 |'
+  prefs: []
+  type: TYPE_TB
+- en: The preceding screenshots demonstrate that creating indexes on searchable fields
+    will improve performance as it will prevent the server from having to go through
+    all rows before returning the results.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Using query cache
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: In a MariaDB database server, the results of `SELECT` queries are stored in
+    a query cache so that when the exact same operation is performed again, the results
+    can be returned faster. This is precisely the case in most modern websites where
+    similar queries are made over and over again (high-read and low-write environments).
+  prefs: []
+  type: TYPE_NORMAL
+- en: So, how does this happen at the server level? If an incoming query is not found
+    in the cache, it will be processed normally and then stored, along with its result
+    set, in the query cache. Otherwise, the results are pulled from the cache, which
+    makes it possible to complete the operation much faster than if it was processed
+    normally.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'In MariaDB, the query cache is enabled by default (`SHOW VARIABLES LIKE ''query''query''_cache_type'';`),
+    but its size is set to zero (`SHOW VARIABLES LIKE ''query''query''_cache_size'';`),
+    as indicated in the following screenshot:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Using query cache](img/00078.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'For this reason, we need to set the query cache size variable to an appropriate
+    value according to the use of our application. In the following screenshot, this
+    variable is set to 100 KB (`SET GLOBAL query_cache_size = 102400;`), and we can
+    see that the query cache size has been updated accordingly:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Using query cache](img/00079.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Note that the right value for the query cache size will depend largely, if not
+    entirely, on the needs of your specific case. Setting it too high will result
+    in performance degradation as the system will have to allocate extra resources
+    to manage a large cache. On the other hand, setting it to a very low value will
+    cause at least some repeated queries to be processed normally and not be cached.
+    In the preceding example, we allocated 100 KB of data as cache to store queries
+    and their corresponding results.
+  prefs: []
+  type: TYPE_NORMAL
+- en: For further details, refer to the MariaDB documentation ([https://mariadb.com](https://mariadb.com)),
+    specifically to the *Managing MariaDB/Optimization and tuning* section.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Note
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: The MariaDB documentation contains very helpful information to tune a database
+    server starting from the ground up (all the way from the operating system level
+    through query optimization). Other tools to increase performance and stability
+    are MySQL tuner ([http://mysqltuner.com/](http://mysqltuner.com/)), MySQL Tuning
+    Primer ([https://launchpad.net/mysql-tuning-primer](https://launchpad.net/mysql-tuning-primer)),
+    and phpMyAdmin Advisor ([https://www.phpmyadmin.net/](https://www.phpmyadmin.net/)).
+    The last tool is available in the **Status** tab of a standard phpMyAdmin installation.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Moving to an A/A cluster
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: As you will recall from the introduction of [Chapter 3](part0023_split_000.html#LTSU2-1d2c6d19b9d242db82da724021b51ea0
+    "Chapter 3. A Closer Look at High Availability"), *A Closer Look at High Availability*,
+    A/A clusters tend to provide higher availability as several nodes are actively
+    running applications at the same time (which, by the way, requires that the necessary
+    data for those applications be available simultaneously on all cluster members).
+    The downside is that if one or more nodes go offline, the remaining ones are assigned
+    extra processing load, thus negatively impacting the overall performance of the
+    cluster.
+  prefs: []
+  type: TYPE_NORMAL
+- en: That being said, let's examine briefly the required steps to convert our current
+    A/P cluster to an A/A one. Make sure a STONITH resource has been defined (refer
+    to chapter 3 for further details).
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Enable STONITH resource by using the following command:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE23]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Install the additional software that will be needed for this:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE24]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: As opposed to a traditional journaling filesystem such as `ext4` (which we have
+    used for our filesystems up until this point in the book), you will need a way
+    to ensure that all nodes are granted simultaneous access to the same block storage.
+    **Global File System 2** (also known as **GFS2**) provides such a feature through
+    its command-line tools, which are included in the `gfs2-utils` package.
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: 'In addition, the `dlm` package will install the **Distributed Lock Manager**
+    (also known as **DLM**), a requirement in cluster filesystems to synchronize access
+    to shared resources. Add (and clone) the Distributed Lock Manager as a cluster
+    resource of the `ocf` class, pacemaker provider, and `controld` class:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE25]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Now, push the newly created resource to the CIB:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE26]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: Choose a replicated storage resource and create a `gfs2` filesystem on top of
+    its associated device node.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'For example, let''s use the `/dev/drbd0` device we created in [Chapter 4](part0030_split_000.html#SJGS1-1d2c6d19b9d242db82da724021b51ea0
+    "Chapter 4. Real-world Implementations of Clustering"), *Real-world Implementations
+    of Clustering*. We will need to unmount it from the node with the DRBD primary
+    role (most likely, `node01`) before we can create a `gfs2` filesystem on it:'
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: '[PRE27]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Here, as you can see in the following screenshot, `MyCluster` is the original
+    name of our cluster, `Web` is a random name, and the `-j` flag is used to indicate
+    that the filesystem will use two journals (in this case one for each node - you
+    will want to change this number if your cluster consists in more nodes). Finally,
+    the `-p` option tells us that we are going to use the DLM provided by the kernel:'
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: '![Moving to an A/A cluster](img/00080.jpeg)'
+  prefs:
+  - PREF_IND
+  type: TYPE_IMG
+- en: 'You will also need to change the `fstype` option of the `web_fs` resource from
+    `ext4` (the original filesystem used when we first created it in [Chapter 4](part0030_split_000.html#SJGS1-1d2c6d19b9d242db82da724021b51ea0
+    "Chapter 4. Real-world Implementations of Clustering"), *Real-world Implementations
+    of Clustering*) to `gfs2` in the PCS resource configuration:'
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: '[PRE28]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'It is important to note that if the cluster attempts to start `web_fs` before
+    `dlm-clone`, we will run into an issue (we cannot mount a `gfs2` filesystem if
+    the `dlm` functionality is not present). Thus, we need to add colocation and ordering
+    constraints so that `web_fs` will always start on the node where `dlm-clone` starts:'
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: '[PRE29]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: '`anddlm-clone` will be started before `web_fs`.'
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: The `pcs constraint` order `dlm-clone` then `web_fsClone` the virtual IP address
+    resource.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'Cloning the IP address will allow us to effectively use resources on both nodes,
+    but at the same time, any given packet will be sent to only one node (thus, implementing
+    a basic load-balancing method in our cluster):'
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: 'To do this, we will save the cluster configuration to a file named `load_balancing_cfg`
+    and update such file with the :'
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: '[PRE30]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'You will notice from the pcs resource help that the clone operation allows
+    you to specify certain options. In the following lines, `clone-max` specifies
+    the number of nodes that host the `virtual_ip` resource (2 in this case), whereas
+    clone-node-max indicates the number of resource instances each node is allowed
+    to run. Next, `globally-unique` instructs the resource agent that each node is
+    distinct from the rest and thus, handles distinct traffic as well. Finally, `clusterip_hash=sourceip`
+    tells us that the packet''s source IP address will be used to decide which node
+    gets to process which request:'
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: '[PRE31]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'The next steps consists of cloning the filesystem and Apache and/or MariaDB
+    resources. Note that in order to allow two primaries in a DRBD device so that
+    you can serve content from both at the same time, you will need to set the allow-two-primaries
+    directive to yes (`allow-two-primaries yes;`) in the net section of the resource
+    configuration file (`/etc/drbd.d/drbd0.res`, for example):'
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: '[PRE32]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Once again, save the current CIB to a local file and add the clone resource
+    information. In the next example, we will use `web_fs`, `web_drbd_clone` and `webserver`:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE33]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Now, `web_drbd` should be allowed to serve both instances as primary or master:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE34]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Then, activate the new configuration:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE35]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: Last but not least, you need to keep in mind that you will need to set the value
+    of the resource stickiness to `0` in order for it to return an instance to its
+    original node after a failover. To do so, refer to the *Performing a failover*
+    section this same chapter.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: You can now proceed to force a failover as usual, and test the resource availability.
+    Unfortunately, this is not possible in a Virtualbox environment as I have explained
+    previously. However, it's entirely possible if you are able to build your cluster
+    with real hardware and an actual STONITH device.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Summary
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: In this last chapter, we set up a couple of performance testing tools for the
+    example services that you need to make highly available in your cluster, and provided
+    a few suggestions to optimize their performance separately as well. Note that
+    those suggestions are not intended to represent an exhaustive list of tuning methods,
+    but a starting point instead. We have also provided the overall instructions so
+    that you can convert an A/P cluster into an A/A one.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Finally, keep in mind that this book was written using virtual machines instead
+    of specialized hardware. Thus, we have run into some associated limitations, such
+    as the lack for real STONITH devices that would otherwise have allowed us to actually
+    demonstrate the functionalities of an A/A cluster. However, the principles outlined
+    in this book will undoubtedly be a guide to set up your own clusters, whether
+    you are experimenting with virtual machines as well or using real hardware.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Best of success in your endeavors!
+  prefs: []
+  type: TYPE_NORMAL

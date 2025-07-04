@@ -1,0 +1,632 @@
+- en: Chapter 7. Implementing Windows Shares with Samba 4
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: Almost certainly, your Linux devices will not be running autonomously, and other
+    operating systems will co-exist with them. No matter where your infrastructure
+    is located, the likelihood is that you will need to interoperate with Windows
+    systems at the very least. This is true just as much in the home environment as
+    it's in the enterprise. Considering the home market, how many people do you know
+    that use Windows desktops and have a Linux server as a central file store. Remember
+    that the Linux server may be embedded into **Network Attached** **Storage** (**NAS**),
+    a device that you bought from the high street. Within enterprises, large and small,
+    Microsoft's Active Directory is a very prevalent identity store that shares user
+    accounts across a range of systems.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'To help integrate RHEL 7 into your Windows environment, we will use this chapter
+    to provide you with the basics on the following topics:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Overview of Samba and Samba services
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Overview of the lab environment
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Configuring time and DNS
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Managing Samba services
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Samba client on RHEL 7
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Configuring file shares on Samba
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Troubleshooting Samba
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: An overview of Samba and Samba services
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'When investigating our main services and using Samba, we will need to install
+    the `samba` package; this package can be installed as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE0]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'With the package installed, the following services are added to our system:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: For file and print sharing, we have the `smbd` service. For this service, we
+    will need to open TCP ports `139` and `445`.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: If we need to respond to legacy NetBIOS names requests, we will need to start
+    the `nmbd` service. We will need this for older clients, such as Windows 95, 98,
+    and ME. Windows 2000 and XP clients can make use of this network browsing protocol
+    as well. Should we need this service, which somehow I doubt, we will need to open
+    the UDP port `137`.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: If you want to join a Windows domain, then you can add client tools packages
+    such as `samba-winbind` or `sssd-common`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'If you use the `firewall-cmd` command, adding the Samba service will enable
+    three ports for you. To add the Samba service to a firewall, we will use the following
+    commands:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE1]'
+  prefs: []
+  type: TYPE_PRE
+- en: The last command is for information purposes only and is not required to set
+    the firewall rule.
+  prefs: []
+  type: TYPE_NORMAL
+- en: An overview of the lab environment
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: For demonstrations is this chapter, we will use two virtual machines running
+    in an **Oracle VirtualBox** virtualization environment.
+  prefs: []
+  type: TYPE_NORMAL
+- en: We have a Microsoft Server 2008R2 Active Directory Domain Controller with the
+    `192.168.0.252` IP address and the RHEL 7.1 host with the `192.168.0.69` IP address.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Configuring time and DNS
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: Although if we are using the RHEL host for a simple file and print sharing purpose,
+    then obtaining an accurate time and DNS are not too much of an issue; however,
+    we are most likely going to need to bring the RHEL server to an Active Directory
+    domain so that we can make use of single sign-on. Users will be able to access
+    their shares using the same credentials as they use in the Active Directory, rather
+    than having a user account and password on the RHEL server.
+  prefs: []
+  type: TYPE_NORMAL
+- en: In this chapter, we will just look at file sharing, and in [Chapter 8](part0068.xhtml#aid-20R681
+    "Chapter 8. Integrating RHEL 7 into Microsoft Active Directory Domains"), *Integrating
+    RHEL 7 into Microsoft Active Directory Domains*, we bring the server to the AD
+    domain.
+  prefs: []
+  type: TYPE_NORMAL
+- en: In [Chapter 3](part0027.xhtml#aid-PNV62 "Chapter 3. Configuring Key Network
+    Services"), *Configuring Key Network Services*, we configured time services. Now,
+    let's look at how to set our `chronyd` time source to the Active Directory time
+    server. If we are using NTP, then set the NTP time source to the Active Directory
+    server. Alternatively, ensure that the Active Directory time source is set to
+    the same time source that you use for your RHEL host.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'To configure the time source on the Windows 2008R2 Active Directory Server,
+    you will need to open an administrative Command Prompt and type the following
+    commands:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE2]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'The output from the final status subcommand is shown in the following screenshot:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Configuring time and DNS](img/image00274.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: I feel having accurate time on the network is a must, no matter you intend joining
+    a domain or not.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'To join the Active Directory domain, we must be able to resolve the service
+    records that locate domain controllers. The easiest way to achieve this is to
+    point the DNS resolvers of RHEL to the Active Directory Servers that host the
+    DNS. I have just one domain controller and this is a DNS server as well. To ensure
+    that we resolve these names correctly, we write to configuration files for interfaces
+    on RHEL 7\. On my system, these are as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE3]'
+  prefs: []
+  type: TYPE_PRE
+- en: Ensure that the DNS1 entry point to the Active Directory domain controller and
+    `PEERDNS=yes` is set in both files. Alternatively, configure the `/etc/resolv.conf`
+    file with the settings of a name server and ensure that the `PEERDNS=no` attribute
+    is set in all the interface files.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following screenshot shows the first configuration option with the setting
+    made in the interface file only:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Configuring time and DNS](img/image00275.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'With this set in both interface files, (if you have two NICSNICs), you can
+    simply restart the `NetworkManager` service as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE4]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'To test the configuration, you can try to resolve the name servers for your
+    Active Directory domain hosted in DNS. For the book, we simply use `example.com`.
+    To resolve this domain from the RHEL 7 host, we run the following command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE5]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'The `dig` command looks for records of the `ns` type or name servers from the
+    `example.com` domain. The output should be similar to the following screenshot:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Configuring time and DNS](img/image00276.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Managing Samba services
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'To access the resources of Samba, a user needs a POSIX (Linux) user account
+    available to them and a Samba account. The POSIX account can be an ordinary account
+    within the `/etc/passwd` file or this account can be centralized in LDAP or an
+    Active Directory. When a POSIX account is enabled for Samba, additional attributes
+    that are required by Windows systems are added to the user account. To enable
+    an existing POSIX account with Samba, we can use the `/bin/pdbedit` command. This
+    can work with Samba accounts in the following account stores:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: The `/etc/samba/smbpasswd` file
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: The `tdbsam` database located at `/var/lib/samba/private/passdb.tdb` (this is
+    the default samba account store)
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: The OpenLDAP directory services
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: As existing domain accounts have the required attributes for Samba, there is
+    no requirement to enable those accounts for Samba.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Firstly, we will list all existing Samba enabled accounts. Of course, we have
+    only installed Samba and not enabled any other account. Also, we only have local
+    accounts in the `/etc/passwd` file because the RHEL server is currently not part
+    of a domain or LDAP:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE6]'
+  prefs: []
+  type: TYPE_PRE
+- en: There should be no output to this command because we don't have any Samba enabled
+    accounts. If you run a command as a standard user without errors, you will see
+    permission violations while trying to access a database.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'We will now enable the exiting account for `root` and the standard user: `andrew`.
+    We will not only create an account and enable it for Samba, but also add attributes
+    that are stored in the assigned Samba account''s backend. In the default case,
+    this is the `tdbsam` database. To enable these two accounts, use the following
+    commands:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE7]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'You will be prompted for a new Samba password for each account. Ideally, this
+    should be different to their POSIX password. The truncated output after enabling
+    the Samba account for `andrew` is shown in the following command line screenshot:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Managing Samba services](img/image00277.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'Magically, when we run the list of accounts, we will be able to see these two
+    accounts:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE8]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'The output should be similar to the following screenshot, adjusting the account
+    names to match your own:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Managing Samba services](img/image00278.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: You can use the `-L` option with `-v` for a verbose output similar to the information
+    you see when enabling an account.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The main configuration file for Samba is `/etc/samba/smb.conf`. This file is
+    segmented into sections and each section (with the exception of [global]) defines
+    some form of shared resources. Each section is denoted with the section name in
+    square brackets `[]`. In addition to the `[global]` section, there are two other
+    special sections. These sections are defined in the following list:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`[global]`: Attributes set within the global section refer to the Samba server
+    as a whole rather than a particular shared resource.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`[homes]`: The presence of this section allows users to connect to their own
+    home directory easily and on the fly without any additional administrative effort
+    to share a user''s home directory. This can work without the need for the username
+    and account name to be the same as the home directory name. The user: `andrew`
+    will connect to his home share on the server in a manner similar to the following
+    command:'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '[PRE9]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: The home directory attribute from the user account will be read and then the
+    user will be connected to their assigned home directory.
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: '`[printers]`: The presence of this section allows local printers to be shared
+    automatically with no further administrative effort. A user will use the following
+    URL to connect to a printer:'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '[PRE10]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: You will find the `/etc/samba/smb.conf` file heavily commented with some comments
+    with the `#` symbol and others with the semicolon (`;`) symbol. Both are valid
+    comments, but its inconsistency is a little annoying.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'If you would like to create a backup and remove empty and commented lines,
+    try to run the following command from the `/etc/samba` directory:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE11]'
+  prefs: []
+  type: TYPE_PRE
+- en: The regular expression that we use to search for lines to delete is a little
+    more complex than normal, but it still does an amazing job for us. There are two
+    expressions for `sed` in the example, `/^\s*[;#]/d`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The preceding expression will delete commented lines from the file.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'We look for lines with (`^`) and any whitespace character (`\s`). Additionally,
+    using `*`, we check for zero or more whitespace characters. In this way, we are
+    allowing an optional whitespace character at the start of the line, but it must
+    be followed by `;` or `#` (`[;#]`) symbol. In simple English, this expands to
+    lines that are commented, regardless of whether they start with a space/tab character
+    or directly with a comment. The search string is delimited between the two `/`
+    characters, and the `d` command is used to delete matching lines that follow:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE12]'
+  prefs: []
+  type: TYPE_PRE
+- en: The preceding expression deletes blank or empty lines from a file.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The effect that this has is that it reduces the line count of the file from
+    320 lines to 20 lines in seconds. We keep the original file as a backup, that
+    is, `smb.conf.bak`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'A simple `[global]` section may look similar to the following screenshot:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Managing Samba services](img/image00279.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'These settings are detailed as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`workgroup = MYGROUP`: This denotes the NetBIOS workgroup to join in the Network
+    Neighborhood view.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`server string = Samba Server Version %v`: This appears as a description next
+    to the server name within a network view. The `%v` variable will display the Samba
+    version; in our case, this is `4.1.2`.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`log file = /var/log/samba/log.%m`: This specifies the path to the log file;
+    the `%m` variable is the machine name (hostname).'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`max log size = 50`: This specifies the maximum size in KB for the log file
+    before it is rotated.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`idmap config * : backend = tdb`: This is the mapping mechanism to map POSIX
+    user IDs and group ID to **SIDs** (**Security Identifiers**).'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`cups options = raw`: These are the printer settings that tell the cupsCUPS
+    process to send the job directly to the printer rather than trying to interpret
+    it. It will have already been processed by a Windows printer driver and needs
+    no further processing.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'You can also use directives to control which hosts or networks can access the
+    system with `hosts allow` and `hosts deny` directives. For example, the following
+    attribute settings within the `[global]` section will only allow access to any
+    share to the given network. The `127.0.0.1` host will always have access unless
+    explicitly denied. Either of the following methods are correct, allowing access
+    to `192.168.0.0/24`:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE13]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'OR:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE14]'
+  prefs: []
+  type: TYPE_PRE
+- en: These `host allow` settings and their sibling `host deny` settings can also
+    be managed at the share level, but `[global]` settings will take precedence over
+    anything configured at the share level.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'If changes are made to a running configuration, then we can run a preflight
+    check to test the integrity of our changes before restarting the service. To do
+    this, we use the `testparm` command. We run this simply as root, as shown in the
+    following command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE15]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'The `nmb` and `smb` services are managed independently. We can start and enable
+    the Samba file server with the following commands:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE16]'
+  prefs: []
+  type: TYPE_PRE
+- en: As the `[homes]` section is configured by default, we are now ready to test
+    the system.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The Samba client on RHEL 7
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: Currently, my firewall service is disabled, so I do not need to be concerned
+    with the firewall; however, I will only need to add in the TCP port `445` and
+    `139` or the `samba` service.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'If we install the Samba client package, we can list all the shares available
+    to a given user. This is shown in the following command extract:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE17]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Once the Samba client is installed, we can use it to log in as `andrew`; we
+    will be prompted for the password and to list shares on the localhost. We should
+    see the listed home directory coming from the `[homes]` special share section.
+    This is always there by default. We will see the output as expected, not the share
+    name `andrew`, as shown in the following screenshot:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![The Samba client on RHEL 7](img/image00280.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'Of course, we can leave it here and hide the fact that there are some SELinux
+    traps with the current setup. We can connect to a share, but SELinux will prevent
+    access to the users'' home directories. While [Chapter 10](part0084.xhtml#aid-2G3F81
+    "Chapter 10. Securing the System with SELinux"), *Securing the System with SELinux*,
+    will look at SELinux in more detail, we can simply and securely gain access to
+    shares by one simple Boolean change. Firstly, we will test the current configuration.
+    SELinux is in the enforcing mode and the firewall is not running. To mount the
+    Samba share, we can use the following command written as a single line:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE18]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'We do not need to include the password in mount options; if we don''t, we will
+    be prompted for the user''s Samba password during the mount process. This should
+    succeed, but if we try to access the mount target (in this case `/mnt`), we will
+    be denied access. To overcome this, we can interrogate the SELinux configuration
+    for Samba home directories. The following command illustrates how this is achieved:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE19]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'In Samba, the default configuration settings are turned `off` and `as` such
+    prevents access to the `home` directory. We enable the Samba service using the
+    following command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE20]'
+  prefs: []
+  type: TYPE_PRE
+- en: With Boolean enabled, we gain immediate access to a share. There is no requirement
+    to unmount and remount the home directory. The `-P` option makes this change permanent
+    so that we can be assured that the change persists until we need to disable the
+    setting, and the system is still secured with SELinux.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'To see a list of SELinux, Samba Booleans, and their settings, you can use the
+    following command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE21]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Of course, we can also connect to a share from a Windows device provided we
+    have the correct credentials. The following screenshot shows the mapped drive
+    from the Windows 2008R2 server connected to Andrew''s home directory:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![The Samba client on RHEL 7](img/image00281.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Configuring file shares in Samba
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: We have seen the major feature of file sharing that Samba enables with the user's
+    home directories. Although this feature is enabled by default, we will also need
+    to create our own file shares by adding our own sections to `smb.conf`. On the
+    Red Hat server, we have the `/data` directory that we worked with during `btrfs`
+    in [Chapter 5](part0039.xhtml#aid-1565U1 "Chapter 5. Implementing btrfs"), *Implementing
+    btrfs*. If we need to share this to our Windows-based clients, then Samba is the
+    tool we will use.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'We can edit the `smb.conf` file with root privileges and add a new section
+    to the configuration. The attributes that we use in the section control the access
+    and use of the share. At the very least, we require the path attribute for the
+    share to be meaningful. For a full list of options, the `man` pages for the `smb.conf`
+    file will help. The following screenshot shows the share definition that we have
+    added for the `/data` directory on the server:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Configuring file shares in Samba](img/image00282.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: The read list restricts reading data from the share to listed users; in this
+    case, we add a group. The `@` symbol denotes a group within the list.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'We still need to work with SELinux a little here by changing the SELinux context
+    of the `/data` directory and its contents. We can achieve this with the `chcon`
+    command for the changed context:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE22]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Do not forget to test the configuration using `testparm`; if all is okay, we
+    can restart the `smb` service as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE23]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Now, we can browse and access the Samba shares that we have defined. Using
+    the Windows 2008R2 server, we can now browse the network and see the `home` directory
+    for `andrew share` and `data share`. The following screenshot shows this:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Configuring file shares in Samba](img/image00283.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: We can see why Samba is such an important tool in small and large environments;
+    file sharing is just so simple and integrates into our existing infrastructure.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Troubleshooting Samba
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: If we are having problems with Samba, we can always check the output from the
+    `testparm` command again and ensure that we have not missed anything vital. We
+    can check which setting is valid from the man pages for `smb.conf` should be concerned
+    over some settings.
+  prefs: []
+  type: TYPE_NORMAL
+- en: We can also check the log files. These are located in the `/var/log/samba/`
+    directory.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'There will be logs that represent client access, as shown in the following
+    command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE24]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'OR:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE25]'
+  prefs: []
+  type: TYPE_PRE
+- en: There will also be the `log.smbd` daemon log.
+  prefs: []
+  type: TYPE_NORMAL
+- en: If you need more details on the daemon log, set the log level attribute in the
+    `[global]` section of the `smb.conf` as follows`:`
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE26]'
+  prefs: []
+  type: TYPE_PRE
+- en: This raises the verbosity of logging, which may help. We suggest not leaving
+    the level set this high and removing the setting when it's no longer required.
+    The log level can be configured from `0` to `10`, where `0` is low and `10` is
+    high, but level `3` is as verbose as most people will need.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Summary
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: In this chapter, we looked at how to share filesystems with Windows clients
+    without the need to disable SELinux. I do hope that you appreciate its importance
+    and see the ease of leaving SELinux in place once we are aware of its basics.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Although we did not implement the firewall in this chapter, we did again review
+    the `firewalld` settings to make this happen. Firewalling with `firewalld` is
+    covered in [Chapter 11](part0090.xhtml#aid-2LQIK1 "Chapter 11. Network Security
+    with firewalld"), *Network Security with firewalld*.
+  prefs: []
+  type: TYPE_NORMAL
+- en: In the next chapter, we will look at how to integrate RHEL 7 into a Windows
+    Active Directory domain.
+  prefs: []
+  type: TYPE_NORMAL

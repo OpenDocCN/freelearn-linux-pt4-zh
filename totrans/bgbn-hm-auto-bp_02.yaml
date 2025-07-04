@@ -1,0 +1,854 @@
+- en: Chapter 2. Ultrasonic Parking Assistant
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: In this chapter, we'll learn how to use the BeagleBone Black to implement a
+    park assistant. We're going to use an ultrasonic sensor to detect the distance
+    between our car and the garage wall, and some LEDs to give a feedback of the car
+    position to the driver in order to avoid collisions.
+  prefs: []
+  type: TYPE_NORMAL
+- en: We'll see how to set up the ultrasonic range sensor in two different manners,
+    using different interfaces to get the data in order to resolve a problem in two
+    different ways and obtain two different system configurations.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The basic of functioning
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'The project is really simple, even if it needs some electronic skills in order
+    to manage the sensor output. Basically, our BeagleBone Black just needs to periodically
+    poll the ultrasonic sensor output and then turn on the LEDs according to the distance
+    from the wall: as level indicator lower is the distance and more LEDs are turned
+    on.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Setting up the hardware
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'As just stated, in this project we''re trying to implement two different setups:
+    the first one uses the analog output of the ultrasonic sensor and implements a
+    circuitry, where all the devices are directly connected with the BeagleBone Black
+    (all peripherals are near the board); on the other hand, the second setup allows
+    us to remotely manage the ultrasonic sensor by using an USB connection, so we
+    can mount the sensor far from the BeagleBone Black board.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Simply speaking, we can put the sensor in one place while the LEDs are in a
+    different location, maybe in a more visible position, as shown in the following
+    image:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Setting up the hardware](img/B00255_02_01.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: As you can see, the dotted arrow, which represents the driver's point of view,
+    is more clear if the LEDs are in a upper position with respect to the distance
+    sensor that should be located near to the floor to better catch the car frontal.
+  prefs: []
+  type: TYPE_NORMAL
+- en: First setup – all devices near the BeagleBone Black
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: In this setup, we're going to use an ADC pin of our BeagleBone Black to read
+    the analog output of the ultrasonic sensor.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Using the analog output of the distance sensor
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: 'The following image shows the ultrasonic sensor that I used on my prototype:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Using the analog output of the distance sensor](img/B00255_02_02.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Note
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: 'The devices can be purchased at the following link (or by surfing the Internet):'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[http://www.cosino.io/product/ultrasonic-distance-sensor](http://www.cosino.io/product/ultrasonic-distance-sensor).'
+  prefs: []
+  type: TYPE_NORMAL
+- en: The datasheet of this device is available at [http://www.maxbotix.com/documents/XL-MaxSonar-EZ_Datasheet.pdf](http://www.maxbotix.com/documents/XL-MaxSonar-EZ_Datasheet.pdf).
+  prefs: []
+  type: TYPE_NORMAL
+- en: This device is really interesting due to the fact it has several output channels
+    useful to retrieve the measured distance. In particular, it can give us the measurement
+    via an analog voltage channel and via a serial port; the former communication
+    channel is used in this setup, while the latter will be discussed in the second
+    setup.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Looking into the datasheet, we discover that the analog output has a resolution
+    of *Vcc/1024 per cm* with a maximum reported range of ~700 mm at 5V and ~600 cm
+    at 3.3V. In this setup, we use Vcc set to 3.3V so the maximum output voltage (**VoutMAX**)
+    will result as:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '*VoutMAX = 3.3V / 1024 * 600 ≈ 1.93V*'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Remembering that the BeagleBone Black''s ADCs have a maximum input voltage
+    of 1.8V, we have to find a way to scale down this value. A *quick and dirty* trick
+    is to use a classic voltage divider, as shown in the following diagram:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Using the analog output of the distance sensor](img/B00255_02_03.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'By using the preceding circuit, we simply divide the sensor output by 2\. The
+    voltage at ADC in pin is given by the following formula:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '*V[ADCin]* *= R / (R + R) * Vout = R / 2 R * Vout = 1 / 2 * Vout*'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: So, the only thing to do is to choose a suitable value for the two resistors
+    (**R**). In my prototype, I set this value to *R=6.8KΩ*, which is a reasonable
+    value to have to acquire a suitable current flooding out from the sensor.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'In this situation, our resolution becomes ~1.61mV/cm, and the connections to
+    be done on the BeagleBone Black are shown in the following table:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '| Pin | Distance sensor pin (label) |'
+  prefs: []
+  type: TYPE_TB
+- en: '| --- | --- |'
+  prefs: []
+  type: TYPE_TB
+- en: '| P9.1 - GND | 7 |'
+  prefs: []
+  type: TYPE_TB
+- en: '| P9.3 - 3.3V | 6 (Vcc) |'
+  prefs: []
+  type: TYPE_TB
+- en: '| P9.39 - AIN0 | 3 (AN) |'
+  prefs: []
+  type: TYPE_TB
+- en: 'Now, to enable the BeagleBone Black''s ADC lines, we can use the following
+    command as we already did in [Chapter 1](ch01.html "Chapter 1. Dangerous Gas Sensors"),
+    *Dangerous Gas Sensors*:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE0]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'If everything works well, we should get the following kernel messages:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE1]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Then, the `AIN0`, `AIN1`, …, `AIN7` files should become available, as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE2]'
+  prefs: []
+  type: TYPE_PRE
+- en: Note
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: 'These settings can be done by using the `bin/load_firmware.sh` script in the
+    book''s example code repository, as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE3]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Then, we can read the input data by using the `cat` command, as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE4]'
+  prefs: []
+  type: TYPE_PRE
+- en: Tip
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: 'As already stated in [Chapter 1](ch01.html "Chapter 1. Dangerous Gas Sensors"),
+    *Dangerous Gas Sensors*, the ADC can also be read by using another file''s still
+    into the *sysfs* filesystem with the following command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE5]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Now, we have to find a way to convert the read values from the ADC into a distance
+    measured in meters so that we can decide how to manage the LEDs to give the feedback
+    to the driver. Recalling what was just said, the resolution is ~1.61mV/cm, and
+    considering that the resolution of the ADC is 12 bits and the maximum voltage
+    is 3.3V, the **distance** (**d**) in centimeters between the car and the wall
+    is given by the following formula (where the value *n* is the data read from the
+    ADC):'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '*d = 3.3V * n / 4095 / 0.00161V/cm*'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Note that these are estimated values, so it is better to do a calibration of
+    the sensor in order to have the correct reads at least near the lowest value that
+    we wish to measure (in our example, this value is 0.20 m.) To do this, we can
+    put something at 20 cm from the sensor, measure the output value from the ADC,
+    and then calculate a compensating value *K* in order that the following formula
+    will return exactly the value 20:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '*d[calib] = K * 3.3V * n/4095 / 0.00161V/cm*'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Note that in case of no calibration, *K* can be set to `1` (In this case, we
+    obtain again the original formula, *d = d[calib]*.)
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'On my prototype, putting an object at 20 cm from the sensor, I get the following
+    value:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE6]'
+  prefs: []
+  type: TYPE_PRE
+- en: So, *K* should be set to `1.38`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Connecting the LEDs in the first setup
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: 'The LEDs'' connections are very simple since they can be directly connected
+    with the BeagleBone Black''s GPIO pins, as shown the following diagram, which
+    shows the schematic of one single LED connection that can be replicated for each
+    LED:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Connecting the LEDs in the first setup](img/B00255_02_04.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Note
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: I used an *R = 470Ω* resistor for the **LED** (**L**). Again, as in the previous
+    chapter, let's remember that the resistor value **R** should be changed according
+    to LED color if we wish to have a lighter effect.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'We have 5 LEDs, so we need 5 GPIO lines. We can use the following connections:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '| Pin | LED color | Activated when distance is under |'
+  prefs: []
+  type: TYPE_TB
+- en: '| --- | --- | --- |'
+  prefs: []
+  type: TYPE_TB
+- en: '| P8.45-GPIO44 | White | 5.00 m |'
+  prefs: []
+  type: TYPE_TB
+- en: '| P8.46-GPIO67 | Yellow | 2.00 m |'
+  prefs: []
+  type: TYPE_TB
+- en: '| P8.7-GPIO69 | Red | 1.00 m |'
+  prefs: []
+  type: TYPE_TB
+- en: '| P8.8-GPIO68 | Red | 0.50 m |'
+  prefs: []
+  type: TYPE_TB
+- en: '| P8.9-GPIO45 | Red | 0.20 m |'
+  prefs: []
+  type: TYPE_TB
+- en: The white LED is used to signal to the user that they are driving at less than
+    5 m from the wall; the yellow is used to signal that they are driving at less
+    than 2 m from the wall; and the red LED is used to signal that the garage wall
+    is approaching at less than 1 m, 0.50 m, and 0.20 m.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'To test the LEDs'' connection, we can use the same commands used in [Chapter
+    1](ch01.html "Chapter 1. Dangerous Gas Sensors"), *Dangerous Gas Sensors*. For
+    instance, we can test the LED on GPIO68 by using the following commands to set
+    up the GPIO first and then to turn it off and on:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE7]'
+  prefs: []
+  type: TYPE_PRE
+- en: Second setup – the distance sensor is remotized
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: In this setup, we're going to use BeagleBone Black's serial port to read the
+    measured distance from the ultrasonic sensor.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Using the serial output of the distance sensor
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: 'This time, we are interested at the datasheet section where the serial output
+    capability of our sensor is described. In particular, we read:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '*The Pin 5 output delivers asynchronous serial with an RS232 format, except
+    voltages are 0-Vcc. The output is an ASCII capital "R", followed by three ASCII
+    character digits representing the range in centimeters up to a maximum of 765,
+    followed by a carriage return (ASCII 13). The baud rate is 9600, 8 bits, no parity,
+    with one stop bit. Although the voltage of 0-Vcc is outside the RS232 standard,
+    most RS232 devices have sufficient margin to read 0-Vcc serial data. If standard
+    voltage level RS232 is desired, invert, and connect an RS232 converter.*'
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+- en: 'This is very interesting for two main reasons:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: The measurement is very precise due to the fact that the sensor gives it to
+    us in a digital format and not by using an analog format (so the measurement is
+    more immune to disturbs.)
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: The information can be sent over a **RS-232** line (even if with some electronic
+    fixes that will be presented soon), which will allow us to have the system core
+    in a different location with respect to the sensor, providing a better usability
+    of the whole system.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: So, by using this new setup, the LEDs are still mounted on the BeagleBone Black,
+    while the distance sensor is connected remotely through a RS-232 line. However,
+    we cannot use a classic RS-232 line due to the fact that we still have to supply
+    power to the sensor, and no power can be transferred via a standard RS-232 cable!
+  prefs: []
+  type: TYPE_NORMAL
+- en: The solution is to use a RS-232 connection over a USB cable. In fact, by using
+    a standard USB cable, we are able to send/receive RS-232 data with the needed
+    power supply.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'However, some issues are still present:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: The USB power voltage is 5V, so we need a *USB-to-serial* converter that can
+    manage such voltage level by default, or, is at least 5V tolerant.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Reading carefully the preceding snippet of the datasheet, we discover that the
+    output level is TLL and inverted! So, before sending the TX signal to the *USB-to-serial*
+    converter (to the RX pin), we must electrically invert it. (Okay don't panic!
+    I'm going to explain this carefully.)
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: The solution for the first problem is to use the following *USB-to-serial* converter,
+    which not only works at 3.3V, but also is 5V tolerant.
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Using the serial output of the distance sensor](img/B00255_02_05.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Note
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: 'The devices can be purchased at the following link (or by surfing the Internet):'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[http://www.cosino.io/product/usb-to-serial-converter](http://www.cosino.io/product/usb-to-serial-converter).'
+  prefs: []
+  type: TYPE_NORMAL
+- en: The datasheet of this device is available at [https://www.silabs.com/Support%20Documents/TechnicalDocs/cp2104.pdf](https://www.silabs.com/Support%20Documents/TechnicalDocs/cp2104.pdf).
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'In order to address the second problem, we can use the following circuitry
+    to invert the TTL levels of the TX signal of the sensor:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Using the serial output of the distance sensor](img/B00255_02_06.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Tip
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: I used the resistors values **R1**=2,2KΩ, **R2**=10KΩ, and a **BC546 transistor**
+    (**T**). The **Vin** is connected with the sensor's pin 5 (TX), while the **Vout**
+    is connected with the **RX** pin of a **RS232** converter.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The functioning is quite simple—it's a logical NOT port with a voltage level
+    translator. When a logical 0 (a voltage near 0V) is applied to **Vin**, the **transistor**
+    (**T**) doesn't work, so no current can pass through it and there is no voltage
+    loss on resistor **R2** and the **Vout** is 5V (a logical 1). On the other hand,
+    when a logical 1 (a voltage near 3.3V) is applied to **Vin**, the **transistor**
+    (**T**) is turned on and a current can now flow through it, and the **Vout** drops
+    down to a voltage near 0V (a logical 0). The following table shows the circuitry
+    functioning in a clear manner, which you can see that it works exactly as we expected!
+  prefs: []
+  type: TYPE_NORMAL
+- en: '| Vin (V)/logical | Vout (V)/logical |'
+  prefs: []
+  type: TYPE_TB
+- en: '| --- | --- |'
+  prefs: []
+  type: TYPE_TB
+- en: '| 0/0 | 5/1 |'
+  prefs: []
+  type: TYPE_TB
+- en: '| 3.3/1 | 0/0 |'
+  prefs: []
+  type: TYPE_TB
+- en: 'In this situation, the connections to be done on the BeagleBone Black are quite
+    simple. In fact, we have to connect a normal USB cable to the *USB-to-serial*
+    converter and then connect it to the distance sensor, as shown in the following
+    table:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '| USB-to-serial Pin | Distance sensor pin (label) |'
+  prefs: []
+  type: TYPE_TB
+- en: '| --- | --- |'
+  prefs: []
+  type: TYPE_TB
+- en: '| GND | 7 |'
+  prefs: []
+  type: TYPE_TB
+- en: '| VBUS | 6 (Vcc) |'
+  prefs: []
+  type: TYPE_TB
+- en: '| RX | 5 (/TX) |'
+  prefs: []
+  type: TYPE_TB
+- en: Tip
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: Note that in the table, I used the */TX* electronic notation for the ultrasonic
+    sensor's TX pin (in **C**, we can write *!TX*), since, as already stated, its
+    output signal must be inverted, so, in reality, the TX pin of the distance sensor
+    must be connected with the **Vin** pin of the TTL inverter, while the **Vout**
+    is the effective signal */TX* that must be connected to the USB-to-serial RX pin!
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'If we decide to use this setup for the distance sensor, the job, from the software
+    point of view, is simpler, since no calibration is needed at all due to the fact
+    that the sensor will return to us the distance in a digital format, that is, without
+    any possible errors due to the analog to digital conversion or voltage scaling,
+    as seen in the preceding section. In fact, we can get the distance simply by reading
+    it from the serial port over the USB connection; so, if everything works well,
+    once we connect the USB cable we should see the following kernel messages:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE8]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'The `/dev/ttyUSB0` device is now available:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE9]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Now, to read the measurements, we have to configure the serial port as requested
+    by the datasheet with the following command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE10]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Then, the data can be displayed in real-time with the following command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE11]'
+  prefs: []
+  type: TYPE_PRE
+- en: Tip
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: You can stop reading by using the *CTRL* + *C* keys.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Connecting the LEDs in the second setup
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: In this second setup, there is nothing special to say regarding LEDs due to
+    the fact the connections are pretty the same here as in the first setup.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Remember that the LEDs are not related to the USB connection, which is used
+    only to remotize the distance sensor!
+  prefs: []
+  type: TYPE_NORMAL
+- en: The final picture
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: The following screenshot shows the prototype that I realized to implement this
+    project and to test the software.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Note that I implemented both setups: on the left-half of the breadboard, there
+    is the ultrasonic sensor with related circuitry (that is, the part that can be
+    remotized); on the right-half, there are the circuitry for the LEDs; while in
+    the upper center, there is the inverted voltage translator; and in the lower center,
+    there are the two resistors that implement the voltage divider.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Note also the USB-to-serial converter in the center of the screenshot, where
+    I connected the USB cable that is put into the USB host port of the BeagleBone
+    Black:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![The final picture](img/B00255_02_07.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: I also used an external power supplier due to the fact that the external circuitry
+    and the BeagleBone Black may need more power than what the USB port of your PC
+    can supply!
+  prefs: []
+  type: TYPE_NORMAL
+- en: Setting up the software
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: In this project, the software is really simple, since we just need a procedure
+    that periodically reads the distance and then turn on and off the LEDs accordingly;
+    however, some issues must be pointed out, especially about how to manage the LEDs
+    and the differences between the two setups of the ultrasonic sensor.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Managing the LEDs
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: Despite of what was presented in the previous chapter about the GPIO's management,
+    it's important to point out that the Linux kernel has several kinds of devices,
+    each one dedicated to a well-defined usage, and one of these special devices are
+    the led devices, which is a particular type of devices that can be used to manage
+    an LED with different triggers. A **trigger** is a sort of *manager* of the LED
+    that can be programmed to work in a specific manner. Ok, it's better doing an
+    example instead of trying to explain it!
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'First of all, we have to define the led devices by using a dedicated device
+    tree as reported in the `chapter_02/BB-LEDS-C2-00A0.dts` file in the book''s example
+    code repository. The following is a snippet of this file with the relevant code:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE12]'
+  prefs: []
+  type: TYPE_PRE
+- en: Tip
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: Further information regarding how to define Linux's **LED devices** can be found
+    in Linux's source tree in the `linux/Documentation/devicetree/bindings/leds/leds-gpio.txt`
+    file, or online at [https://www.kernel.org/doc/Documentation/devicetree/bindings/leds/leds-gpio.txt](https://www.kernel.org/doc/Documentation/devicetree/bindings/leds/leds-gpio.txt).
+  prefs: []
+  type: TYPE_NORMAL
+- en: As you can see, each GPIO is enabled and defined into the kernel as a LED device
+    by using the `gpio-leds` driver. The code is quite self-explanatory, and it's
+    easy to see that each GPIO definition has a predefined trigger (that is, the default
+    trigger `none`) and the predefined status set to `on`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'To enable this setting, we have to compile it into its binary form by using
+    the `dtc` command as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE13]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'And then, we can load it into the kernel by using the following command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE14]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'If everything works well, we should see the following kernel activities:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE15]'
+  prefs: []
+  type: TYPE_PRE
+- en: Tip
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: 'If we get the following error then we have to disable the **HDMI** support:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE16]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'This can be done by editing the uboot settings into the `/boot/uboot/uEnv.txt`
+    file, and then enabling the following line by uncommenting it:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE17]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Note that on some BeagleBone Black versions, you may find the `uEnv.txt` file
+    under the directory `/boot` instead, and the `uboot` settings to modify are as
+    follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE18]'
+  prefs: []
+  type: TYPE_PRE
+- en: Then, we only have to reboot the system. Now, if everything was done correctly,
+    we should be able to execute the preceding command without errors.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Note that all the LEDs are now turned on. Now, to manage these new LED devices,
+    we can use the sysfs entries under the following directories:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE19]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'As you can see, all the names we used in the DTS file are present, and we also
+    find the following files in each directory:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE20]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'The relevant files are `trigger`, `brightness`, and `max_brightness`. The `trigger`
+    file is used to discover the current trigger, and, in case, to change it. In fact,
+    by reading the file, we see the following:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE21]'
+  prefs: []
+  type: TYPE_PRE
+- en: As we expected, the current trigger is `none` (the one between the square brackets),
+    and we can change it simply by writing the new name into the same file (see the
+    preceding example).
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The `brightness` and `max_brightness` files are specific of the current trigger
+    and can be used to set the brightness of the LED from the `0` value to the maximum
+    value stored in the `max_brightness` file. Just to test it, we can read the current
+    values into these files to verify that the current status is at the maximum brightness:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE22]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'To turn off the LED, we can use the following command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE23]'
+  prefs: []
+  type: TYPE_PRE
+- en: Tip
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: Note that our LEDs are two functional values only, that is, `0` and `255`, due
+    to the fact that the LEDs we are using have only two valid states.
+  prefs: []
+  type: TYPE_NORMAL
+- en: However, having a flashing capability in our project for when the car is near
+    a specific distance from the wall in such a way that gives a better warning about
+    the increasing *danger* could be very interesting. In particular, we can do this
+    in such a way that when the red LEDs must be turned on, according to what was
+    stated in the *Connecting the LEDs in the first setup* section, in this chapter,
+    the frequency of the flash will keep increasing as the distance reduces, they
+    will stop flashing and remain turned on when the distance is less than 0.10 m.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'To flash an LED with the desired frequency, we can use the `timer` trigger.
+    In order to show how it works, let''s try to enable it on the LED named `red_far`
+    by using the following command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE24]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'After executing this command, the LED should start flashing; then looking again
+    into the directory, we see that new files are now available:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE25]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'The new interesting files are `delay_on` and `delay_off`, and they can be used
+    to define instead how long the LED must be turned on and how long it must be turned
+    off. It''s quite obvious that the LED''s blinking frequencies (F) can now be set
+    with the following formula:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '*F = 1 / T*, where *T = T[delay_on] + T[delay_off]*'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'So, for instance, if we wish that the LED will flash with a frequency of 10Hz,
+    we can use the following commands:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE26]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'The value 50 means: 50ms at *on* state and 50ms at *off* state. So, we have
+    *T[delay_on]=50ms* and *T[delay_off]* *=50ms*, so *T=100ms*, and then *F=10Hz*.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Considering that the human eye is still sensitive at more or less 25Hz at maximum,
+    and that the minimum allowed frequency is 1Hz, the possible values to be written
+    into each of the preceding two files are from 500 (ms) for a blinking frequency
+    of 1Hz to 20 (ms) for a blinking frequency of 25Hz.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'A possible implementation of a controlling program for the LEDs is in the `chapter_02/led_set.sh`
+    file in the book''s example code repository. The following code is a snippet of
+    the relevant code:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE27]'
+  prefs: []
+  type: TYPE_PRE
+- en: Here, the code turns on the LED addressed by the `name` variable in case the
+    `mode` variable is set to `-1`, while it turns it off the same LED when `mode`
+    is set to `0`. Also, the code will enable the `timer` trigger with proper settings
+    in case the `mode` variable is between the values `1` and `25`(Hz).
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following is a sample usage:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE28]'
+  prefs: []
+  type: TYPE_PRE
+- en: The distance monitor
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'Now it''s time to see how our park assistant can work in practice. A possible
+    implementation of the code is reported in the `chapter_02/distance_mon.sh` script
+    in the book''s example code repository. The following code snippet shows the main
+    code:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE29]'
+  prefs: []
+  type: TYPE_PRE
+- en: The functioning is simple—the code periodically reads the distance from the
+    sensor by using the function pointed by the `d_fun` variable, and then turns the
+    LEDs on and off, according to the value of the distance `d` (in cm) by using the
+    `leds_man` function.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The `d_fun` variable holds the name of the function that should read the distance
+    by using the ADC, that is, `read_adc`, or the name of the function that uses the
+    serial port, that is, `read_tty`. The following are the two functions:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE30]'
+  prefs: []
+  type: TYPE_PRE
+- en: Note that the `read_adc` file uses the `bc` program to calculate the translation
+    formula discussed before, while the `read_tty` uses the Bash's `read` and `while`
+    commands to read a complete data line (which is in the form `Rxxx\r`, as reported
+    in the datasheet.)
+  prefs: []
+  type: TYPE_NORMAL
+- en: Tip
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: 'The `bc` command may be not installed by default into the BeagleBone Black''s
+    distribution, so you can install it by using the following command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE31]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'The `leds_man` function is as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE32]'
+  prefs: []
+  type: TYPE_PRE
+- en: The function first calculates the blinking frequency in order to respect what
+    was stated in the preceding sections, and then it uses a big case to decide which
+    LEDs configuration must be used to notify the driver.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Final test
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: To test the prototype, we must first select one setup and perform the needed
+    connections, as stated before. Then we have to turn on the board.
+  prefs: []
+  type: TYPE_NORMAL
+- en: After the login, we must setup the system by using the commands discussed before,
+    or simply by using the `chapter_02/SYSINIT.sh` command in the book's example code
+    repository. Then, we must execute the `distance_mon.sh` command accordingly.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Note
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: 'Note that looking into the `SYSINIT.sh` file, you can read:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE33]'
+  prefs: []
+  type: TYPE_PRE
+- en: This is if after plugging in the USB cable, you get an error in recognizing
+    the `/dev/ttyUSB0` device.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'To test my prototype using the first setup, I used the following command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE34]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'On the other hand, to test the second one, I used this other command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE35]'
+  prefs: []
+  type: TYPE_PRE
+- en: You can stop the program by using the *CTRL* + *C* keys.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Summary
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'In this chapter, we discovered how to manage an ultrasonic sensor in two different
+    manners, by using an ADC and by a serial connection over a USB cable, in order
+    to have two different setups of the same device: one with all peripherals on the
+    BeagleBone Black and one where a sensor is remotized by using a USB connection.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Also, we learned how to manage Linux's LED devices that allow us to have different
+    usage of a simple GPIO line by kernel features.
+  prefs: []
+  type: TYPE_NORMAL
+- en: In the next chapter, we'll see how to realize an aquarium monitor in which we'll
+    be able to record all the environment data, and then we'll see how to control
+    the life of our be loved fishes from a web panel.
+  prefs: []
+  type: TYPE_NORMAL

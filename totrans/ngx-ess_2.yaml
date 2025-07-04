@@ -1,0 +1,1283 @@
+- en: Chapter 2. Managing Nginx
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: In a web server running at full scale, thousands of events are occurring each
+    second. Micromanaging these events is obviously not possible, yet even small glitches
+    are able to cause serious deterioration of quality of service and affect user
+    experience.
+  prefs: []
+  type: TYPE_NORMAL
+- en: To prevent theses glitches from happening, a dedicated webmaster or site reliability
+    engineer must be able to understand and properly manage the processes behind the
+    scenes.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'In this chapter, you will learn how to manage an Nginx instance in operation,
+    and we will discuss the following topics:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Starting and stopping Nginx
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Reloading and reconfiguring processes
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Allocating worker processes
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Other management questions
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: The Nginx connection processing architecture
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'Before you study the management procedures of Nginx, you need to get some idea
+    of how Nginx processes connections. In the full-scale mode, a single Nginx instance
+    consists of the **master process** and **worker processes**, as shown in the following
+    figure:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![The Nginx connection processing architecture](img/B04282_02_01.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: The master process spawns worker processes and controls them by sending and
+    forwarding signals and listening for quit notifications from them. Worker processes
+    wait on listening sockets and accept incoming connections. The operating system
+    distributes incoming connections among worker processes in a round-robin fashion.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The master process is responsible for all startup, shutdown, and maintenance
+    tasks such as the following:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Reading and re-reading configuration files
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Opening and reopening log files
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Creating listening sockets
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Starting and restarting worker processes
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Forwarding signals to the worker processes
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Starting a new binary
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: The master process thus ensures continuous operation of an Nginx instance in
+    the face of various changes in the environment and occasional crashes of worker
+    processes.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Worker processes are responsible for serving connections and accepting new ones.
+    Worker processes can run certain maintenance tasks as well. For instance, they
+    reopen log files on their own after the master process has ensured that this operation
+    is safe. Each worker process handles multiple connections. This is achieved by
+    running an event loop that pulls events that occurred on open sockets from the
+    operating system via a special system call, and quickly processing all pulled
+    events by reading from and writing to active sockets. Resources required to maintain
+    a connection are allocated when a worker process starts. The maximum number of
+    connections that a worker process can handle simultaneously is configured by the
+    `worker_connections` directive and defaults to 512.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'In a **clustered setup**, a special routing device such as a load balancer
+    or another Nginx instance is used to balance incoming connections among a set
+    of identical Nginx instances, each of them consisting of a master process and
+    a collection of worker processes. This is shown in the following figure:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![The Nginx connection processing architecture](img/B04282_02_02.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: In this setup, the load balancer routes connections only to those instances
+    that are listening for incoming connections. The load balancer ensures that each
+    of the active instances gets an approximately equal amount of traffic, and routes
+    traffic away from an instance if it shows any connectivity problems.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Because of the difference in the architecture, the management procedures for
+    a clustered setup are slightly different than for a **standalone instance**. We
+    will discuss these differences soon.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Starting and stopping Nginx
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'In the previous chapter, you learned a bit about how to start your Nginx instance.
+    On Ubuntu, Debian, or Redhat-like systems you can run the following command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE0]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'In the absence of startup scripts, you can simply run the binary using the
+    following command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE1]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Nginx will read and parse the configuration file, create a PID file (a file
+    containing its process ID), open log files, create listening sockets, and start
+    worker processes. Once worker processes have started, a Nginx instance is able
+    to respond to incoming connections. This is what a running Nginx instance looks
+    like in the process list:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE2]'
+  prefs: []
+  type: TYPE_PRE
+- en: Every Nginx process sets its process title such that it conveniently reflects
+    the role of the process. Here, for example, you see the master process of the
+    instance with process ID `2324` and four worker processes with process IDs `2325`,
+    `2326`, `2327`, and `2328`. Note how the **parent process ID** (**PPID**) column
+    points at the master process. We will refer to the ID of the master process further
+    in this section.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'If you can''t find your instance in the process list or you see an error message
+    on the console upon startup, something is preventing Nginx from starting. The
+    following table lists potential issues and their solutions:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '| Message | Issue | Resolution |'
+  prefs: []
+  type: TYPE_TB
+- en: '| --- | --- | --- |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `[emerg] bind() to x.x.x.x:x failed (98: Address already in use)` | Conflicting
+    listening endpoint | Make sure endpoints specified by the `listen` directive do
+    not conflict with other services |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `[emerg] open() "<path to file>" failed (2: No such file or directory)` |
+    Invalid path to a file | Make sure all paths in your configuration point to existing
+    directories |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `[emerg] open() "<path to file>" failed (13: Permission denied)` | Insufficient
+    privileges | Make sure all paths in your configuration point to directories that
+    Nginx has access to |'
+  prefs: []
+  type: TYPE_TB
+- en: 'To stop Nginx, you can run the following command if a startup script is available:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE3]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Alternatively, you can send the `TERM` or `INT` signal to the master process
+    of your instance to trigger a fast shutdown or the `QUIT` signal to trigger a
+    graceful shutdown, as shown here:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE4]'
+  prefs: []
+  type: TYPE_PRE
+- en: The preceding command will trigger the graceful shutdown procedure on the instance
+    and all processes will eventually quit. Here, we refer to the process ID of the
+    master process from the preceding process list.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Control signals and their usage
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'Nginx, like any other Unix background service, is controlled by signals. Signals
+    are asynchronous events that interrupt normal execution of a process and activate
+    certain functions. The following table lists all signals that Nginx supports and
+    the functions that they trigger:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '| Signal | Function |'
+  prefs: []
+  type: TYPE_TB
+- en: '| --- | --- |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `TERM`, `INT` | Fast shutdown |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `QUIT` | Graceful shutdown |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `HUP` | Reconfiguration |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `USR1` | Log file reopening |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `USR2` | Nginx binary upgrade |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `WINCH` | Graceful worker shutdown |'
+  prefs: []
+  type: TYPE_TB
+- en: 'All signals must be sent to the master process of an instance. The master process
+    of an instance can be located by looking it up in the process list:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE5]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'In this listing, the master process has a process ID `4754` and four worker
+    processes. The process ID of the master process can be also obtained by examining
+    the content of the PID file:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE6]'
+  prefs: []
+  type: TYPE_PRE
+- en: Tip
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: '**Note**: The path of `nginx.pid` might vary in different systems. You can
+    use the `/usr/sbin/nginx -V` command to find out the exact path.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'To send a signal to an instance, use the `kill` command and specify the process
+    ID of the master process as the last argument:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE7]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Alternatively, you can use command substitution to take the process ID of the
+    master process directly from the PID file:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE8]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'You can also use the following command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE9]'
+  prefs: []
+  type: TYPE_PRE
+- en: The preceding three commands will trigger reconfiguration of the instance. We
+    will now discuss each of the functions that signals trigger in Nginx.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Fast shutdown
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: The `TERM` and `INT` signals are sent to the master process of an Nginx instance
+    to trigger the fast shutdown procedure. All resources such as connections, open
+    files and log files that each worker process is in possession of are immediately
+    closed. After that, each worker process quits and the master process gets notified.
+    Once all worker processes quit, the master process quits and shutdown is completed.
+  prefs: []
+  type: TYPE_NORMAL
+- en: A fast shutdown obviously causes visible service outage. Therefore, it must
+    be used either in emergency situations or when you are absolutely sure that nobody
+    is using your instance.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Graceful shutdown
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: Once Nginx receives the `QUIT` signal, it enters graceful shutdown mode. Nginx
+    closes listening sockets and accepts no new connections from then on. Existing
+    connections are still served until no longer needed. Therefore, graceful shutdown
+    might take a long time to complete, especially if some of the connections are
+    in the middle of a long download or upload.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'After you have signaled graceful shutdown to Nginx, you can monitor your process
+    list to see which Nginx worker processes are still running and keep track of the
+    progress of your shutdown procedure:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE10]'
+  prefs: []
+  type: TYPE_PRE
+- en: In this listing, you can see an instance after a graceful shutdown has been
+    triggered. A single worker process has an `is shutting down` label and its process
+    title is marking a process that is currently shutting down.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Once all connections handled by a worker are closed, the worker process quits
+    and the master process gets notified. Once all worker processes quit, the master
+    process quits and shutdown is completed.
+  prefs: []
+  type: TYPE_NORMAL
+- en: In a clustered or load-balanced setup, graceful shutdown is a typical way of
+    putting an instance out of operation. Using graceful shutdown ensures that there
+    are no visible outages of your service due to server reconfiguration or maintenance.
+  prefs: []
+  type: TYPE_NORMAL
+- en: In a single instance, graceful shutdown can only make sure that existing connections
+    are not closed abruptly. Once graceful shutdown is triggered on a single instance,
+    the service will immediately be unavailable for new visitors. To ensure continuous
+    availability on a single instance, use maintenance procedures such as reconfiguration,
+    log file reopening, and Nginx binary update.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Reconfiguration
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: The `HUP` signal can be used to signal Nginx to reread the configuration files
+    and restart worker processes. This procedure cannot be performed without restarting
+    worker processes, as configuration data structures cannot be changed while a worker
+    process is running.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Once the master process receives the `HUP` signals, it tries to reread the configuration
+    files. If the configuration files can be parsed and contain no errors, the master
+    process signals all the existing worker process to gracefully shut down. After
+    signaling, it starts new worker processes with the new configuration.
+  prefs: []
+  type: TYPE_NORMAL
+- en: As with graceful shutdown, the reconfiguration procedure might take a long time
+    to complete. After you have signaled the reconfiguration to Nginx, you can monitor
+    your process list to see which old Nginx worker processes are still running and
+    keep track of the progress of your reconfiguration.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Note
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: If another reconfiguration is triggered during a running reconfiguration procedure,
+    Nginx will start a new collection of worker processes—even though worker processes
+    from the past two rounds have not finished. This, in principle, might lead to
+    excessive process table usage, so it's recommended that you wait until the current
+    reconfiguration procedure is finished before starting a new one.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Here is an example of a reconfiguration procedure:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE11]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'This listing shows an operating Nginx instance. The master process has a process
+    ID of `5887`. Let''s send an `HUP` signal to the master process of the instance:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE12]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'The instance will change in the following way:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE13]'
+  prefs: []
+  type: TYPE_PRE
+- en: As you can see, the old worker processes with process IDs `5888`, `5889`, `5890`,
+    and `5891` are currently shutting down. The master process has re-read the configuration
+    files and spawned a new collection of worker processes with process IDs `5918`,
+    `5919`, `5920`, and `5921`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'After a while, old worker processes will terminate and the instance will look
+    like it did before:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE14]'
+  prefs: []
+  type: TYPE_PRE
+- en: The new worker processes have picked up the new configuration now.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Reopening the log file
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: Reopening the log file is simple yet extremely important for the continuous
+    operation of your server. When log file reopening is triggered with the `USR1`
+    signal, the master process of an instance takes the list of configured log files
+    and opens each of them. If successful, it closes the old log files and signals
+    worker processes to reopen the log files. Worker processes can now safely repeat
+    the same procedure, and after that the log output is redirected to the new files.
+    After that, worker processes close all old log file descriptors that they currently
+    hold open.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Note
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: The paths to log files do not change during this procedure. Nginx expects that
+    the old log files are renamed before triggering this function. That's why while
+    opening log files with same paths, Nginx effectively creates or opens new files.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The steps of the log file reopening procedure are as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Log files are renamed or moved to new locations via an external tool.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: You send Nginx the `USR1` signal. Nginx closes the old files and opens new ones.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Old files are now closed and can be archived.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: New files are now active and being used.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'A typical tool for managing Nginx log files is **logrotate**. The logrotate
+    tool is a quite common tool that can be found in many Linux distributions. Here
+    is an example configuration file for logrotate that automatically performs the
+    log file rotation procedure:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE15]'
+  prefs: []
+  type: TYPE_PRE
+- en: The preceding script daily rotates each log file it can find in the `/var/log/nginx`
+    folder. The log files are kept until seven files have accumulated. The `delaycompress`
+    options specify that the log files should not be compressed immediately after
+    rotation to avoid a situation where Nginx keeps writing to a file being compressed.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Problems in log file rotation procedure can lead to losses of data. Here is
+    a checklist that will help you to configure your log file rotation procedure correctly:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Make sure the `USR1` signal is delivered only after log files are moved. Failure
+    to do so will make Nginx write to rotated files instead of new ones.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Make sure Nginx has enough rights to create files in the log folder. If Nginx
+    is not able to open new log files, the rotation procedure will fail.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Nginx binary upgrade
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: Nginx is capable of updating its own binary while operating. This is done by
+    passing listening sockets to a new binary and listing to them in a special environment
+    variable.
+  prefs: []
+  type: TYPE_NORMAL
+- en: This function can be used to safely upgrade your binary on-the-fly to a new
+    version or try out new features if you use a custom binary with plugins.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Note
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: With other web servers, this operation would require stopping your server completely
+    and starting it again with a new binary. Your service would be unavailable for
+    a brief period. The Nginx binary upgrade function is used to avoid interruption
+    of your service and provides a fall-back option if something goes wrong with the
+    new binary.
+  prefs: []
+  type: TYPE_NORMAL
+- en: To upgrade you binary, first make sure it has the same source code configuration
+    as the old binary. Refer to the *Copying source code configuration from pre-built
+    packages* section in [Chapter 1](ch01.html "Chapter 1. Getting Started with Nginx"),
+    *Getting Started with Nginx*, to learn how to build a binary with source code
+    configuration from another binary.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'When the new binary is built, rename the old one and put the new binary into
+    its place:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE16]'
+  prefs: []
+  type: TYPE_PRE
+- en: The preceding sequence assumes your current working directory contains a Nginx
+    source code tree.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Next, send the `USR2` signal to the master process of the running instance:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE17]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'The master process will rename its PID file by adding an `.oldbin` suffix and
+    start the new binary that will create a new master process. The new master process
+    will read and parse the configuration and spawn new worker processes. The instance
+    now looks like this:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE18]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'In the preceding code, we can see two master processes: one for the old binary
+    (`12995`) and one for the new binary (`13119`). The new master process inherits
+    the listening sockets from the old master process, and workers of both instances
+    accept incoming connections.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Graceful worker shutdown
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'In order to fully test-drive the new binary, we need to ask the old master
+    process to gracefully shut down its worker processes. Once the new binary has
+    started and the working processes of the new binary are running, send the master
+    process of the old instance the `WINCH` signal using the following command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE19]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Then, connections will be accepted only by workers of the new instance. The
+    worker processes of the old instance will gracefully shut down:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE20]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Finally, the worker processes of the old binary will quit and only the worker
+    processes of the new binary will remain:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE21]'
+  prefs: []
+  type: TYPE_PRE
+- en: Now, only the worker processes of the new binary are accepting and processing
+    incoming connections.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Finalizing the upgrade procedure
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: Once only the workers of the new binary are running, you have two choices.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'If the new binary is working well, the old master process can be terminated
+    by sending the `QUIT` signal:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE22]'
+  prefs: []
+  type: TYPE_PRE
+- en: The old master process will remove its PID file and the instance is now ready
+    for the next upgrade. Later, if you find any issues with the new binary, you can
+    downgrade to the old binary by repeating the whole binary upgrade procedure.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'If the new binary is not working properly, you can restart the worker processes
+    of the old master process by sending the `HUP` signal:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE23]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'The old master process will restart its working processes without re-reading
+    the configuration files, and workers of both old and new binaries will now accept
+    incoming connections:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE24]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'The processes of the new binary can be gracefully shut down by sending the
+    new master process the `QUIT` signal:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE25]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'After that, you need to return the old binary back to its location:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE26]'
+  prefs: []
+  type: TYPE_PRE
+- en: The instance is now ready for the next upgrade.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Note
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: If a worker process is taking too long to quit for some reason, you can force
+    it to quit by directly sending it the `KILL` signal.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'If the new binary is not working properly and you need an urgent solution,
+    you can urgently shut down the new master process by sending the `TERM` signal:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE27]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'The processes of the new binary will immediately quit. The old master process
+    will be notified and it will start new worker processes. The old master process
+    will also move its PID file back to its original location so that it replaces
+    the PID file of the new binary. After that, you need to return the old binary
+    back to its original location:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE28]'
+  prefs: []
+  type: TYPE_PRE
+- en: The instance is now ready for further operation or the next upgrade.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Handling difficult cases
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'In extremely rare cases, you might run into a difficult situation. If a worker
+    process does not shut down when asked to in a reasonable time, there might be
+    a problem with it. Typical signs of such problems are as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: A process spends too much time in the running state (R) and does not shut down
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: A process spends too much time in the noninterruptible sleep state (D) and does
+    not shut down
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: A process is sleeping (S) and does not shut down
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: In each of these cases, you can force the worker process to shut down by first
+    sending the `TERM` signal directly to the worker process. If the worker process
+    does not react within 30 seconds, you can force the process to quit by sending
+    it the `KILL` signal.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Distribution-specific startup scripts
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'On Ubuntu, Debian, and RHEL, the startup script automates the preceding control
+    sequences. By using the startup script, you don''t need to remember the exact
+    sequence of the commands and signal names. The following table illustrates the
+    use of the startup script:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '| Command | Equivalent to |'
+  prefs: []
+  type: TYPE_TB
+- en: '| --- | --- |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `service nginx start` | `sbin`/`nginx` |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `service nginx stop` | `TERM`, `wait 30 seconds`, then `KILL` |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `service nginx restart` | `service nginx stop` and `service nginx start`
+    |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `service nginx configtest` | `nginx -t <config file>` |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `service nginx reload` | `service nginx configtest` and `HUP` |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `service nginx rotate` | `USR1` |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `service nginx upgrade` | `USR2` and `QUIT to the old master` |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `service nginx status` | `show status of the instance` |'
+  prefs: []
+  type: TYPE_TB
+- en: The binary upgrade procedure is limited to starting the new binary and signaling
+    the old master process to gracefully shut down, so you don't have an option to
+    test-drive the new binary in this case.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Allocating worker processes
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: We now consider recommendations on allocating worker processes. First, let's
+    discuss a little bit about the background. Nginx is an asynchronous web server,
+    which means actual input/output operations run asynchronously with the execution
+    of a worker process. Each worker process runs an event loop that fetches all file
+    descriptors that need processing using a special system call, and then services
+    each of these file descriptors using nonblocking I/O operations. Hence, each worker
+    process serves multiple connections.
+  prefs: []
+  type: TYPE_NORMAL
+- en: In this situation, the time between an event occurs on a file descriptor, and
+    this file descriptor can be serviced (that is latency) depends on how soon a full
+    event processing cycle can be completed. Therefore, in order to achieve higher
+    latency it makes sense to penalize the competition for CPU resources between worker
+    processes in favor of more connections per process, because this would reduce
+    the number of context switches between worker processes.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Therefore, *on the systems that are CPU-bound*, it makes sense to allocate
+    as many worker processes as there are CPU cores in the system. For example, consider
+    this output of the `top` command (this output can be obtained by pressing *1*
+    on the keyboard after `top` starts):'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE29]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'This system has eight independent CPU cores. The maximum number of worker processes
+    that will not compete for CPU cores on this system is therefore eight. To configure
+    Nginx to start a specified number of worker processes, you can use the `worker_processes`
+    directive in the main configuration file:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE30]'
+  prefs: []
+  type: TYPE_PRE
+- en: The preceding command will instruct Nginx to start eight worker processes to
+    serve the incoming connections.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Note
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: If the number of worker processes is set to a number lower than the number of
+    CPU cores, Nginx will not be able to take advantage of all parallelism available
+    in your system.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'To extend the maximum number of connections that can be processed by a worker
+    process, use the `worker_connections` directive:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE31]'
+  prefs: []
+  type: TYPE_PRE
+- en: The preceding command will extend the total number of connection that can be
+    allocated to 10,000\. This includes both inbound (connections from clients) and
+    outbound connections (connections to proxied servers and other external resources).
+  prefs: []
+  type: TYPE_NORMAL
+- en: '*On disk I/O-bound systems*, in the absence of the AIO facility, additional
+    latency might be introduced into the event cycle due to blocking disk I/O operations.
+    While a worker process is waiting for a blocking disk I/O operation to complete
+    on a certain file descriptor, the other file descriptors cannot be serviced. However,
+    other processes can use the available CPU resources. Therefore, adding worker
+    processes past the number of available I/O channels might not lead to an improvement
+    in performance.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: On systems with mixed resource demands, a worker process allocation strategy
+    other than the previously mentioned two might be needed to achieve better performance.
+    Try varying the numbers of workers in order to obtain the configuration that works
+    best. This can range from one worker to hundreds of workers.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Setting up Nginx to serve static data
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: Now that you are more proficient in installing, configuring, and managing Nginx,
+    we can proceed with some practical questions. Let's see how we can set up Nginx
+    to serve static data such as images, CSS, or JavaScript files.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'First, we will take the sample configuration from the previous chapter and
+    make it support multiple virtual hosts using wild card inclusion:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE32]'
+  prefs: []
+  type: TYPE_PRE
+- en: We have set up Nginx to take advantage of eight processor cores and include
+    all configurations files located in `/etc/nginx/site-enabled`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Next, we will configure a virtual host `static.example.com` for serving static
+    data. The following content goes into the file `/etc/nginx/site-enabled/static.example.com.conf`:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE33]'
+  prefs: []
+  type: TYPE_PRE
+- en: This file configures virtual host `static.example.com`. The virtual host root
+    location is set as `/usr/local/www/static.example.com`. To enable more efficient
+    retrieval of static files, we encourage Nginx to use the sendfile() system call
+    (`sendfile on`) and set the maximum sendfile chunk to 1 MB. We also enable the
+    "TCP_NOPUSH" option to improve TCP segment utilization when using sendfile() (`tcp_nopush
+    on`).
+  prefs: []
+  type: TYPE_NORMAL
+- en: The `gzip_static on` directive instructs Nginx to check for gzipped copies of
+    static files, such as `main.js.gz` for `main.js` and `styles.css.gz` for `styles.css`.
+    If they are found, Nginx will indicate the presence of the `.gzip` content encoding,
+    and use the content of the compressed files instead of the original one.
+  prefs: []
+  type: TYPE_NORMAL
+- en: This configuration is suitable for virtual hosts that serve small-to-medium
+    size static files.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Installing SSL certificates
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: Today, more than 60 percent of the HTTP traffic on the Internet is protected
+    by SSL. In the presence of sophisticated attacks such as cache poisoning and DNS
+    hijacking, SSL is mandatory if your web content has any value.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Nginx has high-class SSL support and makes it easy for you to configure. Let's
+    walk over the installation procedure of an SSL virtual host.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Before we start, make sure the `openssl` package is installed on your system:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE34]'
+  prefs: []
+  type: TYPE_PRE
+- en: This will insure that you have the necessary tools to go over the SSL certificate
+    issuing procedure.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Creating a Certificate Signing Request
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: You need an SSL certificate in order to set up an SSL virtual host. In order
+    to obtain a real certificate, you need to contact a certification authority to
+    issue an SSL certificate. A certification authority will usually charge you a
+    fee for that.
+  prefs: []
+  type: TYPE_NORMAL
+- en: To issue an SSL certificate, a certification authority needs a **Certificate
+    Signing Request** (**CSR**) from you. A CSR is a message created by you and sent
+    to a certification authority containing your identification data, such as distinguished
+    name, address, and your public key.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'To generate a CSR, run the following command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE35]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'This will start the process of generating two files: a private key for the
+    decryption of your SSL certificate (`your_domain_name.key`) and a certificate
+    signing request (`your_domain_name.csr`) used to apply for a new SSL certificate.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'This command will ask you for your identification data:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '**Country name** (**C**): This is a two-letter country code, for example, NL
+    or US.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**State or province** (**S**): This is the full name of the state you or your
+    company is in, for example, Noord-Holland.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**Locality or city** (**L**): This is the city or town you or your company
+    is in, for example, Amsterdam.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**Organization** (**O**): If your company or department has *&*, *@*, or any
+    other symbol using the *Shift* key in its name, you must spell out the symbol
+    or omit it to enroll. For example, XY & Z Corporation would be XYZ Corporation
+    or XY and Z Corporation.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**Organizational Unit** (**OU**): This field is the name of the department
+    or organization unit making the request.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**Common name** (**CN**): This is the full name of the host you are protecting.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: The last field is of particular importance here. It must match the full name
+    of the host you are protecting. For instance, if you registered a domain `example.com`
+    and users will connect to `www.example.com`, you must enter `www.example.com`
+    into the common name field. If you enter `example.com` into that field, the certificate
+    will not be valid for `www.example.com`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Note
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: Do not fill in optional attributes such as e-mail address, challenge password,
+    or the optional company name when generating the CSR. They do not add much value,
+    but just expose more personal data.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Your CSR is ready now. After you save your private key to some secure place,
+    you can proceed with contacting a certification authority and enrolling for an
+    SSL certificate. Present your CSR once requested.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Installing an issued SSL certificate
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: Once your certificate is issued, you can proceed with setting up your SSL server.
+    Save your certificate under a descriptive name such as `your_domain_name.crt`.
+    Move it to a secure directory that only Nginx and superuser have access to. We
+    will use `/etc/ssl` for simplicity as an example of such a directory.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Now, you can start adding configuration for your secure virtual host:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE36]'
+  prefs: []
+  type: TYPE_PRE
+- en: The name of the domain in the `server_name` directive must match the value of
+    the common name field in your certificate signing request.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'After the configuration is saved, restart Nginx using the following command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE37]'
+  prefs: []
+  type: TYPE_PRE
+- en: Navigate to `https://your.domain.com` to open a secure connection to your server
+    now.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Permanently redirecting from a nonsecure virtual host
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: The preceding configuration handles only requests issued to the HTTPS service
+    (port `443`) of your server. Most of the time, you will be running the plain HTTP
+    service (port `80`) next to the secure one.
+  prefs: []
+  type: TYPE_NORMAL
+- en: For a number of reasons, it's unwise to have different configurations for the
+    plain HTTP and HTTPS services for the same host name. If certain resources are
+    available over plain HTTP but not over SSL or the other way around, this might
+    lead to bad references if a URL pointing to one of your resources is treated in
+    a scheme-agnostic way.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Likewise, if certain resources are made available over both plain HTTP and SSL
+    by mistake, then it is a security error because the resource can be obtained and
+    interacted with in a nonsecure way by simply changing the `https://` scheme to
+    `http://`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'To avoid these problems and to simplify your configuration, you can set up
+    a simple permanent redirect from the non-SSL virtual host to the SSL virtual host:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE38]'
+  prefs: []
+  type: TYPE_PRE
+- en: This ensures that all requests over plain HTTP to any resource on your web site
+    will be redirected to the identical resource on the SSL virtual host.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Managing temporary files
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'Managing temporary files is usually not a big deal, but you must be aware of
+    it. Nginx uses temporary files to store transient data such as the following:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Large request bodies received from users
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Large response bodies received from proxied servers or via FastCGI, SCGI, or
+    UWCGI protocols.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'In the *Installing Nginx* section of [Chapter 1](ch01.html "Chapter 1. Getting
+    Started with Nginx"), *Getting Started with Nginx*, you saw the default location
+    of temporary folders for these files. The following table lists the configuration
+    directives that specify temporary folders for various Nginx core modules:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '| Directive | Purpose |'
+  prefs: []
+  type: TYPE_TB
+- en: '| --- | --- |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `client_body_temp_path` | Specifies temporary path for client request body
+    data |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `proxy_temp_path` | Specifies temporary path for responses from proxied servers
+    |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `fastcgi_temp_path` | Specifies temporary path for responses from FastCGI
+    servers |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `scgi_temp_path` | Specifies temporary path for responses from SCGI servers
+    |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `uwsgi_temp_path` | Specifies temporary path for responses from UWCGI servers
+    |'
+  prefs: []
+  type: TYPE_TB
+- en: The arguments of the preceding directives are as follows
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE39]'
+  prefs: []
+  type: TYPE_PRE
+- en: In the preceding code, `<path>` specifies the path to the directory that contains
+    temporary files, and the levels specify the number of characters in each level
+    of hashed directories.
+  prefs: []
+  type: TYPE_NORMAL
+- en: What is a hashed directory? In UNIX, a directory in the file system is essentially
+    a file that simply contains a list of entries of that directory. So, imagine one
+    of your temporary directories contains 100,000 entries. Each search in this directory
+    routinely scans all of these 100,000 entries, which is not very efficient. To
+    avoid this, you can split your temporary directory into a number of subdirectories,
+    each of them containing a limited set of temporary files.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'By specifying levels, you instruct Nginx to split your temporary directory
+    into a set of subdirectories, each having a specified number of characters in
+    its name, for example, a directive:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE40]'
+  prefs: []
+  type: TYPE_PRE
+- en: The preceding line of code instructs Nginx to store a temporary file named `3924510929`
+    under the path `/var/lib/nginx/proxy/29/3924510929`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Likewise, the directive `proxy_temp_path /var/lib/nginx/proxy 1 2` instructs
+    Nginx to store a temporary file named `1673539942` under the path `/var/lib/nginx/proxy/2/94/1673539942`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: As you can see, the characters that constitute the names of the intermediary
+    directories are extracted from the tail of the temporary file name.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Both hierarchical and nonhierarchical temporary directory structures have to
+    be purged from time to time. This could be achieved by walking the directory tree
+    and removing all files residing in those directories. You can use a command like
+    the following one:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE41]'
+  prefs: []
+  type: TYPE_PRE
+- en: You can use the command from the interactive shell. This command will find all
+    files ending with digits located in the temporary directory and remove each of
+    these files by running `rm`. This command will prompt the removal if it finds
+    something strange.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'For the noninteractive mode, you can use a more dangerous command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE42]'
+  prefs: []
+  type: TYPE_PRE
+- en: This command will not prompt the removal of files.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Note
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: 'This command is dangerous as it blindly removes a broadly-specified set of
+    files. To avoid data loss, stick to the following principles when managing temporary
+    directories:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Never store anything but temporary files inside temporary directories
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Always use absolute paths in the first argument of a `find` command
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: If possible, check what you are about to remove by substituting `rm` with `echo`
+    in order to print the list of files to be supplied to `rm`
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Make sure Nginx stores temporary files under a specially-designated user such
+    as `nobody` or `www-data`, and never under the superuser
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Make sure the command above runs under a specially-designated user such as `nobody`
+    or `www-data`, and never under the superuser
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Communicating issues to developers
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: If you are running nonstable versions of Nginx for trial or using your own or
+    third-party modules for Nginx, your instance might occasionally experience crashes.
+    If you decide to communicate these issues to developers, here is a guide that
+    will help you to do it most efficiently.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Developers usually don't have access to production systems, but knowing the
+    environment your Nginx instance is running in is crucial to trace the cause of
+    the problem.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Therefore, you need to provide detailed information about the issue. Detailed
+    information about a crash can be found in the core file that was created after
+    the crash.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Note
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: '**Warning!**'
+  prefs: []
+  type: TYPE_NORMAL
+- en: The core file contains a memory dump of a worker process at the moment of a
+    crash and therefore can contain sensitive information, such as passwords, keys,
+    or private data. Therefore, never share core files with people you don't trust.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Instead, use the following procedure to obtain detailed information about a
+    crash:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Get a copy of the Nginx binary that you run with debugging information (see
+    following instructions)
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'If a core file is available, run `gdb` on the binary with the debugging information:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE43]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'If the run is successful, this will open the `gdb` prompt. Type `bt full` in
+    it:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE44]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: The preceding command will produce a long dump of the stack at the moment of
+    the crash and it's usually sufficient to debug a wide variety of problems. Make
+    a summary of the configuration that resulted in a crash and send it over to the
+    developer along with the full stack trace.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Creating a binary with debugging information
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: A detailed stack trace can be obtained only from a binary with debugging information.
+    You don't necessarily need to run a binary with debugging information. It's only
+    necessary to have a binary that is identical to the one that you run, but with
+    extra debugging information on top of it.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'It is possible to produce such a binary from the source code of the binary
+    that you are running by configuring the source tree with an extra `–with-debug`
+    option. The steps are as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'First, obtain configuration script arguments from the binary your instance
+    is running:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE45]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Add the `–with-debug` option in front of the argument string and run the configuration
+    scripts:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE46]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Follow the remaining steps of the build procedure (refer to the previous chapter
+    for details). Once you finish, a binary identical to the one that you are running
+    but with debugging information appears in the `objs` directory of your source
+    tree:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE47]'
+  prefs: []
+  type: TYPE_PRE
+- en: Now, you can use this binary to obtain a full stack trace from the core file
+    produced by its twin binary.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Refer to the previous section in order to learn how to produce a stack trace.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Summary
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: In this chapter, you learned a lot of Nginx management techniques. We covered
+    almost the full circle of Nginx operation, except for problem-dependent details.
+    In the next and further chapters, you will start learning about particular features
+    of Nginx and how to apply them. This will add some more flesh to your Nginx core
+    skills.
+  prefs: []
+  type: TYPE_NORMAL

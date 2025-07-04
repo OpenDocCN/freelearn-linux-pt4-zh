@@ -1,0 +1,3496 @@
+- en: Chapter 2. The BSP Layer
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'In this chapter, we will cover the following recipes:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Creating a custom BSP layer
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Introducing system development workflows
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Adding a custom kernel and bootloader
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Building the U-Boot bootloader
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Explaining Yocto's Linux kernel support
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Describing Linux's build system
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Configuring the Linux kernel
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Building the Linux source
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Building external kernel modules
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Debugging the Linux kernel and modules
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Debugging the Linux kernel booting process
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Using the kernel tracing system
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Managing the device tree
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Debugging device tree issues
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Introduction
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: Once we have our build environment ready with the Yocto project, it's time to
+    think about beginning development work on our embedded Linux project.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Most of the embedded Linux projects require both custom hardware and software.
+    An early task in the development process is to test different hardware reference
+    boards and the selection of one to base our design on. We have chosen the Wandboard,
+    a Freescale i.MX6-based platform, as it is an affordable and open board, which
+    makes it perfect for our needs.
+  prefs: []
+  type: TYPE_NORMAL
+- en: On an embedded project, it is usually a good idea to start working on the software
+    as soon as possible, probably before the hardware prototypes are ready, so that
+    it is possible to start working directly with the reference design.
+  prefs: []
+  type: TYPE_NORMAL
+- en: But at some point, the hardware prototypes will be ready and changes will need
+    to be introduced into Yocto to support the new hardware.
+  prefs: []
+  type: TYPE_NORMAL
+- en: This chapter will explain how to create a BSP layer to contain those hardware-specific
+    changes, as well as show how to work with the U-Boot bootloader and the Linux
+    kernel, components which are likely to take most of the customization work.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Creating a custom BSP layer
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: These custom changes are kept on a separate Yocto layer, called a **Board Support
+    Package** (**BSP**) layer. This separation is best for future updates and patches
+    to the system. A BSP layer can support any number of new machines and any new
+    software feature that is linked to the hardware itself.
+  prefs: []
+  type: TYPE_NORMAL
+- en: How to do it...
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: By convention, Yocto layer names start with `meta`, short for metadata. A BSP
+    layer may then add a `bsp` keyword, and finally a unique name. We will call our
+    layer `meta-bsp-custom`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'There are several ways to create a new layer:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Manually, once you know what is required
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: By copying the `meta-skeleton` layer included in Poky
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: By using the `yocto-layer` command-line tool
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'You can have a look at the `meta-skeleton` layer in Poky and see that it includes
+    the following elements:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: A `layer.conf` file, where the layer configuration variables are set
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: A `COPYING.MIT` license file
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Several directories named with the `recipes` prefix with example recipes for
+    BusyBox, the Linux kernel and an example module, an example service recipe, an
+    example user management recipe, and a multilib example.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: How it works...
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: We will cover some of the use cases that appear in the available examples in
+    the next few recipes, so for our needs, we will use the `yocto-layer` tool, which
+    allows us to create a minimal layer.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Open a new terminal and change to the `fsl-community-bsp` directory. Then set
+    up the environment as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE0]'
+  prefs: []
+  type: TYPE_PRE
+- en: Note
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: Note that once the `build` directory has been created, the `MACHINE` variable
+    has already been configured in the `conf/local.conf` file and can be omitted from
+    the command line.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Change to the `sources` directory and run:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE1]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Note that the `yocto-layer` tool will add the `meta` prefix to your layer,
+    so you don''t need to. It will prompt a few questions:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: The layer priority which is used to decide the layer precedence in cases where
+    the same recipe (with the same name) exists in several layers simultaneously.
+    It is also used to decide in what order `bbappends` are applied if several layers
+    append the same recipe. Leave the default value of 6\. This will be stored in
+    the layer's `conf/layer.conf` file as `BBFILE_PRIORITY`.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Whether to create example recipes and append files. Let's leave the default
+    *no* for the time being.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Our new layer has the following structure:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE2]'
+  prefs: []
+  type: TYPE_PRE
+- en: There's more...
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'The first thing to do is to add this new layer to your project''s `conf/bblayer.conf`
+    file. It is a good idea to add it to your template conf directory''s `bblayers.conf.sample`
+    file too, so that it is correctly appended when creating new projects. The highlighted
+    line in the following code shows the addition of the layer to the `conf/bblayers.conf`
+    file:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE3]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Now, BitBake will parse the `bblayers.conf` file and find the `conf/layers.conf`
+    file from your layer. In it, we find the following line:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE4]'
+  prefs: []
+  type: TYPE_PRE
+- en: It tells BitBake which directories to parse for recipes and append files. You
+    need to make sure your directory and file hierarchy in this new layer matches
+    the given pattern, or you will need to modify it.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'BitBake will also find the following:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE5]'
+  prefs: []
+  type: TYPE_PRE
+- en: The `BBPATH` variable is used to locate the `bbclass` files and the configuration
+    and files included with the `include` and `require` directives. The search finishes
+    with the first match, so it is best to keep filenames unique.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Some other variables we might consider defining in our `conf/layer.conf` file
+    are:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE6]'
+  prefs: []
+  type: TYPE_PRE
+- en: The `LAYERDEPENDS` literal is a space-separated list of other layers your layer
+    depends on, and the `LAYERVERSION` literal specifies the version of your layer
+    in case other layers want to add a dependency to a specific version.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The `COPYING.MIT` file specifies the license for the metadata contained in the
+    layer. The Yocto project is licensed under the *MIT* license, which is also compatible
+    with the **General Public License** (**GPL**). This license applies only to the
+    metadata, as every package included in your build will have its own license.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The `README` file will need to be modified for your specific layer. It is usual
+    to describe the layer and provide any other layer dependencies and usage instructions.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Adding a new machine
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: 'When customizing your BSP, it is usually a good idea to introduce a new machine
+    for your hardware. These are kept under the `conf/machine` directory in your BSP
+    layer. The usual thing to do is to base it on the reference design. For example,
+    `wandboard-quad` has the following machine configuration file:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE7]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'A machine based on the Wandboard design could define its own machine configuration
+    file, `wandboard-quad-custom.conf`, as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE8]'
+  prefs: []
+  type: TYPE_PRE
+- en: The `wandboard.inc` file now resides on a different layer, so in order for BitBake
+    to find it, we need to specify the full path from the `BBPATH` variable in the
+    corresponding layer. This machine defines its own U-Boot configuration file and
+    Linux kernel device tree in addition to defining its own set of machine features.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Adding a custom device tree to the Linux kernel
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: 'To add this device tree file to the Linux kernel, we need to add the device
+    tree file to the `arch/arm/boot/dts` directory under the Linux kernel source and
+    also modify the Linux build system''s `arch/arm/boot/dts/Makefile` file to build
+    it as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE9]'
+  prefs: []
+  type: TYPE_PRE
+- en: This code uses diff formatting, where the lines with a minus prefix are removed,
+    the ones with a plus sign are added, and the ones without a prefix are left as
+    reference.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Once the patch is prepared, it can be added to the `meta-bsp-custom/recipes-kernel/linux/linux-wandboard-3.10.17/`
+    directory and the Linux kernel recipe appended adding a `meta-bsp-custom/recipes-kernel/linux/linux-wandboard_3.10.17.bbappend`
+    file with the following content:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE10]'
+  prefs: []
+  type: TYPE_PRE
+- en: An example patch that adds a custom device tree to the Linux kernel can be found
+    in the source code that accompanies the book.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Adding a custom U-Boot machine
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: 'In the same way, the U-Boot source may be patched to add a new custom machine.
+    Bootloader modifications are not as likely to be needed as kernel modifications
+    though, and most custom platforms will leave the bootloader unchanged. The patch
+    would be added to the `meta-bsp-custom/recipes-bsp/u-boot/u-boot-fslc-v2014.10/`
+    directory and the U-Boot recipe appended with a `meta-bsp-custom/recipes-bsp/u-boot/u-boot-fslc_2014.10.bbappend`
+    file with the following content:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE11]'
+  prefs: []
+  type: TYPE_PRE
+- en: An example patch that adds a custom machine to U-Boot can be found in the source
+    code that accompanies the book.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Adding a custom formfactor file
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: 'Custom platforms can also define their own `formfactor` file with information
+    that the build system cannot obtain from other sources, such as defining whether
+    a touchscreen is available or defining the screen orientation. These are defined
+    in the `recipes-bsp/formfactor/` directory in our `meta-bsp-custom` layer. For
+    our new machine, we could define a `meta-bsp-custom/recipes-bsp/formfactor/formfactor_0.0.bbappend`
+    file to include a `formfactor` file as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE12]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'And the machine-specific `meta-bsp-custom/recipes-bsp/formfactor/formfactor/wandboard-quadcustom/machconfig`
+    file would be as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE13]'
+  prefs: []
+  type: TYPE_PRE
+- en: Introducing system development workflows
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: When customizing the software, there are some system development workflows that
+    are commonly used, and we will introduce them in this recipe.
+  prefs: []
+  type: TYPE_NORMAL
+- en: How to do it...
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'We will see an overview of the following development workflows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: External development
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Working directory development
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: External source development
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: They are all used under different scenarios.
+  prefs: []
+  type: TYPE_NORMAL
+- en: How it works...
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: Let's understand what the use of each of these development workflows is individually.
+  prefs: []
+  type: TYPE_NORMAL
+- en: External development
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: In this workflow, we don't use the Yocto build system to build our packages,
+    just a Yocto toolchain and the package's own build system.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The resulting source can be integrated into Yocto in the following ways:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: With a recipe that fetches a released tarball.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: With a recipe that fetches directly from a source-controlled repository.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: External development is usually the preferred method for U-Boot and Linux kernel
+    development, as they can be easily cross-compiled. Third-party packages in Yocto
+    are also developed in this way.
+  prefs: []
+  type: TYPE_NORMAL
+- en: However, third-party packages can be tricky to cross-compile, and that is just
+    what the Yocto build system makes easy. So, if we are not the main developers
+    of the package and we only want to introduce some fixes or modifications, we can
+    use Yocto to help us. The two workflows explained in the following sections use
+    the Yocto build system.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Working directory development
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: In this workflow, we use the working directory inside the `build` directory,
+    `tmp/work`. As we know, when Yocto builds a package, it uses the working directory
+    to extract, patch, configure, build, and package the source. We can directly modify
+    the source in this directory and use the Yocto system to build it.
+  prefs: []
+  type: TYPE_NORMAL
+- en: This methodology is commonly used when sporadically debugging third-party packages.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The workflow is as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Remove the package''s `build` directory to start from scratch:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE14]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Tell BitBake to fetch, unpack, and patch the package, but stop there:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE15]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: Enter the package's source directory and modify the source. Usually, we would
+    create a temporary local Git directory to help us with our development and to
+    extract the patches easily.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE16]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Build it without losing our changes:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE17]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Note the capital `C`. This instructs BitBake to run the compile task and all
+    the tasks that follow it. This is the same as running:'
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: '[PRE18]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Test it by copying the package to a running system and installing it with the
+    target''s package management system. When you run your system from an NFS root
+    filesystem, it''s as easy as to copy it there and run the following command (assuming
+    the default RPM package format):'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE19]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Optionally, you can also use a package feed as we saw in the *Setting up a
+    package feed* recipe in [Chapter 1](ch01.html "Chapter 1. The Build System"),
+    *The Build System*, in which case you would rebuild the index with the following:'
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: '[PRE20]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: And then use the smart package management utility on the target to install the
+    package as previously shown.
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: Extract the patches and add them to the recipe's `bbappend` file.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: External source development
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: In this workflow, we will use the Yocto build system to build an external directory
+    containing the source. This external directory is usually source controlled to
+    help us in our development.
+  prefs: []
+  type: TYPE_NORMAL
+- en: This is the usual methodology to follow for extensive package development once
+    the source has already been integrated with the Yocto build system.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The workflow is as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: We perform our development on this external-version-controlled directory and
+    commit our changes locally.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: We configure the Yocto build system to use a directory in our host system to
+    fetch the source from, and optionally also to build in. This guarantees that our
+    changes cannot be lost by any action of the Yocto build system. We will see some
+    examples of this later on.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'Build it using Yocto:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE21]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: Test it by copying the package to a running system and installing it with the
+    target's package management system.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Extract the patches and add them to the recipe's `bbappend` file.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Adding a custom kernel and bootloader
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: Development in U-Boot and the Linux kernel is usually done externally to Yocto,
+    as they are easy to build using a toolchain, like the one provided by Yocto.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The development work is then integrated into Yocto in one of two ways:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: With patches added to the kernel and U-Boot `bbappend` files. This method will
+    build the same source as the reference design board we are using as base, and
+    apply our changes over it.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Using a different Git repository, forked from the Linux kernel and U-Boot Git
+    repositories being used by the reference design, and using a `bbappend` file to
+    point the recipe to it. This way, we can directly commit the changes to the repository
+    and the Yocto build system will build them.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Usually a forked Git repository is only needed when the hardware changes are
+    substantial and the work in the Linux kernel and bootloader is going to be extensive.
+    The recommendation is to start with patches, and only use a forked repository
+    when they become difficult to manage.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Getting Ready
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: The first question when starting work on the Linux kernel and U-Boot modifications
+    is how do you find which of the several available recipes are being used for your
+    build.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Finding the Linux kernel source
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: 'To find the Linux kernel source, we might use several methods. As we are aware
+    we are building for a `wandboard-quad` machine, the first thing to do is find
+    a machine configuration file:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE22]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'The machine configuration file above in turn includes a `wandboard.inc` file:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE23]'
+  prefs: []
+  type: TYPE_PRE
+- en: Here we find a Linux kernel recipe being specified as the preferred provider
+    for virtual/kernel. Virtual packages like this are used when a feature or element
+    is provided by more than one recipe. It allows us to choose which of all those
+    recipes will finally be used. Virtual packages will be further explained in the
+    *Selecting a specific package versions and providers* recipe in [Chapter 3](ch03.html
+    "Chapter 3. The Software Layer"), *The Software Layer*.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'We could check the actual output from our previous `core-image-minimal` build:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE24]'
+  prefs: []
+  type: TYPE_PRE
+- en: As the `linux-wanboard` directory exists in our `work` folder, we can be sure
+    the recipe has been used.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'We can check what the available Linux recipes are with:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE25]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'We have lots of options, but we can use some of our acquired knowledge to filter
+    them out. Let''s exclude the `poky` and `meta-openembedded` directories, as we
+    know the BSP support is included in the Freescale community BSP layers:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE26]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Finally, we can also use the `bitbake-layers` script included in Poky:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE27]'
+  prefs: []
+  type: TYPE_PRE
+- en: Not all those kernels support the Wandboard machine completely, but they all
+    support Freescale ARM machines, so they are useful for comparisons.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Finding the U-Boot source
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: 'If we continue to pull the include chain, we have `imx-base.inc`, which itself
+    includes `fsl-default-providers.inc`, where we find:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE28]'
+  prefs: []
+  type: TYPE_PRE
+- en: So `u-boot-fslc` is the U-Boot recipe we are looking for.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Developing using a Git repository fork
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: We will show how to append a recipe to use a forked repository to work from
+    it. We will use the Linux kernel as an example, but the concept works just as
+    well for U-Boot or any other package, although the specifics will change.
+  prefs: []
+  type: TYPE_NORMAL
+- en: We will fork or branch the repository used in the reference design and use it
+    to specify `SRC_URI` for the recipe.
+  prefs: []
+  type: TYPE_NORMAL
+- en: How to do it...
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'For this example, I have forked the repository to [https://github.com/yoctocookbook/linux](https://github.com/yoctocookbook/linux),
+    so my `recipes-kernel/linux/linux-wandboard_3.10.17.bbappend` file would have
+    the following changes:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE29]'
+  prefs: []
+  type: TYPE_PRE
+- en: Tip
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: Note how the URL needs to start with `git://`. This is so that BitBake can recognize
+    it as a Git source. Now we can clean and build the Linux kernel and the source
+    will be fetched from the forked repository.
+  prefs: []
+  type: TYPE_NORMAL
+- en: How it works...
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'Let''s have a look at the `linux-wandboard_3.10.17.bb` recipe:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE30]'
+  prefs: []
+  type: TYPE_PRE
+- en: The first interesting thing is the inclusion of both `linux-wandboard.inc` and
+    `linux-dtb.inc`. We will look at the first later on, and the other is a class
+    that allows us to compile Linux kernel device trees. We will discuss device trees
+    in the *Managing the device tree* recipe later in this chapter.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Then it declares two package dependencies, `lzop-native` and `bc-native`. The
+    `native` part tells us that these are used in the host system, so they are used
+    during the Linux kernel build process. The `lzop` tool is used to create the `cpio`
+    compressed files needed in the `initramfs` system, which is a system that boots
+    from a memory-based root filesystem, and `bc` was introduced to avoid a Perl kernel
+    dependency when generating certain kernel files.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Then it sets the branch and revision, and finally it sets `COMPATIBLE_MACHINE`
+    to `wandboard`. We will speak about machine compatibility in the *Adding new packages*
+    recipe of [Chapter 3](ch03.html "Chapter 3. The Software Layer"), *The Software
+    Layer*.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Let''s now have a look at the `linux-wandboard.inc` include file:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE31]'
+  prefs: []
+  type: TYPE_PRE
+- en: This is actually the file we were looking for. Initially, it specifies the license
+    for the kernel source and points to it, sets a default branch and local version
+    kernel string, and sets up the `SCR_URI` variable, which is the place where the
+    source code is fetched from.
+  prefs: []
+  type: TYPE_NORMAL
+- en: It then offers the `WANDBOARD_GITHUB_MIRROR` variable, which we can modify in
+    our `bbappend` file.
+  prefs: []
+  type: TYPE_NORMAL
+- en: So the logical setup would be to create a GitHub account and fork the provided
+    `wandboard-org` Linux repository.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Once the fork is in place, we need to modify the `WANDBOARD_GITHUB_MIRROR` variable.
+    But as we saw before, the recipe configures a specific revision and branch. We
+    want to develop here, so we want to change this to a new development branch we
+    have created. Let's call it `wandboard_imx_3.10.17_1.0.2_ga-dev` and set the revision
+    to automatically fetch the newest point in the branch.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Building the U-Boot bootloader
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: In this recipe, we will go through the several development workflows described
+    previously using the U-Boot bootloader as an example.
+  prefs: []
+  type: TYPE_NORMAL
+- en: How to do it...
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'We will see how the following development workflows are applied to U-Boot:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: External development
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: External source development
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Working directory development
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: How it works...
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: Let's explain the three workflows, previously mentioned, in detail.
+  prefs: []
+  type: TYPE_NORMAL
+- en: External development
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: We will use a Yocto toolchain to build the U-Boot source externally from the
+    Yocto build system.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Download and install a Yocto project cross-compilation toolchain for your host
+    by going to the following:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[http://downloads.yoctoproject.org/releases/yocto/yocto-1.7.1/toolchain/](http://downloads.yoctoproject.org/releases/yocto/yocto-1.7.1/toolchain/)'
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: Tip
+  prefs:
+  - PREF_IND
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: Choose either the 32- or 64-bit version and execute the installation script,
+    accepting the default installation location. It is recommended not to change the
+    default location to avoid relocation issues.
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: 'Find the upstream Git repository:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE32]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Clone the U-Boot''s source from its upstream repository:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE33]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'The default branch should be `patches-2014.10`, but if it''s not, you can change
+    it with the following:'
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: '[PRE34]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Set up the environment using the script provided with the toolchain:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE35]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Configure U-Boot for `wandboard-quad`:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE36]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'If you try to build U-Boot, it will fail. This is because the default Yocto
+    environment setup does not cater to U-Boot''s needs. A quick look at the U-Boot
+    recipe shows that it clears some flags before building, so let''s do that:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE37]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Now we are ready to build. The U-Boot recipe also passes `CC` to the `make`
+    utility in the `EXTRA_OEMAKE` flags as U-Boot does not read it from the environment,
+    so we also need to run:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE38]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: Note
+  prefs:
+  - PREF_IND
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: You can optionally pass a `-jN` argument for multithreaded compilation. Here,
+    `N` is the number of CPU cores.
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: How it works…
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'The U-Boot `Makefile` looks for `libgcc` using the following command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE39]'
+  prefs: []
+  type: TYPE_PRE
+- en: If we don't define `CC`, the expression does not correctly expand to the location
+    of the `libgcc` library in the toolchain, as the `sysroot` option is not passed
+    to the compiler.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Note
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: 'Newer versions of U-Boot have already fixed this issue, but we decided to leave
+    the instruction as the following:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE40]'
+  prefs: []
+  type: TYPE_PRE
+- en: That works for older versions of U-Boot too.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Another way to avoid the problem would be to define the `USE_PRIVATE_LIBGCC`
+    U-Boot configuration variable, but that would use an internal `libgcc` library
+    to U-Boot, which may not be what we want.
+  prefs: []
+  type: TYPE_NORMAL
+- en: We would then need to copy the image to the target to test our changes, as we
+    will see soon.
+  prefs: []
+  type: TYPE_NORMAL
+- en: External source development
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: We will use the Yocto build system from a local directory by cloning a local
+    copy of the source used in the reference design and configuring our project to
+    use it as an external source. We will then develop from it, extract the patches,
+    and add them to a `bbappend` file on our BSP layer.
+  prefs: []
+  type: TYPE_NORMAL
+- en: We will use the U-Boot source cloned in the example beforehand.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'To configure our `conf/local.conf` file to work from the cloned source, modify
+    it as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE41]'
+  prefs: []
+  type: TYPE_PRE
+- en: The `EXTERNALSRC` variable defines the source location (`S`), while the `EXTERNALSRC_BUILD`
+    variable defines the build location (`B`). This code will also build on the external
+    source location as the `u-boot-fslc` recipe does not currently support the separation
+    of the source and `build` directories.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Tip
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: Remember to remove the aforementioned configuration when trying the working
+    directory development methodology explained next in this recipe.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Now we can build on a new shell with:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE42]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'When building from an external source, the expansion of `SRCPV` fails with
+    an error. Recipes need to be temporarily modified to use static versioning while
+    the external source compilation is enabled. In the case of U-Boot, we would make
+    the following change in the `meta-fsl-arm/recipes-bsp/u-boot/u-boot-fslc_2014.10.bb`
+    file:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE43]'
+  prefs: []
+  type: TYPE_PRE
+- en: This uses diff formatting, where the lines with a minus prefix are removed and
+    the ones with a plus sign are added.
+  prefs: []
+  type: TYPE_NORMAL
+- en: An example patch to U-Boot that allows us to perform external source development
+    can be found in the source code that accompanies the book.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Development work can now be committed in the local Git repository, and patches
+    can be generated with `git format-patch`. For example, we could change the board
+    information for the Wandboard with the `0001-wandboard-Change-board-info.patch`
+    file:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE44]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'To add this patch to Yocto''s U-Boot recipe, we create a `meta-bsp-custom/recipes-bsp/u-boot/u-boot-fslc_2014.10.bbappend`
+    file with the following content:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE45]'
+  prefs: []
+  type: TYPE_PRE
+- en: The patch needs to be placed under `meta-bsp-custom/recipes-bsp/u-boot/u-boot-fslc-v2014.10/`,
+    as specified in the `FILESEXTRAPATHS` variable.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Files added to the `SRC_URI` variable that end in the `patch` or `diff` prefixes
+    will be applied in the order they are found. You can also force a file to be treated
+    as `patch` by specifying an `apply=yes` property to it in `SRC_URI`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Working directory development
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: 'A typical workflow when working on a small modification would be:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Start the U-Boot package compilation from scratch:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE46]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: This will erase the `build` folder, shared state cache, and downloaded package
+    source.
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: 'Start a development shell:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE47]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: This will fetch, unpack, and patch the U-Boot sources and spawn a new shell
+    with the environment ready for U-Boot compilation. The new shell will change to
+    the U-Boot `build` directory, which contains a local Git repository.
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: Perform your modifications on the local Git repository.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'Leave the devshell open and use a different terminal to compile the source
+    without erasing our modifications:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE48]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: Note the capital `C`. This invokes the compile task but also all the tasks that
+    follow it.
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: The newly compiled U-Boot image is available under `tmp/deploy/images/wandboard-quad`.
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: Test your changes. Typically, this means that we need to reprogram the bootloader
+    into the microSD card (as is the case with the Wandboard) or the internal `emmc`
+    (if available) at the correct offset. We can do it both from the target or from
+    your host computer.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: From the host computer, we would use `dd` to copy the new U-Boot image to an
+    offset of 0x400, which is where the i.MX6 bootrom expects to find it.
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: '[PRE49]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: This writes with an offset of 2 blocks, which, given a 512-byte block size,
+    is 0x400 (1024) bytes.
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: Tip
+  prefs:
+  - PREF_IND
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: Be careful when running the `dd` command, as it could harm your machine. You
+    need to be absolutely sure that the sdN device corresponds to your microSD card
+    and not a drive on your development machine.
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: 'From the device itself, we can use U-Boot''s `mmc` command as follows:'
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: 'Load the U-Boot image to memory:'
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '[PRE50]'
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_PRE
+- en: The hexadecimal file size of the TFTP transfer is kept in the filesize environment
+    variable, which we will use later on.
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: Select the MMC device to operate on. You can use the `mmc` part to discover
+    which is the correct device.
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '[PRE51]'
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_PRE
+- en: We can see that partition `1` starts at sector `8192`, leaving enough space
+    to program U-Boot.
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: 'With a 512-byte block size, we calculate the number of blocks as follows:'
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '[PRE52]'
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_PRE
+- en: We then write to an offset of two blocks with the numbers of blocks occupied
+    by our image.
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '[PRE53]'
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_PRE
+- en: Go back to the devshell and commit your change to the local Git repository.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE54]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Generate a patch into the U-Boot recipe patch directory as follows:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE55]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: Finally, add the patch to the U-Boot recipe as explained before.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Explaining Yocto's Linux kernel support
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'The Yocto project offers a kernel framework that allows us to work with the
+    Linux kernel in different ways:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Fetching the source from a Git repository and applying patches to it. This is
+    the path taken by the Freescale community BSP-supported kernels, as we saw previously.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: The `linux-yocto` style kernels that generate the kernel source from a set of
+    Git branches and leafs. Specific features are developed in branches, and a leaf
+    is followed for a complete set of features.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: In this recipe, we will show how to work with a `linux-yocto` style kernel.
+  prefs: []
+  type: TYPE_NORMAL
+- en: How to do it...
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: To use a `linux-yocto` style kernel, the kernel recipe inherits the `linux-yocto.inc`
+    file. A Git repository for a `linux-yocto` style kernel contains metadata either
+    in the recipe or inside the kernel Git tree, in branches named with the `meta`
+    prefix.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The `linux-yocto` style kernel recipes are all named `linux-yocto` and follow
+    the upstream kernel development, rooted in the `kernel.org` repository. Once a
+    new Yocto release cycle starts, a recent upstream kernel version is chosen, and
+    the kernel version from the previous Yocto release is maintained. Older versions
+    are updated inline with the **Long Term Support Initiative** (**LTSI**) releases.
+    There is also a `linux-yocto-dev` package, which always follows the latest upstream
+    kernel development.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Yocto kernels are maintained separately from the upstream kernel sources, and
+    add features and BSPs to cater to embedded system developers.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Although the Freescale community BSP does not include `linux-yocto` style kernels,
+    some other BSP layers do.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Metadata variables that are used to define the build include:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`KMACHINE`: This is usually the same as the `MACHINE` variable, but not always.
+    It defines the kernel''s machine type.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`KBRANCH`: This explicitly sets the kernel branch to build. It is optional.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`KBRANCH_DEFAULT`: This is the default value for KBRANCH, initially `master`.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`KERNEL_FEATURES`: This adds additional metadata that is used to specify configuration
+    and patches. It appears above the defined `KMACHINE` and `KBRANCH`. It is defined
+    in **Series Configuration Control** (**SCC**) files as described soon.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`LINUX_KERNEL_TYPE`: This defaults to standard, but may also be `tiny` or `preempt-rt`.
+    It is defined in its own SCC description files, or explicitly defined using the
+    `KTYPE` variable in the SCC files.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: How it works...
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: The metadata included in the Linux kernel manages the configuration and source
+    selection to support multiple BSPs and kernel types. The tools that manage this
+    metadata are built in the `kern-tools` package.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The metadata can be set either in recipes, for small changes or if you are
+    using a kernel repository you do not have access to, or most usually inside the
+    kernel Git repository in `meta` branches. The `meta` branch that is to be used
+    defaults to a `meta` directory in the same repository branch as the sources, but
+    can be specified using the `KMETA` variable in your kernel recipe. If it does
+    not reside in the same branch as the kernel source, it is kept in an orphan branch;
+    that is, a branch with its own history. To create an orphan branch, use the following
+    commands:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE56]'
+  prefs: []
+  type: TYPE_PRE
+- en: Your recipe must then include `SRCREV_meta` to point to the revision of the
+    `meta` branch to use.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The metadata is described in SCC files, which can include a series of commands:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`kconf`: This command applies a configuration fragment to the kernel configuration.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`patch`: This command applies the specified patch.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`define`: This introduces the variable definitions.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`include`: This includes another SCC file.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`git merge`: This merges the specified branch into the current branch.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`branch`: This creates a new branch relative to the current branch, usually
+    `KTYPE` or as specified.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'SCC files are broadly divided into the following logical groupings:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '**configuration (**`cfg`**)**: This contains one or more kernel configuration
+    fragments and an SCC file to describe them. For example:'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '[PRE57]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: '**patches**: This contains one or more kernel patches and an SCC file to describe
+    them. For example:'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '[PRE58]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: '**features**: This contains mix configurations and patches to define complex
+    features. It can also include other description files. For example:'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '[PRE59]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: '**kernel types**: This contains features that define a high-level kernel policy.
+    By default, three kernel types are defined in SCC files:'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**standard**: This is a generic kernel definition policy'
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**tiny**: This is a bare minimum kernel definition policy and is independent
+    of the standard type'
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**preempt-rt**: This inherits from the standard type to define a real-time
+    kernel where the `PREEMTP-RT` patches are applied'
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Other kernel types can be defined by using the `KTYPE` variable on an SCC file.
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: '**Board Support Packages** (**BSP**): A combination of kernel types and hardware
+    features. BSP types should include KMACHINE for the kernel machine and KARCH for
+    the kernel architecture.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: See also
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: Detailed information regarding `linux-yocto` style kernels can be found in the
+    *Yocto Project Linux Kernel Development Manual* at [http://www.yoctoproject.org/docs/1.7.1/kernel-dev/kernel-dev.html](http://www.yoctoproject.org/docs/1.7.1/kernel-dev/kernel-dev.html)
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Describing Linux's build system
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: The Linux kernel is a monolithic kernel and as such shares the same address
+    space. Although it has the ability to load modules at runtime, the kernel must
+    contain all the symbols the module uses at compilation time. Once the module is
+    loaded, it will share the kernel's address space.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The kernel build system, or **kbuild**, uses conditional compilation to decide
+    which parts of the kernel are compiled. The kernel build system is independent
+    of the Yocto build system.
+  prefs: []
+  type: TYPE_NORMAL
+- en: In this recipe, we will explain how the kernel's build system works.
+  prefs: []
+  type: TYPE_NORMAL
+- en: How to do it...
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'The kernel configuration is stored in a `.config` text file in the kernel root
+    directory. The kbuild system reads this configuration to build the kernel. The
+    `.config` file is referred to as the kernel configuration file. There are multiple
+    ways to define a kernel configuration file:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Manually editing the `.config` file, although this is not recommended.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Using one of the user interfaces the kernel offers (type the make help command
+    for other options):'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`menuconfig`: An ncurses menu-based interface (`make menuconfig`)'
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`xconfig`: A Qt-based interface (`make xconfig`)'
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`gconfig`: A GTK-based interface (`make gconfig`)'
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Note
+  prefs:
+  - PREF_IND
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: Note that to build and use these interfaces, your Linux host needs to have the
+    appropriate dependencies.
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: Automatically via a build system such as Yocto.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Each machine also defines a default configuration in the kernel tree. For ARM
+    platforms, these are stored in the `arch/arm/configs` directory. To configure
+    an ARM kernel, that is, to produce a `.config` file from a default configuration,
+    you run:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE60]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'For example we can build a default configuration for Freescale i.MX6 processors
+    by running:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE61]'
+  prefs: []
+  type: TYPE_PRE
+- en: How it works...
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: Kbuild uses `Makefile` and `Kconfig` files to build the kernel source. Kconfig
+    files define configuration symbols and attributes, and `Makefile` file match configuration
+    symbols to source files.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The kbuild system options and targets can be seen by running:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE62]'
+  prefs: []
+  type: TYPE_PRE
+- en: There's more...
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'In recent kernels, a default configuration contains all the information needed
+    to expand to a full configuration file. It is a minimal kernel configuration file
+    where all dependencies are removed. To create a default configuration file from
+    a current `.config` file, you run:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE63]'
+  prefs: []
+  type: TYPE_PRE
+- en: This creates a `defconfig` file in the current kernel directory. This `make`
+    target can be seen as the opposite of the `<platform>_defconfig` target explained
+    before. The former creates a configuration file from a minimal configuration,
+    and the other expands the minimal configuration into a full configuration file.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Configuring the Linux kernel
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: In this recipe, we will explain how to configure a Linux kernel using the Yocto
+    build system.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Getting ready
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: Before configuring the kernel, we need to provide a default configuration for
+    our machine, which is the one the Yocto project uses to configure a kernel. When
+    defining a new machine in your BSP layer, you need to provide a `defconfig` file.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The Wandboard's `defconfig` file is stored under `sources/meta-fsl-arm-extra/recipes-kernel/linux/linux-wandboard-3.10.17/defconfig`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'This would be the base `defconfig` file for our custom hardware, so we copy
+    it to our BSP layer:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE64]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'We then add it to our kernel using `meta-bsp-custom/recipes-kernel/linux/linux-wandboard_3.10.17.bbappend`
+    as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE65]'
+  prefs: []
+  type: TYPE_PRE
+- en: Kernel configuration changes to your platform can be made directly in this `defconfig`
+    file.
+  prefs: []
+  type: TYPE_NORMAL
+- en: How to do it...
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'To create a `.config` file from the machine `defconfig` file, execute the following
+    command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE66]'
+  prefs: []
+  type: TYPE_PRE
+- en: This will also run the oldconfig kernel `make` target to validate the configuration
+    against the Linux source.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'We can then configure the Linux kernel from the BitBake command line using
+    the following:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE67]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'The menuconfig user interface, as well as other kernel configuration user interfaces,
+    has a search functionality that allows you to locate configuration variables by
+    name. Have a look at the following screenshot:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![How to do it...](img/5186OS_02_01.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Note
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: In the following chapters, we will mention specific kernel configuration variables,
+    like `CONFIG_PRINTK`, without specifying the whole path to the configuration variable.
+    The search interface of the different UIs can be used to locate the configuration
+    variable path.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'When you save your changes, a new `.config` file is created on the kernel''s
+    `build` directory, which you can find using the following command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE68]'
+  prefs: []
+  type: TYPE_PRE
+- en: You can also modify the configuration using a graphical UI, but not from the
+    BitBake command line. This is because graphical UIs need host dependencies, which
+    are not natively built by Yocto.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'To make sure your Ubuntu system has the needed dependencies, execute the following
+    command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE69]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Then change to the kernel `build` directory, which you found before, with:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE70]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Next, run the following:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE71]'
+  prefs: []
+  type: TYPE_PRE
+- en: Note
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: If you encounter compilation errors, attempt to run from a new terminal that
+    has not had the environment configured with the `setup-environment` script.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'A new window will open with the graphical configuration user interface shown
+    in the next screenshot:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![How to do it...](img/5186OS_02_02.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: When you save your changes, the `.config` file will be updated.
+  prefs: []
+  type: TYPE_NORMAL
+- en: To use an updated configuration, you need to take care that BitBake does not
+    revert your changes when building. Refer to the *Building the Linux kernel* recipe
+    in this chapter for additional details.
+  prefs: []
+  type: TYPE_NORMAL
+- en: There's more...
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'You can make your kernel changes permanent with the following steps:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Create a default configuration from your `.config` file from the kernel source
+    directory and a clean environment (not configured with the `setup-environment`
+    script) by running:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE72]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Copy the `defconfig` file from your kernel `build` folder to your kernel recipe''s
+    `defconfig` file as follows:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE73]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Alternatively, you may use BitBake from the `build` directory as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE74]'
+  prefs: []
+  type: TYPE_PRE
+- en: This also creates a `defconfig` file in the Linux kernel's source directory,
+    which needs to be copied to your recipe.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Using configuration fragments
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: 'The `linux-yocto` style kernels can also apply isolated kernel configuration
+    changes defined in the kernel configuration fragments; for example:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE75]'
+  prefs: []
+  type: TYPE_PRE
+- en: Kernel configuration fragments are appended to `SRC_URI` in the same way, and
+    are applied over the `defconfig` file.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The `linux-yocto` style kernels (not the one for the Wandboard though) also
+    provide a set of tools to manage kernel configuration:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'To configure the kernel from the `defconfig` file and the supplied configuration
+    fragments, execute:'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '[PRE76]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'To create a configuration fragment with your changes, execute:'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '[PRE77]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'To validate the kernel configuration, you may run:'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '[PRE78]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: Building the Linux kernel
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: In this recipe, we will go through the development workflows described earlier
+    using the Linux kernel as an example.
+  prefs: []
+  type: TYPE_NORMAL
+- en: How to do it...
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'We will see how the following development workflows are applied to the Linux
+    kernel:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: External development
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Working directory development
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: External source development
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: How it works...
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: Let's explain the three methodologies listed previously in detail.
+  prefs: []
+  type: TYPE_NORMAL
+- en: External development
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: 'When compiling outside of the Yocto build environment, we can still use the
+    Yocto-provided toolchain to build. The process is as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: We will use the Yocto project cross-compilation toolchain already installed
+    in your host.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'Clone the `wandboard-org linux-wandboard` repository locally:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE79]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Go to the branch specified in the `linux-wandboard_3.10.17.bb` recipe:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE80]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Compile the kernel source as follows:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'Prepare the environment as follows:'
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '[PRE81]'
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Configure the kernel with the default machine configuration:'
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '[PRE82]'
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Compile the kernel image, modules, and the device tree file with:'
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '[PRE83]'
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_PRE
+- en: You can optionally pass a `-jN` argument to make to build multithreaded.
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: This will build the kernel's zImage, modules, and device tree files.
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: Note
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: 'Older Yocto environment setup scripts set the `LD` variable to use `gcc`, but
+    the Linux kernel uses `ld` instead. If your compilation is failing, try the following
+    before running `make`:'
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: '[PRE84]'
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'To build only modules, you may run:'
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: '[PRE85]'
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'And to build only device tree files, you may run:'
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: '[PRE86]'
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Copy the kernel image and device tree file to the TFTP root to test using network
+    booting:'
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '[PRE87]'
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Some other embedded Linux targets might need to compile a uImage if the U-Boot
+    bootloader is not compiled with zImage booting support:'
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: '[PRE88]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: Note
+  prefs:
+  - PREF_IND
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: The `mkimage` tool is part of the Yocto toolchain when built with the FSL community
+    BSP. We will see how to build and install an SDK in the *Preparing and using an
+    SDK* recipe in [Chapter 4](ch04.html "Chapter 4. Application Development"), *Application
+    Development*.
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: 'If it is not included in your toolchain, you can install the tool in your host
+    using the following command:'
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: '[PRE89]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: '`LOADADDR` is the U-Boot entry point; that is, the address where U-Boot will
+    place the kernel in memory. It is defined in the `meta-fsl-arm imx-base.inc` file:'
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: '[PRE90]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: External source development
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: As we did with U-Boot before, we will use the Yocto build system, pointing it
+    to a local directory with a clone of the Linux source repository. We will use
+    the local Git repository cloned in the earlier section.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'We configure for external development in our `conf/local.conf` file using the
+    following code:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE91]'
+  prefs: []
+  type: TYPE_PRE
+- en: Tip
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: Remember to remove this configuration when using the working directory development
+    methodology explained next in this recipe.
+  prefs: []
+  type: TYPE_NORMAL
+- en: But, just as before, the compilation fails with U-Boot. In this case, the linux-wandboard
+    recipe, not being a `linux-yocto` style recipe, is not prepared for external source
+    compilation and it fails in the configuration task.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Kernel developers prefer to compile the kernel externally as we saw earlier,
+    so this scenario is not likely to be fixed soon.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Working directory development
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: Typically we work with patches and use this development workflow when we have
+    a small amount of changes or we don't own the source repository.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'A typical workflow when working on a modification would be:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Start the kernel package compilation from scratch:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE92]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: This will erase the `build` folder, shared state cache, and downloaded package
+    source.
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: 'Configure the kernel as follows:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE93]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: This will convert the machine `defconfig` file into a `.config` file and call
+    `oldconfig` to validate the configuration with the kernel source.
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: 'You can optionally add your own configuration changes with:'
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: '[PRE94]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Start a development shell on the kernel:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE95]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: This will fetch, unpack, and patch the kernel sources and spawn a new shell
+    with the environment ready for kernel compilation. The new shell will change to
+    the kernel `build` directory which contains a local Git repository.
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: Perform our modifications, including kernel configuration changes.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'Leave the devshell open and go back to the terminal with the sourced Yocto
+    environment to compile the source without erasing our modifications as follows:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE96]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: Note the capital `C`. This invokes the compile task but also all the tasks that
+    follow it.
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: The newly compiled kernel image is available under `tmp/deploy/images/wandboard-quad`.
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: 'Test your changes. Typically, we would work from a network-booted system, so
+    we would copy the kernel image and the device tree file to the TFTP server root
+    and boot the target with them using the following command:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE97]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: Refer to the *Configuring network booting for a development setup* recipe in
+    [Chapter 1](ch01.html "Chapter 1. The Build System"), *The Build System* for details.
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: 'Alternatively, the U-Boot bootloader can boot a Linux zImage kernel from memory
+    with its corresponding device tree using the following syntax:'
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: '[PRE98]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'For example, we can fetch images from TFTP and boot the Wandboard images as
+    follows:'
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: '[PRE99]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: If we were using an initramdisk, we would pass it as the second argument. Since
+    we aren't, we use a dash instead.
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: 'The command to boot a uImage Linux kernel image from memory would use `bootm`
+    instead, as in:'
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: '[PRE100]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Go back to the devshell and commit your change to the local Git repository:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE101]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Generate a patch into the kernel recipe patch directory:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE102]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: Finally, add the patch to the kernel recipe as previously described.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Building external kernel modules
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: The Linux kernel has the ability to load modules at runtime that extend the
+    kernel functionality. Kernel modules share the kernel's address space and have
+    to be linked against the kernel they are going to be loaded onto. Most device
+    drivers in the Linux kernel can either be compiled into the kernel itself (built-in)
+    or as loadable kernel modules that need to be placed in the root filesystem under
+    the `/lib/modules` directory.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The recommended approach to develop and distribute a kernel module is to do
+    it with the kernel source. A module in the kernel tree uses the kernel's kbuild
+    system to build itself, so as long as it is selected as module in the kernel configuration
+    and the kernel has module support enabled, Yocto will build it.
+  prefs: []
+  type: TYPE_NORMAL
+- en: However, it is not always possible to develop a module in the kernel. Common
+    examples are hardware manufacturers who provide Linux drivers for a wide variety
+    of kernel versions and have an internal development process separated from the
+    kernel community. The internal development work is usually released first as an
+    external out-of-tree module, although it is common for some or all of these internal
+    developments to finish up in the mainstream kernel eventually. However, upstreaming
+    is a slow process and hardware companies will therefore prefer to develop internally
+    first.
+  prefs: []
+  type: TYPE_NORMAL
+- en: It's worth remembering that the Linux kernel is covered under a GPLv2 license,
+    so Linux kernel modules should be released with a compatible license. We will
+    cover licenses in more detail in the following chapters.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Getting ready
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'To compile an external kernel module with Yocto, we first need to know how
+    we would link the module source with the kernel itself. An external kernel module
+    is also built using the kbuild system of the Linux kernel it is going to be linked
+    against, so the first thing we need is a `Makefile`:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE103]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'The `Makefile` file just wraps the `make` command used to compile a module
+    on a Linux system:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE104]'
+  prefs: []
+  type: TYPE_PRE
+- en: Here, `make` is instructed to build in the location of the kernel source, and
+    the `M` argument tells kbuild it is building a module at the specified location.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'And then we code the source of the module itself (`hello_world.c`):'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE105]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'It''s worth remembering that we need to compile against a kernel source that
+    has already been built. Use the following steps for compilation:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'We prepare the environment using the Yocto toolchain environment setup script:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE106]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Next we build the module. We execute the following from the module source directory:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE107]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: How to do it...
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: Once we know how to compile the module externally, we are ready to prepare a
+    Linux kernel module Yocto recipe for it.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'We place the module source file and `Makefile` in `recipes-kernel/hello-world/files/`
+    inside our `meta-bsp-custom` layer. We then create a `recipes-kernel/hello-world/hello-world.bb`
+    file with the following content:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE108]'
+  prefs: []
+  type: TYPE_PRE
+- en: The recipe defines the source directory and the two module files after inheriting
+    the `module` class, which takes care of everything. The `KERNEL_SRC` argument
+    in our `Makefile` is set by the module class to `STAGING_KERNEL_DIR`, the location
+    where the kernel class places the Linux kernel headers needed for external module
+    compilation.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'We build it with the following command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE109]'
+  prefs: []
+  type: TYPE_PRE
+- en: The resulting module is called `hello_world.ko`, with the `kernel-module` prefix
+    being added to the package name by the module `bbclass` automatically.
+  prefs: []
+  type: TYPE_NORMAL
+- en: There's more...
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: The previous instructions will build the module but will not install it in the
+    root filesystem. For that, we need to add a dependency to the root filesystem.
+    This is usually done in machine configuration files using `MACHINE_ESSENTIAL`
+    (for modules that are needed to boot) or `MACHINE_EXTRA` (if they are not essential
+    for boot but needed otherwise), variables.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The dependencies that are essential to boot are:'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`MACHINE_ESSENTIAL_EXTRA_RDEPENDS`: The build will fail if they can''t be found'
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`MACHINE_ESSENTIAL_EXTRA_RRECOMMENDS`: The build will not fail if they can''t
+    be found'
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'The dependencies that are not essential to boot are:'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`MACHINE_EXTRA_RDEPENDS`: The build will fail if they can''t be found'
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`MACHINE_ESSENTIAL_EXTRA_RRECOMMENDS`: The build will not fail if they can''t
+    be found'
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Debugging the Linux kernel and modules
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: We will highlight some of the most common methods employed by kernel developers
+    to debug kernel issues.
+  prefs: []
+  type: TYPE_NORMAL
+- en: How to do it...
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: Above all, debugging the Linux kernel remains a manual process, and the most
+    important developer tool is the ability to print debug messages.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The kernel uses the `printk` function, which is very similar syntactically to
+    the `printf` function call from standard C libraries, with the addition of an
+    optional log level. The allowed formats are documented in the kernel source under
+    `Documentation/printk-formats.txt`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The `printk` functionality needs to be compiled into the kernel with the `CONFIG_PRINTK`
+    configuration variable. You can also configure the Linux kernel to prepend a precise
+    timestamp to every message with the `CONFIG_PRINTK_TIME` configuration variable,
+    or even better, with the `printk.time` kernel command-line argument or through
+    sysfs under `/sys/module/printk/parameters`. Usually all kernels contain `printk`
+    support, and the Wandboard kernel does too, although it is commonly removed on
+    production kernels for small embedded systems.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The `printk` function can be used in any context, interrupt, **non-maskable
+    interrupt** (**NMI**), or scheduler. Note that using it inside interrupt context
+    is not recommended.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'A useful debug statement to be used during development could be:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE110]'
+  prefs: []
+  type: TYPE_PRE
+- en: The first thing to note is that there is no comma between the log level macro
+    and the print format. We then print the function and line where the debug statement
+    is placed and then the parent function. Finally, we print the variables we are
+    actually interested in.
+  prefs: []
+  type: TYPE_NORMAL
+- en: How it works...
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'The available log levels in `printk` are presented in the following table:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '| Type | Symbol | Description |'
+  prefs: []
+  type: TYPE_TB
+- en: '| --- | --- | --- |'
+  prefs: []
+  type: TYPE_TB
+- en: '| Emergency | `KERN_EMERG` | System is unstable and about to crash |'
+  prefs: []
+  type: TYPE_TB
+- en: '| Alert | `KERN_ALERT` | Immediate action is needed |'
+  prefs: []
+  type: TYPE_TB
+- en: '| Critical | `KERN_CRIT` | Critical software or hardware failure |'
+  prefs: []
+  type: TYPE_TB
+- en: '| Error | `KERN_ERR` | Error condition |'
+  prefs: []
+  type: TYPE_TB
+- en: '| Warning | `KERN_WARNING` | Nothing serious, but might indicate a problem
+    |'
+  prefs: []
+  type: TYPE_TB
+- en: '| Notice | `KERN_NOTICE` | Nothing serious, but user should take note |'
+  prefs: []
+  type: TYPE_TB
+- en: '| Information | `KERN_INFO` | System information |'
+  prefs: []
+  type: TYPE_TB
+- en: '| Debug | `KERN_DEBUG` | Debug messages |'
+  prefs: []
+  type: TYPE_TB
+- en: If no log level is specified, the default log message as configured in the kernel
+    configuration is used. By default, this is `KERN_WARNING`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: All `printk` statements go to the kernel log buffer, which may wrap around,
+    except debug statements, which only appear if the `DEBUG` symbol is defined. We
+    will see how to enable kernel debug messages soon. The `printk` log buffer must
+    be a power of two, and its size should be set in the `CONFIG_LOG_BUF_SHIFT` kernel
+    configuration variable. You may modify it with the `log_buf_len` kernel command-line
+    parameter.
+  prefs: []
+  type: TYPE_NORMAL
+- en: We print the kernel log buffer with the `dmesg` command. Also, a Yocto user
+    space will have a kernel log daemon running that will log kernel messages to disk
+    under `/var/log/messages`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Messages above the current console log level will also appear on the console
+    immediately. The `ignore_loglevel` kernel command-line argument, also available
+    under `/sys/module/printk/parameters`, may be used to print all kernel messages
+    to the console independently of the log level.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'You can also change the log level at runtime via the `proc` filesystem. The
+    `/proc/sys/kernel/printk` file contains the current, default, minimum, and boot
+    time default log levels. To change the current log level to the maximum, execute:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE111]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'You can also set the console log level with the `dmesg` tool as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE112]'
+  prefs: []
+  type: TYPE_PRE
+- en: To make the change persistent, you can pass a log level command-line parameter
+    to the kernel, or on some Yocto root filesystem images, you could also use a `/etc/sysctl.conf`
+    file (those that install the `procps` package).
+  prefs: []
+  type: TYPE_NORMAL
+- en: There's more...
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'Linux drivers do not use the `printk` function directly. They use, in order
+    of preference, subsystem-specific messages (such as `netdev` or `v4l)` or the
+    `dev_*` and `pr_*` family of functions. The latter are described in the following
+    table:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '| Device message | Generic message | Printk symbol |'
+  prefs: []
+  type: TYPE_TB
+- en: '| --- | --- | --- |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `dev_emerg` | `pr_emerg` | `KERN_EMERG` |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `dev_alert` | `pr_alert` | `KERN_ALERT` |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `dev_crit` | `pr_crit` | `KERN_CRIT` |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `dev_err` | `pr_err` | `KERN_ERR` |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `dev_warn` | `pr_warn` | `KERN_WARNING` |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `dev_notice` | `pr_notice` | `KERN_NOTICE` |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `dev_info` | `pr_info` | `KERN_INFO` |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `dev_dbg` | `pr_debug` | `KERN_DEBUG` |'
+  prefs: []
+  type: TYPE_TB
+- en: 'To enable the debug messages within a driver, you may do either of these:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Define `DEBUG` in a macro before any other header file in your driver source,
+    as follows:'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '[PRE113]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: Use the dynamic debug kernel feature. You can then enable/disable all `dev_dbg`
+    and `pr_debug` debug messages with granularity through `debugfs`.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Using dynamic debug
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: 'To use the dynamic debug functionality in the Linux kernel, follow these steps:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Make sure your kernel is compiled with dynamic debugging (`CONFIG_DYNAMIC_DEBUG`).
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'Mount the debug filesystem if it hasn''t already been mounted:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE114]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Configure the debug though the `dynamic_debug/control` folder. It accepts a
+    whitespace-separated sequence of words:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '`func <function name>`'
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`file <filename>`'
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`module <module name>`'
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`format <pattern>`'
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`line <line or line range>`'
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`+ <flag>`: This adds the specified flag'
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`- <flag>`: This one removes the specified flag'
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`= <flag>`: This sets the specified flag'
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'The flags are defined as follows:'
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: '`f`: This flag includes the function name in the message'
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`l`: This flag includes the line number in the message'
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`m`: This flag includes the module name in the message'
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`p`: This flag enables the debug message'
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`t`: This flag includes the thread ID in non-interrupt context messages'
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: By default all debug messages are disabled. The control file contains all the
+    available debug points, and by default they have no flags enabled (marked as `=`_).
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'Now we will enable the debug as follows:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'Enable all debug statements in a file:'
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '[PRE115]'
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Optionally, you could run a specific debug statement:'
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '[PRE116]'
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'To list all enabled debug statements, we use the following command:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE117]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: To make the debug changes persistent, we can pass `dyndbg="<query>"` or `module.dyndbg="<query>"`
+    to the kernel in the command-line arguments.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Note that the query string needs to be passed surrounded by quotes so that it
+    is correctly parsed. You can concatenate more than one query in the command-line
+    argument by using a semicolon to separate them; for example, `dyndbg="file mxc_v4l2_capture.c
+    +pfl; file ipu_bg_overlay_sdc.c +pfl"`
+  prefs: []
+  type: TYPE_NORMAL
+- en: Rate-limiting debug messages
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: 'There are rate-limiting and one-shot extensions to the `dev_*`, `pr_*`, and
+    `printk` family of functions:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`printk_ratelimited()`, `pr_*_ratelimited()`, and `dev_*_ratelimited()` print
+    no more than 10 times in a 5 * HZ interval'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`printk_once()`, `pr_*_once()`, and `dev_*_once()` will print only once.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: And you also have utility functions to dump a buffer in hexadecimal; for example,
+    `print_hex_dump_bytes()`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: See also
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: The dynamic debug is documented in the Linux kernel source under `Documentation/dynamic-debug-howto.txt`
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Debugging the Linux kernel booting process
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: We have seen the most general techniques for debugging the Linux kernel. However,
+    some special scenarios require the use of different methods. One of the most common
+    scenarios in embedded Linux development is the debugging of the booting process.
+    This recipe will explain some of the techniques used to debug the kernel's booting
+    process.
+  prefs: []
+  type: TYPE_NORMAL
+- en: How to do it...
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: A kernel crashing on boot usually provides no output whatsoever on the console.
+    As daunting as that may seem, there are techniques we can use to extract debug
+    information. Early crashes usually happen before the serial console has been initialized,
+    so even if there were log messages, we would not see them. The first thing we
+    will show is how to enable early log messages that do not need the serial driver.
+  prefs: []
+  type: TYPE_NORMAL
+- en: In case that is not enough, we will also show techniques to access the log buffer
+    in memory.
+  prefs: []
+  type: TYPE_NORMAL
+- en: How it works...
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: Debugging booting problems have two distinctive phases, before and after the
+    serial console is initialized. After the serial is initialized and we can see
+    serial output from the kernel, debugging can use the techniques described earlier.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Before the serial is initialized, however, there is a basic **UART** support
+    in ARM kernels that allows you to use the serial from early boot. This support
+    is compiled in with the `CONFIG_DEBUG_LL` configuration variable.
+  prefs: []
+  type: TYPE_NORMAL
+- en: This adds supports for a debug-only series of assembly functions that allow
+    you to output data to a UART. The low-level support is platform specific, and
+    for the i.MX6, it can be found under `arch/arm/include/debug/imx.S`. The code
+    allows for this low-level UART to be configured through the `CONFIG_DEBUG_IMX_UART_PORT`
+    configuration variable.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'We can use this support directly by using the `printascii` function as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE118]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'However, much more preferred would be to use the `early_print` function, which
+    makes use of the function explained previously and accepts formatted input in
+    `printf` style; for example:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE119]'
+  prefs: []
+  type: TYPE_PRE
+- en: Dumping the kernel's printk buffer from the bootloader
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: Another useful technique to debug Linux kernel crashes at boot is to analyze
+    the kernel log after the crash. This is only possible if the RAM memory is persistent
+    across reboots and does not get initialized by the bootloader.
+  prefs: []
+  type: TYPE_NORMAL
+- en: As U-Boot keeps the memory intact, we can use this method to peek at the kernel
+    login memory in search of clues.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Looking at the kernel source, we can see how the log ring buffer is set up in
+    `kernel/printk/printk.c` and also note that it is stored in `__log_buf`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'To find the location of the kernel buffer, we will use the `System.map` file
+    created by the Linux build process, which maps symbols with virtual addresses
+    using the following command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE120]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'To convert the virtual address to physical address, we look at how `__virt_to_phys()`
+    is defined for ARM:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE121]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'The `PAGE_OFFSET` variable is defined in the kernel configuration as:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE122]'
+  prefs: []
+  type: TYPE_PRE
+- en: Some of the ARM platforms, like the i.MX6, will dynamically patch the `__virt_to_phys()`
+    translation at runtime, so `PHYS_OFFSET` will depend on where the kernel is loaded
+    into memory. As this can vary, the calculation we just saw is platform specific.
+  prefs: []
+  type: TYPE_NORMAL
+- en: For the Wandboard, the physical address for 0x80f450c0 is 0x10f450c0.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'We can then force a reboot using a magic *SysRq* key, which needs to be enabled
+    in the kernel configuration with `CONFIG_MAGIC_SYSRQ`, but is enabled in the Wandboard
+    by default:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE123]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'We then dump that memory address from U-Boot as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE124]'
+  prefs: []
+  type: TYPE_PRE
+- en: There's more...
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: Another method is to store the kernel log messages and kernel panics or oops
+    into persistent storage. The Linux kernel's persistent store support (`CONFIG_PSTORE`)
+    allows you to log in to the persistent memory kept across reboots.
+  prefs: []
+  type: TYPE_NORMAL
+- en: To log panic and oops messages into persistent memory, we need to configure
+    the kernel with the `CONFIG_PSTORE_RAM` configuration variable, and to log kernel
+    messages, we need to configure the kernel with `CONFIG_PSTORE_CONSOLE`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'We then need to configure the location of the persistent storage on an unused
+    memory location, but keep the last 1 MB of memory free. For example, we could
+    pass the following kernel command-line arguments to reserve a 128 KB region starting
+    at 0x30000000:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE125]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'We would then mount the persistent storage by adding it to `/etc/fstab` so
+    that it is available on the next boot as well:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE126]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'We then mount it as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE127]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Next, we force a reboot with the magic *SysRq* key:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE128]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'On reboot, we will see a file inside `/pstore`:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE129]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'This will have contents such as the following:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE130]'
+  prefs: []
+  type: TYPE_PRE
+- en: We should move it out of `/pstore` or remove it completely so that it doesn't
+    occupy memory.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Using the kernel function tracing system
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'Recent versions of the Linux kernel contain a set of tracers that, by instrumenting
+    the kernel, allow you to analyze different areas like:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Interrupt latency
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Preemption latency
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Scheduling latency
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Process context switches
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Event tracing
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Syscalls
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Maximum stack
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Block layer
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Functions
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: The tracers have no performance overhead when not enabled.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Getting ready...
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: The tracing system can be used in a wide variety of debugging scenarios, but
+    one of the most common tracers used is the function tracer. It instruments every
+    kernel function with a NOP call that is replaced and used to trace the kernel
+    functions when a trace point is enabled.
+  prefs: []
+  type: TYPE_NORMAL
+- en: To enable the function tracer in the kernel, use the `CONFIG_FUNCTION_TRACER`
+    and `CONFIG_FUNCTION_GRAPH_TRACER` configuration variables.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The kernel tracing system is controlled via a `tracing` file in the `debug`
+    filesystem, which is mounted by default on Yocto''s default images. If not, you
+    can mount it with:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE131]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'We can list the available tracers in our kernel by executing:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE132]'
+  prefs: []
+  type: TYPE_PRE
+- en: How to do it...
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'You can enable a tracer by echoing its name to the `current_tracer` file. No
+    tracers are enabled by default:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE133]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'You can disable all tracers by executing the following command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE134]'
+  prefs: []
+  type: TYPE_PRE
+- en: We use `echo -n` to avoid the trailing newline when echoing to files in `sysfs`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'To enable the function tracer, you would execute:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE135]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'A prettier graph can be obtained by using the function graph tracer as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE136]'
+  prefs: []
+  type: TYPE_PRE
+- en: How it works...
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: You can look at the captured trace in human-readable format via the `trace`
+    and `trace_pipe` files, with the latter blocking on `read` and consuming the data.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The function tracer provides the following output:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE137]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'The format for the function tracer output is:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE138]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'The graphical function tracer output is as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE139]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'The format for the grapical function tracer output is:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE140]'
+  prefs: []
+  type: TYPE_PRE
+- en: There's more...
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: The kernel tracing system allows us to insert traces in the code by using the
+    `trace_printk` function call. It has the same syntax as `printk` and can be used
+    in the same scenarios, interrupts, NMI, or scheduler contexts.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Its advantage is that as it prints to the tracing buffer in memory and not to
+    the console, it has much lower delays than `printk`, so it is useful to debug
+    scenarios where `printk` is affecting the system's behavior; for example, when
+    masking a timing bug.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Tracing is enabled once a tracer is configured, but whether the trace writes
+    to the ring buffer or not can be controlled. To disable the writing to the buffer,
+    use the following command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE141]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'And to re-enable it, use the following command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE142]'
+  prefs: []
+  type: TYPE_PRE
+- en: You can also enable and disable the tracing from kernel space by using the `tracing_on`
+    and `tracing_off` functions.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Inserted traces will appear in any tracer, including the `function` tracer,
+    in which case it will appear as a comment.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Filtering function traces
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: You can get finer granularity in the functions being traced by using the dynamic
+    tracer, which can be enabled with the `CONFIG_DYNAMIC_FTRACE` configuration variable.
+    This is enabled with the tracing functionality by default. This adds two more
+    files, `set_ftrace_filter` and `set_ftrace_notrace`. Adding functions to `set_ftrace_filter`
+    will trace only those functions, and adding them to `set_ftrace_notrace` will
+    not trace them, even if they are also added to `set_ftrace_filter`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The set of available function names that can be filtered may be obtained by
+    executing the following command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE143]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Functions can be added with:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE144]'
+  prefs: []
+  type: TYPE_PRE
+- en: Note that we use the concatenation operator (`>>`) so that the new function
+    is appended to the existing ones.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'And functions can also be removed with:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE145]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'To remove all functions, just echo a blank line into the file:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE146]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'There is a special syntax that adds extra flexibility to the filtering: `<function>:<command>:[<parameter>]`'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Let''s explain each of the components individually:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`function`: This specifies the function name. Wildcards are allowed.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`command`: This has the following attributes:'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`mod`: This enables the given function name only in the module specified in
+    the parameter'
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`traceon/traceoff`: This enables or disables tracing when the specified function
+    is hit the numbers of times given in the parameter, or always if no parameter
+    is given.'
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`dump`: Dump the contents of the tracing buffer when the given function is
+    hit.'
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Here are some examples:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE147]'
+  prefs: []
+  type: TYPE_PRE
+- en: Enabling trace options
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: 'Traces have a set of options that can be individually enabled in the `/sys/kernel/debug/tracing/options`
+    directory. Some of the most useful options include:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`print-parent`: This option displays the caller function too'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`trace_printk`: This option disables `trace_printk` writing'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Using the function tracer on oops
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: 'Another alternative to log the kernel messages on oops or panic is to configure
+    the function tracer to dump its buffer contents to the console so that the events
+    leading up to the crash can be analyzed. Use the following command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE148]'
+  prefs: []
+  type: TYPE_PRE
+- en: The `sysrq-z` combination will also dump the contents of the tracing buffer
+    to the console, as does calling `ftrace_dump()` from the kernel code.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Getting a stack trace for a given function
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: 'The tracing code can create a backtrace for every function called. However,
+    this is a dangerous feature and should only be used with a filtered selection
+    of functions. Have a look at the following commands:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE149]'
+  prefs: []
+  type: TYPE_PRE
+- en: Configuring the function tracer at boot
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: 'The function tracer can be configured in the kernel command-line arguments
+    and started as early as possible in the boot process. For example, to configure
+    the graphic function tracer and filter some functions, we would pass the following
+    arguments from the U-Boot bootloader to the kernel:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE150]'
+  prefs: []
+  type: TYPE_PRE
+- en: See also
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: More details can be found in the kernel source documentation folder at `Documentation/trace/ftrace.txt`
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Managing the device tree
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: The device tree is a data structure that is passed to the Linux kernel to describe
+    the physical devices in a system.
+  prefs: []
+  type: TYPE_NORMAL
+- en: In this recipe, we will explain how to work with device trees.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Getting ready
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: Devices that cannot be discovered by the CPU are handled by the platform devices
+    API on the Linux kernel. The device tree replaces the legacy platform data where
+    hardware characteristics were hardcoded in the kernel source so that platform
+    devices can be instantiated. Before device trees came into use, the bootloader
+    (for example, U-Boot) had to tell the kernel what machine type it was booting.
+    Moreover, it had to pass other information such as memory size and location, kernel
+    command line, and more.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The device tree should not be confused with the Linux kernel configuration.
+    The device tree specifies what devices are available and how they are accessed,
+    not whether the hardware is used.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The device tree was first used by the PowerPC architecture and was adopted later
+    on by ARM and all others, except x86\. It was defined by the Open Firmware specification,
+    which defined the flattened device tree format in **Power.org Standard for Embedded
+    Power Architecture Platform Requirements** (**ePAPR**), which describes an interface
+    between a boot program and a client.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Platform customization changes will usually happen in the device tree without
+    the need to modify the kernel source.
+  prefs: []
+  type: TYPE_NORMAL
+- en: How to do it...
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: A device tree is defined in a human-readable device tree syntax (`.dts`) text
+    file. Every board has one or several DTS files that correspond to different hardware
+    configurations.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'These DTS files are compiled into **Device Tree Binary** (**DTB**) blobs, which
+    have the following properties:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: They are relocatable, so pointers are never used internally
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: They allow for dynamic node insertion and removal
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: They are small in size
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Device tree blobs can either be attached to the kernel binary (for legacy compatibility)
+    or, as is more commonly done, passed to the kernel by a bootloader like U-Boot.
+  prefs: []
+  type: TYPE_NORMAL
+- en: To compile them, we use a **Device Tree Compiler** (**DTC**), which is included
+    in the kernel source inside `scripts/dtc` and is compiled along with the kernel
+    itself, or we could alternatively install it as part of your distribution. It
+    is recommended to use the DTC compiler included in the kernel tree.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The device trees can be compiled independently or with the Linux kernel kbuild
+    system, as we saw previously. However, when compiling independently, modern device
+    trees will need to be preprocessed by the C preprocessor first.
+  prefs: []
+  type: TYPE_NORMAL
+- en: It's important to note that the DTC currently performs syntax checking but no
+    binding checking, so invalid DTS files may be compiled, and the resulting DTB
+    file may result in a non-booting kernel. Invalid DTB files usually hang the Linux
+    kernel very early on so there will be no serial output.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The bootloader might also modify the device tree before passing it to the kernel.
+  prefs: []
+  type: TYPE_NORMAL
+- en: How it works...
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'The DTS file for the `wandboard-quad` variant is under `arch/arm/boot/dts/imx6q-wandboard.dts`
+    and looks as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE151]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'What we see here is the device tree root node that has no parents. The rest
+    of the nodes will have a parent. The structure of a node can be represented as
+    follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE152]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'The node properties can be:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Empty
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Contain one or more strings
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Contain one or more unsigned 32-bit numbers, called **cells**
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Contain a binary byte stream
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Be a reference to another node, called a **phandle**
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: The device tree is initially parsed by the C preprocessor and it can include
+    other DTS files. These `include` files have the same syntax and are usually appended
+    with the `dtsi` suffix. File inclusion can also be performed with the device tree
+    `/include/` operator, although `#include` is recommended, and they should not
+    be mixed. In this case, both `imx6q.dtsi` and `imx6qdl-wandboard.dtsi` are overlaid
+    with the contents of `imx6q-wandboard.dts`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Device tree nodes are documented in bindings contained in the `Documentation/devicetree/bindings/`
+    directory of the kernel source. New nodes must include the corresponding bindings,
+    and these must be reviewed and accepted by the device tree maintainers. Theoretically,
+    all bindings need to be maintained, although it is likely this will be relaxed
+    in the future.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The compatible property
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: The most important property in a device tree node is the `compatible` property.
+    In the root node, it defines the machine types the device tree is compatible with.
+    The DTS file we just saw is compatible in order of precedence with the `wand,imx6q-wandboard`
+    and `fsl,imx6q` machine types.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'On a non-root node, it will define the driver match for the device tree node,
+    binding a device with the driver. For example, a platform driver that binds with
+    a node that defines a property that is compatible with `fsl,imx6q-tempmon` would
+    contain the following excerpt:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE153]'
+  prefs: []
+  type: TYPE_PRE
+- en: The Wandboard device tree file
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: Usually, the first DTSI file to be included is `skeleton.dtsi`, which is the
+    minimum device tree needed to boot, once a compatible property is added.
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE154]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Here are the other common top nodes:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '**chosen**: This node defines fixed parameters set at boot, such as the Linux
+    kernel command line or the `initramfs` memory location. It replaces the information
+    traditionally passed in ARM tags (`ATAGS`).'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**memory**: This node is used to define the location and size of RAM. This
+    is usually filled in by the bootloader.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**aliases**: This defines shortcuts to other nodes.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**address-cells** and **size-cells**: These are used for memory addressability
+    and will be discussed later on.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'A summary representation of the `imx6q-wandboard.dts` file showing only the
+    selected buses and devices follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE155]'
+  prefs: []
+  type: TYPE_PRE
+- en: On this DTS, we can find several nodes defining **system on chip** (**SoC**)
+    buses and several other nodes defining on-board devices.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Defining buses and memory-addressable devices
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: Buses are typically defined by the `compatible` property or the `simple-bus`
+    property (to define a memory-mapped bus with no specific driver binding) or both.
+    The `simple-bus` property is needed so that children nodes to the bus are registered
+    as platform devices.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'For example, the `soc` node is defined as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE156]'
+  prefs: []
+  type: TYPE_PRE
+- en: The properties on the `soc` node are used to specify the memory addressability
+    of the children nodes.
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`address-cells`: This property indicates how many base address cells are needed
+    in the `reg` property.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`size-cells`: This property indicates how many size cells are needed in the
+    `reg` property.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`ranges`: This one describes an address translation between parent and child
+    buses. In here, there is no translation and parent and child addressing is identical.'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'In this case, any child of `soc` needs to define its memory addressing with
+    a `reg` property that contains one cell for the address and one cell for the size.
+    The `aips-bus` node does that with the following property:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE157]'
+  prefs: []
+  type: TYPE_PRE
+- en: There's more...
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: When the device tree binary blob is loaded in memory by the Linux kernel, it
+    is expanded into a flattened device tree that is accessed by offset. The `fdt_*`
+    kernel functions are used to access the flattened device tree. This `fdt` is then
+    parsed and transformed into a tree memory structure that can be efficiently accessed
+    with the `of_*` family of functions (the prefix comes from Open Firmware).
+  prefs: []
+  type: TYPE_NORMAL
+- en: Modifying and compiling the device tree in Yocto
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: 'To modify the device tree in the Yocto build system, we execute the following
+    set of commands:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE158]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'We then edit `arch/arm/boot/dts/imx6q-wandboard.dts` and compile the changes
+    with:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE159]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'If we want to create a device tree with extra space, let''s say 1024 bytes
+    (for example, to add nodes dynamically as explained in the next recipe), we need
+    to specify it with a DTC flag as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE160]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'To deploy it, we exit the devshell and build the kernel from the project''s
+    `build` directory:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE161]'
+  prefs: []
+  type: TYPE_PRE
+- en: See also
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: More information regarding device trees can be found at [http://www.devicetree.org](http://www.devicetree.org)
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Debugging device tree issues
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: This recipe will show some techniques to debug common problems with the device
+    tree.
+  prefs: []
+  type: TYPE_NORMAL
+- en: How to do it...
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: As mentioned before, problems with the syntax of device tree files usually result
+    in the kernel crashing early in the boot process. Other type of problems are more
+    subtle and usually appear once a driver is making use of the information provided
+    by the device tree. For both types of problems, it is helpful to be able to look
+    not only at the device tree syntax file, but also at the device tree blob, as
+    it is read by both U-Boot and the Linux kernel. It may also be helpful to modify
+    the device tree on the fly using the tools that U-Boot offers.
+  prefs: []
+  type: TYPE_NORMAL
+- en: How it works...
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: Looking at the device tree from U-Boot
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: 'The U-Boot bootloader offers the `fdt` command to interact with a device tree
+    blob. On the Wandboard''s default environment, there are two variables related
+    to the device tree:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`fdt_file`: This variable contains the name of the device tree file used'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`fdt_addr`: This variable contains the location in memory to load the device
+    tree'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'To fetch the Wandboard''s device tree from the TFTP server location and place
+    it in memory, we use the following command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE162]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Once we have the device tree blob in memory, we tell U-Boot where it is located:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE163]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'And then we can inspect nodes from the device tree using the full path to them
+    from the root node. To inspect the selected levels, we use the `list` command,
+    and to print complete subtrees, we use the `print` command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE164]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'U-Boot can also attach new nodes to the tree assuming there is extra space
+    in the device tree:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE165]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'It can also create or remove properties:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE166]'
+  prefs: []
+  type: TYPE_PRE
+- en: For example, it can be useful to modify the kernel command line through the
+    chosen node.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Looking at the device tree from the Linux kernel
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: 'Once the Linux kernel is booted, it can be useful to expose the device tree
+    to user space so that it can be explored. You can do this by configuring the Linux
+    kernel with the `CONFIG_PROC_DEVICETREE` configuration variable. The Wandboard
+    Linux kernel comes preconfigured to expose the device tree in `/proc/device-tree`
+    as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE167]'
+  prefs: []
+  type: TYPE_PRE

@@ -1,0 +1,905 @@
+- en: Chapter 8. Integrating RHEL 7 into Microsoft Active Directory Domains
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: In the previous chapter, we looked at how to share resources to Microsoft's
+    clients. Now, in the spirit of true symbiosis, we will see how RHEL can make use
+    of Active Directory users and groups, implementing domains as identity stores.
+    If users have access to the console of the RHEL server, then simply by their Active
+    Directory credentials, they will have access to RHEL. Not only does this streamline
+    access to a console, but it also simplifies access to any shared folder on the
+    RHEL 7 Samba server.
+  prefs: []
+  type: TYPE_NORMAL
+- en: We will structure this chapter so that you are able to see the bells and whistles
+    (the good stuff) that Active Directory integration can provide before we delve
+    under the hood at what goes on to make these simple tools work.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'In this chapter, we will cover the following topics:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Overview of identity management
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Overview of the lab environment
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Preparing to join an Active Directory domain
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Using realm to manage domain enrolment
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Logging on to RHEL 7 using Active Directory credentials
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: User and group management with `adcli`
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Delegating Active Directory accounts with `sudo`
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Leaving a domain
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Understanding Active Directory as an identity provider for `sssd`
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Overview of identity management
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: To begin our banquet of delights, we will focus on the importance of identity
+    management in an enterprise. Without using some form of identity store or vault
+    to centralize user accounts, these accounts will need to be duplicated because
+    access is required for other systems. As you can imagine, these user accounts
+    can quickly become out of control as vast numbers are created to support individual
+    account silos on each system. However, we should not be too concerned with the
+    need for creation and management of these accounts; other than this, being an
+    administrative burden is not a security concern. If a user does not have access
+    to a resource, they will soon let you know. The concern with account silos is
+    what happens when a user leaves; do you believe that every account for every user
+    that leaves an organization will be deleted or (at least) disabled. Somehow, however
+    good your system, some will slip through the net and a security issue will be
+    created. Good identity management with one account per user will solve the administrative
+    burden, and more importantly, the security weakness.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Of course, lesser issues relate to the management of these accounts, such as
+    password changes, and perhaps the need for name changes as time progresses. Ideally,
+    each user in an organization will have just one identity, which is a single set
+    of credentials that they use to gain access to any resource to which they have
+    permission. This can be achieved through some form of central directory service
+    acting as an identity vault. This may be the Active Directory, but it can quite
+    easily be some other form of the **LDAP** (**Lightweight Directory Access Protocol**)
+    server. In small to medium environments, an Active Directory may be sufficient,
+    but as the organization grows and the size of the identity vault grows, perhaps
+    the need for a completely separate directory for users will be needed. The central
+    user store can then synchronize changes to other connected systems.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Microsoft has its Identity Management suite to build around the Active Directory,
+    and Red Hat has its identity management directory server. This chapter will focus
+    and integrate RHEL 7 directly into a single Domain Active Directory environment.
+  prefs: []
+  type: TYPE_NORMAL
+- en: An overview of the lab environment
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: For demonstrations in this chapter, we will use two virtual machines running
+    in an **Oracle VirtualBox** virtualization environment.
+  prefs: []
+  type: TYPE_NORMAL
+- en: We have a Microsoft Server 2008R2 Active Directory Domain Controller with the
+    IP address `192.168.0.252` and the RHEL 7.1 host with the IP address `192.168.0.69`.
+    This is the same setup that we have used in [Chapter 7](part0060.xhtml#aid-1P71O1
+    "Chapter 7. Implementing Windows Shares with Samba 4"), *Implementing Windows
+    Shares with Samba 4*; we have left time and DNS configured the same way. If you
+    are stepping into this chapter without having completed [Chapter 7](part0060.xhtml#aid-1P71O1
+    "Chapter 7. Implementing Windows Shares with Samba 4"), *Implementing Windows
+    Shares with Samba 4*, ensure that you have set up the RHEL server to use the Domain
+    Controller for both the time and name resolution.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Preparing to join an Active Directory domain
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: From what we have seen in [Chapter 7](part0060.xhtml#aid-1P71O1 "Chapter 7. Implementing
+    Windows Shares with Samba 4"), *Implementing Windows Shares with Samba 4*, using
+    Samba to share files, we can understand that this is pretty impressive stuff.
+    We always need to remind ourselves that this all comes without any price tag or
+    the need of client access licenses.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Tip
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: Samba file sharing is free, that is, *without cost* and free in *liberty*; you
+    can use it as you wish. This is the fundamental premise of open source software
+    and is at the heart of Linux.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The big issue that may act as a potential deal breaker is the need to maintain
+    user accounts on the RHEL server and the AD domain to which the workstation accessing
+    the server belongs. If we implement more than one server, the problem is exacerbated
+    with the need for accounts on each and every server as well as the AD domain.
+    The simple solution is to incorporate the RHEL server into the AD domain and use
+    AD accounts for resource access. In this way, we can use a single sign-on to the
+    Active Directory and gain access to shared resources on the RHEL Samba server.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Tip
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: If the Active Directory is not in place, the central account sharing can be
+    established by installing the openLDAP server on RHEL. One RHEL server can then
+    act as an identity vault, sharing accounts to LDAP clients on other servers.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Irrespective of Samba file shares, your Active Directory users may need access
+    to RHEL servers via SSH or some other mechanism. They will need accounts defined
+    on each RHEL server for this. Joining an RHEL server to the AD domain enables
+    the use of the user's AD account when logging in to any member server, which includes
+    RHEL servers or desktops. Additionally, rights can be delegated to these accounts
+    using the `/etc/sudoers` file and file permissions in the normal mechanism.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Before we join the AD domain, we need to ensure that we have set up the time
+    services and DNS, as detailed in [Chapter 7](part0060.xhtml#aid-1P71O1 "Chapter 7. Implementing
+    Windows Shares with Samba 4"), *Implementing Windows Shares with Samba 4*. With
+    these infrastructure services in place, we will need the following packages installed
+    on the RHEL server:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`realmd`: This manages enrolment and membership to the Active Directory domains'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`samba`: This denotes the Samba services'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`samba-common`: This denotes the shared tools for servers and clients'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`oddjob`: This is a D-bus service that runs the odd jobs for clients'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`oddjob-mkhomedir`: This is used with the odd job services to create home directories
+    for AD accounts, if needed'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`sssd`: The System Security Services daemon can be used to divert client authentication
+    as required'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`adcli`: These are the tools for joining and managing AD domains'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'The following command shows the installation of necessary packages:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE0]'
+  prefs: []
+  type: TYPE_PRE
+- en: Using realm to manage domain enrolment
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'With these packages installed, we can use the `realm` command to manage our
+    enrolments. This command is part of the `realmd` package that we added. We can
+    use the list subcommand to ensure that we are not currently part of a domain:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE1]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'The output should be blank. Now, we are ready to proceed with the next step:
+    joining the domain. With a simple environment, you will know the domain that you
+    want to join; at least we certainly hope that you do. In our case, we do know
+    it and this is `example.com`. Using the discover subcommand, we can verify that
+    we have all the required packages installed, as shown in the following command
+    extract:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE2]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'The output from this command will list that this is an Active Directory domain
+    and the required packages that we should have in place before joining the AD domain.
+    The following screenshot illustrates this:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Using realm to manage domain enrolment](img/image00284.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Depending on your Active Directory functionality level, you may require either
+    the `samba-windbind` or `sssd` packages. We are using Active Directory on 2008R2
+    with the default level of Windows Server 2003 configured. At this stage, you should
+    verify that you have all the required packages installed.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Tip
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: If we do not need to share resources we do not need the `samba` package; `samba`
+    is only used to share, not to join domains.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'As this is a Kerberos domain type, the `join` subcommand will join the server
+    to the domain as a member server and initialize the `/etc/krb5.keytab` Kerberos
+    keytab file and the `/etc/krb5.conf` configuration file. There will be more detail
+    on these files that act behind the scenes given at the end of the chapter. To
+    join the AD domain, add the computer to the default folder in the AD domain using
+    the following command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE3]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Should you want to add it to a designated Organizational Unit within the Active
+    Directory, you will first need to create the OU, or at least ensure that it exists.
+    With the OU being present, the command will be similar to the following, where
+    we add to the Linux OU:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE4]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'This is the method we will use to add the RHEL server to a path:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE5]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'With either of these methods, you will be prompted for the domain administrator''s
+    password or the password of a user with delegated rights to add computers to the
+    AD domain and your `sudo` user''s password (if required). The command can take
+    a few minutes to take effect, so give it time until the shell prompt is returned.
+    As a standard user, you can then list the domain you have joined using the `realm
+    list` command again. We should note that the output at first may seem similar
+    to the `realm discover example.com` command that we ran earlier; however, on closer
+    examination, we will see that we are now a member server, as shown by `configured:
+    kerberos-member` in the following command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE6]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'The output from the preceding command is shown in the following screenshot:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Using realm to manage domain enrolment](img/image00285.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Logging on to RHEL 7 using Active Directory credentials
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: Welcome to the world of centralized accounts. I think you will have to concede
+    that the process was very simple using RHEL 7 and vastly more simple than the
+    previous releases of RHEL. We are now ready to make use of central user accounts
+    from the Active Directory.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'To log on to the RHEL 7 server, we can use the Active Directory **UPN** (**User
+    Principal Name**). This is in the format of `user@<Fully Qualified Domain Name>`.
+    For example, if we have an account in the `example.com` domain named `jjones`,
+    we can log on to the RHEL server using the following command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE7]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'The following screenshot shows this process as we use the `switch user` command
+    to log on as the AD account for `jjones`. Note that as the home directory for
+    `jjones` does not exist, `oddjob` kindly creates it for us, as shown in the following
+    screenshot:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Logging on to RHEL 7 using Active Directory credentials](img/image00286.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'To connect remotely using SSH tools, such as PuTTY for Windows, we will use
+    the following syntax implementing two `@` symbols; this may look a little weird,
+    but is correct:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE8]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'An SSH connection to RHEL from the Windows PuTTY client is shown in the following
+    screenshot:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Logging on to RHEL 7 using Active Directory credentials](img/image00287.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: We have now seen that we can make use of Active Directory accounts on our Linux
+    systems. With the Red Hat server as part of our domain, we can log on to Linux
+    with a single set of credentials. When a user leaves an organization, there is
+    now only a solitary user account to delete or disable. We have seen this in action
+    on a single server, but this equally applies to all your RHEL 7 or CentOS 7 servers
+    and desktops; this process is the same across the board, making us efficient and
+    secure.
+  prefs: []
+  type: TYPE_NORMAL
+- en: User and group management with adcli
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'We are not just restricted to consuming these domain accounts; we also have
+    a level of management of Active Directory from the command line of our Linux servers.
+    With the correct privileges in Active Directory, we can:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Create users and groups
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Modify group memberships
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Delete users and groups
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Although the tools are not as rich as you will find with the native OS, especially
+    when using PowerShell, there is a need and advantage to some of the management
+    provided by Linux devices.
+  prefs: []
+  type: TYPE_NORMAL
+- en: If you are a Linux administrator and work mainly on Linux, it does make sense
+    for you to add Active Directory users to groups that you use for delegation on
+    Linux. For example, you can maintain an Active Directory group called `LinuxAdmins`
+    and delegate rights via the `/etc/sudoers` file to this group. It's quite correct
+    that you maintain and control the AD group and not necessarily the `Domain Admins`
+    group in the AD.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Listing the Active Directory information
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'To begin with the `adcli` command, we will take a look at the `info` subcommand.
+    This can display details on domains and the domain controllers that are discovered.
+    We can run this command as a standard user, as shown in the following command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE9]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'The output will show the Active Directory roles for the domain controller and
+    details on the site, as shown in the following screenshot:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Listing the Active Directory information](img/image00288.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: In this way, we will be able to verify the connection and the domain controller
+    that we are connected to.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Creating Active Directory users
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'This command is probably not one of the most useful tools given that we can
+    create the user, but can''t enable the account or set the password for the new
+    user. In this way, the command is less useful than some of the other tools with
+    `adcli`. A sample command is as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE10]'
+  prefs: []
+  type: TYPE_PRE
+- en: This command will try to log on to a domain as an administrator and will prompt
+    for the password. To log on as a different user, you may make use of the `-U`
+    or `--login-user` option.
+  prefs: []
+  type: TYPE_NORMAL
+- en: For completeness, we cover the `create user` command, but in reality, the user
+    will still need to be enabled and have the password set in the Active Directory.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'To delete the account we just created, we will use the following command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE11]'
+  prefs: []
+  type: TYPE_PRE
+- en: Creating Active Directory groups
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: In many respects, the `adcli` command is very useful to us as Linux administrators.
+    So, as long as our domain accounts have rights to create and manage groups in
+    the AD, it's correct that we should be the ones managing the group membership
+    that affect the Linux access. Assuming that the user accounts are already created,
+    we do not need to concern ourselves with password management on the creation and
+    membership of these groups. We will use the administrator account while accessing
+    the domain as before, but we could use our own account if it had the privileges.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'To create the Linux users group in the Linux OU where we have placed the server,
+    we will use the following command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE12]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'We can verify that this has worked as expected by navigating to the **OU**
+    (**Organizational Unit**) within the Active Directory users and computers on the
+    domain controller. In the following screenshot, we can see that we have the server
+    group and the new group:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Creating Active Directory groups](img/image00289.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'We will keep the created group as it is, because we will add users to it; the
+    process of deleting a group is similar to the process of deleting a user, as shown
+    in the following command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE13]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Should we need help on any command, we can issue syntax help with commands
+    similar to the following command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE14]'
+  prefs: []
+  type: TYPE_PRE
+- en: Just use the correct subcommand that you need help with.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Managing the Active Directory group membership
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'Now that we have the Linux users group, we can manage the membership of this
+    group. Within the AD domain, we have the `jjones` user that we can add to this
+    group. The following command shows how this is done using our domain:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE15]'
+  prefs: []
+  type: TYPE_PRE
+- en: Tip
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: Other than when you create a group or user in a given context, we can refer
+    to the object by the `SAMAccountName` attribute alone (the user or group name).
+    This is a unique identifier in a domain. In the preceding example, we can simply
+    refer to the group as `Linux Users` and the user as `jjones`. Quotes are required
+    to protect the space used in the group name.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Delegating Active Directory accounts with sudo
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: Being able to manage the Active Directory group membership is fundamental to
+    our management of Linux. We can assign the ownership of files and directories
+    to these groups and (more importantly) the delegate rights on the system using
+    the `/etc/sudoers` file.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Let''s see how this delegation works. We will create a new group in the Active
+    Directory and add an administrator to this group. As a simple setup, we are limited
+    to users that we have created, as shown in the following commands:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE16]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'We now have two groups that we may want to use for delegation: `Linux Users`
+    and `Linux Admins`. To delegate with the `sudoers` system, we run the `visudo`
+    command as a root user or with `sudo`. This file can be used as delegation, which
+    allows selected commands to be run as root by selected users. These commands have
+    to be prefaced with the `sudo` command. You can think of `sudo` as a similar command
+    to `runas` in a Windows system:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE17]'
+  prefs: []
+  type: TYPE_PRE
+- en: This will open the `/etc/sudoers` file for editing purposes. We can use `G`
+    to move towards the end of the file and then `o` to insert a new line.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'We will add these two lines of code to the `/etc/sudoers` file:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE18]'
+  prefs: []
+  type: TYPE_PRE
+- en: Tip
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: Note the use of `\` to protect the space here. This is required because the
+    `sudoers` file does not like the use of quotes.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The Linux admins group is allowed to run all commands on the system as root
+    using `sudo`. The Linux users group can run the `mount` and `umount` commands
+    only to mount and unmount the `cdrom` device.
+  prefs: []
+  type: TYPE_NORMAL
+- en: With all the changes made in `vi`, we can use the `ESC` key to exit and `:x`
+    to save and exit the insert mode.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following screenshot from the example system shows the changes as they
+    should appear:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Delegating Active Directory accounts with sudo](img/image00290.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: When we log on as `jjones`, We will now find that we have the membership of
+    the `Linux Users` group and `Linux Admins` for the `Administrator`. Additionally,
+    both users will belong to the `Domain Users` group.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'We can run the following command as a user of either group:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE19]'
+  prefs: []
+  type: TYPE_PRE
+- en: The preceding command will display the group names that the user belongs to.
+    The domain administrator account will have several group memberships, but it will
+    importantly include the `Linux Admins` group. This will allow users to run all
+    commands prefixed with `sudo` so that they can run as root, as we have seen with
+    the `andrew` account that had similar rights delegated.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following screenshot shows the output of the `id` command when it is run
+    as the administrator:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Delegating Active Directory accounts with sudo](img/image00291.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'We can also assign the filesystem ownership to users and groups from the directories.
+    While we are still logged in to the RHEL 7.1 system as the domain administrator
+    account, we will prove that the `sudo` entry is correct by changing the group
+    ownership of a directory; this is something normally reserved for root:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE20]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'In the preceding example, we changed the group ownership of the `/data` directory
+    to the `Linux Users` group; subsequently, we displayed the ownership of the directory
+    as well. For additional clarity, we have included a screenshot to demonstrate
+    this process:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Delegating Active Directory accounts with sudo](img/image00292.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Leaving a domain
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'Until now, we have been able to demonstrate true interoperability with the
+    Active Directory through the use of delegated permissions using `sudo` and ownership
+    of files and directories with filesystems. This is outstanding and nothing less
+    than what you would expect from an Enterprise Linux system; however outstanding
+    this may be, there will be occurrences where the Linux server needs to be removed
+    from a domain. Often, this is the case where it is removed from one domain before
+    being added to another. Should this be required, the realm command makes the process
+    easy, reversing the operation to the `join` subcommand as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE21]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'The additional option: `--remove` will ensure that the computer account is
+    also deleted from the domain; otherwise, it should be deleted separately. For
+    the moment, we will leave the computer in the domain.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Understanding Active Directory as an identity provider for sssd
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: In many ways, something this simple is very welcome on Linux; however, the simplicity
+    is in masking the complex series of events and procedures that occur behind the
+    scenes. It's now time to delve into what makes `sssd` work.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'We first need to remind ourselves of all the configurations that we added in
+    the only manual part of the process, that is, setting up the infrastructure services
+    of time and DNS required for integration into the Active Directory. The following
+    diagram shows the relationship between the RHEL server and Active Directory:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Understanding Active Directory as an identity provider for sssd](img/image00293.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: When we interrogated the Active Directory domain with `realm`, we could see
+    from the resulting information that we required the `sssd` package among others.
+    The System Security Services Daemon (`sssd`) provides a set of daemons to manage
+    access to remote directories and authenticate mechanisms, in our case, the Active
+    Directory. The `sssd` service provides the **NSS** (**Name Service Switch**) and
+    **PAM** (**Pluggable Authentication Mechanism**) interface for our system and
+    a modular backend system to connect to multiple different account sources and
+    the D-bus interface as well. With this in mind, we should understand that both
+    NSS and PAM modules have been added and configured for us on the system.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Identifying accounts on the remote Active Directory is performed over LDAP and
+    authentication is done via Kerberos to the AD domain. The LDAP account search
+    is referenced and calls for the `/usr/lib64/libnss_sss.so.2` NSS module and the
+    `/etc/nsswitch.conf` file. Authentication will be referenced using `/lib64/security/pam_nss.so`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'We can expand the relationship diagram to include `sssd` as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Understanding Active Directory as an identity provider for sssd](img/image00294.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Configuring NSS
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: The **Name Service Switch** (**NSS**) configuration file, `/etc/nsswitch.conf`,
+    is used by various NSS libraries; one of the NSS libraries is `/usr/lib64/libnss_sss.so.2`.
+    The NSS configuration file determines the sources from which you can obtain the
+    name service information and its order from a range of categories. Each category
+    of information is identified by a resource database name; this can be `hosts`
+    for name resolution and `passwd` for a database to locate user accounts.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'In my opinion, the simplest approach is to use the `hosts` database to explain
+    how these forces work. The entry in the `/etc/nsswitch.conf` for hosts is as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE22]'
+  prefs: []
+  type: TYPE_PRE
+- en: With the settings in effect, the preceding name resolution is achieved by first
+    resolving names from the `/etc/hosts` local file and then via DNS resolver libraries.
+    If you reversed these entries, the DNS will be checked before the local file.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'If we check for `sss` within a file, we can see all the databases that rely
+    on a particular library. The `grep` command can be used to isolate these entries,
+    as shown in the following command:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE23]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'The result of the query should look similar to the following screenshot:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Configuring NSS](img/image00295.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: These are default settings, but we are not forced to accept them; we can implement
+    changes if required. However, this order is probably the best as it allows local
+    accounts to be resolved before searching for a domain (not that domain accounts
+    will clash because they are specified with the full UPN of the user.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The database names are explained here:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`passwd`: This specifies the user accounts'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`shadow`: This denotes the password information'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`group`: This specifies the group accounts'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`services`: This denotes the service name resolution'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`netgroup`: This specifies the groups of hosts that can be used in access control
+    rules'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`automount`: This denotes the directories to be auto-mounted by `autofs`'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'In many setups, it''s easy to disable the bottom three elements: `services`,
+    `netgroup`, and `automount`. This will help tune the directory access, for example,
+    if you leave the default settings when you run tools, such as `netstat`, to query
+    which ports are open on the server, you will also run an LDAP query in the AD
+    to resolve port addresses to service names with the service database entry in
+    the `/etc/nsswitch.conf`.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The entry for the services will read similar to the following command to prevent
+    LDAP lookups:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE24]'
+  prefs: []
+  type: TYPE_PRE
+- en: Configuring PAM
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: We can often leave **Pluggable Authentication Modules** (**PAM**) as they are,
+    but we will look at their configuration here.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The services that can use PAM are configured with the associated PAM modules
+    that they should use within a file in the `/etc/pam.d` directory. The can be in
+    individual files, such as `/etc/pam.d/login`, or through command files that are
+    referenced by many services (such as `/etc/pam.d/system-auth-ac`).
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'We can display the configuration that `sssd` uses with PAM using `grep` again
+    to filter `sss` from the `/etc/pam.d/system-auth-ac` file. The output is shown
+    in the following screenshot:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Configuring PAM](img/image00296.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'We can see that the authentication module is used for all possible triggers:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`auth`: This is used during authentication'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`account`: This is used for account restrictions'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`password`: This is used for password change events'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`session`: This is used during a logged in session'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Let''s see some arguments (such as `use_first_pass`) that are used with the
+    authentication module. Some of the possible arguments are stated as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`forward_pass`: The entered password can be used for other modules'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`use_first_pass`: Does not prompt for a password, but uses a previously entered
+    password'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`use_authtok`: When changing a password, the previously entered password can
+    be used to authenticate the password change'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`retry=N`: If this is set, the user can be prompted more than once for the
+    password if they enter the wrong password'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Configuring Kerberos
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'When you join a domain using realm, the `/etc/krb5.conf` keytab file is created
+    to authenticate the RHEL system to the domain alongside the `/etc/krb5.conf` file.
+    Having tidied the file, after removing comments for our domain, the file looks
+    similar to the following screenshot:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Configuring Kerberos](img/image00297.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'We can see that the `/etc/krb5.conf` file has four sections:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`logging`'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`libdefaults`'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`realms`'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`domain_realm`'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'As the demonstration lab is very small with just a single domain controller,
+    there is no need to make changes. If you have a larger setup, you may want to
+    add some more details to the realm. You can point to the local domain controllers
+    holding the correct roles; otherwise, just let the DNS service records resolve
+    these records as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE25]'
+  prefs: []
+  type: TYPE_PRE
+- en: Configuring SSSD
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'The configuration for `sssd` can be found in the `/etc/sssd/sssd.conf` file.
+    We have seen that this works for us by default, but there is room for customization,
+    as shown in the following screenshot:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Configuring SSSD](img/image00298.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: A simple change here will be to change the home directory location of the AD
+    users. By default, this is `/home/example.com/username`. If you have added the
+    Unix extensions to the Active Directory, then we will set `ldap_id_mapping` to
+    `false` and the UID and GID will be set in the Active Directory.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Summary
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: In this chapter, we looked at how to use the Active Directory as an identity
+    store, utilizing users and groups on Linux. The ease of setting this up makes
+    this a very usable and much-needed solution within corporations throughout the
+    world.
+  prefs: []
+  type: TYPE_NORMAL
+- en: There is a little bit of ground work required before setting up the time and
+    DNS. Once this is set, then configuring `sssd` to use Active Directory as an identity
+    source with the command realm is really a doddle.
+  prefs: []
+  type: TYPE_NORMAL
+- en: With the RHEL system in the AD domain, we can manage this domain to a degree
+    with `adcli` and give users' access to the Linux command line through a console
+    or via SSH.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Next up, we will be staying a little with file sharing, but this time, we will
+    use the Apache HTTPD web server.
+  prefs: []
+  type: TYPE_NORMAL

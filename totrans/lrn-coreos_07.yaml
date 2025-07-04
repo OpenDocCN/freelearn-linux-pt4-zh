@@ -1,0 +1,1307 @@
+- en: Chapter 7. Creating a Virtual Tenant Network and Service Chaining Using OVS
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: In the previous chapter, we saw how different services running inside the CoreOS
+    cluster can be linked with each other. The chapter described in detail how the
+    services deployed by different customers/tenants across the CoreOS cluster can
+    be linked/connected using OVS.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'This chapter covers the following topics:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Introduction to OpenVSwitch/OVS
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Introduction to overlay and underlay networks
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Introduction to virtual tenant networks
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Docker networking using OVS
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: As OVS is a production-quality, widely deployed software switch with a wide
+    range of feature sets, we are going to see how OVS can be used to provide service
+    chaining, which can differentiate between different customer services.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Introduction to OVS
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: '**OpenVSwitch** (**OVS**) is a production-quality open source virtual switch
+    application that can be run on any Unix-based systems. Typically, OVS is used
+    in a virtualization environment to provide communication between the virtual machines/containers
+    that are running inside the servers. OVS acts as a software switch that provides
+    layer2 connectivity between the VMs running inside a server. Linux Bridge can
+    also be used for providing communication between the VMs inside the server. However,
+    OVS provides all the bells and whistles that are required in a typical server
+    virtualization environment. The following diagram depicts how OVS provides connectivity
+    across the VMs running inside the server:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Introduction to OVS](img/00030.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: In the diagram, there are three VMs that are running in a server. One end of
+    the VM's virtual NIC is connected to **Open vSwitch**. Here, **Open vSwitch**
+    provides connectivity across all the VMs in the server. **Open vSwitch** is also
+    connected to the physical NIC to provide communication to and from the VMs to
+    the external world.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The OVS offers **Security** by providing traffic **isolation** using **VLAN**
+    and **traffic filtering** based on various packet headers. OVS provides a way
+    for **Monitoring** the packets that are exchanged across the VMs in the server
+    using protocols like **sFlow**, **SPAN**, **RSPAN**, and so on. OVS also supports
+    **QoS** (quality of service) with **traffic queuing and shaping** along with **OpenFlow**
+    support.
+  prefs: []
+  type: TYPE_NORMAL
+- en: OVS architectural overview
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: This section describes the high-level architectural overview of OVS and its
+    components.
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![OVS architectural overview](img/00031.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'The main components of OVS are as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '`ovs-vsctl`: This is the utility provided by OVS for configuring and querying
+    the `ovs-vswitchd` daemon via `ovsdb-server`'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`ovs-appctl`: This is a utility for managing the logging level of OVS'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`ovs-ofctl`: This is the utility provided by OVS for managing OpenFlow entries
+    in the switch'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`ovs-dpctl`: This is the data-path management utility that is used to configure
+    the data path of OVS'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`ovsdb-server`: This is the DB that stores persistently all the configurations
+    of OVS'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`ovs-vswitchd`: This is the OVS switchd module that provides the core functionality,
+    such as bridging, VLAN segregation, and so on of OVS'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '`Openvswitch.ko`: This is the data-path module for handling fast switching
+    and tunneling of traffic'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Advantages of using OVS in CoreOS
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'In a CoreOS environment, OVS can replace docker0 bridge and can provide connectivity
+    across the different containers in the CoreOS instance. docker0 bridge can only
+    provide connectivity across the containers running in the same CoreOS instance.
+    However, along with providing connectivity across the containers running in the
+    same CoreOS instance, OVS can be used to provide connectivity across the containers
+    running in different CoreOS instances. The following are the key advantages provided
+    by OVS compared to other techniques mentioned in the previous chapter:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: As the name implies, OpenVSwitch/OVS does layer2 bridging/switching of data
+    from one container to other containers. It does typical layer2 processing, such
+    as flooding, learning, forwarding, traffic segregation based on VLAN tag, providing
+    loop-free topology using spanning tree protocol, and so on.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: OVS supports tunneling protocols, such as GRE, VxLAN, and so on. These are the
+    tunneling protocols that are used to carry layer2 traffic over a layer3 network.
+    These tunnels are used to provide connectivity for containers running in different
+    CoreOS instances. The VxLAN protocol is defined in detail in RFC 7348 and the
+    GRE protocol is defined in detail in RFC 2784\. These tunnels provide the virtual
+    infrastructure for laying out the overlay network over the physical underlay network.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: OVS also supports the OpenFlow protocol that can be programmed by an external
+    SDN controller like OpenDayLight Controller, RYU Controller, ONOS controller,
+    and so on. This means the CoreOS cluster can be managed easily by a centralized
+    controller in a typical SDN deployment.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Before looking in detail at how OVS can be used to provide connectivity across
+    containers and hence can provide service chaining, we may need to look into some
+    of the core concepts and features, such as overlay network, underlay network,
+    and Virtual Tenant Network.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Introduction to overlay and underlay networks
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'The following diagram represents the typical service provided by OVS in a virtual
+    machine environment:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Introduction to overlay and underlay networks](img/00032.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Server1 and Server2 are the two physical servers wherein the customer applications
+    are deployed inside the VM. There are two VMs in each server as VM1 and VM2\.
+    The green VM belongs to one customer and the orange VM belongs to another customer.
+    A single instance of OVS is running in each of the servers.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'In a typical virtualization environment, there are two kinds of network devices:
+    the soft switch, which provides connectivity to the virtualization layer, and
+    the physical switch, which provides connectivity to the physical infrastructure
+    (such as servers, switches, and routers).'
+  prefs: []
+  type: TYPE_NORMAL
+- en: The OVS switch provides connectivity to the VMs/containers running inside the
+    server instance. These server instances are also connected to each other physically
+    in order to provide connectivity for all the servers.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The physical network that provides connectivity for the servers is termed the
+    underlay network. This underlay network will have the physical infrastructure
+    that comprises physical switches and routers, which provides connectivity for
+    the servers.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Now, the complexity comes in providing connectivity across the containers that
+    are running in the server to other containers that are running in different server
+    instances. There are multiple solutions to solve this problem. One of the major
+    and widely deployed solutions is using OVS to provide the overlay network.
+  prefs: []
+  type: TYPE_NORMAL
+- en: As the term implies, an overlay network is a network that is overlaid on top
+    of another network. Unlike physical underlay networks, overlay networks are virtual
+    networks that comprise virtual links that share an underlying physical network
+    (underlay network), allowing deployment of containers/virtual machines to provide
+    connectivity with each other without the need to modify the underlying network.
+    The virtual link here refers to the tunnels that provide connectivity across OVS.
+    OVS supports multiple tunneling protocols; widely used tunnels are GRE and VxLAN.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The key benefits of the overlay network are:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: As it is a logical network, it is possible to create and destroy the overlay
+    network very easily without any change in the underlay networks. To create an
+    overlay network between two nodes, just create a tunnel between the nodes, and
+    to destroy the overlay network, unconfigure the tunnel interface.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: It is possible to create multiple overlay networks across the nodes. For instance,
+    there is a possibility to create multiple overlay networks based on the number
+    of customers deployed in a server instance. This provides a way of virtualizing
+    the network similar to server virtualization. Let us look into the details of
+    network virtualization.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Introduction to network virtualization
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: Network virtualization is one of the most widely discussed topics in the recent
+    past in the networking industry. To understand network virtualization better,
+    think of server virtualization wherein the physical infrastructures are logically
+    segregated into multiple virtual devices, each assigning to different containers
+    for performing its workload. Similar to server virtualization, there is a requirement
+    to virtualize the networking layer that provides connectivity for different virtual
+    machines/containers.
+  prefs: []
+  type: TYPE_NORMAL
+- en: As in server virtualization, wherein the customer will have full access to the
+    virtualized server infrastructure, customers may also want to virtualize the networking
+    infrastructure to secure data traffic between their VMs or containers. They don't
+    want others to expose the data exchange that is happening between their applications
+    to other customers' VMs or containers.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Network virtualization as a concept is not new to the networking world. Network
+    virtualization is realized in existing networks using technologies or concepts
+    such as VLAN, VRF, L2VPN, L3VPN, and so on. These network virtualization techniques
+    provide a mechanism for isolating traffic from one customer to another customer.
+    VLAN provides a way of logically segregating the layer2 broadcast domain based
+    on the VLAN tag.
+  prefs: []
+  type: TYPE_NORMAL
+- en: These technologies also define the necessary protocol support to have overlapping
+    address spaces across different customers. Say, for instance, using VRF, it is
+    possible for two or more customers to use and share their IP address across different
+    sites.
+  prefs: []
+  type: TYPE_NORMAL
+- en: However, these technologies are not providing true network virtualization throughout
+    the network. These technologies also have their own limitations. The 1026 number
+    of VLAN limits the number of tenants in the network. Similarly for VPN support,
+    protocols like MPLS may be required that are typically deployed in a service provider
+    network.
+  prefs: []
+  type: TYPE_NORMAL
+- en: As more and more operators and cloud providers are deploying **Software Defined
+    Networking** (**SDN**) and **Network Function Virtualization** (**NFV**), it is
+    necessary to provide a mechanism to provide network virtualization and traffic
+    isolation in a better way.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The overlay network described in the previous chapter can provide an effective
+    mechanism to isolate data traffic across different tenants or customers. As multiple
+    overlay networks (one for each different customer) can be laid out over the underlay
+    physical infrastructure, we should be able to provide the required traffic isolation
+    between different customer traffic. Hence, the overlay network infrastructure
+    provides an easy way of providing network virtualization.
+  prefs: []
+  type: TYPE_NORMAL
+- en: To create an overlay network for a customer or tenant, we need to create a tunnel
+    across all the nodes wherein the customer's/tenant's application is deployed.
+    OVS helps in creating a tunnel across the different OVS instances and hence supports
+    the creation of VTNs and underlay networks.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Going back to the previous diagram, there are two customers, shown as green
+    and orange. Both customers'' VMs are running in both server1 and server2\. In
+    order to provide network virtualization and isolate the traffic across these two
+    customers, the following steps can be used:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Create two bridge instances in OVS, one for each customer, as Greenbr and Orangebr.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Attach the VM's virtual NIC interface (veth) to the corresponding bridge instance.
+    For example, the green VM's virtual NIC should be attached to Greenbr and the
+    orange VM's virtual NIC interface should be attached to Orangebr.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Create two tunnels, say `Green_tun` and `Orange_tun`, between server1 and server2\.
+    The two server instances can be part of the same network or different networks.
+    If they are part of different networks, one or more routers should be deployed
+    to provide physical connectivity between these servers.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Tip
+  prefs:
+  - PREF_IND
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: To create a tunnel between two nodes, there should be IP reachability between
+    these two nodes. IP reachability will be provided by the underlay network.
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: Attach these two tunnels to the respective bridge instances.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'With these simple steps, it is possible to create a virtual network for different
+    customers. This is illustrated in the following diagram:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Introduction to network virtualization](img/00033.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: OpenFlow support in OVS
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: One of the key advantages of using OVS is that it supports the OpenFlow protocol
+    and supports flow-based switching. **OpenFlow** is a protocol defined by ONF to
+    manage the network infrastructure centrally with standard interfaces between the
+    controller (traditionally called the control plane) and the actual packet-forwarding
+    entity (traditionally called the data plane). Enabling the network to be programmed
+    centrally makes the whole system more agile and flexible.
+  prefs: []
+  type: TYPE_NORMAL
+- en: OpenFlow promises to ease the way of provisioning large data centers and server
+    clusters that can be managed centrally using OpenFlow controllers. With large
+    data centers and server clusters, there is a clear necessity of changing the traditional
+    control plane and data plane paradigm to move toward flow-based switching, which
+    is more generic and can be adoptable for different avenues. Software Defined Networking
+    (SDN) is a new paradigm shift in networking.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The OpenFlow specification defines three different components in an OpenFlow-based
+    network as follows.
+  prefs: []
+  type: TYPE_NORMAL
+- en: OpenFlow switch
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: An **OpenFlow switch** consists of one or more flow tables, meter table, group
+    table, and OpenFlow channels to the external controller. The flow tables and group
+    table are used during the lookup or forwarding phase of packet pipeline processing
+    in order to forward the packet to the appropriate port, whereas the meter table
+    is used to perform simple QoS operations, such as rate-limiting to complex QOS
+    operations, such as DiffServ and so on. The switch communicates with the controller
+    and the controller manages the switch via the OpenFlow protocol using OpenFlow
+    messages.
+  prefs: []
+  type: TYPE_NORMAL
+- en: OpenFlow controller
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: An **OpenFlow controller** typically manages one or more OpenFlow switches remotely
+    via OpenFlow channels. Similarly, a single switch can be managed by multiple controllers
+    for better reliability and better load balancing. The OpenFlow controller acts
+    in a similar way to the control plane of typical traditional switches or routers.
+    The controller is responsible for programming various tables, such as flow table,
+    group table, and meter table using OpenFlow protocol messages to provide network
+    connectivity or network functions across various nodes in the system
+  prefs: []
+  type: TYPE_NORMAL
+- en: OpenFlow channel
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: 'An **OpenFlow channel** is used to exchange OpenFlow messages between an OpenFlow
+    switch and an OpenFlow controller. The switch must be able to create an OpenFlow
+    channel by initiating a connection to the controller:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![OpenFlow channel](img/00034.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: With OVS, the entire CoreOS cluster's overlay network can be centrally managed
+    by a controller with very simple configurations. The ofctl utility provided by
+    OVS is helpful in programming the flow tables using a command-line argument without
+    being controlled by an external controller.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Running OVS in CoreOS
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'There are two ways to run or install OVS in a CoreOS environment:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Build a CoreOS image with OVS
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Run OVS inside a Docker container with the `–net=host` option
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: As we have already seen in [Chapter 1](part0014_split_000.html#DB7S1-31555e2039a14139a7f00b384a5a2dd8
+    "Chapter 1. CoreOS, Yet Another Linux Distro?"), *CoreOS, Yet Another Linux Distro*
+    in CoreOS there is no way to install an application. Any service/application should
+    be deployed in a container. So the simple way to run OVS is to run OVS inside
+    a Docker container. Let us see how we can install an OVS docker in CoreOS.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'There is already a docker image available with OVS (coreos-ovs). Download this
+    docker image from [https://github.com/theojulienne/coreos-ovs](https://github.com/theojulienne/coreos-ovs)
+    github link. Use the following `cloud-config` to start this container:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE0]'
+  prefs: []
+  type: TYPE_PRE
+- en: This starts a docker container that has OVS installed. Along with that, it removes
+    the IP address of docker0 bridge and assigns it to OVS bridge (bridge0). docker0
+    bridge will be attached to bridge0 as a link.
+  prefs: []
+  type: TYPE_NORMAL
+- en: As we are using the `–net=host` option, any OVS command we are executing inside
+    this container will result in changing the network configuration of the host OS,
+    which is the CoreOS network stack.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'This section describes in detail how to provide a virtual tenant network between
+    docker containers that are running in two different CoreOS instances. There are
+    multiple ways to provide the solution. We are going to see the two most common
+    and simple ways of providing the solution:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Attaching docker0 bridge to OVS
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Attaching the container's veth interface to OVS
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Attaching docker0 bridge to OVS
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: This is a simple way of providing connectivity across different containers using
+    OVS. In this case, OVS should be connected to docker0 bridge (which is already
+    connected to all the containers) using a veth interface. Refer to the previous
+    chapter for more detail about docker0 bridge and how it provides connectivity
+    for the containers in a system.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The docker bridge is intern connected to the OVS bridge. The OVS bridge provides
+    connectivity to the other CoreOS instances using GRE/VxLAN tunnels.
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Attaching docker0 bridge to OVS](img/00035.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'The step-by-step procedure with configuration is described in detail as follows.
+    This consists of the following major steps on both the CoreOS instances:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Configurations during the instantiation of a CoreOS node in a cluster
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Configurations during the creation of a container
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Configuration in CoreOS Instance 1
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: This section describes in detail the operations to be performed on the coreos-ovs
+    docker of CoreOS node1 to provide this solution.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Configurations during the instantiation of a CoreOS node 1 in a cluster
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+- en: 'At the time of CoreOS server boot-up, OVS needs to be started and the procedure
+    to start OVS is as follows. Note that the way in which the OVS command will be
+    executed depends on whether OVS is deployed inside a docker container or the CoreOS
+    host instance. However, in both cases, there is no change in the list of OVS commands
+    to be used:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Run the OVS data-path module using the command:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE1]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Create a configuration, `db`, using the default schema file with the following
+    command:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE2]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Run the OVS DB server using the following command:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE3]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Run OVS-VSCTL using the following command:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE4]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Run the OVS switchd daemon using the following command:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE5]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Create a bridge instance:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE6]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Create a GRE tunnel with the remote node as `172.17.8.103`. Here, the assumption
+    is the etho IP of CoreOS instance 2 is `172.17.8.103`:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE7]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: Tip
+  prefs:
+  - PREF_IND
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: The key needs to be different for each tunnel.
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: 'Create a veth interface to provide a connection between docker0 bridge and
+    OVS:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'Create the veth pair:'
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '[PRE8]'
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Attach one end of the veth pair to docker0 bridge:'
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '[PRE9]'
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Attach the other end of the veth pair to OVS:'
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '[PRE10]'
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_PRE
+- en: Configurations during the creation of a container for CoreOS Instance 1
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+- en: This section describes the configuration to be done when a new container is
+    created in the CoreOS instance.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Tip
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: As by default, the eth0 (one end of the veth pair) interface of the container
+    is attached to docker0 bridge, we need not explicitly attach the container veth
+    interface to docker0 bridge.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Set the IP address of the eth0 interface of the docker container. It is not
+    possible to set the IP address of the docker container inside the docker instance.
+    We need to use the `nsenter` utility for this. To do this, follow these steps:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Execute the following command and get the `pid`:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE11]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Execute the following command and get the `pid`:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE12]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: Configuration in CoreOS Instance 2
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: This section describes in detail the operations to be performed on the coreos-ovs
+    docker of CoreOS node2 to provide this solution.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Configurations during the instantiation of CoreOS node 2 in a cluster
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+- en: 'This section describes the list of operations to be performed during the initialization
+    of the CoreOS instance. During initialization, OVS needs to be started and the
+    procedure to start OVS is as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Run the OVS data-path module using the command:'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '[PRE13]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Create a configuration, `db`, using the default schema file with the following
+    command:'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '[PRE14]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Run the OVS DB server using the following command:'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '[PRE15]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Run OVS-VSCTL using the following command:'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '[PRE16]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Run the OVS switchd daemon using the following command:'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '[PRE17]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Create a bridge instance:'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '[PRE18]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Create a GRE tunnel with the remote node as `172.17.8.101`. Here, the assumption
+    is the etho IP of CoreOS instance 1 is `172.17.8.101`:'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '[PRE19]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: Tip
+  prefs:
+  - PREF_IND
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: The key needs to be different for each tunnel.
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: 'Now we need to create a veth interface to provide a connection between docker0
+    bridge and OVS:'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 'Create the veth pair:'
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '[PRE20]'
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Attach one end of the veth pair to docker0 bridge:'
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '[PRE21]'
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Attach the other end of the veth pair to OVS:'
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '[PRE22]'
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_PRE
+- en: Configurations during the creation of a container for CoreOS Instance 2
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+- en: This section describes the configuration to be done when a new container is
+    created in the CoreOS instance.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Set the IP address of the eth0 interface of the docker container. It is not
+    possible to set the IP address of the docker container inside the docker instance.
+    We need to use the `nsenter` utility for this. To do this, follow these steps:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Execute the following command and get the `pid`:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE23]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Execute the following command and get the `pid`:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE24]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: Now you should be able to ping from the docker container running in CoreOS instance
+    1 to a docker container running in CoreOS instance 2\. The main disadvantage of
+    this solution is tha it is not possible to provide a virtual tenant network using
+    this solution. This is because all the docker containers are attached to docker0
+    bridge, which is connected to OVS. OVS acts as a way to provide communication
+    between different server instances.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Attaching container's veth interface to OVS
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: In this case, all the docker containers in the CoreOS instance are attached
+    directly to the OVS bridge. There will be multiple instance of bridge running
+    inside OVS, each mapping to different customers/tenants. A new bridge needs to
+    be created and provisioned for each tenant in the system. On the subsequent creation
+    of containers (for the same tenant), the container's interface should be connected
+    to the corresponding bridge instance. The OVS bridge provides connectivity to
+    the other CoreOS instances using GRE/VxLAN tunnels.
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Attaching container''s veth interface to OVS](img/00036.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'The step-by-step procedure to configure this kind of solution is described
+    in detail as follows. This consists of the following major steps to be performed
+    on both the CoreOS instances:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Configurations during the instantiation of a CoreOS node in a cluster
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Configurations during the creation of the first container for a tenant
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Configurations during the creation of subsequent containers for a tenant
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Configuration in CoreOS Instance 1
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: This section describes in detail the operations to be performed on the coreos-ovs
+    docker of CoreOS node1 to provide this solution.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Configurations during the instantiation of a CoreOS node in a cluster
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+- en: During initialization, OVS needs to be started and the procedures to start OVS
+    are as follows. Note that the way in which the OVS command will be executed depends
+    on whether OVS is deployed inside a docker container or the CoreOS host instance.
+    However, in both cases, there is no change in the list of OVS commands to be used.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Run the OVS data-path module using the command:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE25]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Create a configuration, `db`, using the default schema file with the following
+    command:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE26]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Run the OVS DB server using the following command:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE27]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Run OVS-VSCTL using the following command:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE28]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Run the OVS switchd daemon using the following command:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE29]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: Configurations during the creation of the first container for a tenant
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+- en: 'When a container is created for a tenant for the first time, a new bridge needs
+    to be created and this container should be connected to OVS. The procedure to
+    do this is described in detail as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Bring down the docker0 bridge instance (the default bridge created by docker):'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE30]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Detach the virtual interface that is created for the container from docker0
+    bridge. The virtual interface starts with the name as veth:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE31]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Create a bridge instance for a tenant:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE32]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Add the port that is created in docker. This interface starts with veth:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE33]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Set the IP address of the eth0 interface of the docker container. It is not
+    possible to set the IP address of the docker container inside the docker instance.
+    We need to use the `nsenter` utility for this. To do this, follow these steps:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'Execute the following command and get the `pid`:'
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '[PRE34]'
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Execute the following command and get the `pid`:'
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '[PRE35]'
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_PRE
+- en: Create a GRE tunnel with the remote node as `172.17.8.103`. Here, the assumption
+    is the eth0 IP of CoreOS instance 2 is `172.17.8.103`
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE36]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: Tip
+  prefs:
+  - PREF_IND
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: The key needs to be different for each tunnel.
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: Configurations during the creation of subsequent containers for a tenant
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+- en: This section describes the configuration to be done when subsequent containers
+    are being created in the CoreOS instance.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Add the port that is created in docker. This interface starts with veth:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE37]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Create a GRE tunnel with the remote node as `172.17.8.103`:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE38]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: Configuration in CoreOS Instance 2
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: This section describes in detail the operations to be performed on the coreos-ovs
+    docker of CoreOS node2 to provide this solution.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Configurations during the instantiation of a CoreOS node in a cluster
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+- en: 'This section describes the list of operations to be performed during the initialization
+    of the CoreOS instance. During initialization, OVS needs to be started and the
+    procedure to start OVS is as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Run the OVS data-path module using the command:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE39]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Create a configuration, `db`, using the default schema file with the following
+    command:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE40]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Run the OVS DB server using the following command:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE41]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Run OVS-VSCTL using the following command:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE42]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Run the OVS switchd daemon using the following command:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE43]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Create a bridge instance:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE44]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Create a GRE tunnel with the remote node as `172.17.8.101`. Here, the assumption
+    is the etho IP of CoreOS instance 1 is `172.17.8.101`:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE45]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: Tip
+  prefs:
+  - PREF_IND
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: The key needs to be different for each tunnel.
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: Configurations during the creation of the first container for a tenant
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+- en: 'When a container is created for a tenant for the first time, a new bridge needs
+    to be created and this container should be connected to OVS. The procedure to
+    do this is described in detail as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Bring down the docker0 bridge instance (the default bridge created by docker):'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE46]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Detach the virtual interface that is created for the container from docker0
+    bridge. The virtual interface starts with the name as veth:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE47]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Create a bridge instance for a tenant:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE48]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Add the port that is created in docker. This interface starts with veth:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE49]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Set the IP address of the eth0 interface of the docker container. It is not
+    possible to set the IP address of the docker container inside the docker instance.
+    We need to use the `nsenter` utility for this. To do this, follow these steps:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'Execute the following command and get the `pid`:'
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '[PRE50]'
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Execute the following command and get the `pid`:'
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '[PRE51]'
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Create a GRE tunnel with the remote node as `172.17.8.103`. Here, the assumption
+    is the etho IP of CoreOS instance 2 is `172.17.8.103`:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE52]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: Tip
+  prefs:
+  - PREF_IND
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: The key needs to be different for each tunnel.
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: Configurations during the creation of subsequent containers for a tenant
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+- en: This section describes the configuration to be done when subsequent containers
+    are being created in the CoreOS instance.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Add the port that is created in docker. This interface starts with veth:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE53]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Create a GRE tunnel with the remote node as `172.17.8.103`:'
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '[PRE54]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: Now you should be able to ping from the docker container running in CoreOS instance
+    1 to a docker container running in CoreOS instance 2\. The main advantage of this
+    solution is that it is possible to provide a virtual tenant network using this
+    solution.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Looping issue
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: Everything works fine so far. However, when the number of CoreOS instances running
+    in the cluster increases, we may need to create a mesh of tunnels between CoreOS
+    instances for each customer/tenant. This ends up creating a loop in the network
+    that will result in a traffic black hole. Let us look into this issue in detail
+    and discuss the solution.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Consider a topology wherein you have three CoreOS instances running in the
+    CoreOS cluster. In each of these instances, the green and orange customers'' applications
+    are deployed as a container. To provide VTN for each customer, we need to create
+    tunnels across these CoreOS instances. In this case, we need to create two tunnels
+    for each customer from every CoreOS instance. From CoreOS instance 1, we need
+    to create two tunnels for each customer: one toward CoreOS instance 2 and the
+    other toward CoreOS instance 3\. Similarly, from CoreOS instance 2, we need to
+    create two tunnels and so on. This will result in forming a layer2 loop in the
+    customer''s bridge instance.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Tip
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: The total number of tunnels required to create a complete mesh in the topology
+    is 2n-1, where n is the number of CoreOS instances wherein the tenant's service
+    is deployed as a container.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'As the bridge instance is a layer2 device, this results in forwarding the same
+    packet multiple times in the loop:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Looping issue](img/00037.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: A simple way to avoid this looping problem is by running **Spanning Tree Protocol**
+    (**STP**) in OVS. STP is defined and standardized as IEEE 802.1D. STP identifies
+    a loop-free topology, considering all the links in the topology based on different
+    metrics. Once it identifies the loop-free topology, it will block one or more
+    ports (in this case, tunnels) that are not part of the loop-free topology. The
+    ports that are in a blocking state won't forward the traffic and hence avoid the
+    traffic black hole.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'In the preceding topology, when we run the spanning tree based on the priority
+    or configured bridge-id, STP blocks one port, in this case blocks the port from
+    CoreOS 3 to CoreOS 2:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Looping issue](img/00038.jpeg)'
+  prefs: []
+  type: TYPE_IMG
+- en: 'The list of commands to enable and configure the spanning tree in OVS are as
+    follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Enable the spanning tree on a bridge instance:'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '[PRE55]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Set the bridge priority:'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '[PRE56]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Set the path cost of the port:'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '[PRE57]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: Tip
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: The bridge priority and path cost configurations are not mandatory configurations.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The spanning tree needs to be enabled on all the bridge instances of OVS to
+    avoid any loop in the network.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Summary
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: In this chapter, we have seen the importance of OVS in container communications
+    and the various advantages provided by OVS. As there are multiple communication
+    mechanisms available for container communications, while deploying the CoreOS
+    cluster, based on the advantages, ease of use, and network management tools, you
+    should cautiously choose one or more communication mechanisms in your deployment.
+    In the next chapter, we are going to see some of the latest developments in CoreOS
+    and advanced topics such as security, orchestration, container data volume management,
+    and so on.
+  prefs: []
+  type: TYPE_NORMAL

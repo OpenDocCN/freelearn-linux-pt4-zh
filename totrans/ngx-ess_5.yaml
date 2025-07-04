@@ -1,0 +1,792 @@
+- en: Chapter 5. Managing Inbound and Outbound Traffic
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: The Internet is an open medium where it is easy and cheap to use someone else's
+    resources. The low cost of usage makes systems vulnerable to intended and unintended
+    abuses and resource usage spikes. The modern Internet is full of dangers such
+    as bots, abusive crawlers, denial of service, and distributed denial of service
+    attacks.
+  prefs: []
+  type: TYPE_NORMAL
+- en: This is where Nginx comes in handy, with a range of features for inbound and
+    outbound traffic management that allows you to stay in control of the quality
+    of your web service.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'In this chapter, you will learn:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: How to apply various limitation to inbound traffic
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: How to configure upstreams
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: How to use various options for outbound connection management
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Managing inbound traffic
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'Nginx has various options for managing inbound traffic. This includes the following:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Limiting the request rate
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Limiting the number of simultaneous connections
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Limiting the transfer rate of a connection
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: These features are very useful for managing the quality of your web service
+    and to prevent and mitigate abuses.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Limiting the request rate
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'Nginx has a built-in module for limiting the request rate. Before you can enable
+    it, you need to configure a shared memory segment (also known as a *zone*) in
+    the `http` section using the `limit_req_zone` directive. This directive has the
+    following format:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE0]'
+  prefs: []
+  type: TYPE_PRE
+- en: The `<key>` argument specifies a single variable or a script (since version
+    1.7.6) to which the rate limiting state is bound. In simple terms, by specifying
+    the `<key>` argument, you are creating a number of small pipes for each value
+    of the `<key>` argument evaluated at runtime, each of them with its request rate
+    limited with `<rate>`. Each request for a location where this zone is used will
+    be submitted to the corresponding pipe and if the rate limit is reached, the request
+    will be delayed so that the rate limit within the pipe is satisfied.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The `<name>` argument defines the name of the zone and the `<size>` argument
+    defines the size of the zone. Consider the following example:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE1]'
+  prefs: []
+  type: TYPE_PRE
+- en: In the preceding code, we define a zone named `primary` that is 12 MB in size
+    and has a rate limit of 30 requests per minute (0.5 request per second). We use
+    the `$remote_addr` variable as a key. This variable evaluates into a symbolic
+    value of the IP address the request came from, which can take up to 15 bytes per
+    IPv4 address and even more per IPv6 address.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'To conserve space occupied by the key, we can use the variable `$binary_remote_addr`
+    that evaluates into a binary value of the remote IP address:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE2]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'To enable request rate limiting in a location, use the `limit_req` directive:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE3]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Once a request is routed to `location /`, a rate-limiting state will be retrieved
+    from the specified shared memory segment and Nginx will apply the *Leaky Bucket*
+    algorithm to manage the request rate, as shown in the following figure:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Limiting the request rate](img/B04282_05_01.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: The Leaky Bucket algorithm
+  prefs: []
+  type: TYPE_NORMAL
+- en: According to this algorithm, incoming requests can arrive at an arbitrary rate,
+    but the outbound request rate will never be higher than the specified one. Incoming
+    requests "fill the bucket" and if the "bucket" overflows, excessive requests will
+    get the HTTP status `503` (Service Temporarily Unavailable) response.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Limiting the number of simultaneous connections
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: Although very practical, request rate limiting cannot help mitigate abuses in
+    case of long-running requests, such as long uploads and downloads.
+  prefs: []
+  type: TYPE_NORMAL
+- en: In this situation, limiting the number of simultaneous connections comes in
+    handy. In particular, it is advantageous to limit the number of simultaneous connections
+    from a single IP address.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Enabling the simultaneous connections limit starts from configuring a shared
+    memory segment (a zone) for storing state information, just like when limiting
+    the request rate. This is done in the `http` section using the `limit_conn_zone`
+    directive. This directive is similar to the `limit_req_zone` directive and has
+    the following format:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE4]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'In the preceding command, the `<key>` argument specifies a single variable
+    or a script (since version 1.7.6) to which the connection limiting state is bound.
+    The `<name>` argument defines the name of the zone and the `<size>` argument defines
+    the size of the zone. Consider the following example:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE5]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'To conserve the space occupied by the key, we can again use the variable `$binary_remote_addr`.
+    It evaluates into a binary value of the remote IP address:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE6]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'To enable simultaneous connection limiting in a location, use the `limit_conn`
+    directive:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE7]'
+  prefs: []
+  type: TYPE_PRE
+- en: The first argument of the `limit_conn` directive specifies the zone used to
+    store connection limiting state information, and the second argument is the maximum
+    number of simultaneous connections.
+  prefs: []
+  type: TYPE_NORMAL
+- en: For each connection with an active request routed to `location /download`, the
+    `<key>` argument is evaluated. If the number of simultaneous connections sharing
+    the same value of the key surpasses `5`, the server will reply with HTTP status
+    `503` (Service Temporarily Unavailable).
+  prefs: []
+  type: TYPE_NORMAL
+- en: Note
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: Note that the size of the shared memory segment that the `limit_conn_zone` directive
+    allocates is fixed. When the allocated shared memory segment gets filled, Nginx
+    returns HTTP status `503` (Service Temporarily Unavailable). Therefore, you have
+    to adjust the size of the shared memory segment to account for the potential inbound
+    traffic of your server.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Limiting the transfer rate of a connection
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'The transfer rate of a connection can also be limited. Nginx has a number of
+    options for this purpose. The `limit_rate` directive limits the transfer rate
+    of a connection in a location to the value specified in the first argument:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE8]'
+  prefs: []
+  type: TYPE_PRE
+- en: The preceding configuration will limit the download rate of any request for
+    `location /download` to 100 KBps. The rate limit is set per request. Therefore,
+    if a client opens multiple connections, the total download rate will be higher.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Setting the rate limit to `0` switches off transfer rate limiting. This is
+    helpful when a certain location needs to be excluded from the rate limit restriction:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE9]'
+  prefs: []
+  type: TYPE_PRE
+- en: The preceding configuration limits the transfer rate of each request to a given
+    virtual host to 1 MBps, except for `location /fast`, where the rate is unlimited.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The transfer rate can also be limited by setting the value of the variable
+    `$limit_rate`. This option can be elegantly used when rate-limiting needs to be
+    enabled upon a particular condition:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE10]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'There is also an option to postpone the rate restriction until a certain amount
+    of data has been transferred. This can be achieved by using the `limit_rate_after`
+    directive:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE11]'
+  prefs: []
+  type: TYPE_PRE
+- en: The preceding configuration will enforce the rate limit only after the first
+    megabyte of request data has been sent. Such behavior is useful, for example,
+    when streaming video, as the initial part of the stream is usually prebuffered
+    by the video player. Returning the initial part faster improves video startup
+    time without clogging the disk I/O bandwidth of the server.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Applying multiple limitations
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'The limitations described in the previous section can be combined to produce
+    more sophisticated traffic management strategies. For example, you can create
+    two zones for limiting the number of simultaneous connections with different variables
+    and apply multiple limits at once:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE12]'
+  prefs: []
+  type: TYPE_PRE
+- en: The preceding configuration will limit the number of simultaneous connections
+    per IP address to five; at the same time the total number of simultaneous connections
+    per virtual host will not exceed 200.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Managing outbound traffic
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'Nginx also has a variety of options for outbound traffic management:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Distributing outbound connections among multiple servers
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Configuring backup servers
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Enabling persistent connections with backend servers
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Limiting transfer rate while reading from backend servers
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: To enable most of these functions, the first thing you need is to declare your
+    upstream servers explicitly.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Declaring upstream servers
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: Nginx allows you to declare upstream servers explicitly. You can then refer
+    to them multiple times as a single entity from any part of the `http` configuration.
+    If the location of your server or servers changes, there is no need to go over
+    the entire configuration and adjust it. If new servers join a group, or existing
+    servers leave a group, it's only necessary to adjust the declaration and not the
+    usage.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'An upstream server is declared in the `upstream` section:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE13]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'The `upstream` section can only be specified inside the `http` section. The
+    preceding configuration declares a logical upstream named `backend` with three
+    physical servers. Each server is specified using the `server` directive. The server
+    directive has the following syntax:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE14]'
+  prefs: []
+  type: TYPE_PRE
+- en: The `<address>` parameter specifies an IP address or a domain name of a physical
+    server. If a domain name is specified, it is resolved at the startup time and
+    the resolved IP address is used as the address of a physical server. If the domain
+    name resolves into multiple IP addresses, a separate entry is created for each
+    of the resolved IP addresses. This is equivalent to specifying a `server` directive
+    for each of these addresses.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The address can contain optional port specification, for example, `server1.example.com:8080`.
+    If this specification is omitted, port 80 is used. Let''s look at an example of
+    upstream declaration:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE15]'
+  prefs: []
+  type: TYPE_PRE
+- en: The preceding configuration declares an upstream named `numeric-and-symbolic`.
+    The first server in the server list has a symbolic name and its port changed to
+    `8080`. The second server has the numerical address `127.0.0.1` that corresponds
+    to the local host and the port is `80`.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Let''s look at another example:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE16]'
+  prefs: []
+  type: TYPE_PRE
+- en: The preceding configuration declares an upstream named `numeric-only`, which
+    consists of three servers with three different numerical IP addresses listening
+    on the default port.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Consider the following example:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE17]'
+  prefs: []
+  type: TYPE_PRE
+- en: The preceding configuration declares an upstream named `same-host`, which consists
+    of two servers with the same address (`127.0.0.1`) that listen on different ports.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Let''s look at the following example:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE18]'
+  prefs: []
+  type: TYPE_PRE
+- en: The preceding configuration declares an upstream named `single-server`, which
+    consists of only one server.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following table lists the optional parameters of the `server` directive
+    and their description:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '| Syntax | Description |'
+  prefs: []
+  type: TYPE_TB
+- en: '| --- | --- |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `weight`=<number> | This specifies the numerical weight of the server. It
+    is used for distributing connections among the servers. The default value is `1`.
+    |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `max_fails`=<number> | This specifies the maximum number of connection attempts
+    after which the server is considered as unavailable. The default value is `1`.
+    |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `fail_timeout`=<number> | This specifies the time after which a failing server
+    will be marked as unavailable. The default value is `10` seconds. |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `backup` | This labels a server as a backup server. |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `down` | This labels a server as unavailable. |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `max_conns`=<number> | This limits the number of simultaneous connections
+    to the server. |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `resolve` | This instructs Nginx to automatically update the P addresses
+    of a server specified using a symbolic name and apply these addresses without
+    restarting Nginx. |'
+  prefs: []
+  type: TYPE_TB
+- en: Using upstream servers
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'Once an upstream server is declared, it can be used in the `proxy_pass` directive:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE19]'
+  prefs: []
+  type: TYPE_PRE
+- en: The upstream can be referred multiple times from the configuration. With the
+    preceding configuration, once the location `@proxy` is requested, Nginx will pass
+    the request to one of the servers in the server list of the upstream.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The algorithm for resolving the final address of an upstream server is shown
+    in the following figure:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Using upstream servers](img/B04282_05_05.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: An algorithm for resolving the address of an upstream server
+  prefs: []
+  type: TYPE_NORMAL
+- en: Because a destination URL can contain variables, it is evaluated at runtime
+    and parsed as HTTP URL. The server name is extracted from the evaluated destination
+    URL. Nginx looks up an upstream section that matches the server name and if such
+    exists, forwards the request to one of the servers from the upstream server list
+    according to a request distribution strategy.
+  prefs: []
+  type: TYPE_NORMAL
+- en: If an upstream section that matches the server name exists, Nginx checks if
+    the server name is an IP address. If so, Nginx uses the IP address as the final
+    address of the upstream server. If the server name is symbolic, Nginx resolves
+    the server name in DNS into an IP address. If successful, the resolved IP address
+    is used as the final address of the upstream server.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The address of the DNS server or servers can be configured using the `resolver`
+    directive:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE20]'
+  prefs: []
+  type: TYPE_PRE
+- en: The preceding directive takes a list of IP addresses of the DNS servers as its
+    arguments. If a server name cannot be successfully resolved using the configured
+    resolver, Nginx returns HTTP status `502` (Bad Gateway).
+  prefs: []
+  type: TYPE_NORMAL
+- en: When an upstream contains more than one server in the server list, Nginx distributes
+    requests among these servers in an attempt to split the load among the available
+    servers. This is also called clustering, as multiple servers act as one—altogether
+    they are called a cluster.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Choosing a request distribution strategy
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'By default, Nginx uses Round-robin algorithm while distributing requests among
+    available upstream servers, as shown in the following figure:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Choosing a request distribution strategy](img/B04282_05_02.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Round-robin cyclic distribution algorithm
+  prefs: []
+  type: TYPE_NORMAL
+- en: According to this algorithm, incoming requests are assigned to servers from
+    the upstream server list in equal proportions and cyclic order. This ensures equal
+    distribution of incoming requests among available servers, but does not ensure
+    equal distribution of the load among servers.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'If servers in the upstream server list have varying capacities, the distribution
+    algorithm can be changed to account for that. This is what the parameter `weight`
+    is used for. This parameter specifies the relative weight of a server in comparison
+    to other servers. Consider an installation where one of the servers is twice as
+    capable as the other two. We can configure Nginx for this installation as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE21]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'The first server is configured to have twice as high a weight as the other
+    servers and the request distribution strategy changes accordingly. This is shown
+    in the following figure:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Choosing a request distribution strategy](img/B04282_05_03.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: Weighted round-robin
+  prefs: []
+  type: TYPE_NORMAL
+- en: In the preceding figure, we can see that two out of four incoming requests will
+    go to server 1, one will go to server 2, and another one will be going to server
+    3.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The round-robin strategy does not guarantee that requests from the same client
+    will be always forwarded to the same server. The latter might be a challenge for
+    web applications that expect the same client to be served by the same server or
+    at least need some affinity of users to servers to perform efficiently.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'With Nginx, you can solve this by using the IP hash request distribution strategy.
+    With the IP hash distribution strategy, each request from a given IP address will
+    be forwarded to the same backend server. This is achieved by hashing the client''s
+    IP address and using the numerical value of the hash to choose the server from
+    the upstream server list. To enable the IP hash request distribution strategy,
+    use the `ip_hash` directive in the `upstream` section:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE22]'
+  prefs: []
+  type: TYPE_PRE
+- en: The preceding configuration declares an upstream with three underlying servers
+    and enables the IP hash request distribution strategy for each of them. A request
+    from a remote client will be forwarded to one of the servers from this list and
+    it is always the same for all requests from the client.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'If you add or remove a server from the list, the correspondence between IP
+    addresses and servers will change and your web application will have to deal with
+    this situation. To make this problem somehow easier to handle, you can mark a
+    server as unavailable using the `down` parameter. Requests to this server will
+    be forwarded to the next available server:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE23]'
+  prefs: []
+  type: TYPE_PRE
+- en: The preceding configuration declares the `server2.example.com` server unavailable
+    and once a request is targeted to this server, the next available server will
+    be chosen (`server1.example.com` or `server3.example.com`).
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'If an IP address is not a convenient input for the hash function, you can use
+    the `hash` directive instead of `ip_hash` to choose an input that is more convenient.
+    The only argument of this directive is a script, which is evaluated at runtime
+    and produces a value used as the input for the hash function. This script can
+    contain, for example, a cookie, an HTTP header, a combination of an IP address
+    and a user agent, an IP address and a proxied IP address, and so on. Take a look
+    at the following example:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE24]'
+  prefs: []
+  type: TYPE_PRE
+- en: The preceding configuration uses a cookie named `uid` as input for the hash
+    function. If the cookie stores a unique ID of a user, each user's requests will
+    be forwarded to a fixed server in the upstream server list. If a user does not
+    have a cookie yet, the variable `$cookie_uid` evaluates to an empty string and
+    produces a fixed hash value. Therefore, all requests from users without the `uid`
+    cookie are forwarded to a fixed server from the preceding list.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'In the next example, we will use a combination of a remote IP address and the
+    user agent field as input for the hash function:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE25]'
+  prefs: []
+  type: TYPE_PRE
+- en: The preceding configuration relies on the diversity of user agent field and
+    prevents a concentration of users from proxied IP addresses on a single server.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Configuring backup servers
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: Some servers in the server list can be marked as *backup*. By doing so, you
+    tell Nginx that these servers should not be normally used and used only when all
+    non-backup servers do not respond.
+  prefs: []
+  type: TYPE_NORMAL
+- en: To illustrate the use of backup servers, imagine that you run a **Content Distribution
+    Network** (**CDN**) where a number of geographically distributed edge servers
+    handle user traffic and a set of centralized content servers generate and distribute
+    content to the edge servers. This is shown in the following figure.
+  prefs: []
+  type: TYPE_NORMAL
+- en: '![Configuring backup servers](img/B04282_05_04.jpg)'
+  prefs: []
+  type: TYPE_IMG
+- en: A Content Distribution Network
+  prefs: []
+  type: TYPE_NORMAL
+- en: The edge servers are co-located with a set of highly-available caches that do
+    not alter the content obtained from the content servers, but simply store it.
+    The caches have to be used as long as any of them is available.
+  prefs: []
+  type: TYPE_NORMAL
+- en: However, when none of the caches are available for some reason, the edge server
+    can contact the content servers—although it is not desirable. Such behavior (called
+    degradation) can remedy the situation until the outage of caches is resolved,
+    while keeping the service available.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Then, the upstream on the edge server can be configured as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE26]'
+  prefs: []
+  type: TYPE_PRE
+- en: The preceding configuration declares the servers `cache1.mycdn.com`, `cache2.mycdn.com`
+    and `cache3.mycdn.com` as primary servers to contact. They will be used as long
+    as any of them is available.
+  prefs: []
+  type: TYPE_NORMAL
+- en: We then list the `content1.mycdn.com` and `content2.mycdn.com` servers as backup
+    by specifying the `backup` parameter. These servers will be contacted only if
+    none of the primary servers are available. This feature of Nginx provides flexibility
+    in the way the availability of your system is managed.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Determining whether a server is available
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: How do you define that a server is available? For most applications, connectivity
+    errors are hard signs of an unavailable server, but what if an error is software
+    generated? It might be worth trying the next server if a server is available on
+    the transport layer (over TCP/IP) but returns HTTP errors such as `500` (Internal
+    Server Error) and `503` (Service Unavailable) or even softer errors such as `403`
+    (Forbidden) or `404` (Not found). If the upstream server is a proxy itself, it
+    might be necessary to handle HTTP errors `502` (Bad Gateway) and `504` (Gateway
+    Timeout).
+  prefs: []
+  type: TYPE_NORMAL
+- en: Nginx allows you to specify availability and retrial conditions using the directives
+    `proxy_next_upstream`, `fastcgi_next_upstream`, `uwsgi_next_upstream`, `scgi_next_upstream`,
+    and `memcached_next_upstream`. Each of these directives receives a list of conditions
+    that will be treated as errors while communicating with an upstream server, and
+    make Nginx retry with another server. In addition to that, if the number of unsuccessful
+    interaction attempts with a server is larger than the value of the `max_fails`
+    parameter for the server (the default value is `1`), the server will be marked
+    as unavailable for a period specified by the `fail_timeout` directive (the default
+    value is `10` seconds).
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following table lists all possible values for the arguments of the directives
+    `proxy_next_upstream`, `fastcgi_next_upstream`, `uwsgi_next_upstream`, `scgi_next_upstream`,
+    and `memcached_next_upstream`:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '| Value | Meaning |'
+  prefs: []
+  type: TYPE_TB
+- en: '| --- | --- |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `error` | A connection error has occurred or an error during sending a request
+    or receiving a reply has occurred |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `timeout` | A connection timed out during setup, sending a request or receiving
+    a reply |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `invalid_header` | The upstream server has returned an empty or invalid reply
+    |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `http_500` | The upstream server returned a reply with HTTP status code `500`
+    (Internal Server Error) |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `http_502` | The upstream server returned a reply with HTTP status code `502`
+    (Bad Gateway) |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `http_503` | The upstream server returned a reply with HTTP status code `503`
+    (Service Unavailable) |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `http_504` | The upstream server returned a reply with HTTP status code `504`
+    (Gateway Timeout) |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `http_403` | The upstream server returned a reply with HTTP status code `403`
+    (Forbidden) |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `http_404` | The upstream server returned a reply with HTTP status code `404`
+    (Not Found) |'
+  prefs: []
+  type: TYPE_TB
+- en: '| `off` | Disables passing requests to the next server |'
+  prefs: []
+  type: TYPE_TB
+- en: The default value for the preceding directives is `error timeout`. This makes
+    Nginx retry a request with another server only if a connectivity error or a timeout
+    has occurred.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Here is an example of a configuration that uses the `proxy_next_upstream` directive:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE27]'
+  prefs: []
+  type: TYPE_PRE
+- en: The preceding configuration extends the default retrial and availability option
+    and enables retrying with the next server in case of connectivity error, upstream
+    error (`502`, `503`, or `504`) or a connection timeout.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Enabling persistent connections
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: By default, Nginx does not keep connections with upstream servers open. Keeping
+    the connections open can significantly improve the performance of your system.
+    This is because persistent connections eliminate the connection setup overhead
+    every time a request is made to a given upstream server.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'To enable persistent connections for an upstream, use the `keepalive` directive
+    in the `upstream` section:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE28]'
+  prefs: []
+  type: TYPE_PRE
+- en: The only argument of the `keepalive` directive specifies the minimum number
+    of inactive persistent connections in the connection pool of this upstream. If
+    the number of inactive persistent connections grows beyond this number, Nginx
+    closes as many connections as needed to stay within this number. This guarantees
+    that a specified number of hot and ready-to-go connections are always available
+    for use. At the same time, these connections consume the resources of backend
+    servers, so this number must be chosen cautiously.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'To use persistent connections with HTTP proxying, further tweaks are required:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE29]'
+  prefs: []
+  type: TYPE_PRE
+- en: In the preceding configuration, we change the HTTP version to 1.1 so that persistent
+    connections are expected by default. We also clear the Connection header so that
+    the Connection header from the original request does not influence the proxied
+    request.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Limiting the transfer rate of an upstream connection
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: 'The transfer rate of a connection with an upstream can be limited. This feature
+    can be used to reduce stress on the upstream server. The `proxy_limit_rate` directive
+    limits the transfer rate of an upstream connection in a location to the value
+    specified in the first argument:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE30]'
+  prefs: []
+  type: TYPE_PRE
+- en: The preceding configuration will limit the rate of connections with the specified
+    backend to 200 KBps. The rate limit is set per request. If Nginx opens multiple
+    connections to the upstream server, the total rate will be higher.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Note
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: Rate limiting works only if proxy response buffering is switched on using the
+    `proxy_buffering` directive.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Summary
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: In this chapter, you learned about a number of tools for inbound and outbound
+    traffic management. These tools will help you to ensure the reliability of your
+    web service and implement complex caching schemes.
+  prefs: []
+  type: TYPE_NORMAL
+- en: In the next chapter, you'll learn how to squeeze the most performance out of
+    your web server and optimize resource usage—performance tuning.
+  prefs: []
+  type: TYPE_NORMAL
