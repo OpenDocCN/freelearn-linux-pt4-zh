@@ -1061,42 +1061,60 @@
   prefs:
   - PREF_IND
   type: TYPE_NORMAL
+  zh: '`#cloud-config coreos:   etcd2:     discovery: <yourtoken>     advertise-client-urls:
+    http://$private_ipv4:2379,http://$private_ipv4:4001     initial-advertise-peer-urls:
+    http://$private_ipv4:2380     listen-client-urls: http://0.0.0.0:2379,http://0.0.0.0:4001     listen-peer-urls:
+    http://$private_ipv4:2380   units:     - name: etcd2.service       command: start     -
+    name: fleet.service       command: start     - name: flanneld.service       drop-ins:         -
+    name: 50-network-config.conf           content: |             [Service]             ExecStartPre=/usr/bin/etcdctl
+    set /coreos.com/network/config ''{ "Network": "10.1.0.0/16" , "Backend": {"Type":
+    "gce"}}''       command: start`'
 - en: 'Create three CoreOS instances with a `customnet` network, IP forwarding turned
     on, and scope for the instance to modify the route table:'
   id: totrans-159
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 创建三个 CoreOS 实例，使用 `customnet` 网络，启用 IP 转发，并为实例分配修改路由表的权限：
 - en: '`gcloud compute instances create core1 core2 core3 --image https://www.googleapis.com/compute/v1/projects/coreos-cloud/global/images/coreos-alpha-815-0-0-v20150924 --zone us-central1-a --machine-type n1-standard-1 --network customnet --can-ip-forward --scopes compute-rw --metadata-from-file user-data=cloud-config-flannel-gce.yaml`'
   id: totrans-160
   prefs:
   - PREF_IND
   type: TYPE_NORMAL
+  zh: '`gcloud compute instances create core1 core2 core3 --image https://www.googleapis.com/compute/v1/projects/coreos-cloud/global/images/coreos-alpha-815-0-0-v20150924
+    --zone us-central1-a --machine-type n1-standard-1 --network customnet --can-ip-forward
+    --scopes compute-rw --metadata-from-file user-data=cloud-config-flannel-gce.yaml`'
 - en: 'The following are the Flannel networks for containers created by each node:'
   id: totrans-161
   prefs: []
   type: TYPE_NORMAL
+  zh: 以下是每个节点为容器创建的 Flannel 网络：
 - en: '![](img/00346.jpg)'
   id: totrans-162
   prefs: []
   type: TYPE_IMG
+  zh: '![](img/00346.jpg)'
 - en: 'Let''s look at the routing table in GCE. As shown by the following output,
     Flannel has updated the GCE route table for the container networks:'
   id: totrans-163
   prefs: []
   type: TYPE_NORMAL
+  zh: 让我们来看看 GCE 中的路由表。如以下输出所示，Flannel 已经更新了 GCE 的容器网络路由表：
 - en: '![](img/00348.jpg)'
   id: totrans-164
   prefs: []
   type: TYPE_IMG
+  zh: '![](img/00348.jpg)'
 - en: At this point, we should have Container connectivity across nodes.
   id: totrans-165
   prefs: []
   type: TYPE_NORMAL
+  zh: 到此为止，我们应该已经能够跨节点连接容器。
 - en: Experimental multitenant networking
   id: totrans-166
   prefs: []
   type: TYPE_NORMAL
+  zh: 实验性多租户网络
 - en: By default, Flannel creates a single network, and all the nodes can communicate
     with each other over the single network. This poses a security risk when there
     are multiple tenants using the same network. One approach to achieve multitenant
@@ -1108,10 +1126,14 @@
   id: totrans-167
   prefs: []
   type: TYPE_NORMAL
+  zh: 默认情况下，Flannel 创建一个单一的网络，所有节点都可以在该网络上相互通信。当有多个租户使用相同的网络时，这会带来安全风险。一种实现多租户网络的方式是使用多个
+    Flannel 实例来管理每个租户。这可能会变得难以配置。从版本 0.5.3 开始，Flannel 在实验模式下引入了多网络功能，在这种模式下，单个 Flannel
+    守护进程可以管理具有隔离性的多个网络。当集群中有多个租户时，使用多网络模式有助于隔离每个租户的流量。
 - en: 'The following are the steps for this:'
   id: totrans-168
   prefs: []
   type: TYPE_NORMAL
+  zh: 以下是执行此操作的步骤：
 - en: 'Create subnet configurations for multiple tenants. This can be done by reserving
     a subnet pool in `etcd`. The following example sets up three networks, `blue`,
     `green`, and `red`, each having a different subnet:'
@@ -1119,11 +1141,17 @@
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 为多个租户创建子网配置。可以通过在 `etcd` 中预留一个子网池来实现。以下示例设置了三个网络：`blue`、`green` 和 `red`，每个网络都有不同的子网：
 - en: '`etcdctl set /coreos.com/network/blue/config  ''{ "Network": "10.1.0.0/16", "Backend": { "Type": "vxlan", "VNI": 1 } }''``etcdctl set /coreos.com/network/green/config ''{ "Network": "10.2.0.0/16", "Backend": { "Type": "vxlan", "VNI": 2 } }''``etcdctl set /coreos.com/network/red/config   ''{ "Network": "10.3.0.0/16", "Backend": { "Type": "vxlan", "VNI": 3 } }''`'
   id: totrans-170
   prefs:
   - PREF_IND
   type: TYPE_NORMAL
+  zh: '`etcdctl set /coreos.com/network/blue/config  ''{ "Network": "10.1.0.0/16",
+    "Backend": { "Type": "vxlan", "VNI": 1 } }''``etcdctl set /coreos.com/network/green/config
+    ''{ "Network": "10.2.0.0/16", "Backend": { "Type": "vxlan", "VNI": 2 } }''``etcdctl
+    set /coreos.com/network/red/config   ''{ "Network": "10.3.0.0/16", "Backend":
+    { "Type": "vxlan", "VNI": 3 } }''`'
 - en: 'Start the Flannel agent with the networks that this Flannel agent needs to
     be part of. This will take care of reserving the IP pool per node per network.
     In this example, we have started the flannel agent to be part of all three networks,
@@ -1132,11 +1160,14 @@
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 启动Flannel代理并指定该Flannel代理需要加入的网络。这样可以为每个节点每个网络预留IP池。在这个例子中，我们已经启动了flannel代理，并使其成为所有三个网络（`blue`、`green`
+    和 `red`）的一部分：
 - en: '`sudo flanneld --networks=blue,green,red &`'
   id: totrans-172
   prefs:
   - PREF_IND
   type: TYPE_NORMAL
+  zh: '`sudo flanneld --networks=blue,green,red &`'
 - en: 'Flannel picked three subnet ranges for the three networks, as shown in the
     following screenshot. `10.1.87.0/24` is allocated for the `blue` network, `10.2.4.0/24`
     is allocated for the `green` network, and `10.3.93.0/24` is allocated for the
@@ -1144,36 +1175,44 @@
   id: totrans-173
   prefs: []
   type: TYPE_NORMAL
+  zh: Flannel为这三个网络选择了三个子网范围，如下图所示。`10.1.87.0/24`分配给`blue`网络，`10.2.4.0/24`分配给`green`网络，`10.3.93.0/24`分配给`red`网络：
 - en: '![](img/00350.jpg)'
   id: totrans-174
   prefs: []
   type: TYPE_IMG
+  zh: '![](img/00350.jpg)'
 - en: 'Under `/run/flannel`, multiple networks can be seen, as follows:'
   id: totrans-175
   prefs: []
   type: TYPE_NORMAL
+  zh: 在`/run/flannel`下可以看到多个网络，如下所示：
 - en: '![](img/00351.jpg)'
   id: totrans-176
   prefs: []
   type: TYPE_IMG
+  zh: '![](img/00351.jpg)'
 - en: Now, we can start the Docker or Rkt container with the appropriate tenant network
     created. At this point, there is no automatic integration of `flanneld.service`
     with multinetworks; this has to be done manually.
   id: totrans-177
   prefs: []
   type: TYPE_NORMAL
+  zh: 现在，我们可以启动带有适当租户网络的Docker或Rkt容器。此时，`flanneld.service`与多网络的自动集成尚未完成；这需要手动完成。
 - en: 'The following link is a related Google discussion on this topic:'
   id: totrans-178
   prefs: []
   type: TYPE_NORMAL
+  zh: 以下链接是关于此话题的相关Google讨论：
 - en: '[https://groups.google.com/forum/#!topic/coreos-user/EIF-yGNWkL4](https://groups.google.com/forum/#!topic/coreos-user/EIF-yGNWkL4)'
   id: totrans-179
   prefs: []
   type: TYPE_NORMAL
+  zh: '[https://groups.google.com/forum/#!topic/coreos-user/EIF-yGNWkL4](https://groups.google.com/forum/#!topic/coreos-user/EIF-yGNWkL4)'
 - en: Experimental client-server networking
   id: totrans-180
   prefs: []
   type: TYPE_NORMAL
+  zh: 实验性客户端-服务器网络
 - en: 'In the default Flannel mode, there is a flannel agent in each node, and the
     backend data is maintained in `etcd`. This keeps Flannel stateless. In this mode,
     there is a requirement for each Flannel node to run `etcd`. Flannel client-server
@@ -1181,12 +1220,14 @@
   id: totrans-181
   prefs: []
   type: TYPE_NORMAL
+  zh: 在默认的Flannel模式下，每个节点都有一个flannel代理，并且后端数据保存在`etcd`中。这样Flannel保持无状态。在这种模式下，每个Flannel节点都需要运行`etcd`。Flannel客户端-服务器模式在以下场景中非常有用：
 - en: Only the master node runs `etcd` and Worker nodes need not run `etcd`. This
     is useful from both the performance and security perspectives.
   id: totrans-182
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 只有主节点运行`etcd`，工作节点无需运行`etcd`。从性能和安全的角度来看，这一点非常有用。
 - en: When using other backends such as AWS with flannel, it's necessary to store
     the AWS key, and when using the client-server model, the key can be present in
     the master node only; this is again important from a security perspective.
@@ -1194,122 +1235,150 @@
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 当使用其他后端（如AWS）与flannel一起时，必须存储AWS密钥，并且在使用客户端-服务器模型时，密钥只需要在主节点中存在；从安全角度来看，这一点非常重要。
 - en: Flannel client-server feature is currently in experimental mode as of Flannel
     version 0.5.3.
   id: totrans-184
   prefs: []
   type: TYPE_NORMAL
+  zh: Flannel客户端-服务器功能目前在Flannel版本0.5.3中处于实验模式。
 - en: 'The following figure describes the interconnection between different components
     for the Flannel client-server networking:'
   id: totrans-185
   prefs: []
   type: TYPE_NORMAL
+  zh: 下图描述了Flannel客户端-服务器网络中的不同组件之间的互联：
 - en: '![](img/00353.jpg)'
   id: totrans-186
   prefs: []
   type: TYPE_IMG
+  zh: '![](img/00353.jpg)'
 - en: If necessary, we can use secure (HTTPS) means of communication both from the
     flanneld server to the etcd as well as between the flanneld client and server.
   id: totrans-187
   prefs: []
   type: TYPE_NORMAL
+  zh: 如果需要，我们可以使用安全的（HTTPS）通信方式，既可以从flanneld服务器到etcd，也可以在flanneld客户端和服务器之间进行通信。
 - en: Setting up client-server Flannel networking
   id: totrans-188
   prefs: []
   type: TYPE_NORMAL
+  zh: 设置客户端-服务器Flannel网络
 - en: Let's start with a three-node CoreOS cluster without Flannel running on any
     node. Start the `flanneld` server and client in `node1` and client in `node2`
     and `node3`.
   id: totrans-189
   prefs: []
   type: TYPE_NORMAL
+  zh: 让我们从一个没有在任何节点上运行Flannel的三节点CoreOS集群开始。在`node1`上启动`flanneld`服务器和客户端，在`node2`和`node3`上启动客户端。
 - en: 'Start flannel server as shown in the following screenshot:'
   id: totrans-190
   prefs: []
   type: TYPE_NORMAL
+  zh: 按照以下截图启动flannel服务器：
 - en: '![](img/00354.jpg)'
   id: totrans-191
   prefs: []
   type: TYPE_IMG
+  zh: '![](img/00354.jpg)'
 - en: 'Start flannel client as shown in the following screenshot:'
   id: totrans-192
   prefs: []
   type: TYPE_NORMAL
+  zh: 按照以下截图启动flannel客户端：
 - en: 'It is necessary to specify the interface with `eth1` as an argument as `eth0`
     is used as the NAT interface and is common across all nodes, eth1 is unique across
     nodes:'
   id: totrans-193
   prefs: []
   type: TYPE_NORMAL
+  zh: 必须指定`eth1`作为参数接口，因为`eth0`用作NAT接口，并且在所有节点中都相同，而`eth1`在各节点之间是唯一的：
 - en: '![](img/00357.jpg)'
   id: totrans-194
   prefs: []
   type: TYPE_IMG
+  zh: '![](img/00357.jpg)'
 - en: 'After starting the client in `node2` and `node3`, let''s look at the `etcd`
     output in `node1` showing the three subnets acquired by three CoreOS nodes:'
   id: totrans-195
   prefs: []
   type: TYPE_NORMAL
+  zh: 在`node2`和`node3`中启动客户端后，让我们查看`node1`中`etcd`的输出，显示了三个CoreOS节点获取的三个子网：
 - en: '![](img/00308.jpg)'
   id: totrans-196
   prefs: []
   type: TYPE_IMG
+  zh: '![](img/00308.jpg)'
 - en: 'To start `docker.service` manually, we first need to create `flannel_docker_opts.env`
     as follows:'
   id: totrans-197
   prefs: []
   type: TYPE_NORMAL
+  zh: 要手动启动`docker.service`，我们首先需要创建`flannel_docker_opts.env`，如下所示：
 - en: '`/usr/bin/docker run --net=host --rm -v /run:/run \``  quay.io/coreos/flannel:0.5.3 \``  /opt/bin/mk-docker-opts.sh -d /run/flannel_docker_opts.env –i`'
   id: totrans-198
   prefs: []
   type: TYPE_NORMAL
+  zh: '`/usr/bin/docker run --net=host --rm -v /run:/run \``  quay.io/coreos/flannel:0.5.3  \``  /opt/bin/mk-docker-opts.sh
+    -d /run/flannel_docker_opts.env –i`'
 - en: 'The following image is the created `flannel_docker_opts.env`:'
   id: totrans-199
   prefs: []
   type: TYPE_NORMAL
+  zh: 以下是创建的`flannel_docker_opts.env`文件：
 - en: '![](img/00469.jpg)'
   id: totrans-200
   prefs: []
   type: TYPE_IMG
+  zh: '![](img/00469.jpg)'
 - en: Now, we can start `docker.service`, which uses environment variables in `flannel_docker_opts.env`.
   id: totrans-201
   prefs: []
   type: TYPE_NORMAL
+  zh: 现在，我们可以启动`docker.service`，它使用`flannel_docker_opts.env`中的环境变量。
 - en: 'Start `docker.service`:'
   id: totrans-202
   prefs: []
   type: TYPE_NORMAL
+  zh: 启动`docker.service`：
 - en: '`sudo systemctl start docker.service`'
   id: totrans-203
   prefs: []
   type: TYPE_NORMAL
+  zh: '`sudo systemctl start docker.service`'
 - en: 'As we can see, the docker bridge gets the IP address in the range allocated
     to this node:'
   id: totrans-204
   prefs: []
   type: TYPE_NORMAL
+  zh: 如我们所见，docker 桥接获取了分配给此节点的 IP 地址范围：
 - en: '![](img/00052.jpg)'
   id: totrans-205
   prefs: []
   type: TYPE_IMG
+  zh: '![](img/00052.jpg)'
 - en: This feature is currently experimental. There are plans to add a server failover
     feature in future.
   id: totrans-206
   prefs: []
   type: TYPE_NORMAL
+  zh: 此功能目前处于实验阶段。未来计划添加服务器故障转移功能。
 - en: Docker networking
   id: totrans-207
   prefs: []
   type: TYPE_NORMAL
+  zh: Docker 网络
 - en: 'The following is the Docker networking model to interconnect containers in
     a single host:'
   id: totrans-208
   prefs: []
   type: TYPE_NORMAL
+  zh: 以下是用于在单个主机上互联容器的 Docker 网络模型：
 - en: '![](img/00312.jpg)'
   id: totrans-209
   prefs: []
   type: TYPE_IMG
+  zh: '![](img/00312.jpg)'
 - en: 'Each Container resides in its own networking namespace and uses a Linux bridge
     on the host machine to talk to each other. More details on Docker networking options
     can be found at [https://docs.docker.com/engine/userguide/networking/dockernetworks/](https://docs.docker.com/engine/userguide/networking/dockernetworks/).
@@ -1317,12 +1386,15 @@
   id: totrans-210
   prefs: []
   type: TYPE_NORMAL
+  zh: 每个容器都位于其自己的网络命名空间中，并通过主机上的 Linux 桥接与其他容器通信。有关 Docker 网络选项的更多详细信息，可以参见 [https://docs.docker.com/engine/userguide/networking/dockernetworks/](https://docs.docker.com/engine/userguide/networking/dockernetworks/)。以下是
+    Docker 1.9 版本提供的网络选项：
 - en: '`--net=bridge`: This is the default option that Docker provides, where containers
     connect to the Linux `docker` bridge using a veth pair.'
   id: totrans-211
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '`--net=bridge`：这是 Docker 提供的默认选项，容器通过 veth 对接到 Linux `docker` 桥接。'
 - en: '`--net=host`: In this option, there is no new network namespace created for
     the container, and the container shares the same network namespace as the host
     machine.'
@@ -1330,6 +1402,7 @@
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '`--net=host`：在此选项中，不会为容器创建新的网络命名空间，容器与主机共享相同的网络命名空间。'
 - en: '`--net= (the container name or ID)`: In this option, the new container shares
     the same network namespace as the specified container in the `net` option. (For
     example: `sudo docker run -ti –name=ubuntu2 –net=container:ubuntu1 ubuntu:14.04
@@ -1339,6 +1412,8 @@
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '`--net= (容器名称或ID)`：在此选项中，新容器与在`net`选项中指定的容器共享相同的网络命名空间。（例如：`sudo docker run
+    -ti –name=ubuntu2 –net=container:ubuntu1 ubuntu:14.04 /bin/bash`。这里，`ubuntu2`容器与`ubuntu1`容器共享相同的网络命名空间。）'
 - en: '`--net=none`: In this option, the container does not get allocated a new network
     namespace. Only the loopback interface is created in this case. This option is
     useful in scenarios where we want to create our own networking options for the
@@ -1347,16 +1422,19 @@
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '`--net=none`：在此选项中，容器不会分配新的网络命名空间。此时仅会创建回环接口。此选项适用于我们希望为容器创建自定义网络选项或不需要连接的场景。'
 - en: '`--net=overlay`: This option was added in Docker release 1.9 to support overlay
     networking that allows Containers across hosts to be able to talk to each other.'
   id: totrans-215
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '`--net=overlay`：此选项在 Docker 1.9 版本中添加，用于支持覆盖网络，使得跨主机的容器能够相互通信。'
 - en: Docker experimental networking
   id: totrans-216
   prefs: []
   type: TYPE_NORMAL
+  zh: Docker 实验性网络
 - en: As of Docker release 1.8, Docker did not have a native solution to connect Containers
     across hosts. With the Docker experimental release, we can connect Containers
     across hosts using the Docker native solution as well as external networking plugins
@@ -1364,18 +1442,22 @@
   id: totrans-217
   prefs: []
   type: TYPE_NORMAL
+  zh: 从 Docker 1.8 版本开始，Docker 没有本地解决方案来连接跨主机的容器。通过 Docker 实验性版本，我们可以使用 Docker 本地解决方案以及外部网络插件来连接跨主机的容器。
 - en: 'The following figure illustrates this:'
   id: totrans-218
   prefs: []
   type: TYPE_NORMAL
+  zh: 以下图示说明此情况：
 - en: '![](img/00447.jpg)'
   id: totrans-219
   prefs: []
   type: TYPE_IMG
+  zh: '![](img/00447.jpg)'
 - en: 'The following are some notes on the Docker libnetwork solution:'
   id: totrans-220
   prefs: []
   type: TYPE_NORMAL
+  zh: 以下是关于 Docker libnetwork 解决方案的一些说明：
 - en: Docker runtime was previously integrated with the networking module and there
     was no way to separate them. Libnetwork is the new networking library that provides
     the networking functionality and is separated from Core Docker. Docker 1.7 release
@@ -1385,6 +1467,8 @@
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 以前，Docker运行时与网络模块集成，没有办法将它们分离。Libnetwork是新的网络库，提供网络功能，并与Core Docker分离。Docker
+    1.7版本已经包含了libnetwork，并且从终端用户的角度来看是向后兼容的。
 - en: Drivers implement the APIs provided by libnetwork. Docker is leaning towards
     a plugin approach for major functionalities such as Networking, Storage, and Orchestration
     where Docker provides a native solution that can be substituted with technologies
@@ -1396,21 +1480,25 @@
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 驱动程序实现了libnetwork提供的API。Docker正在倾向于为网络、存储和编排等主要功能采用插件方法，Docker提供的原生解决方案可以被其他供应商的技术替代，只要它们实现了通用库提供的API。在这种情况下，Bridge和Overlay是Docker的原生网络驱动程序，而远程驱动程序可以由第三方实现。现在已经有很多远程驱动程序可用，如Weave和Calico。
 - en: 'Docker experimental networking has the following concepts:'
   id: totrans-223
   prefs: []
   type: TYPE_NORMAL
+  zh: Docker实验性网络有以下概念：
 - en: The Docker container attaches to the network using the endpoint or service.
   id: totrans-224
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: Docker容器通过端点或服务连接到网络。
 - en: Multiple endpoints share a network. In other words, only endpoints located in
     the same network can talk to each other.
   id: totrans-225
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 多个端点共享同一网络。换句话说，只有位于同一网络中的端点才能相互通信。
 - en: When creating the network, the network driver can be mentioned. This can be
     a Docker-provided driver, such as Overlay, or an external driver, such as Weave
     and Calico.
@@ -1418,6 +1506,7 @@
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 在创建网络时，可以指定网络驱动程序。这可以是Docker提供的驱动程序，如Overlay，或者是外部驱动程序，如Weave和Calico。
 - en: Libnetwork provides service discovery, where Containers can discover other endpoints
     in the same network. There is a plan in the future to make service discovery a
     plugin. Services can talk to each other using the service name rather than the
@@ -1427,33 +1516,39 @@
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: Libnetwork提供服务发现，容器可以发现同一网络中的其他端点。未来有计划将服务发现做成插件。服务之间可以通过服务名称而非IP地址进行通信。目前，Consul用于服务发现；这可能以后会有所变化。
 - en: Shared storage such as `etcd` or `consul` is used to determine the nodes that
     are part of the same cluster.
   id: totrans-228
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 使用共享存储，如`etcd`或`consul`，来确定属于同一集群的节点。
 - en: A multinetwork use case
   id: totrans-229
   prefs: []
   type: TYPE_NORMAL
+  zh: 一个多网络用例
 - en: 'With the latest Docker networking enhancements, Containers can be part of multiple
     networks and only Containers in the same network can talk to each other. To illustrate
     these concepts, let''s take a look at the following example:'
   id: totrans-230
   prefs: []
   type: TYPE_NORMAL
+  zh: 随着最新的Docker网络增强，容器可以是多个网络的一部分，只有在同一网络中的容器才能相互通信。为了说明这些概念，我们来看以下示例：
 - en: Set up two nginx containers and one HAProxy Container in the backend network,
     `be`.
   id: totrans-231
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 在后端网络`be`中设置两个nginx容器和一个HAProxy容器。
 - en: Add the HAProxy Container in the frontend network, `fe`, as well.
   id: totrans-232
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 同样将HAProxy容器添加到前端网络`fe`中。
 - en: Connect to the HAProxy Container using the busybox Container in the frontend
     network, `fe`. As the busybox Container is in the `fe` network and nginx Containers
     are in the `be` network, they cannot talk to each other directly.
@@ -1461,66 +1556,84 @@
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 使用位于前端网络`fe`中的busybox容器连接到HAProxy容器。由于busybox容器位于`fe`网络中，而nginx容器位于`be`网络中，因此它们无法直接相互通信。
 - en: The Haproxy Container will load balance the web connection between the two nginx
     backend Containers.
   id: totrans-234
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: HAProxy容器将在两个nginx后端容器之间进行Web连接的负载均衡。
 - en: 'The following are the command details:'
   id: totrans-235
   prefs: []
   type: TYPE_NORMAL
+  zh: 以下是命令详情：
 - en: 'Create the `fe` and `be` networks:'
   id: totrans-236
   prefs: []
   type: TYPE_NORMAL
+  zh: 创建`fe`和`be`网络：
 - en: '`docker network create be``docker network create fe`'
   id: totrans-237
   prefs: []
   type: TYPE_NORMAL
+  zh: '`docker network create be` `docker network create fe`'
 - en: 'Create two nginx containers in the `be` network:'
   id: totrans-238
   prefs: []
   type: TYPE_NORMAL
+  zh: 在`be`网络中创建两个nginx容器：
 - en: '`docker run --name nginx1 --net be -v ~/haproxy/nginx1.html:/usr/share/nginx/html/index.html -d nginx``docker run --name nginx2 --net be -v ~/haproxy/nginx2.html:/usr/share/nginx/html/index.html -d nginx`'
   id: totrans-239
   prefs: []
   type: TYPE_NORMAL
+  zh: '`docker run --name nginx1 --net be -v ~/haproxy/nginx1.html:/usr/share/nginx/html/index.html
+    -d nginx` `docker run --name nginx2 --net be -v ~/haproxy/nginx2.html:/usr/share/nginx/html/index.html
+    -d nginx`'
 - en: 'Create `haproxy` in the `be` network:'
   id: totrans-240
   prefs: []
   type: TYPE_NORMAL
+  zh: 在`be`网络中创建`haproxy`：
 - en: '`docker run -d --name haproxy --net be -v ~/haproxy/haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg haproxy`'
   id: totrans-241
   prefs: []
   type: TYPE_NORMAL
+  zh: '`docker run -d --name haproxy --net be -v ~/haproxy/haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg
+    haproxy`'
 - en: 'Attach `haproxy` to the `fe` network:'
   id: totrans-242
   prefs: []
   type: TYPE_NORMAL
+  zh: 将 `haproxy` 附加到 `fe` 网络：
 - en: '`docker network connect fe haproxy`'
   id: totrans-243
   prefs: []
   type: TYPE_NORMAL
+  zh: '`docker network connect fe haproxy`'
 - en: 'Create a busybox container in the `fe` network accessing the `haproxy` web
     page:'
   id: totrans-244
   prefs: []
   type: TYPE_NORMAL
+  zh: 在 `fe` 网络中创建一个 busybox 容器，访问 `haproxy` 网页：
 - en: '`docker run -it --rm --net fe busybox wget -qO- haproxy/index.html`'
   id: totrans-245
   prefs: []
   type: TYPE_NORMAL
+  zh: '`docker run -it --rm --net fe busybox wget -qO- haproxy/index.html`'
 - en: If we try running the busybox container multiple times, it will switch between
     `nginx1` and `nginx2` web server outputs.
   id: totrans-246
   prefs: []
   type: TYPE_NORMAL
+  zh: 如果我们多次尝试运行 busybox 容器，它将在 `nginx1` 和 `nginx2` 网页服务器输出之间切换。
 - en: The Docker overlay driver
   id: totrans-247
   prefs: []
   type: TYPE_NORMAL
+  zh: Docker 覆盖驱动程序
 - en: The following example shows you how to do multihost container connectivity using
     the Docker experimental overlay driver. I have used a Ubuntu VM for the following
     example and not CoreOS because the experimental docker overlay driver needs a
@@ -1528,23 +1641,29 @@
   id: totrans-248
   prefs: []
   type: TYPE_NORMAL
+  zh: 以下示例展示了如何使用 Docker 的实验性覆盖驱动程序实现多主机容器连接。我在以下示例中使用的是 Ubuntu 虚拟机，而不是 CoreOS，因为实验性的
+    Docker 覆盖驱动程序需要一个新的内核版本，而该版本在 CoreOS 中尚未提供。
 - en: 'The following figure illustrates the use case that is being tried in this example:'
   id: totrans-249
   prefs: []
   type: TYPE_NORMAL
+  zh: 以下图示展示了此示例中正在尝试的用例：
 - en: '![](img/00314.jpg)'
   id: totrans-250
   prefs: []
   type: TYPE_IMG
+  zh: '![](img/00314.jpg)'
 - en: 'The following is a summary of the steps:'
   id: totrans-251
   prefs: []
   type: TYPE_NORMAL
+  zh: 以下是步骤的总结：
 - en: Create two hosts with experimental Docker installed.
   id: totrans-252
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 创建两台安装了实验性 Docker 的主机。
 - en: Install Consul on both the hosts with one of the hosts acting as the consul
     server. Consul is needed to store common data that is used for inter-container
     communication.
@@ -1552,102 +1671,132 @@
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 在两台主机上安装 Consul，其中一台主机充当 consul 服务器。Consul 用于存储用于容器间通信的共享数据。
 - en: Start Docker with Consul as the key store mechanism on both hosts.
   id: totrans-254
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 在两个主机上启动 Docker，并使用 Consul 作为密钥存储机制。
 - en: Create containers with different endpoints on both hosts sharing the same network.
   id: totrans-255
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 在两个主机上创建具有不同端点的容器，这些容器共享相同的网络。
 - en: The first step is to create 2 host machines with experimental Docker installed.
   id: totrans-256
   prefs: []
   type: TYPE_NORMAL
+  zh: 第一步是创建两台安装了实验性 Docker 的主机。
 - en: 'The following set of commands creates two Docker hosts using docker-machine.
     We have used docker-machine with a custom ISO image for experimental Docker:'
   id: totrans-257
   prefs: []
   type: TYPE_NORMAL
+  zh: 以下一组命令使用 docker-machine 创建两台 Docker 主机。我们使用了带有自定义 ISO 镜像的 docker-machine 来安装实验性的
+    Docker：
 - en: '`docker-machine create -d virtualbox --virtualbox-boot2docker-url=http://sirile.github.io/files/boot2docker-1.9.iso dev1``docker-machine create -d virtualbox --virtualbox-boot2docker-url=http://sirile.github.io/files/boot2docker-1.9.iso dev2`'
   id: totrans-258
   prefs: []
   type: TYPE_NORMAL
+  zh: '`docker-machine create -d virtualbox --virtualbox-boot2docker-url=http://sirile.github.io/files/boot2docker-1.9.iso
+    dev1``docker-machine create -d virtualbox --virtualbox-boot2docker-url=http://sirile.github.io/files/boot2docker-1.9.iso
+    dev2`'
 - en: 'Install Consul on both nodes. The following command shows you how to download
     and install consul:'
   id: totrans-259
   prefs: []
   type: TYPE_NORMAL
+  zh: 在两个节点上安装 Consul。以下命令展示了如何下载并安装 Consul：
 - en: '`curl -OL https://dl.bintray.com/mitchellh/consul/0.5.2_linux_amd64.zip``unzip 0.5.2_linux_amd64.zip``sudo mv consul /usr/local/bin/`'
   id: totrans-260
   prefs: []
   type: TYPE_NORMAL
+  zh: '`curl -OL https://dl.bintray.com/mitchellh/consul/0.5.2_linux_amd64.zip``unzip
+    0.5.2_linux_amd64.zip``sudo mv consul /usr/local/bin/`'
 - en: 'Start the consul server and docker daemon with the consul keystore in `node1`:'
   id: totrans-261
   prefs: []
   type: TYPE_NORMAL
+  zh: 在 `node1` 上启动 consul 服务器并启动使用 consul 密钥存储的 Docker 守护进程：
 - en: 'The following set of commands starts the consul server and Docker daemon with
     the consul agent in `node1`:'
   id: totrans-262
   prefs: []
   type: TYPE_NORMAL
+  zh: 以下一组命令在 `node1` 上启动 consul 服务器并使用 consul 代理启动 Docker 守护进程：
 - en: '`Docker-machine ssh dev1``consul agent -server -bootstrap -data-dir /tmp/consul -bind=192.168.99.100 &``sudo docker -d --kv-store=consul:localhost:8500 --label=com.docker.network.driver.overlay.bind_interface=eth1`'
   id: totrans-263
   prefs: []
   type: TYPE_NORMAL
+  zh: '`Docker-machine ssh dev1``consul agent -server -bootstrap -data-dir /tmp/consul
+    -bind=192.168.99.100 &``sudo docker -d --kv-store=consul:localhost:8500 --label=com.docker.network.driver.overlay.bind_interface=eth1`'
 - en: 'Start the consul agent and Docker daemon with the consul keystore in `node2`:'
   id: totrans-264
   prefs: []
   type: TYPE_NORMAL
+  zh: 在 `node2` 上启动 consul 代理和使用 consul 密钥存储的 Docker 守护进程：
 - en: 'The following set of commands starts the consul agent and Docker daemon with
     the consul agent in `node2`:'
   id: totrans-265
   prefs: []
   type: TYPE_NORMAL
+  zh: 以下一组命令启动在 `node2` 上运行的 consul 代理和 Docker 守护进程：
 - en: '`Docker-machine ssh dev2``consul agent -data-dir /tmp/consul -bind 192.168.99.101 &``consul join 192.168.99.100 &``sudo docker -d --kv-store=consul:localhost:8500 --label=com.docker.network.driver.overlay.bind_interface=eth1 --label=com.docker.network.driver.overlay.neighbor_ip=192.168.99.100`'
   id: totrans-266
   prefs: []
   type: TYPE_NORMAL
+  zh: '`Docker-machine ssh dev2``consul agent -data-dir /tmp/consul -bind 192.168.99.101
+    &``consul join 192.168.99.100 &``sudo docker -d --kv-store=consul:localhost:8500
+    --label=com.docker.network.driver.overlay.bind_interface=eth1 --label=com.docker.network.driver.overlay.neighbor_ip=192.168.99.100`'
 - en: 'Start the container with the `svc1` service, `dev` network, and `overlay` driver
     in `node1`:'
   id: totrans-267
   prefs: []
   type: TYPE_NORMAL
+  zh: 在 `node1` 上启动带有 `svc1` 服务、`dev` 网络和 `overlay` 驱动程序的容器：
 - en: '`docker run -i -t --publish-service=svc1.dev.overlay busybox`'
   id: totrans-268
   prefs: []
   type: TYPE_NORMAL
+  zh: '`docker run -i -t --publish-service=svc1.dev.overlay busybox`'
 - en: 'Start the container with the `svc2` service, `dev` network, and `overlay` driver
     in node2:'
   id: totrans-269
   prefs: []
   type: TYPE_NORMAL
+  zh: 在`node2`上使用`svc2`服务、`dev`网络和`overlay`驱动启动容器：
 - en: '`docker run -i -t --publish-service=svc2.dev.overlay busybox`'
   id: totrans-270
   prefs: []
   type: TYPE_NORMAL
+  zh: '`docker run -i -t --publish-service=svc2.dev.overlay busybox`'
 - en: 'As we can see, we are able to ping `svc1` and `svc2` from `node1` successfully:'
   id: totrans-271
   prefs: []
   type: TYPE_NORMAL
+  zh: 如我们所见，我们能够成功从`node1`ping到`svc1`和`svc2`：
 - en: '![](img/00491.jpg)'
   id: totrans-272
   prefs: []
   type: TYPE_IMG
+  zh: '![](img/00491.jpg)'
 - en: Note
   id: totrans-273
   prefs: []
   type: TYPE_NORMAL
+  zh: 注意
 - en: 'Note: The overlay driver needs the Linux kernel version 3.16 or higher.'
   id: totrans-274
   prefs: []
   type: TYPE_NORMAL
+  zh: 注意：overlay驱动需要Linux内核版本为3.16或更高。
 - en: The external networking calico plugin
   id: totrans-275
   prefs: []
   type: TYPE_NORMAL
+  zh: 外部网络Calico插件
 - en: In this example, we will illustrate how to do Container networking using Calico
     as a plugin to the Docker libnetwork. This support was available originally in
     experimental networking and later in the Docker 1.9 release. More details about
@@ -1657,86 +1806,107 @@
   id: totrans-276
   prefs: []
   type: TYPE_NORMAL
+  zh: 在这个示例中，我们将演示如何使用Calico作为Docker libnetwork的插件进行容器网络设置。最初，支持该功能的是实验性网络，后来在Docker
+    1.9版本中发布。有关Calico网络方法的更多细节，请参阅以下Calico网络部分。本示例基于[https://github.com/projectcalico/calico-containers/blob/master/docs/calico-with-docker/docker-network-plugin/README.md](https://github.com/projectcalico/calico-containers/blob/master/docs/calico-with-docker/docker-network-plugin/README.md)。要为Calico设置CoreOS
+    Vagrant集群，我们可以参考[https://github.com/projectcalico/calico-containers/blob/master/docs/calico-with-docker/VagrantCoreOS.md](https://github.com/projectcalico/calico-containers/blob/master/docs/calico-with-docker/VagrantCoreOS.md)中的过程。
 - en: 'After setting up a Vagrant CoreOS cluster, we can see the two nodes of the
     CoreOS cluster. We should make sure that `etcd` is running successfully, as shown
     in the following output:'
   id: totrans-277
   prefs: []
   type: TYPE_NORMAL
+  zh: 在设置Vagrant CoreOS集群后，我们可以看到CoreOS集群的两个节点。我们应该确保`etcd`成功运行，如下所示：
 - en: '![](img/00318.jpg)'
   id: totrans-278
   prefs: []
   type: TYPE_IMG
+  zh: '![](img/00318.jpg)'
 - en: 'The following are the steps to get Calico working with Docker as a networking
     plugin:'
   id: totrans-279
   prefs: []
   type: TYPE_NORMAL
+  zh: 以下是使Calico与Docker作为网络插件工作的步骤：
 - en: 'Start Calico in both nodes with the libnetwork option:'
   id: totrans-280
   prefs: []
   type: TYPE_NORMAL
+  zh: 在两个节点上使用libnetwork选项启动Calico：
 - en: '`sudo calicoctl node --libnetwork`'
   id: totrans-281
   prefs: []
   type: TYPE_NORMAL
+  zh: '`sudo calicoctl node --libnetwork`'
 - en: 'We should see the following Docker containers in both nodes:'
   id: totrans-282
   prefs: []
   type: TYPE_NORMAL
+  zh: 我们应该在两个节点上看到以下Docker容器：
 - en: '![](img/00028.jpg)'
   id: totrans-283
   prefs: []
   type: TYPE_IMG
+  zh: '![](img/00028.jpg)'
 - en: 'Create the `net1` network with Calico driver:'
   id: totrans-284
   prefs: []
   type: TYPE_NORMAL
+  zh: 使用Calico驱动创建`net1`网络：
 - en: '`docker network create --driver=calico --subnet=192.168.0.0/24 net1`'
   id: totrans-285
   prefs: []
   type: TYPE_NORMAL
+  zh: '`docker network create --driver=calico --subnet=192.168.0.0/24 net1`'
 - en: 'This gets replicated to all the nodes in the cluster. The following is the
     network list in `node2`:'
   id: totrans-286
   prefs: []
   type: TYPE_NORMAL
+  zh: 这会被复制到集群中的所有节点。以下是`node2`中的网络列表：
 - en: '![](img/00320.jpg)'
   id: totrans-287
   prefs: []
   type: TYPE_IMG
+  zh: '![](img/00320.jpg)'
 - en: 'Create container 1 in `node1` with the `net1` network:'
   id: totrans-288
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 在`node1`上使用`net1`网络创建容器1：
 - en: '`docker run --net net1 --name workload-A -tid busybox`'
   id: totrans-289
   prefs:
   - PREF_IND
   type: TYPE_NORMAL
+  zh: '`docker run --net net1 --name workload-A -tid busybox`'
 - en: 'Create container 2 in `node2` with the `net1` network:'
   id: totrans-290
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 在`node2`上使用`net1`网络创建容器2：
 - en: '`docker run --net net1 --name workload-B -tid busybox`'
   id: totrans-291
   prefs:
   - PREF_IND
   type: TYPE_NORMAL
+  zh: '`docker run --net net1 --name workload-B -tid busybox`'
 - en: 'Now, we can ping the two containers as follows:'
   id: totrans-292
   prefs: []
   type: TYPE_NORMAL
+  zh: 现在，我们可以按以下方式ping这两个容器：
 - en: '![](img/00050.jpg)'
   id: totrans-293
   prefs: []
   type: TYPE_IMG
+  zh: '![](img/00050.jpg)'
 - en: The Docker 1.9 update
   id: totrans-294
   prefs: []
   type: TYPE_NORMAL
+  zh: Docker 1.9更新
 - en: Docker 1.9 got released at the end of October 2015 that transitioned the experimental
     networking into production. There could be minor modifications necessary to the
     Docker networking examples in this chapter, which were tried with the Docker 1.8
@@ -1744,6 +1914,7 @@
   id: totrans-295
   prefs: []
   type: TYPE_NORMAL
+  zh: Docker 1.9版本在2015年10月底发布，标志着实验性网络进入生产环境。在本章中，使用Docker 1.8实验性网络版本进行的Docker网络示例可能需要进行小幅修改。
 - en: With Docker 1.9, multihost networking is integrated with Docker Swarm and Compose.
     This allows us to orchestrate a multicontainer application spread between multiple
     hosts with a single command and the multi-host Container networking will be handled
@@ -1751,10 +1922,12 @@
   id: totrans-296
   prefs: []
   type: TYPE_NORMAL
+  zh: 随着Docker 1.9的发布，多主机网络已集成到Docker Swarm和Compose中。这使我们能够通过单个命令编排跨多个主机的多容器应用程序，且多主机容器网络将自动处理。
 - en: Other Container networking technologies
   id: totrans-297
   prefs: []
   type: TYPE_NORMAL
+  zh: 其他容器网络技术
 - en: Weave and Calico are open source projects, and they develop Container networking
     technologies for Docker. Kubernetes is a Container orchestration open source project
     and it has specific networking requirements and implementations for Containers.
@@ -1764,20 +1937,25 @@
   id: totrans-298
   prefs: []
   type: TYPE_NORMAL
+  zh: Weave和Calico是开源项目，它们为Docker开发容器网络技术。Kubernetes是一个容器编排开源项目，具有特定的容器网络需求和实现。还有其他项目，如面向容器网络的Cisco
+    Contiv（[https://github.com/contiv/netplugin](https://github.com/contiv/netplugin)）。像Weave、Calico和Contiv这样的容器技术，未来计划与Rkt容器运行时集成。
 - en: Weave networking
   id: totrans-299
   prefs: []
   type: TYPE_NORMAL
+  zh: Weave网络
 - en: 'Weaveworks has developed a solution to provide Container networking. The following
     are some details of their solution:'
   id: totrans-300
   prefs: []
   type: TYPE_NORMAL
+  zh: Weaveworks开发了一种提供容器网络的解决方案。以下是他们解决方案的一些细节：
 - en: Weave creates a Weave bridge as well as a Weave router in the host machine.
   id: totrans-301
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: Weave在主机上创建Weave桥接和Weave路由器。
 - en: The Weave router establishes both TCP and UDP connections across hosts to other
     Weave routers. A TCP connection is used for discovery- and protocol-related exchange.
     UDP is used for data encapsulation. Encryption can be done if necessary.
@@ -1785,6 +1963,7 @@
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: Weave路由器通过主机与其他Weave路由器之间建立TCP和UDP连接。TCP连接用于发现和协议相关的交换，UDP用于数据封装。必要时可以进行加密。
 - en: The Weave bridge is configured to sniff the packets that need to be sent across
     hosts and redirected to the Weave router. For local switching, the Weave router
     is not used.
@@ -1792,6 +1971,7 @@
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: Weave桥接配置为嗅探需要跨主机发送并重定向到Weave路由器的包。对于本地交换，不使用Weave路由器。
 - en: Weave's Weavenet product provides you with container connectivity. They also
     have Weavescope that provides container visibility and Weaverun that provides
     service discovery and load balancing.
@@ -1799,20 +1979,24 @@
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: Weave的Weavenet产品为你提供容器连接。它们还提供Weavescope，提供容器可视化，和Weaverun，提供服务发现和负载均衡。
 - en: Weave is also available as a Docker plugin integrated with the Docker release
     1.9.
   id: totrans-305
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: Weave也可以作为Docker插件，与Docker 1.9版本集成。
 - en: 'The following figure illustrates the solution from Weave:'
   id: totrans-306
   prefs: []
   type: TYPE_NORMAL
+  zh: 下图展示了来自Weave的解决方案：
 - en: '![](img/00068.jpg)'
   id: totrans-307
   prefs: []
   type: TYPE_IMG
+  zh: '![](img/00068.jpg)'
 - en: To run Weave on CoreOS, I used cloud-config from [https://github.com/lukebond/coreos-vagrant-weave](https://github.com/lukebond/coreos-vagrant-weave).
     In the following example, we will create containers in two CoreOS nodes and use
     Weave to communicate with each other. In this example, we have not used the Docker
@@ -1821,59 +2005,73 @@
   id: totrans-308
   prefs: []
   type: TYPE_NORMAL
+  zh: 在CoreOS上运行Weave时，我使用了来自[https://github.com/lukebond/coreos-vagrant-weave](https://github.com/lukebond/coreos-vagrant-weave)的cloud-config。在以下示例中，我们将在两个CoreOS节点中创建容器，并使用Weave进行互相通信。在此示例中，我们没有使用Docker
+    Weave插件，而是通过环境变量来实现Docker和Weave之间的通信。
 - en: 'The following are the steps to create a Weave cluster:'
   id: totrans-309
   prefs: []
   type: TYPE_NORMAL
+  zh: 以下是创建Weave集群的步骤：
 - en: Clone the repository (`git clone https://github.com/lukebond/coreos-vagrant-weave.git`).
   id: totrans-310
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 克隆仓库（`git clone https://github.com/lukebond/coreos-vagrant-weave.git`）。
 - en: Change the number of instances in `config.rb` to `3`.
   id: totrans-311
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 将`config.rb`中的实例数量更改为`3`。
 - en: Get a new discovery token for node count 3 and update it in the user data.
   id: totrans-312
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 获取一个新的发现令牌，节点数量为3，并将其更新到用户数据中。
 - en: Perform `vagrant up` to start the cluster.
   id: totrans-313
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 执行`vagrant up`来启动集群。
 - en: The `cloud-config` file takes care of downloading Weave agents in each node
     and starting them.
   id: totrans-314
   prefs: []
   type: TYPE_NORMAL
+  zh: '`cloud-config`文件负责在每个节点上下载Weave代理并启动它们。'
 - en: 'The following section of the service file downloads the Weave container:'
   id: totrans-315
   prefs: []
   type: TYPE_NORMAL
+  zh: 服务文件的以下部分下载Weave容器：
 - en: '![](img/00421.jpg)'
   id: totrans-316
   prefs: []
   type: TYPE_IMG
+  zh: '![](img/00421.jpg)'
 - en: 'The following section of the service file starts the Weave container:'
   id: totrans-317
   prefs: []
   type: TYPE_NORMAL
+  zh: 服务文件的以下部分启动Weave容器：
 - en: '![](img/00340.jpg)'
   id: totrans-318
   prefs: []
   type: TYPE_IMG
+  zh: '![](img/00340.jpg)'
 - en: 'On each of the nodes, we can see the following Weave containers started:'
   id: totrans-319
   prefs: []
   type: TYPE_NORMAL
+  zh: 在每个节点上，我们可以看到启动的Weave容器：
 - en: '![](img/00278.jpg)'
   id: totrans-320
   prefs: []
   type: TYPE_IMG
+  zh: '![](img/00278.jpg)'
 - en: 'Before starting application containers, we need to set the environment variables
     so that Weave can intercept Docker commands and create their own networking. As
     part of starting Weave in `Weave.service`, environment variables have already
@@ -1881,207 +2079,255 @@
   id: totrans-321
   prefs: []
   type: TYPE_NORMAL
+  zh: 在启动应用程序容器之前，我们需要设置环境变量，以便Weave可以拦截Docker命令并创建自己的网络。作为`Weave.service`启动的一部分，环境变量已经设置好。以下命令显示了节点中的设置：
 - en: '![](img/00292.jpg)'
   id: totrans-322
   prefs: []
   type: TYPE_IMG
+  zh: '![](img/00292.jpg)'
 - en: 'Source the Weave environment as follows:'
   id: totrans-323
   prefs: []
   type: TYPE_NORMAL
+  zh: 如下所示，配置Weave环境：
 - en: '![](img/00366.jpg)'
   id: totrans-324
   prefs: []
   type: TYPE_IMG
+  zh: '![](img/00366.jpg)'
 - en: 'Let''s start busybox containers in two CoreOS nodes:'
   id: totrans-325
   prefs: []
   type: TYPE_NORMAL
+  zh: 让我们在两个 CoreOS 节点中启动 busybox 容器：
 - en: '![](img/00315.jpg)'
   id: totrans-326
   prefs: []
   type: TYPE_IMG
+  zh: '![](img/00315.jpg)'
 - en: 'Let''s look at the Weave interface created in the busybox container of CoreOS
     node1:'
   id: totrans-327
   prefs: []
   type: TYPE_NORMAL
+  zh: 让我们看看在 CoreOS 节点 1 的 busybox 容器中创建的 Weave 接口：
 - en: '![](img/00325.jpg)'
   id: totrans-328
   prefs: []
   type: TYPE_IMG
+  zh: '![](img/00325.jpg)'
 - en: 'Let''s look at the Weave interface created in the busybox container of CoreOS
     node2:'
   id: totrans-329
   prefs: []
   type: TYPE_NORMAL
+  zh: 让我们看看在 CoreOS 节点 2 的 busybox 容器中创建的 Weave 接口：
 - en: '![](img/00374.jpg)'
   id: totrans-330
   prefs: []
   type: TYPE_IMG
+  zh: '![](img/00374.jpg)'
 - en: Now, we can successfully ping between the two containers. As part of Docker
     1.9, Weave is available as a Docker networking plugin and this makes configuration
     much easier.
   id: totrans-331
   prefs: []
   type: TYPE_NORMAL
+  zh: 现在，我们可以在两个容器之间成功地进行 ping 操作。作为 Docker 1.9 的一部分，Weave 作为 Docker 网络插件可用，这使得配置变得更加简便。
 - en: Calico networking
   id: totrans-332
   prefs: []
   type: TYPE_NORMAL
+  zh: Calico 网络
 - en: 'Calico provides you with a Container networking solution for Docker similar
     to Weave. The following are some details of Calico''s implementation:'
   id: totrans-333
   prefs: []
   type: TYPE_NORMAL
+  zh: Calico 为 Docker 提供类似于 Weave 的容器网络解决方案。以下是 Calico 实现的一些细节：
 - en: Calico provides container networking directly at L3 without using overlay technologies
   id: totrans-334
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: Calico 直接在 L3 层提供容器网络，而不使用覆盖技术。
 - en: Calico uses BGP for route distribution
   id: totrans-335
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: Calico 使用 BGP 进行路由分发。
 - en: 'There are two components of Calico: BIRD, which is used for route distribution
     and FELIX, which is an agent in each node that does discovery and routing'
   id: totrans-336
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: Calico 有两个组件：BIRD，用于路由分发；FELIX，它是每个节点中的一个代理，负责发现和路由。
 - en: Calico is also available as a Docker networking plugin integrated with Docker
     release 1.9
   id: totrans-337
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: Calico 也作为 Docker 网络插件与 Docker 1.9 版本集成可用。
 - en: 'The following figure illustrates the Calico data path:'
   id: totrans-338
   prefs: []
   type: TYPE_NORMAL
+  zh: 下图展示了 Calico 的数据路径：
 - en: '![](img/00365.jpg)'
   id: totrans-339
   prefs: []
   type: TYPE_IMG
+  zh: '![](img/00365.jpg)'
 - en: Setting up Calico with CoreOS
   id: totrans-340
   prefs: []
   type: TYPE_NORMAL
+  zh: 在 CoreOS 上设置 Calico。
 - en: I followed the procedure at [https://github.com/projectcalico/calico-containers/blob/master/docs/calico-with-docker/VagrantCoreOS.md](https://github.com/projectcalico/calico-containers/blob/master/docs/calico-with-docker/VagrantCoreOS.md)
     to set up a two-node CoreOS cluster.
   id: totrans-341
   prefs: []
   type: TYPE_NORMAL
+  zh: 我按照 [https://github.com/projectcalico/calico-containers/blob/master/docs/calico-with-docker/VagrantCoreOS.md](https://github.com/projectcalico/calico-containers/blob/master/docs/calico-with-docker/VagrantCoreOS.md)
+    上的步骤设置了一个两节点的 CoreOS 集群。
 - en: 'The first step is checking out the repository:'
   id: totrans-342
   prefs: []
   type: TYPE_NORMAL
+  zh: 第一步是检出该仓库：
 - en: '`git clone https://github.com/projectcalico/calico-docker.git`'
   id: totrans-343
   prefs: []
   type: TYPE_NORMAL
+  zh: '`git clone https://github.com/projectcalico/calico-docker.git`'
 - en: 'There are three approaches described by Calico for Docker networking:'
   id: totrans-344
   prefs: []
   type: TYPE_NORMAL
+  zh: Calico 为 Docker 网络提供了三种方法：
 - en: 'Powerstrip: Calico uses an HTTP proxy to listen to Docker calls and set up
     networking.'
   id: totrans-345
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: Powerstrip：Calico 使用 HTTP 代理来监听 Docker 调用并设置网络。
 - en: 'Default networking: Docker Containers are set up with no networking. Using
     Calico, network endpoints are added and networking is set up.'
   id: totrans-346
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 默认网络配置：Docker 容器默认没有网络设置。使用 Calico 后，网络端点会被添加，并配置网络。
 - en: 'Libnetwork: Calico is integrated with Docker libnetwork as of Docker release
     1.9\. This will be the long-term solution.'
   id: totrans-347
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: Libnetwork：从 Docker 1.9 版本起，Calico 与 Docker libnetwork 集成。这将是长期解决方案。
 - en: In the following example, we have used the default networking approach to set
     up Container connectivity using Calico.
   id: totrans-348
   prefs: []
   type: TYPE_NORMAL
+  zh: 在以下示例中，我们使用默认网络方法通过 Calico 设置容器之间的连接。
 - en: 'The following are the steps needed to set up the default networking option
     with Calico:'
   id: totrans-349
   prefs: []
   type: TYPE_NORMAL
+  zh: 以下是使用 Calico 设置默认网络选项的步骤：
 - en: Start calicoctl in all the nodes.
   id: totrans-350
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 在所有节点上启动 calicoctl。
 - en: Start the containers with the `--no-net` option.
   id: totrans-351
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 使用 `--no-net` 选项启动容器。
 - en: Attach the calico network specifying the IP address to each container.
   id: totrans-352
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 为每个容器附加 Calico 网络，并指定 IP 地址。
 - en: Create a policy profile. Profiles set up the policy that allows containers to
     talk to each other.
   id: totrans-353
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 创建一个策略配置文件。配置文件设置了允许容器互相通信的策略。
 - en: Attach profiles to the container.
   id: totrans-354
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 为容器附加配置文件。
 - en: The following commands set up a container in `node1` and `node2` and establish
     a policy that allows containers to talk to each other.
   id: totrans-355
   prefs: []
   type: TYPE_NORMAL
+  zh: 以下命令在 `node1` 和 `node2` 上设置容器，并建立允许容器相互通信的策略。
 - en: 'Execute the following commands on `node1`:'
   id: totrans-356
   prefs: []
   type: TYPE_NORMAL
+  zh: 在 `node1` 上执行以下命令：
 - en: '`docker run --net=none --name workload-A -tid busybox``sudo calicoctl container add workload-A 192.168.0.1``calicoctl profile add PROF_A_B``calicoctl container workload-A profile append PROF_A_B`'
   id: totrans-357
   prefs: []
   type: TYPE_NORMAL
+  zh: '`docker run --net=none --name workload-A -tid busybox``sudo calicoctl container
+    add workload-A 192.168.0.1``calicoctl profile add PROF_A_B``calicoctl container
+    workload-A profile append PROF_A_B`'
 - en: This starts the docker container, attaches the calico endpoint, and applies
     the profile to allow Container connectivity.
   id: totrans-358
   prefs: []
   type: TYPE_NORMAL
+  zh: 这将启动 Docker 容器，附加 Calico 端点，并应用配置文件以允许容器之间的连接。
 - en: 'Execute the following commands on `node2`:'
   id: totrans-359
   prefs: []
   type: TYPE_NORMAL
+  zh: 在 `node2` 上执行以下命令：
 - en: '`docker run --net=none --name workload-B -tid busybox``sudo calicoctl container add workload-B 192.168.0.2``calicoctl container workload-B profile append PROF_A_B`'
   id: totrans-360
   prefs: []
   type: TYPE_NORMAL
+  zh: '`docker run --net=none --name workload-B -tid busybox``sudo calicoctl container
+    add workload-B 192.168.0.2``calicoctl container workload-B profile append PROF_A_B`'
 - en: This starts the docker container, attaches the calico endpoint, and applies
     the same profile as in the preceding commands to allow Container connectivity.
   id: totrans-361
   prefs: []
   type: TYPE_NORMAL
+  zh: 这将启动 Docker 容器，附加 Calico 终端节点，并应用与前面命令中相同的配置文件，以允许容器之间的连接。
 - en: 'Now, we can test intercontainer connectivity:'
   id: totrans-362
   prefs: []
   type: TYPE_NORMAL
+  zh: 现在，我们可以测试容器间的连接性：
 - en: '![](img/00383.jpg)'
   id: totrans-363
   prefs: []
   type: TYPE_IMG
+  zh: '![](img/00383.jpg)'
 - en: Kubernetes networking
   id: totrans-364
   prefs: []
   type: TYPE_NORMAL
+  zh: Kubernetes 网络
 - en: Kubernetes is a Container orchestration service. Kubernetes is an open source
     project that's primarily driven by Google. We will discuss about Kubernetes in
     the next chapter on Container orchestration. In this chapter, we will cover some
@@ -2089,11 +2335,14 @@
   id: totrans-365
   prefs: []
   type: TYPE_NORMAL
+  zh: Kubernetes 是一个容器编排服务。Kubernetes 是一个由 Google 主导的开源项目。我们将在下一章讨论容器编排中的 Kubernetes。在本章中，我们将介绍一些
+    Kubernetes 网络的基础知识。
 - en: 'The following are some details as to how Kubernetes does the networking of
     containers:'
   id: totrans-366
   prefs: []
   type: TYPE_NORMAL
+  zh: 以下是 Kubernetes 如何进行容器网络连接的一些细节：
 - en: Kubernetes has a concept called Pods, which is a collection of closely-tied
     containers. For example, a service and its logging service can be a single pod.
     Another example of a pod could be a service and sidekick service that checks the
@@ -2103,23 +2352,28 @@
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: Kubernetes 有一个概念叫做 Pods，它是多个紧密相关的容器的集合。例如，一个服务及其日志服务可以是一个单独的 Pod。另一个 Pod 的例子可以是一个服务和一个检查主服务健康状况的辅助服务。一个
+    Pod 及其相关的容器始终会被调度到同一台机器上。
 - en: Each pod gets an IP address. All containers within a pod share the same IP address.
   id: totrans-368
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 每个 Pod 都有一个 IP 地址。Pod 内的所有容器共享相同的 IP 地址。
 - en: Containers within a pod share the same network namespace. For containers within
     a pod to communicate, they can use a regular process-based communication.
   id: totrans-369
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: Pod 内的容器共享相同的网络命名空间。为了让 Pod 内的容器能够通信，它们可以使用常规的基于进程的通信方式。
 - en: Pods can communicate with each other using a cloud networking VPC-based approach
     or container networking solution such as Flannel, Weave, or Calico.
   id: totrans-370
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: Pods 可以通过基于云网络的 VPC 方法或容器网络解决方案（如 Flannel、Weave 或 Calico）相互通信。
 - en: As pods are ephemeral, Kubernetes has a unit called service. Each service has
     an associated virtual IP address and proxy agent running on the nodes' load balancers
     and directs traffic to the right pod.
@@ -2127,19 +2381,24 @@
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 由于 Pods 是短暂存在的，Kubernetes 有一个叫做服务（service）的单元。每个服务都有一个关联的虚拟 IP 地址和代理代理，这些代理运行在节点的负载均衡器上，并将流量引导到正确的
+    Pod。
 - en: 'The following is an illustration of how Pods and Containers are related and
     how they communicate:'
   id: totrans-372
   prefs: []
   type: TYPE_NORMAL
+  zh: 以下是 Pods 和容器之间如何关联以及它们如何进行通信的示意图：
 - en: '![](img/00403.jpg)'
   id: totrans-373
   prefs: []
   type: TYPE_IMG
+  zh: '![](img/00403.jpg)'
 - en: Summary
   id: totrans-374
   prefs: []
   type: TYPE_NORMAL
+  zh: 摘要
 - en: In this chapter, we covered different Container networking technologies with
     a focus on Container networking in CoreOS. There are many companies trying to
     solve this Container networking problem. CNI and Flannel have become the default
@@ -2151,76 +2410,94 @@
   id: totrans-375
   prefs: []
   type: TYPE_NORMAL
+  zh: 在本章中，我们介绍了不同的容器网络技术，重点是 CoreOS 中的容器网络。许多公司都在尝试解决这个容器网络问题。CNI 和 Flannel 已成为 CoreOS
+    的默认选项，而 Libnetwork 已成为 Docker 的默认选项。拥有标准化和可插拔的网络架构对行业有好处，因为它能实现互操作性。容器网络仍处于早期阶段，技术成熟还需要一些时间。在下一章中，我们将讨论
+    CoreOS 存储管理。
 - en: References
   id: totrans-376
   prefs: []
   type: TYPE_NORMAL
+  zh: 参考资料
 - en: 'Flannel docs: [https://coreos.com/flannel/docs/latest/](https://coreos.com/flannel/docs/latest/)'
   id: totrans-377
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 'Flannel 文档: [https://coreos.com/flannel/docs/latest/](https://coreos.com/flannel/docs/latest/)'
 - en: 'Flannel GitHub page: [https://github.com/coreos/flannel](https://github.com/coreos/flannel)'
   id: totrans-378
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 'Flannel GitHub 页面: [https://github.com/coreos/flannel](https://github.com/coreos/flannel)'
 - en: 'CNI spec: [https://github.com/appc/cni/blob/master/SPEC.md](https://github.com/appc/cni/blob/master/SPEC.md)'
   id: totrans-379
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 'CNI 规范: [https://github.com/appc/cni/blob/master/SPEC.md](https://github.com/appc/cni/blob/master/SPEC.md)'
 - en: 'Flannel with AWS and GCE: [https://coreos.com/blog/introducing-flannel-0.5.0-with-aws-and-gce/](https://coreos.com/blog/introducing-flannel-0.5.0-with-aws-and-gce/)'
   id: totrans-380
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 'Flannel 与 AWS 和 GCE: [https://coreos.com/blog/introducing-flannel-0.5.0-with-aws-and-gce/](https://coreos.com/blog/introducing-flannel-0.5.0-with-aws-and-gce/)'
 - en: 'Weaveworks: [https://github.com/weaveworks/weave](https://github.com/weaveworks/weave)'
   id: totrans-381
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 'Weaveworks: [https://github.com/weaveworks/weave](https://github.com/weaveworks/weave)'
 - en: 'Libnetwork: [https://github.com/docker/libnetwork](https://github.com/docker/libnetwork)'
   id: totrans-382
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 'Libnetwork: [https://github.com/docker/libnetwork](https://github.com/docker/libnetwork)'
 - en: 'Docker experimental: [https://github.com/docker/docker/tree/master/experimental](https://github.com/docker/docker/tree/master/experimental)'
   id: totrans-383
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 'Docker实验版: [https://github.com/docker/docker/tree/master/experimental](https://github.com/docker/docker/tree/master/experimental)'
 - en: 'Calico: [https://github.com/projectcalico/calico-docker](https://github.com/projectcalico/calico-docker)'
   id: totrans-384
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 'Calico: [https://github.com/projectcalico/calico-docker](https://github.com/projectcalico/calico-docker)'
 - en: 'Kubernetes: [http://kubernetes.io/](http://kubernetes.io/)'
   id: totrans-385
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 'Kubernetes: [http://kubernetes.io/](http://kubernetes.io/)'
 - en: Further reading and tutorials
   id: totrans-386
   prefs: []
   type: TYPE_NORMAL
+  zh: 进一步阅读和教程
 - en: 'The Flannel CoreOS Fest presentation: [https://www.youtube.com/watch?v=_HYeSaGtEYw](https://www.youtube.com/watch?v=_HYeSaGtEYw)'
   id: totrans-387
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 'Flannel CoreOS Fest 演示: [https://www.youtube.com/watch?v=_HYeSaGtEYw](https://www.youtube.com/watch?v=_HYeSaGtEYw)'
 - en: 'The Calico and Weave presentation: [https://giantswarm.io/events/2015-04-20-docker-coreos/](https://giantswarm.io/events/2015-04-20-docker-coreos/)'
   id: totrans-388
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 'Calico 和 Weave 演示: [https://giantswarm.io/events/2015-04-20-docker-coreos/](https://giantswarm.io/events/2015-04-20-docker-coreos/)'
 - en: 'Contiv netplugin: [https://github.com/contiv/netplugin](https://github.com/contiv/netplugin)'
   id: totrans-389
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 'Contiv 网络插件: [https://github.com/contiv/netplugin](https://github.com/contiv/netplugin)'
 - en: 'Kubernetes networking: [https://github.com/kubernetes/kubernetes/blob/release-1.1/docs/admin/networking.md](https://github.com/kubernetes/kubernetes/blob/release-1.1/docs/admin/networking.md)'
   id: totrans-390
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 'Kubernetes 网络: [https://github.com/kubernetes/kubernetes/blob/release-1.1/docs/admin/networking.md](https://github.com/kubernetes/kubernetes/blob/release-1.1/docs/admin/networking.md)'
