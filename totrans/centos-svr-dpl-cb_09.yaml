@@ -1,56 +1,80 @@
 - en: Chapter 9. Managing E-mails
+  id: totrans-0
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 第9章 电子邮件管理
 - en: 'This chapter contains the following recipes:'
+  id: totrans-1
   prefs: []
   type: TYPE_NORMAL
+  zh: 本章包含以下食谱：
 - en: Configuring Postfix to provide SMTP services
+  id: totrans-2
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 配置Postfix以提供SMTP服务
 - en: Adding SASL to Postfix with Dovecot
+  id: totrans-3
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 使用Dovecot为Postfix添加SASL
 - en: Configuring Postfix to use TLS
+  id: totrans-4
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 配置Postfix以使用TLS
 - en: Configuring Dovecot for secure POP3 and IMAP access
+  id: totrans-5
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 配置Dovecot以实现安全的POP3和IMAP访问
 - en: Targeting spam with SpamAssassin
+  id: totrans-6
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 使用SpamAssassin进行垃圾邮件防护
 - en: Routing messages with Procmail
+  id: totrans-7
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 使用Procmail进行邮件路由
 - en: Introduction
+  id: totrans-8
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 引言
 - en: In this chapter, you'll find recipes to help you set up and secure e-mail services
     for your domain. You'll learn how to set up Postfix to run as an SMTP server and
     then learn how to configure it to support SASL authentication and TLS encryption.
     Then we'll configure Dovecot which will provide users access to their e-mail over
     the POP3 and IMAP protocols. Finally, you'll learn how to set up SpamAssassin
     and Procmail to reduce the amount of spam that makes it way to your inbox.
+  id: totrans-9
   prefs: []
   type: TYPE_NORMAL
+  zh: 在本章中，你将找到一些食谱，帮助你为你的域名设置并保护电子邮件服务。你将学习如何配置Postfix作为SMTP服务器，并学习如何配置它以支持SASL身份验证和TLS加密。接着，我们将配置Dovecot，提供用户通过POP3和IMAP协议访问他们的电子邮件。最后，你将学习如何设置SpamAssassin和Procmail，以减少垃圾邮件进入你的收件箱。
 - en: Configuring Postfix to provide SMTP services
+  id: totrans-10
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 配置Postfix以提供SMTP服务
 - en: This recipe teaches you how to configure Postfix as a basic e-mail server for
     your domain. E-mail is one of the oldest Internet services and has become one
     its most pervasive services. Moreover, e-mail can be one of the most difficult
     services to manage.
+  id: totrans-11
   prefs: []
   type: TYPE_NORMAL
+  zh: 本食谱教你如何将Postfix配置为你的域名的基础电子邮件服务器。电子邮件是互联网最古老的服务之一，已经成为其最普及的服务之一。此外，电子邮件也可能是最难管理的服务之一。
 - en: Using the Simple Mail Transport Protocol (SMTP), an e-mail message passes through
     many processes from its starting point on its way to your inbox. When someone
     writes you a message, they use an e-mail client to compose the message. The client
@@ -63,320 +87,478 @@
     used to retrieve the messages from the server (POP3 and IMAP) than those used
     to send them, and trying to stay one step ahead of spammers can add a fair amount
     of complexity.
+  id: totrans-12
   prefs: []
   type: TYPE_NORMAL
+  zh: 使用简单邮件传输协议（SMTP），一封电子邮件从发信点到达你的收件箱，经过许多处理过程。当有人给你写信时，他们使用电子邮件客户端来撰写邮件。客户端将邮件发送到他们的邮件服务器，邮件服务器查找你的域名的`MX`记录，并将邮件转发到你的邮件服务器进行投递。一旦邮件被你的邮件服务器接收，它就会被送到服务器上的邮件目录。至少这是基本的概念。一封邮件可以通过任意数量的中间服务器在发件服务器和你的邮件服务器之间转发；服务器可以配置为发送邮件、接收邮件，或两者兼有。不同的协议用于从服务器中检索邮件（POP3和IMAP），这些协议与发送邮件时使用的协议不同，且为了尽量领先于垃圾邮件发送者，可能会增加相当多的复杂性。
 - en: Note
+  id: totrans-13
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
+  zh: 注意
 - en: Because of the complexity of the e-mail ecosystem and being a mail server administrator
     is often more than a full-time job, I can only present to you the basics. Later
     recipes will teach you how to add authentication and encryption to your setup,
     there will still be much to explore and learn. I strongly recommend that you take
     advantage of the additional resources mentioned in the *See also* section after
     each recipe.
+  id: totrans-14
   prefs: []
   type: TYPE_NORMAL
+  zh: 由于电子邮件生态系统的复杂性，成为一名邮件服务器管理员通常比全职工作还要繁重，因此我只能向你展示基础知识。后续的食谱将教你如何为你的设置添加身份验证和加密，依然有很多内容需要探索和学习。我强烈建议你利用每个食谱后面“*另见*”部分提到的额外资源。
 - en: Getting ready
+  id: totrans-15
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 准备工作
 - en: This recipe requires a CentOS system with a working network connection. Administrative
     privileges are also required, either by logging in with the `root` account or
     through the use of `sudo`. You'll want to have a couple of user accounts available
     on the system for testing purposes as well.
+  id: totrans-16
   prefs: []
   type: TYPE_NORMAL
+  zh: 本食谱要求使用具有工作网络连接的CentOS系统。还需要管理员权限，可以通过使用`root`账户登录或通过使用`sudo`来获得权限。你还需要在系统上准备一些用户账户以供测试。
 - en: Because `MX` records are used to resolve the mail server's address during the
     delivery process, it's assumed that you have either completed the previous chapter's
     recipes or have, otherwise, configured your own DNS records. The IP address `192.168.56.20`
     is used here in keeping with the example network outlined in the *Configuring
     BIND as an authoritative DNS server* recipe in [Chapter 8](ch08.html "Chapter 8. Managing
     Domains and DNS"), *Managing Domains and DNS*.
+  id: totrans-17
   prefs: []
   type: TYPE_NORMAL
+  zh: 由于 `MX` 记录在邮件传递过程中用于解析邮件服务器的地址，因此假设你已经完成了上一章中的配方，或者已经配置了你自己的 DNS 记录。此处使用的 IP
+    地址 `192.168.56.20` 与第 *8章* [《管理域和 DNS》](ch08.html "第8章. 管理域和 DNS") 中 *配置 BIND
+    作为权威 DNS 服务器* 配方中所列的示例网络一致。
 - en: How to do it...
+  id: totrans-18
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 如何操作...
 - en: 'Follow these steps to set up Postfix:'
+  id: totrans-19
   prefs: []
   type: TYPE_NORMAL
+  zh: 按照以下步骤设置 Postfix：
 - en: 'Use a text editor to open Postfix''s configuration file `/etc/postfix/main.cf`:'
+  id: totrans-20
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 使用文本编辑器打开 Postfix 配置文件 `/etc/postfix/main.cf`：
 - en: '[PRE0]'
+  id: totrans-21
   prefs:
   - PREF_IND
   type: TYPE_PRE
+  zh: '[PRE0]'
 - en: 'Find the example `myhostname` parameters. Delete the leading `#` character
     to uncomment one of the examples and update its value with your qualified hostname:'
+  id: totrans-22
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 查找示例中的 `myhostname` 参数。删除前面的 `#` 字符以取消注释其中一个示例，并更新其值为你的合格主机名：
 - en: '[PRE1]'
+  id: totrans-23
   prefs:
   - PREF_IND
   type: TYPE_PRE
+  zh: '[PRE1]'
 - en: 'Locate the example `mydomain` parameter and uncomment and edit it, setting
     your domain name as its value:'
+  id: totrans-24
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 找到示例中的 `mydomain` 参数，取消注释并编辑它，将你的域名设置为其值：
 - en: '[PRE2]'
+  id: totrans-25
   prefs:
   - PREF_IND
   type: TYPE_PRE
+  zh: '[PRE2]'
 - en: 'Find the `inet_interfaces` parameters. Place an `#` in front of the `localhost`
     entry to comment it out and then uncomment the `all` entry:'
+  id: totrans-26
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 查找 `inet_interfaces` 参数。将 `localhost` 条目前面加上 `#` 以注释掉它，然后取消注释 `all` 条目：
 - en: '[PRE3]'
+  id: totrans-27
   prefs:
   - PREF_IND
   type: TYPE_PRE
+  zh: '[PRE3]'
 - en: 'Find the `mydestination` parameters and comment out the first entry. Uncomment
     the one that includes `$mydomain` in its list:'
+  id: totrans-28
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 查找 `mydestination` 参数并注释掉第一个条目。取消注释包含 `$mydomain` 的条目：
 - en: '[PRE4]'
+  id: totrans-29
   prefs:
   - PREF_IND
   type: TYPE_PRE
+  zh: '[PRE4]'
 - en: 'Find the example `mynetworks` parameters. Uncomment one of the entries and
     edit it so that the value reflects your network:'
+  id: totrans-30
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 查找示例中的 `mynetworks` 参数。取消注释其中一个条目，并编辑它使其值反映你的网络：
 - en: '[PRE5]'
+  id: totrans-31
   prefs:
   - PREF_IND
   type: TYPE_PRE
+  zh: '[PRE5]'
 - en: 'Find the example `home_mailbox` parameters and uncomment the entry with the
     `Maildir/` value:'
+  id: totrans-32
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 查找示例中的 `home_mailbox` 参数并取消注释带有 `Maildir/` 值的条目：
 - en: '[PRE6]'
+  id: totrans-33
   prefs:
   - PREF_IND
   type: TYPE_PRE
+  zh: '[PRE6]'
 - en: Save your changes and close the file.
+  id: totrans-34
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 保存更改并关闭文件。
 - en: 'Start the Postfix server and optionally enable it to start automatically whenever
     the system reboots:'
+  id: totrans-35
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 启动 Postfix 服务器，并可选择使其在系统重启时自动启动：
 - en: '[PRE7]'
+  id: totrans-36
   prefs:
   - PREF_IND
   type: TYPE_PRE
+  zh: '[PRE7]'
 - en: 'Open port `25` in the system''s firewall to allow outside connections to Postfix:'
+  id: totrans-37
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 在系统防火墙中打开 `25` 端口，以允许外部连接到 Postfix：
 - en: '[PRE8]'
+  id: totrans-38
   prefs:
   - PREF_IND
   type: TYPE_PRE
+  zh: '[PRE8]'
 - en: How it works...
+  id: totrans-39
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 它是如何工作的...
 - en: CentOS systems have Postfix installed by default, using it as a local mail transfer
     agent. To reconfigure it to act as our domain's mail server, we updated several
     parameters in its configuration file, `/etc/postfix/main.cf`.
+  id: totrans-40
   prefs: []
   type: TYPE_NORMAL
+  zh: CentOS 系统默认安装了 Postfix，将其用作本地邮件传输代理。为了将其重新配置为我们的域名邮件服务器，我们更新了其配置文件 `/etc/postfix/main.cf`
+    中的几个参数。
 - en: 'First, we updated the `myhostname` parameter to provide our system''s qualified
     domain name (the hostname and domain name):'
+  id: totrans-41
   prefs: []
   type: TYPE_NORMAL
+  zh: 首先，我们更新了 `myhostname` 参数以提供我们系统的合格域名（主机名和域名）：
 - en: '[PRE9]'
+  id: totrans-42
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE9]'
 - en: Note
+  id: totrans-43
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
+  zh: 注意
 - en: Comments in the configuration file refer to a FQDN, but we know better because
     FQDNs require a trailing dot. If you do provide a true FQDN as the value, Postfix
     will fail to start stating that the parameter's value is bad.
+  id: totrans-44
   prefs: []
   type: TYPE_NORMAL
+  zh: 配置文件中的注释提到 FQDN，但我们知道 FQDN 需要一个尾部的点。如果你提供了一个真正的 FQDN 作为值，Postfix 会启动失败，并提示该参数的值无效。
 - en: 'The `mydomain` parameter specifies the domain that this system is a member
     of and that Postfix is handling e-mail for. Although Postfix will try to determine
     the domain name based on the system''s qualified hostname, it''s not a bad idea
     to explicitly define it with `mydomain` to be certain it''s correct:'
+  id: totrans-45
   prefs: []
   type: TYPE_NORMAL
+  zh: '`mydomain` 参数指定了该系统所属的域，Postfix 正在处理该域的电子邮件。尽管 Postfix 会尝试基于系统的合格主机名来确定域名，但明确使用
+    `mydomain` 来定义它以确保正确也是一个好主意：'
 - en: '[PRE10]'
+  id: totrans-46
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE10]'
 - en: 'The `inet_interface` parameter identifies the network interfaces that Postfix
     will listen on for connections. The original configuration accepts connections
     only from the localhost; so we updated it to listen on all interfaces, although
     you may want to specify something more specific if your system is connected to
     multiple networks:'
+  id: totrans-47
   prefs: []
   type: TYPE_NORMAL
+  zh: '`inet_interface` 参数标识了 Postfix 将监听连接的网络接口。原始配置仅接受来自本地主机的连接；因此，我们将其更新为监听所有接口，尽管如果你的系统连接到多个网络，你可能希望指定更具体的内容：'
 - en: '[PRE11]'
+  id: totrans-48
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE11]'
 - en: 'The `mydestination` parameter lists the zones for which Postfix will accept
     mail for final delivery. We changed the original configuration to include our
     domain:'
+  id: totrans-49
   prefs: []
   type: TYPE_NORMAL
+  zh: '`mydestination` 参数列出了 Postfix 接受邮件并最终投递的域。我们更改了原始配置以包括我们的域名：'
 - en: '[PRE12]'
+  id: totrans-50
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE12]'
 - en: 'If necessary, you should add other values to the list to identify all of the
     system''s hostnames, similar to what''s shown in the last example, `mydestination`,
     in the set. This is important to prevent Postfix from trying to relay messages
     to itself, thinking they''re destined for a different domain when they''re really
     not:'
+  id: totrans-51
   prefs: []
   type: TYPE_NORMAL
+  zh: 如果需要，你应该向列表中添加其他值，以便识别系统的所有主机名，类似于最后一个示例中展示的`mydestination`，这样做很重要，以防止 Postfix
+    误以为消息是发往其他域而实际上是发往自身：
 - en: '[PRE13]'
+  id: totrans-52
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE13]'
 - en: 'The `mynetworks` parameter identifies the trusted networks Postfix can relay
     messages for. This is the first line of defense against spammers abusing your
     mail server because Postfix will refuse to accept messages for delivery if they''re
     not for our domain and if they''re received from a system outside one of the trusted
     networks:'
+  id: totrans-53
   prefs: []
   type: TYPE_NORMAL
+  zh: '`mynetworks` 参数用于识别 Postfix 可以为其转发消息的可信网络。这是防止垃圾邮件发送者滥用你的邮件服务器的第一道防线，因为如果消息不是发往我们域名，或者是从不在可信网络中的系统接收的，Postfix
+    将拒绝接受该消息：'
 - en: '[PRE14]'
+  id: totrans-54
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE14]'
 - en: 'Finally, we set the messages'' delivery destination using the `home_mailbox`
     parameter:'
+  id: totrans-55
   prefs: []
   type: TYPE_NORMAL
+  zh: 最后，我们使用 `home_mailbox` 参数来设置邮件的投递目的地：
 - en: '[PRE15]'
+  id: totrans-56
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE15]'
 - en: Messages are traditionally appended to the user's file in `/var/spool/mail`
     in what is known as the **mbox** format. The Maildir format stores messages individually
     in a subdirectory in the user's Maildir directory. Postfix delivers mail to the
     spool by default. We can convert messages between the two formats, but choosing
     Maildir now makes things a bit easier when we configure user access over IMAP
     in a later recipe.
+  id: totrans-57
   prefs: []
   type: TYPE_NORMAL
+  zh: 消息通常会以 **mbox** 格式附加到用户在 `/var/spool/mail` 中的文件中。Maildir 格式则将每条消息单独存储在用户 Maildir
+    目录的子目录中。默认情况下，Postfix 将邮件投递到邮件队列。我们可以在两种格式之间转换消息，但现在选择 Maildir 会让我们在稍后的配制 IMAP
+    用户访问时稍微更方便一些。
 - en: 'Once Postfix is restarted, we can send a test message to verify that the server''s
     configuration is correct. There are several ways to do this of course. The easiest
     is to use a command-line e-mail client such as `mailx` to send the message. `mailx`
     isn''t installed by default but is available via `yum`:'
+  id: totrans-58
   prefs: []
   type: TYPE_NORMAL
+  zh: 一旦 Postfix 重启，我们可以发送一封测试邮件来验证服务器配置是否正确。这里当然有多种方法来实现。最简单的是使用命令行电子邮件客户端，如 `mailx`
+    来发送邮件。`mailx` 默认没有安装，但可以通过 `yum` 安装：
 - en: '[PRE16]'
+  id: totrans-59
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE16]'
 - en: 'Invoke `mailx` to send a message. The `-s` argument provides the message''s
     subject and `-r` provides the sender''s address (your own e-mail address). Then
     the recipient''s address follows after the arguments:'
+  id: totrans-60
   prefs: []
   type: TYPE_NORMAL
+  zh: 调用 `mailx` 发送消息。`-s` 参数提供消息的主题，`-r` 参数提供发件人的地址（你自己的电子邮件地址）。接着，收件人的地址会紧跟其后：
 - en: '[PRE17]'
+  id: totrans-61
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE17]'
 - en: '`mailx` reads the message from `stdin`. A simple "hello world" or "this is
     a test" should be sufficient for testing purposes; when you''re done typing, type
     a period on its own line or press *Ctrl* + *D*:'
+  id: totrans-62
   prefs: []
   type: TYPE_NORMAL
+  zh: '`mailx` 从 `stdin` 读取消息。一个简单的“hello world”或“this is a test”就足够用来测试了；当你输入完毕后，输入一个单独的句点或者按
+    *Ctrl* + *D*：'
 - en: 'If all goes well, `mailx` sends the mail to Postfix for delivery which in turn
     delivers it to the user''s mail directory in `/home/<username>/Maildir/new`. Check
     the directory and output the file''s contents to make sure the message was delivered:'
+  id: totrans-63
   prefs: []
   type: TYPE_NORMAL
+  zh: 如果一切顺利，`mailx` 会将邮件发送到 Postfix，由 Postfix 将其投递到用户的邮件目录 `/home/<username>/Maildir/new`。检查该目录并输出文件内容，以确保消息已成功投递：
 - en: '[PRE18]'
+  id: totrans-64
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE18]'
 - en: '![How it works...](img/image_09_001.jpg)'
+  id: totrans-65
   prefs: []
   type: TYPE_IMG
+  zh: '![工作原理...](img/image_09_001.jpg)'
 - en: Received messages are delivered to the user's Maildir directory
+  id: totrans-66
   prefs: []
   type: TYPE_NORMAL
+  zh: 接收到的消息会被传送到用户的 Maildir 目录
 - en: Alternatively, we can connect directly to Postfix using a Telnet client. Typing
     raw commands to send an e-mail is slightly more involved than sending one using
     `mailx,` but is preferred because it offers you more flexibility and greater visibility
     into how Postfix responds. This can prove invaluable when trying to troubleshoot
     a problem.
+  id: totrans-67
   prefs: []
   type: TYPE_NORMAL
+  zh: 另外，我们也可以通过 Telnet 客户端直接连接到 Postfix。输入原始命令发送电子邮件比使用 `mailx` 发送稍微复杂一些，但它更灵活，并且可以更清楚地看到
+    Postfix 的响应。这在排查问题时非常有用。
 - en: 'No Telnet client is installed by default, so first you''ll need to use `yum`
     to install `telnet`:'
+  id: totrans-68
   prefs: []
   type: TYPE_NORMAL
+  zh: 默认情况下没有安装 Telnet 客户端，因此你需要先使用 `yum` 安装 `telnet`：
 - en: '[PRE19]'
+  id: totrans-69
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE19]'
 - en: 'Then use `telnet` to connect to the server on port `25`, the port reserved
     for SMTP:'
+  id: totrans-70
   prefs: []
   type: TYPE_NORMAL
+  zh: 然后使用 `telnet` 连接到服务器的 `25` 端口，这是保留给 SMTP 的端口：
 - en: '[PRE20]'
+  id: totrans-71
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE20]'
 - en: 'The `MAIL FROM` command is used to provide the sender''s e-mail address and
     `RCPT TO` to provide the recipient''s address. After each is entered, Postfix
     should respond with a `250 Ok` status:'
+  id: totrans-72
   prefs: []
   type: TYPE_NORMAL
+  zh: '`MAIL FROM` 命令用于提供发件人的电子邮件地址，而 `RCPT TO` 用于提供收件人的地址。每输入一次，Postfix 应该会以 `250
+    Ok` 状态响应：'
 - en: '[PRE21]'
+  id: totrans-73
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE21]'
 - en: '`DATA` begins the message''s content. Postfix accepts everything we type as
     the message until we type a single period on its own line:'
+  id: totrans-74
   prefs: []
   type: TYPE_NORMAL
+  zh: '`DATA`开始消息的内容。Postfix会接受我们输入的所有内容作为消息，直到我们在单独的行上输入一个句点：'
 - en: '[PRE22]'
+  id: totrans-75
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE22]'
 - en: 'Then, to close the connection, type `QUIT`:'
+  id: totrans-76
   prefs: []
   type: TYPE_NORMAL
+  zh: 然后，为了关闭连接，输入`QUIT`：
 - en: '[PRE23]'
+  id: totrans-77
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE23]'
 - en: See also
+  id: totrans-78
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 另请参见
 - en: 'Refer to the following resources for more information on working with Postfix:'
+  id: totrans-79
   prefs: []
   type: TYPE_NORMAL
+  zh: 请参考以下资源，了解更多有关使用Postfix的信息：
 - en: 'RHEL 7 System Administrator''s Guide: Mail Transport Agents ([https://access.redhat.com/documentation/en-US/Red_Hat_Enterprise_Linux/7/html/System_Administrators_Guide/s1-email-mta.html](https://access.redhat.com/documentation/en-US/Red_Hat_Enterprise_Linux/7/html/System_Administrators_Guide/s1-email-mta.html))'
+  id: totrans-80
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: RHEL 7 系统管理员指南：邮件传输代理 ([https://access.redhat.com/documentation/en-US/Red_Hat_Enterprise_Linux/7/html/System_Administrators_Guide/s1-email-mta.html](https://access.redhat.com/documentation/en-US/Red_Hat_Enterprise_Linux/7/html/System_Administrators_Guide/s1-email-mta.html))
 - en: 'RFC-5321: Simple Mail Transport Protocol ([https://tools.ietf.org/html/rfc5321](https://tools.ietf.org/html/rfc5321))'
+  id: totrans-81
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: RFC-5321：简单邮件传输协议 ([https://tools.ietf.org/html/rfc5321](https://tools.ietf.org/html/rfc5321))
 - en: 'Mbox vs Maildir: Mail Storage Formats ([http://www.linuxmail.info/mbox-maildir-mail-storage-formats/](http://www.linuxmail.info/mbox-maildir-mail-storage-formats/))'
+  id: totrans-82
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: Mbox与Maildir：邮件存储格式 ([http://www.linuxmail.info/mbox-maildir-mail-storage-formats/](http://www.linuxmail.info/mbox-maildir-mail-storage-formats/))
 - en: Setup a Local Mail Server in CentOS 7 ([http://www.unixmen.com/setup-a-local-mail-server-in-centos-7](http://www.unixmen.com/setup-a-local-mail-server-in-centos-7))
+  id: totrans-83
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 在CentOS 7中设置本地邮件服务器 ([http://www.unixmen.com/setup-a-local-mail-server-in-centos-7](http://www.unixmen.com/setup-a-local-mail-server-in-centos-7))
 - en: Adding SASL to Postfix with Dovecot
+  id: totrans-84
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 使用Dovecot将SASL添加到Postfix
 - en: If a mail server relays a message to another domain (that is, the recipient's
     address is not in our domain) and the message originates from outside our network,
     the server is known as an open relay. Spammers are constantly on the lookout for
@@ -388,173 +570,251 @@
     to Postfix's configuration using Dovecot. Postfix will then happily relay messages
     for our users authenticated users, regardless of their network location, while
     still refusing to do so for anyone else.
+  id: totrans-85
   prefs: []
   type: TYPE_NORMAL
+  zh: 如果邮件服务器将消息转发到另一个域（即收件人的地址不在我们的域中），并且该消息来自我们网络外部，则该服务器被称为开放转发。垃圾邮件发送者经常寻找开放转发，因为这种宽松的行为容易被利用，而Postfix默认通过只转发来自我们网络的消息来保护我们。不幸的是，限制合法用户仅在我们网络内发送电子邮件是不可行的。本食谱教你如何使用Dovecot将简单身份验证和安全层（SASL）身份验证添加到Postfix配置中。然后，Postfix将非常高兴地为我们经过身份验证的用户转发消息，无论他们的网络位置如何，同时仍然拒绝为其他任何人转发邮件。
 - en: Getting ready
+  id: totrans-86
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 准备工作
 - en: This recipe requires a CentOS system with Postfix configured as described in
     the previous recipe. Administrative privileges are also required, either by logging
     in with the root account or through the use of `sudo`.
+  id: totrans-87
   prefs: []
   type: TYPE_NORMAL
+  zh: 本食谱需要一个已经按照前面食谱配置了Postfix的CentOS系统。还需要管理员权限，可以通过root账户登录或使用`sudo`来实现。
 - en: How to do it...
+  id: totrans-88
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 如何操作...
 - en: 'Follow these steps to secure Postfix to SASL:'
+  id: totrans-89
   prefs: []
   type: TYPE_NORMAL
+  zh: 按照这些步骤将Postfix安全配置为SASL：
 - en: 'Install the `dovecot` package:'
+  id: totrans-90
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 安装`dovecot`软件包：
 - en: '[PRE24]'
+  id: totrans-91
   prefs:
   - PREF_IND
   type: TYPE_PRE
+  zh: '[PRE24]'
 - en: 'Open the `/etc/dovecot/conf.d/10-master.conf` file with your text editor:'
+  id: totrans-92
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 使用文本编辑器打开`/etc/dovecot/conf.d/10-master.conf`文件：
 - en: '[PRE25]'
+  id: totrans-93
   prefs:
   - PREF_IND
   type: TYPE_PRE
+  zh: '[PRE25]'
 - en: 'Locate the `unix_listener` section for /`var/spool/postfix/private/auth`. Uncomment
     the section by removing the leading `#` characters:'
+  id: totrans-94
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 定位到`unix_listener`部分，查找`/var/spool/postfix/private/auth`。通过移除前导的`#`字符来取消注释该部分：
 - en: '[PRE26]'
+  id: totrans-95
   prefs:
   - PREF_IND
   type: TYPE_PRE
+  zh: '[PRE26]'
 - en: 'Update `mode` to `0660` and add the parameters `user` and `group` to the section
     with the value `postfix`:'
+  id: totrans-96
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 将`mode`更新为`0660`，并将`user`和`group`参数添加到值为`postfix`的部分：
 - en: '[PRE27]'
+  id: totrans-97
   prefs:
   - PREF_IND
   type: TYPE_PRE
+  zh: '[PRE27]'
 - en: Save your changes and close the file.
+  id: totrans-98
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 保存更改并关闭文件。
 - en: 'Open the `/etc/dovecot/conf.d/10-auth.conf` file with your text editor:'
+  id: totrans-99
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 使用文本编辑器打开`/etc/dovecot/conf.d/10-auth.conf`文件：
 - en: '[PRE28]'
+  id: totrans-100
   prefs:
   - PREF_IND
   type: TYPE_PRE
+  zh: '[PRE28]'
 - en: 'Locate the `auth_mechanisms` option and add `login` to its value:'
+  id: totrans-101
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 定位到`auth_mechanisms`选项，并将`login`添加到其值中：
 - en: '[PRE29]'
+  id: totrans-102
   prefs:
   - PREF_IND
   type: TYPE_PRE
+  zh: '[PRE29]'
 - en: Save the changes and close the file.
+  id: totrans-103
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 保存更改并关闭文件。
 - en: 'Start the Dovecot server and optionally enable it to start automatically whenever
     the system reboots:'
+  id: totrans-104
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 启动Dovecot服务器，并可选择启用它在系统重启时自动启动：
 - en: '[PRE30]'
+  id: totrans-105
   prefs:
   - PREF_IND
   type: TYPE_PRE
+  zh: '[PRE30]'
 - en: 'Open the `/etc/postfix/main.cf` file with your text editor:'
+  id: totrans-106
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 使用文本编辑器打开`/etc/postfix/main.cf`文件：
 - en: '[PRE31]'
+  id: totrans-107
   prefs:
   - PREF_IND
   type: TYPE_PRE
+  zh: '[PRE31]'
 - en: 'At the end of the configuration file, add the following options and values:'
+  id: totrans-108
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 在配置文件的末尾，添加以下选项和值：
 - en: '[PRE32]'
+  id: totrans-109
   prefs:
   - PREF_IND
   type: TYPE_PRE
+  zh: '[PRE32]'
 - en: Save the changes and close the file.
+  id: totrans-110
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 保存更改并关闭文件。
 - en: 'Restart Postfix:'
+  id: totrans-111
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 重启Postfix：
 - en: '[PRE33]'
+  id: totrans-112
   prefs:
   - PREF_IND
   type: TYPE_PRE
+  zh: '[PRE33]'
 - en: How it works...
+  id: totrans-113
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 它是如何工作的...
 - en: Dovecot is a primarily a mail retrieval server offering users access to their
     e-mail using the POP and IMAP protocols, and it also allows Postfix to hook into
     its SASL authentication mechanism. We'll need a retrieval server for users to
     fetch their e-mail from the system, and Dovecot and Postfix integrate nicely,
     so choosing Dovecot over other options makes sense.
+  id: totrans-114
   prefs: []
   type: TYPE_NORMAL
+  zh: Dovecot主要是一个邮件检索服务器，允许用户使用POP和IMAP协议访问电子邮件，它还允许Postfix接入其SASL认证机制。我们需要一个检索服务器供用户从系统中获取电子邮件，Dovecot和Postfix整合得很好，因此选择Dovecot而非其他选项是合理的。
 - en: Dovecot's configuration is organized into various files, each file addressing
     a particular feature or bit of functionality. For this recipe, we needed to update
     the master configuration file `/etc/dovecot/conf.d/10-master.conf` and the authentication
     configuration file `/etc/dovecot/conf.d/10-auth.conf`.
+  id: totrans-115
   prefs: []
   type: TYPE_NORMAL
+  zh: Dovecot的配置分为多个文件，每个文件处理一个特定的功能或特性。在这个步骤中，我们需要更新主配置文件`/etc/dovecot/conf.d/10-master.conf`和认证配置文件`/etc/dovecot/conf.d/10-auth.conf`。
 - en: 'In `10-master.conf`, we located the `unix_listener` parameter that defines
     the SMTP authentication service that will be shared with Postfix. Uncommenting
     it will create the socket file `/var/spool/postfix/private/auth` over which Dovecot
     and Postfix will communicate. We then updated the `mode` parameter and added the
     `user` and `group` parameters to secure the socket''s ownership and access permissions:'
+  id: totrans-116
   prefs: []
   type: TYPE_NORMAL
+  zh: 在`10-master.conf`中，我们找到了定义SMTP认证服务的`unix_listener`参数，该服务将与Postfix共享。取消注释该参数会创建一个套接字文件`/var/spool/postfix/private/auth`，Dovecot和Postfix将通过该文件进行通信。然后我们更新了`mode`参数，并添加了`user`和`group`参数以确保套接字的所有权和访问权限：
 - en: '[PRE34]'
+  id: totrans-117
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE34]'
 - en: 'In `10-auth.conf`, we located the `auth_mechanism` parameter and added `login`
     to its value. This parameter sets the list of mechanisms Dovecot uses, and `login`
     is the mechanism used specifically for SMTP authentication:'
+  id: totrans-118
   prefs: []
   type: TYPE_NORMAL
+  zh: 在`10-auth.conf`中，我们找到了`auth_mechanism`参数，并将`login`添加到它的值中。该参数设置了Dovecot使用的认证机制列表，`login`是专门用于SMTP认证的机制：
 - en: '[PRE35]'
+  id: totrans-119
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE35]'
 - en: '`plain` allows users to provide their username and password in plain text.
     `login` is also considered a plain text mechanism, but don''t worry; you''ll learn
     how to secure that in the next recipe.'
+  id: totrans-120
   prefs: []
   type: TYPE_NORMAL
+  zh: '`plain`允许用户以明文形式提供用户名和密码。`login`也被视为明文机制，但不用担心；你将在下一个步骤中学习如何保护它。'
 - en: 'The final bit of configuration involves adding the necessary SASL-related parameters
     to Postfix''s `main.cf` file:'
+  id: totrans-121
   prefs: []
   type: TYPE_NORMAL
+  zh: 最后的配置步骤是将必要的SASL相关参数添加到Postfix的`main.cf`文件中：
 - en: '[PRE36]'
+  id: totrans-122
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE36]'
 - en: '`smtpd_sasl_auth_enable` enables SASL authentication and `smtpd_sasl_type`
     informs Postfix that it will be using Dovecot''s authentication service. The `smtpd_sasl_path`
     parameter specifies the path to the socket file that is used to communicate with
     Dovecot relative to Postfix''s working directory. `smtpd_sasl_security_options`
     prohibits anonymous connections and requires everyone to be authenticated.'
+  id: totrans-123
   prefs: []
   type: TYPE_NORMAL
+  zh: '`smtpd_sasl_auth_enable`启用SASL认证，`smtpd_sasl_type`通知Postfix它将使用Dovecot的认证服务。`smtpd_sasl_path`参数指定了相对于Postfix工作目录，用于与Dovecot通信的套接字文件的路径。`smtpd_sasl_security_options`禁止匿名连接，要求所有用户都必须认证。'
 - en: 'Postfix expects the username and password to be Base64 encoded so that we need
     to encode them before we can test our configuration with Telnet. `base64` can
     be used, but be careful not to introduce a trailing newline when you provide the
@@ -563,75 +823,113 @@
     You may want to redirect base64''s output to a separate file you can dump later
     to more readily distinguish the encoded value from the original, since they''ll
     appear to run together in the terminal without the newline:'
+  id: totrans-124
   prefs: []
   type: TYPE_NORMAL
+  zh: Postfix期望用户名和密码是Base64编码的，因此我们需要在用Telnet测试配置之前先进行编码。可以使用`base64`，但要小心不要在提供原始值时引入尾随换行符。调用`base64`后，你可以在`stdin`中输入用户名或密码，并立即按*Ctrl*
+    + *D*两次，但不要按*Enter*。你可能想将`base64`的输出重定向到一个单独的文件，这样可以更容易地将编码值与原始值区分开，因为它们在终端中会连在一起显示而没有换行符：
 - en: '[PRE37]'
+  id: totrans-125
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE37]'
 - en: Note
+  id: totrans-126
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
+  zh: 注意
 - en: 'Despite the hassle of "newline vigilance", this approach is better than piping
     the value as follows:'
+  id: totrans-127
   prefs: []
   type: TYPE_NORMAL
+  zh: 尽管“换行符警惕性”有些麻烦，但这种方法比将值通过管道传输的方式要好：
 - en: '`**echo -n tboronczyk | base64**`'
+  id: totrans-128
   prefs: []
   type: TYPE_NORMAL
+  zh: '`**echo -n tboronczyk | base64**`'
 - en: The command's invocation will be retained in your shell's history. While this
     is fine for usernames, sensitive data such as passwords should never be provided
     on the command line as part of a command for this very reason.
+  id: totrans-129
   prefs: []
   type: TYPE_NORMAL
+  zh: 命令的调用将保留在你的 shell 历史记录中。虽然对于用户名来说这样没问题，但由于这个原因，密码等敏感数据绝不能作为命令的一部分在命令行中提供。
 - en: 'After connecting to the server with `telnet` on port `25`, send the `AUTH LOGIN`
     command to initiate the authentication. Postfix should respond with `VXNlcm5hbWU6`
     which is the Base64 encoded value for `Username:`:'
+  id: totrans-130
   prefs: []
   type: TYPE_NORMAL
+  zh: 通过在 `25` 端口使用 `telnet` 连接到服务器后，发送 `AUTH LOGIN` 命令以启动身份验证。Postfix 应该回应 `VXNlcm5hbWU6`，这是
+    `Username:` 的 Base64 编码值：
 - en: '[PRE38]'
+  id: totrans-131
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE38]'
 - en: 'Provide your encoded username and press *Enter*. Postfix then responds with
     `UGFzc3dvcmQ6`, which, as you probably have already guessed, is the encoded version
     of `Password:`. After you provide the encoded password, you''ll be informed if
     the authentication was successful:'
+  id: totrans-132
   prefs: []
   type: TYPE_NORMAL
+  zh: 提供你的编码后的用户名并按 *Enter*。然后 Postfix 会返回 `UGFzc3dvcmQ6`，这显然是 `Password:` 的编码版本。提供编码后的密码后，系统会告知你身份验证是否成功：
 - en: '![How it works...](img/image_09_002.jpg)'
+  id: totrans-133
   prefs: []
   type: TYPE_IMG
+  zh: '![它是如何工作的...](img/image_09_002.jpg)'
 - en: The authentication exchange expects credentials to be Base64 encoded
+  id: totrans-134
   prefs: []
   type: TYPE_NORMAL
+  zh: 身份验证交换要求凭证进行 Base64 编码
 - en: See also
+  id: totrans-135
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 另见
 - en: 'Refer to the following resources for more information on Postfix, Dovecot,
     and SASL:'
+  id: totrans-136
   prefs: []
   type: TYPE_NORMAL
+  zh: 请参考以下资源，获取更多有关 Postfix、Dovecot 和 SASL 的信息：
 - en: The Dovecot Homepage ([http://www.dovecot.org/](http://www.dovecot.org/))
+  id: totrans-137
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: Dovecot 官网 ([http://www.dovecot.org/](http://www.dovecot.org/))
 - en: 'RFC 4422: Simple Authentication and Security Layer ([https://tools.ietf.org/html/rfc4422](https://tools.ietf.org/html/rfc4422))'
+  id: totrans-138
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 'RFC 4422: 简单身份验证和安全层 ([https://tools.ietf.org/html/rfc4422](https://tools.ietf.org/html/rfc4422))'
 - en: Postfix SASL How-To ([http://www.postfix.org/SASL_README.html](http://www.postfix.org/SASL_README.html))
+  id: totrans-139
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: Postfix SASL 使用指南 ([http://www.postfix.org/SASL_README.html](http://www.postfix.org/SASL_README.html))
 - en: 25, 465, 587... What Port Should I Use? ([http://blog.mailgun.com/25-465-587-what-port-should-i-use/](http://blog.mailgun.com/25-465-587-what-port-should-i-use/))
+  id: totrans-140
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 25、465、587... 我该使用哪个端口？ ([http://blog.mailgun.com/25-465-587-what-port-should-i-use/](http://blog.mailgun.com/25-465-587-what-port-should-i-use/))
 - en: Configuring Postfix to use TLS
+  id: totrans-141
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 配置 Postfix 使用 TLS
 - en: Implementing authentication for mail relaying is an important step in securing
     your mail server. But as you learned in the previous recipe, the user's name and
     password are sent in clear text. Base64-encoding encodes binary data using only
@@ -641,73 +939,109 @@
     capture the credentials and masquerade as the user. This recipe further secures
     Postfix by configuring Transport Layer Security (TLS) encryption to protect the
     communication from eavesdropping.
+  id: totrans-142
   prefs: []
   type: TYPE_NORMAL
+  zh: 实现邮件中继的身份验证是保护邮件服务器安全的重要步骤。但正如你在之前的教程中所学，用户名和密码是以明文方式发送的。Base64 编码使用 ASCII 字符编码二进制数据，这使得用户的密码可以包含非
+    ASCII 字符，但编码并不是加密。如果用户的邮件客户端和服务器之间的流量通过不受信任的网络传输，恶意用户可以轻易捕获凭证并冒充用户。因此，本教程通过配置传输层安全性（TLS）加密来保护通信，避免窃听。
 - en: Getting ready
+  id: totrans-143
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 准备工作
 - en: This recipe requires a CentOS system with Postfix configured as described in
     previous recipes. Administrative privileges are also required, either by logging
     in with the `root` account or through the use of `sudo`.
+  id: totrans-144
   prefs: []
   type: TYPE_NORMAL
+  zh: 本教程需要一个已经按照之前教程配置了 Postfix 的 CentOS 系统。同时需要管理员权限，可以通过使用 `root` 账户登录或使用 `sudo`。
 - en: How to do it...
+  id: totrans-145
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 如何操作...
 - en: 'Follow these steps to configure Postfix to use TLS:'
+  id: totrans-146
   prefs: []
   type: TYPE_NORMAL
+  zh: 按照以下步骤配置 Postfix 使用 TLS：
 - en: 'Generate a new key file and security certificate with `openssl`:'
+  id: totrans-147
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 使用 `openssl` 生成一个新的密钥文件和安全证书：
 - en: '[PRE39]'
+  id: totrans-148
   prefs:
   - PREF_IND
   type: TYPE_PRE
+  zh: '[PRE39]'
 - en: 'Use your text editor to open the `/etc/postfix/main.cf` file:'
+  id: totrans-149
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 使用文本编辑器打开 `/etc/postfix/main.cf` 文件：
 - en: '[PRE40]'
+  id: totrans-150
   prefs:
   - PREF_IND
   type: TYPE_PRE
+  zh: '[PRE40]'
 - en: 'At the end of the file, add the following options and values:'
+  id: totrans-151
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 在文件的末尾，添加以下选项和值：
 - en: '[PRE41]'
+  id: totrans-152
   prefs:
   - PREF_IND
   type: TYPE_PRE
+  zh: '[PRE41]'
 - en: Save your changes and close the file.
+  id: totrans-153
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 保存更改并关闭文件。
 - en: 'Restart Postfix:'
+  id: totrans-154
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 重启 Postfix：
 - en: '[PRE42]'
+  id: totrans-155
   prefs:
   - PREF_IND
   type: TYPE_PRE
+  zh: '[PRE42]'
 - en: How it works...
+  id: totrans-156
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 它是如何工作的...
 - en: 'An encryption key and a security certificate that confirms the ownership of
     the key are needed for SSL/TLS communications. A self-signed certificate is sufficient
     for personal use or for use with services on a private network, so this recipe
     shows us how to generate this ourselves using `openssl`:'
+  id: totrans-157
   prefs: []
   type: TYPE_NORMAL
+  zh: SSL/TLS 通信需要一个加密密钥和确认密钥所有权的安全证书。自签名证书足以用于个人用途或在私人网络上使用，因此本教程将教你如何使用 `openssl`
+    生成自签名证书：
 - en: '[PRE43]'
+  id: totrans-158
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE43]'
 - en: The `req` option makes a new certificate request and `-newkey` asks `openssl`
     to generate a new private key and to use that key when it signs the certificate
     (this is what we mean when we say self-signed certificate). `rsa:2048` says the
@@ -718,8 +1052,10 @@
     It's important not to encrypt the key file with a passphrase because Postfix needs
     to access the key. If it were encrypted, we'd need to provide the passphrase to
     decrypt the key every time we start Postfix.
+  id: totrans-159
   prefs: []
   type: TYPE_NORMAL
+  zh: '`req`选项创建一个新的证书请求，`-newkey`要求`openssl`生成一个新的私钥，并在签署证书时使用该密钥（这就是我们所说的自签名证书）。`rsa:2048`表示密钥将是一个2048位的RSA密钥。根据计算能力增长的预估，2048位密钥通常被认为足够抵抗攻击，直到大约2030年。2048位以上的密钥适用于此之后。`-nodes`防止密钥文件使用密码进行加密。重要的是不要用密码加密密钥文件，因为Postfix需要访问该密钥。如果加密了，我们每次启动Postfix时都需要提供密码来解密密钥。'
 - en: '`-x509` specifies that the certificate will be an X.509 certificate (the type
     used by SSL and TLS connections) and `-days` sets the certificate''s expiration
     date to a number of days in the future, in this case 730 days (3 years). `-subj`
@@ -729,33 +1065,47 @@
     for values for a number of other fields as well. Finally, the `-text` argument
     specifies that the certificate should be encoded as text as this is the format
     Postfix expects:'
+  id: totrans-160
   prefs: []
   type: TYPE_NORMAL
+  zh: '`-x509`指定证书将是X.509证书（SSL和TLS连接使用的类型），`-days`设置证书的过期日期，单位为未来的天数，在本例中为730天（3年）。`-subj`用于指定证书的`CN`（常用名称）字段的值，该值应为证书所标识的系统的主机名或IP地址。或者，你可以省略该参数，`openssl`会交互式提示你为其他字段提供值。最后，`-text`参数指定证书应以文本格式编码，这是Postfix所期望的格式：'
 - en: '![How it works...](img/image_09_003.jpg)'
+  id: totrans-161
   prefs: []
   type: TYPE_IMG
+  zh: '![工作原理...](img/image_09_003.jpg)'
 - en: More identifying information can be embedded within a certificate
+  id: totrans-162
   prefs: []
   type: TYPE_NORMAL
+  zh: 更多的身份信息可以嵌入到证书中。
 - en: 'A self-signed certificate basically says, *here''s my encryption key. You know
     it''s mine because I said so.* If your system''s services are intended for public
     consumption, you''ll most likely need to invest in a certificate signed by a trusted
     Certificate Authority (CA). Trusted certificates say, *you can trust the key is
     mine because a mutual friend will vouch for me*. To obtain a trusted certificate,
     you need a certificate signing request (CSR):'
+  id: totrans-163
   prefs: []
   type: TYPE_NORMAL
+  zh: 自签名证书基本上就是说，*这是我的加密密钥，你知道这是我的，因为我这么说*。如果你的系统服务是面向公众的，你很可能需要投资购买一个由受信任证书颁发机构（CA）签署的证书。受信任的证书表示，*你可以信任这个密钥是我的，因为一个共同的朋友会为我担保*。要获得受信任的证书，你需要一个证书签名请求（CSR）：
 - en: '[PRE44]'
+  id: totrans-164
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE44]'
 - en: Then, you send your money and the CSR to the CA. After a short wait, you'll
     receive your certificate.
+  id: totrans-165
   prefs: []
   type: TYPE_NORMAL
+  zh: 然后，你将钱和CSR发送给CA。稍等片刻，你将收到你的证书。
 - en: Note
+  id: totrans-166
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
+  zh: 注意
 - en: By depending on the CA and the specifics of the request, trusted certificates
     can become quite expensive. And trust isn't what it used to be either. A scandal
     erupted when it was uncovered that employees at a prominent CA were signing forged
@@ -764,174 +1114,246 @@
     us. Browser vendors are starting to push for stricter guidelines and more auditing.
     There are also projects such as *Let's Encrypt* which enable secure trusted certificates
     to be automatically generated for free.
+  id: totrans-167
   prefs: []
   type: TYPE_NORMAL
+  zh: 根据CA和请求的具体情况，受信任的证书可能非常昂贵。而且，信任也不像以前那样可靠。当一家知名CA的员工被揭露为签署伪造证书时，引发了丑闻，据称这些伪造证书是为了内部测试目的。人们只能对Web信任体系缺乏监管感到惊讶。希望最糟糕的时期已经过去。浏览器厂商开始推动更严格的指南和更多的审计工作。也有像*Let's
+    Encrypt*这样的项目，使得可以自动生成免费的安全受信任证书。
 - en: 'Next, we added the necessary configuration parameters to Postfix''s `main.cf`
     file:'
+  id: totrans-168
   prefs: []
   type: TYPE_NORMAL
+  zh: 接下来，我们将必要的配置参数添加到Postfix的`main.cf`文件中：
 - en: '[PRE45]'
+  id: totrans-169
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE45]'
 - en: '`smtp_tls_security_level` configures Postfix''s enforcing behavior in relation
     to the encrypted connection. `may` enables opportunistic TLS—the server advertises
     that encryption and clients can take advantage of it but its use is not required.
     You may also set the parameter to `encrypt` to make the use of encryption mandatory.'
+  id: totrans-170
   prefs: []
   type: TYPE_NORMAL
+  zh: '`smtp_tls_security_level` 配置 Postfix 在加密连接方面的强制行为。`may` 启用机会性 TLS——服务器会声明支持加密，客户端可以利用它，但加密不是必须的。你也可以将该参数设置为
+    `encrypt`，强制要求使用加密。'
 - en: '`smtpd_tls_cert_file` and `smtpd_tls_key_file` specify the paths to the self-signed
     certificate and the encryption key we generated earlier, respectively. If you''re
     using trusted certificates then you''ll also need to provide the `smtpd_tls_CAfile`
     parameter with a value that identifies the signing CA''s public certificate.'
+  id: totrans-171
   prefs: []
   type: TYPE_NORMAL
+  zh: '`smtpd_tls_cert_file` 和 `smtpd_tls_key_file` 分别指定我们之前生成的自签名证书和加密密钥的路径。如果你使用的是受信任的证书，那么还需要提供
+    `smtpd_tls_CAfile` 参数，并为其指定一个值，来标识签名 CA 的公钥证书。'
 - en: 'If you find that negotiating the secure connection is slow, there are a few
     tuning parameters you can try. For example, we can explicitly specify the source
     of entropy that Postfix is using with `tls_random_source`:'
+  id: totrans-172
   prefs: []
   type: TYPE_NORMAL
+  zh: 如果你发现安全连接的协商速度较慢，可以尝试一些调整参数。例如，我们可以显式地指定 Postfix 使用的熵源，使用 `tls_random_source`：
 - en: '[PRE46]'
+  id: totrans-173
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE46]'
 - en: 'Also, we can cache details of the encrypted session between the server and
     mail client. The `smtpd_tls_session_cache_database` parameter defines the file
     in which Postfix will store the cached details and `smtpd_tls_session_cache_timeout`
     specifies how long the session can be cached. This reduces the overhead of establishing
     a new session each time the client connects:'
+  id: totrans-174
   prefs: []
   type: TYPE_NORMAL
+  zh: 此外，我们还可以缓存服务器和邮件客户端之间加密会话的详细信息。`smtpd_tls_session_cache_database` 参数定义了 Postfix
+    存储缓存详细信息的文件，而 `smtpd_tls_session_cache_timeout` 则指定了会话可以缓存的时间。这可以减少每次客户端连接时建立新会话的开销：
 - en: '[PRE47]'
+  id: totrans-175
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE47]'
 - en: 'To test the configuration, you can connect using telnet and issue the `STARTTLS`
     command. Postfix should respond that it''s ready to start negotiating the secure
     connection:'
+  id: totrans-176
   prefs: []
   type: TYPE_NORMAL
+  zh: 要测试配置，可以使用 telnet 连接并发出 `STARTTLS` 命令。Postfix 应该会响应，表示它准备好开始协商安全连接：
 - en: '[PRE48]'
+  id: totrans-177
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE48]'
 - en: See also
+  id: totrans-178
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 另请参见
 - en: 'Refer to the following resources for working with Postfix and TLS:'
+  id: totrans-179
   prefs: []
   type: TYPE_NORMAL
+  zh: 请参阅以下资源以了解如何使用 Postfix 和 TLS：
 - en: Postfix TLS Support ([http://www.postfix.org/TLS_README.html](http://www.postfix.org/TLS_README.html))
+  id: totrans-180
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: Postfix TLS 支持 ([http://www.postfix.org/TLS_README.html](http://www.postfix.org/TLS_README.html))
 - en: 'Wikipedia: Public Key Infrastructure ([https://en.wikipedia.org/wiki/Public_key_infrastructure](https://en.wikipedia.org/wiki/Public_key_infrastructure))'
+  id: totrans-181
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 维基百科：公钥基础设施 ([https://en.wikipedia.org/wiki/Public_key_infrastructure](https://en.wikipedia.org/wiki/Public_key_infrastructure))
 - en: 'OpenSSL Essentials: Working with SSL Certificates, Private Keys, and CSRs ([https://www.digitalocean.com/community/tutorials/openssl-essentials-working-with-ssl-certificates-private-keys-and-csrs](https://www.digitalocean.com/community/tutorials/openssl-essentials-working-with-ssl-certificates-private-keys-and-csrs))'
+  id: totrans-182
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: OpenSSL 基础知识：处理 SSL 证书、私钥和证书签署请求 ([https://www.digitalocean.com/community/tutorials/openssl-essentials-working-with-ssl-certificates-private-keys-and-csrs](https://www.digitalocean.com/community/tutorials/openssl-essentials-working-with-ssl-certificates-private-keys-and-csrs))
 - en: Configuring Dovecot for secure POP3 and IMAP access
+  id: totrans-183
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 配置 Dovecot 以进行安全的 POP3 和 IMAP 访问
 - en: When you check your e-mail, the e-mail program connects to your mail server
     to see if there are any new messages in your mail directory. If its configured
     to used the Post Office Protocol (POP3), it downloads the messages locally and
     deletes them from the server. If it's configured to use Internet Message Access
     Protocol (IMAP), the mail remains on the server and you manage it remotely.
+  id: totrans-184
   prefs: []
   type: TYPE_NORMAL
+  zh: 当你检查电子邮件时，电子邮件程序会连接到你的邮件服务器，查看邮件目录中是否有新消息。如果配置为使用邮局协议（POP3），它会将邮件下载到本地并从服务器中删除。如果配置为使用互联网消息访问协议（IMAP），邮件会保留在服务器上，你可以远程管理它。
 - en: Dovecot handles both protocols out of the box. Since we've already installed
     Dovecot for its SASL functionality, we could just open the standard ports for
     POP3 and IMAP traffic in the system's firewall and be done. However, the connections
     would be unencrypted and information would be transmitted across the network in
     plain text. This recipe teaches you how to secure these connections with SSL.
+  id: totrans-185
   prefs: []
   type: TYPE_NORMAL
+  zh: Dovecot 原生支持这两种协议。由于我们已经安装了 Dovecot 来提供其 SASL 功能，所以我们只需要在系统防火墙中打开 POP3 和 IMAP
+    流量的标准端口即可。然而，连接将是未加密的，信息将以明文形式通过网络传输。本篇教程教你如何使用 SSL 加密这些连接。
 - en: Getting ready
+  id: totrans-186
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 准备工作
 - en: This recipe requires a CentOS system with Postfix and Dovecot configured as
     described in previous recipes. Administrative privileges are also required, either
     by logging in with the `root` account or through the use of `sudo`.
+  id: totrans-187
   prefs: []
   type: TYPE_NORMAL
 - en: How to do it...
+  id: totrans-188
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
 - en: 'Follow these steps to configure access to Dovecot:'
+  id: totrans-189
   prefs: []
   type: TYPE_NORMAL
 - en: 'Open `/etc/dovecot/dovecot.conf` with your text editor:'
+  id: totrans-190
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
 - en: '[PRE49]'
+  id: totrans-191
   prefs:
   - PREF_IND
   type: TYPE_PRE
+  zh: '[PRE49]'
 - en: 'Locate the `protocols` parameter. Remove the leading `#` character and set
     its value to `imaps pop3s`:'
+  id: totrans-192
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
 - en: '[PRE50]'
+  id: totrans-193
   prefs:
   - PREF_IND
   type: TYPE_PRE
+  zh: '[PRE50]'
 - en: Save the changes and close the file.
+  id: totrans-194
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
 - en: 'Open `/etc/dovecot/conf.d/10-ssl.conf` with your text editor:'
+  id: totrans-195
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
 - en: '[PRE51]'
+  id: totrans-196
   prefs:
   - PREF_IND
   type: TYPE_PRE
+  zh: '[PRE51]'
 - en: 'Locate the `ssl` parameter and set its value to `yes`:'
+  id: totrans-197
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
 - en: '[PRE52]'
+  id: totrans-198
   prefs:
   - PREF_IND
   type: TYPE_PRE
+  zh: '[PRE52]'
 - en: 'Locate the `ssl_cert` and `ssl_key` parameters. Update their values with the
     paths to your certificate and key files (note that both paths are preceded with
     `<`):'
+  id: totrans-199
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
 - en: '[PRE53]'
+  id: totrans-200
   prefs:
   - PREF_IND
   type: TYPE_PRE
+  zh: '[PRE53]'
 - en: Save the changes and close the file.
+  id: totrans-201
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
 - en: 'Restart Dovecot for the changes to take effect:'
+  id: totrans-202
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
 - en: '[PRE54]'
+  id: totrans-203
   prefs:
   - PREF_IND
   type: TYPE_PRE
+  zh: '[PRE54]'
 - en: 'Open port `993` for IMAP over SSL and port `995` for POP3 over SSL in the firewall:'
+  id: totrans-204
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
 - en: '[PRE55]'
+  id: totrans-205
   prefs:
   - PREF_IND
   type: TYPE_PRE
+  zh: '[PRE55]'
 - en: How it works...
+  id: totrans-206
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
@@ -939,11 +1361,14 @@
     in fact, configuring it only took a few seconds. We first edited the `protocols`
     parameter `/etc/dovecot/dovecot.conf` to let Dovecot know that we want these protocols
     to be secured:'
+  id: totrans-207
   prefs: []
   type: TYPE_NORMAL
 - en: '[PRE56]'
+  id: totrans-208
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE56]'
 - en: 'Then we updated `/etc/dovecot/conf.d/10-ssl.conf` to enable SSL to use the
     `ssl` parameter and to identify a certificate and encryption key using `ssl_cert`
     and `ssl_key`. Since Postfix and Dovecot are running on the same system and we
@@ -951,119 +1376,155 @@
     files in Dovecot''s configuration. Dovecot uses the leading `<` in front of the
     paths to specify that it should use the file''s content for the parameter''s value
     and not the literal string itself:'
+  id: totrans-209
   prefs: []
   type: TYPE_NORMAL
 - en: '[PRE57]'
+  id: totrans-210
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE57]'
 - en: Dovecot will still allow non-SSL access to POP and IMAP (on ports `110` and
     `143`, respectively) from connections originating from the localhost, but once
     we restart it for the configuration changes to take effect, all other users will
     need to use SSL to access their messages.
+  id: totrans-211
   prefs: []
   type: TYPE_NORMAL
 - en: 'We can use `mailx` to test the configuration. First, we''ll check POP3:'
+  id: totrans-212
   prefs: []
   type: TYPE_NORMAL
 - en: '[PRE58]'
+  id: totrans-213
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE58]'
 - en: The `-f` argument specifies the directory that `mailx` will read from to retrieve
     our messages. Given as a URI, the value instructs `mailx` to read the default
     directory for our user on the `mail.example.com` system using POP3 over SSL (`pop3s`).
+  id: totrans-214
   prefs: []
   type: TYPE_NORMAL
 - en: 'The command is the same to check IMAP apart from changing the URI''s protocol:'
+  id: totrans-215
   prefs: []
   type: TYPE_NORMAL
 - en: '[PRE59]'
+  id: totrans-216
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE59]'
 - en: 'Because we''re using a self-signed certificate, `mailx` will complain that
     the certificate has not been marked as trusted by the user and prompt us whether
     we want to continue. Respond with `y` to this and you''ll then be prompted for
     the user''s password. `mailx` then displays the user''s inbox. Exit the program
     by entering `quit` at the prompt:'
+  id: totrans-217
   prefs: []
   type: TYPE_NORMAL
 - en: '![How it works...](img/image_09_004.jpg)'
+  id: totrans-218
   prefs: []
   type: TYPE_IMG
 - en: mailx can be used to test our configuration of POP3 and IMAP over SSL
+  id: totrans-219
   prefs: []
   type: TYPE_NORMAL
 - en: Note
+  id: totrans-220
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
 - en: 'If `mailx` complains that it''s missing the `nss-config-dir` variable, you
     can define it on the command line using `-S`. The value should be a path to the
     certificate databases that `mailx` can use to verify certificate trust:'
+  id: totrans-221
   prefs: []
   type: TYPE_NORMAL
 - en: '[PRE60]'
+  id: totrans-222
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE60]'
 - en: When we first configured Postfix, we adjusted its `home_mailbox` parameter to
     store messages in separate directories. I acknowledged this was optional at that
     time but it would make things easier and cleaner when we set up retrieval access.
     If you didn't set `home_mailbox` at that time, incoming messages are appended
     to the user's mail spool file under `/var/spool/mail` and some additional configuration
     is necessary for Dovecot to access them. These changes can be made in `/etc/dovecot/conf.d/10-mail.conf`.
+  id: totrans-223
   prefs: []
   type: TYPE_NORMAL
 - en: 'Alternatively, you can convert the spool file to separate messages in a `Maildir`
     directory at this time. First, install the `mb2md` package:'
+  id: totrans-224
   prefs: []
   type: TYPE_NORMAL
 - en: '[PRE61]'
+  id: totrans-225
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE61]'
 - en: 'Open the `/etc/postfix/main.cf` file and locate the `home_mailbox` parameter.
     Remove the leading `#` character from the entry with the value `Maildir/`:'
+  id: totrans-226
   prefs: []
   type: TYPE_NORMAL
 - en: '[PRE62]'
+  id: totrans-227
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE62]'
 - en: 'Save your changes and then restart Postfix for the update to take effect. Then,
     for each account, invoke `mb2md` to convert the spool file. The utility needs
     to be run as the target user, so use `su` to temporarily switch to that user''s
     context:'
+  id: totrans-228
   prefs: []
   type: TYPE_NORMAL
 - en: '[PRE63]'
+  id: totrans-229
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE63]'
 - en: See also
+  id: totrans-230
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
 - en: Refer to the following resources for more information on the different topics
     discussed in this recipe, including Dovecot, POP3, and IMAP.
+  id: totrans-231
   prefs: []
   type: TYPE_NORMAL
 - en: The `mailx` manual page (`man 1 mailx`)
+  id: totrans-232
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
 - en: The Dovecot Homepage ([http://www.dovecot.org/](http://www.dovecot.org/))
+  id: totrans-233
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
 - en: 'RFC 3501: Internet Message Access Protocol ([https://tools.ietf.org/html/rfc3501](https://tools.ietf.org/html/rfc3501))'
+  id: totrans-234
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
 - en: 'RFC 1939: Post Office Protocol ([https://tools.ietf.org/html/rfc1939](https://tools.ietf.org/html/rfc1939))'
+  id: totrans-235
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
 - en: Converting Mbox Mailboxes to Maildir format ([http://batleth.sapienti-sat.org/projects/mb2md/](http://batleth.sapienti-sat.org/projects/mb2md/))
+  id: totrans-236
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
 - en: Targeting spam with SpamAssassin
+  id: totrans-237
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
@@ -1072,6 +1533,7 @@
     that spam is a huge problem. Unwanted messages cause extra load on mail servers,
     consume storage space, and can even be a security risk. Also, while there have
     been many attempts to legally manage spam, such attempts have largely failed.
+  id: totrans-238
   prefs: []
   type: TYPE_NORMAL
 - en: This recipe teaches you how to set up SpamAssassin to identify spam messages.
@@ -1079,97 +1541,128 @@
     such as missing headers and invalid return addresses, and uses heuristics to analyze
     the message content. Each check contributes to the message's overall spam score,
     and if this score exceeds the defined threshold then the message is labeled spam.
+  id: totrans-239
   prefs: []
   type: TYPE_NORMAL
 - en: Getting ready
+  id: totrans-240
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
 - en: This recipe requires a CentOS system with Postfix configured as described in
     the previous recipe. Administrative privileges are also required, either by logging
     in with the root account or through the use of `sudo`.
+  id: totrans-241
   prefs: []
   type: TYPE_NORMAL
 - en: How to do it...
+  id: totrans-242
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
 - en: 'Follow these steps to identify spam using SpamAssassin:'
+  id: totrans-243
   prefs: []
   type: TYPE_NORMAL
 - en: 'Install the `spamassassin` package:'
+  id: totrans-244
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
 - en: '[PRE64]'
+  id: totrans-245
   prefs:
   - PREF_IND
   type: TYPE_PRE
+  zh: '[PRE64]'
 - en: 'Start SpamAssassin and optionally enable it to start automatically whenever
     the system reboots:'
+  id: totrans-246
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
 - en: '[PRE65]'
+  id: totrans-247
   prefs:
   - PREF_IND
   type: TYPE_PRE
+  zh: '[PRE65]'
 - en: 'Create SpamAssassin''s Bayesian classifier database:'
+  id: totrans-248
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
 - en: '[PRE66]'
+  id: totrans-249
   prefs:
   - PREF_IND
   type: TYPE_PRE
+  zh: '[PRE66]'
 - en: 'Create an unprivileged system user account that Postfix can use to communicate
     with SpamAssassin:'
+  id: totrans-250
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
 - en: '[PRE67]'
+  id: totrans-251
   prefs:
   - PREF_IND
   type: TYPE_PRE
+  zh: '[PRE67]'
 - en: 'Open Postfix''s `master.cf` file for editing:'
+  id: totrans-252
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
 - en: '[PRE68]'
+  id: totrans-253
   prefs:
   - PREF_IND
   type: TYPE_PRE
+  zh: '[PRE68]'
 - en: 'Locate the line that defines the `smtp` service and append the `-o` argument
     specifying `spamassassin` as a content filter:'
+  id: totrans-254
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
 - en: '[PRE69]'
+  id: totrans-255
   prefs:
   - PREF_IND
   type: TYPE_PRE
+  zh: '[PRE69]'
 - en: 'At the end of the configuration file, add the definition for the `spamassassin`
     filter:'
+  id: totrans-256
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
 - en: '[PRE70]'
+  id: totrans-257
   prefs:
   - PREF_IND
   type: TYPE_PRE
+  zh: '[PRE70]'
 - en: Save your changes and close the file.
+  id: totrans-258
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
 - en: 'Restart Postfix for the updates to the configuration to take effect:'
+  id: totrans-259
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
 - en: '[PRE71]'
+  id: totrans-260
   prefs:
   - PREF_IND
   type: TYPE_PRE
+  zh: '[PRE71]'
 - en: How it works...
+  id: totrans-261
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
@@ -1178,6 +1671,7 @@
     which runs the `spamd` daemon. The client program `spamc` is used to communicate
     with the daemon, and the rest of the recipe's steps focused on configuring Postfix
     to use `spamc` to score the e-mail message.
+  id: totrans-262
   prefs: []
   type: TYPE_NORMAL
 - en: 'We created a new user account named `spamd` for Postfix to use when it invokes
@@ -1186,25 +1680,32 @@
     the account''s user ID to be assigned a value less than 100\. The `-s` argument
     gives `/sbin/nologin` as the account''s shell to prevent someone from logging
     in using the account:'
+  id: totrans-263
   prefs: []
   type: TYPE_NORMAL
 - en: '[PRE72]'
+  id: totrans-264
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE72]'
 - en: For Postfix to pass messages to SpamAssassin, we need to define a new `spamassassin`
     service in its `master.cf` configuration file and ask Postfix to use the service
     as a content filter. The organization of `master.cf` is much different from the
     configuration files we've seen before—each line defines a process in the mail
     delivery pipeline and certain properties about it.
+  id: totrans-265
   prefs: []
   type: TYPE_NORMAL
 - en: 'The first active entry in the file is for the `smtp` service and looks like
     this:'
+  id: totrans-266
   prefs: []
   type: TYPE_NORMAL
 - en: '[PRE73]'
+  id: totrans-267
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE73]'
 - en: The first column is the name of the service and the second column specifies
     how the service will communicate. For example, `inet` signifies that the process
     uses a TCP/IP socket while `unix` signifies that it uses a local unix-domain socket.
@@ -1214,33 +1715,42 @@
     columns provide a wakeup timer for processes that run at time intervals, the limit
     for the number of instances that can be running at the same time, and the command
     that's invoked to provide the service.
+  id: totrans-268
   prefs: []
   type: TYPE_NORMAL
 - en: 'To set our `spamassassin` service as a filter, we updated the `smtp` service''s
     command with the `-o` option to set the `content_filter` parameter with the name
     of our service:'
+  id: totrans-269
   prefs: []
   type: TYPE_NORMAL
 - en: '[PRE74]'
+  id: totrans-270
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE74]'
 - en: 'Then we defined the `spamassassin` service at the bottom of the file:'
+  id: totrans-271
   prefs: []
   type: TYPE_NORMAL
 - en: '[PRE75]'
+  id: totrans-272
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE75]'
 - en: The `pipe` command is part of Postfix's delivery system with the purpose of
     piping messages to external processes. The `user` argument specifies the name
     of the user account the invoked process will run under and `argv` is the command
     and its arguments that will be run. Our definition references the `spamd` user
     we created earlier and pipes the message to the `spamc` client.
+  id: totrans-273
   prefs: []
   type: TYPE_NORMAL
 - en: After the message is reviewed by `spamd`, `spamc` returns the message to stdout
     by default. To avoid losing the message, we pipe the output to another process
     to deliver the message. `-e` instructs `spamc` to pipe the output for handling,
     in this case to a program named `sendmail`.
+  id: totrans-274
   prefs: []
   type: TYPE_NORMAL
 - en: Sendmail is another mail server that's quite older than Postfix. It dominated
@@ -1253,32 +1763,41 @@
     from address of the message to the value of `${sender}`, a special variable populated
     by Postfix with the sender's e-mail address, and the message is sent to `${recipient}`,
     the recipient's e-mail address.
+  id: totrans-275
   prefs: []
   type: TYPE_NORMAL
 - en: 'To test the configuration, we can send an e-mail message with the following
     subject—it''s a known value that SpamAssassin always marks as spam:'
+  id: totrans-276
   prefs: []
   type: TYPE_NORMAL
 - en: '[PRE76]'
+  id: totrans-277
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE76]'
 - en: '![How it works...](img/image_09_005.jpg)'
+  id: totrans-278
   prefs: []
   type: TYPE_IMG
 - en: An e-mail is sent with a known signature in the subject line to test SpamAssassin
+  id: totrans-279
   prefs: []
   type: TYPE_NORMAL
 - en: 'When you check the message in your inbox, you''ll notice that SpamAssassin
     will have prepended `[SPAM]` to the subject line, allowing you to easily identify
     unwanted messages. It also adds additional headers to the message that summarizes
     its findings that lead it to the conclusion that the message is spam:'
+  id: totrans-280
   prefs: []
   type: TYPE_NORMAL
 - en: '![How it works...](img/image_09_006.jpg)'
+  id: totrans-281
   prefs: []
   type: TYPE_IMG
 - en: SpamAssassin updates a message's subject line and adds additional headers to
     explain why it thinks the message is spam
+  id: totrans-282
   prefs: []
   type: TYPE_NORMAL
 - en: 'Keep in mind that the world of spam is constantly in flux; programmers are
@@ -1287,55 +1806,70 @@
     database up to date. A cron job is added when SpamAssassin is installed that will
     update its database daily, but you can also run an update manually any time you
     like by running:'
+  id: totrans-283
   prefs: []
   type: TYPE_NORMAL
 - en: '[PRE77]'
+  id: totrans-284
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE77]'
 - en: 'If SpamAssassin is falsely identifying a large amount of legitimate messages
     as spam or vice versa, you can train it''s Bayesian classifier to better identify
     unwanted messages using `sa-learn`. We can provide a collection of messages we
     know are spam and identify them as such with the `--spam` argument, and good messages
     with `--ham` for the program to study:'
+  id: totrans-285
   prefs: []
   type: TYPE_NORMAL
 - en: '[PRE78]'
+  id: totrans-286
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE78]'
 - en: '`sa-learn` keeps track of the messages it''s seen. If you have previously indicated
     that a message is spam and then later use it as ham, the program will remove it
     from its spam database, and vice versa if you indicate an e-mail is good but later
     decide it should be used as spam.'
+  id: totrans-287
   prefs: []
   type: TYPE_NORMAL
 - en: See also
+  id: totrans-288
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
 - en: 'Refer to the following resources for more information on working with SpamAssassin:'
+  id: totrans-289
   prefs: []
   type: TYPE_NORMAL
 - en: The `sa-learn` manual page (`man 1 sa-learn`)
+  id: totrans-290
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
 - en: SpamAssassin Home Page ([http://spamassassin.apache.org/](http://spamassassin.apache.org/))
+  id: totrans-291
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
 - en: Rum SpamAssassin with Postfix ([http://howto.gumph.org/content/run-spamassassin-with-postfix/](http://howto.gumph.org/content/run-spamassassin-with-postfix/))
+  id: totrans-292
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
 - en: Stop Spam on your Postfix Server with SpamAssassin ([https://www.linux.com/learn/stop-spam-your-postfix-server-spamassassin](https://www.linux.com/learn/stop-spam-your-postfix-server-spamassassin))
+  id: totrans-293
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
 - en: Bayes Theorem Explained Like You're Five ([https://www.youtube.com/watch?v=2Df1sDAyRvQ](https://www.youtube.com/watch?v=2Df1sDAyRvQ))
+  id: totrans-294
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
 - en: Routing messages with Procmail
+  id: totrans-295
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
@@ -1344,85 +1878,111 @@
     from your inbox to a dedicated spam directory. Or maybe you want such routing
     to happen automatically on the server. We can configure this using Procmail, a
     mail filtering and delivery agent.
+  id: totrans-296
   prefs: []
   type: TYPE_NORMAL
 - en: In this recipe, we'll look at how to configure Procmail to route messages. We'll
     scan incoming mail, looking for a special header that SpamAssassin adds to messages
     if it thinks they're spam and then deliver them to a separate directory instead
     of the inbox.
+  id: totrans-297
   prefs: []
   type: TYPE_NORMAL
 - en: Getting ready
+  id: totrans-298
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
 - en: This recipe requires a CentOS system with Postfix configured as described in
     the previous recipes. Administrative privileges are also required, either by logging
     in with the `root` account or through the use of `sudo`.
+  id: totrans-299
   prefs: []
   type: TYPE_NORMAL
 - en: How to do it...
+  id: totrans-300
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
 - en: 'Follow these steps to set up Procmail to route messages:'
+  id: totrans-301
   prefs: []
   type: TYPE_NORMAL
 - en: 'Create the `/etc/procmailrc` file with the following content:'
+  id: totrans-302
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
 - en: '[PRE79]'
+  id: totrans-303
   prefs:
   - PREF_IND
   type: TYPE_PRE
+  zh: '[PRE79]'
 - en: 'Create each user''s spam directory:'
+  id: totrans-304
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
 - en: '[PRE80]'
+  id: totrans-305
   prefs:
   - PREF_IND
   type: TYPE_PRE
+  zh: '[PRE80]'
 - en: 'If you created the user''s spam directory as `root`, fix the directory and
     subscription file''s ownership and permissions:'
+  id: totrans-306
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
 - en: '[PRE81]'
+  id: totrans-307
   prefs:
   - PREF_IND
   type: TYPE_PRE
+  zh: '[PRE81]'
 - en: 'Open Postfix''s `main.cf` configuration file with your editor:'
+  id: totrans-308
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
 - en: '[PRE82]'
+  id: totrans-309
   prefs:
   - PREF_IND
   type: TYPE_PRE
+  zh: '[PRE82]'
 - en: 'Locate the example `mailbox_command` parameters. Uncomment the second example
     and correct its path to the `procmail` executable:'
+  id: totrans-310
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
 - en: '[PRE83]'
+  id: totrans-311
   prefs:
   - PREF_IND
   type: TYPE_PRE
+  zh: '[PRE83]'
 - en: Save the changes and close the file.
+  id: totrans-312
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
 - en: 'Restart Postfix for the updated configuration to take effect:'
+  id: totrans-313
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
 - en: '[PRE84]'
+  id: totrans-314
   prefs:
   - PREF_IND
   type: TYPE_PRE
+  zh: '[PRE84]'
 - en: How it works...
+  id: totrans-315
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
@@ -1430,31 +1990,40 @@
     need to create its configuration file for it to be useful to us. The main configuration
     file is `/etc/procmailrc` and we start it by defining the `MAILDIR`, `DEFAULT`,
     and `INCLUDERC` variables.
+  id: totrans-316
   prefs: []
   type: TYPE_NORMAL
 - en: '[PRE85]'
+  id: totrans-317
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE85]'
 - en: '`MAILDIR` provides the location of the user''s mail directory. `procmailrc`
     is a global configuration file and we use `$HOME` to denote the user''s home directory
     in which `Maildir` resides. `DEFAULT` provides the default location for incoming
     mail, which is the mail directory''s `new` directory.'
+  id: totrans-318
   prefs: []
   type: TYPE_NORMAL
 - en: '`INCLUDERC` gives the name of other files that should be included when Procmail
     processes the configuration file. In this case, SpamAssassin installs a configuration
     file to integrate with Procmail which we reference.'
+  id: totrans-319
   prefs: []
   type: TYPE_NORMAL
 - en: 'The second part of the configuration appears as a cryptic incantation—the definition
     of a matching rule. In Procmail parlance, they''re called recipes:'
+  id: totrans-320
   prefs: []
   type: TYPE_NORMAL
 - en: '[PRE86]'
+  id: totrans-321
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE86]'
 - en: More than one rule can be given in the configuration file, in which case they
     are processed in the order in which they appear, top to bottom.
+  id: totrans-322
   prefs: []
   type: TYPE_NORMAL
 - en: All rules begin with `:0` and contain conditions followed by an action. Here,
@@ -1464,6 +2033,7 @@
     the directory considered will be relative to `$MAILDIR`. Thus, the rule asks Procmail
     to route any messages flagged with the `X-Spam-Status` header by SpamAssassin
     to the user's `Maildir/.Spam` directory.
+  id: totrans-323
   prefs: []
   type: TYPE_NORMAL
 - en: 'The original Maildir specification only allows the `new`, `cur`, and `tmp`
@@ -1474,11 +2044,14 @@
     the `subscriptions` file must list the additional directories, one entry per line,
     for them to be visible in the user''s mail client. The directories themselves
     are then named with a leading dot:'
+  id: totrans-324
   prefs: []
   type: TYPE_NORMAL
 - en: '[PRE87]'
+  id: totrans-325
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE87]'
 - en: Procmail also allows for per-user actions as well. For example, if only one
     user wants to have flagged messages moved to their spam folder, the matching rule
     can be moved from the global configuration under `/etc` to a file named `.procmailrc`
@@ -1486,6 +2059,7 @@
     in the global configuration so that they'll be available to all users, as Procmail
     executes the global file first and then the user's local `.procmailrc` if it's
     available.
+  id: totrans-326
   prefs: []
   type: TYPE_NORMAL
 - en: 'Various flags can be given after `:0` that modify how Procmail behaves or how
@@ -1493,39 +2067,50 @@
     by default. To search the message''s body, we need to provide the `B` flag. The
     following rule is an example that searches the message''s body for the text "Hello
     World" and routes the matching messages to `/dev/null`:'
+  id: totrans-327
   prefs: []
   type: TYPE_NORMAL
 - en: '[PRE88]'
+  id: totrans-328
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE88]'
 - en: 'Some flags you may find useful are:'
+  id: totrans-329
   prefs: []
   type: TYPE_NORMAL
 - en: '`H`: Search the message''s headers'
+  id: totrans-330
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
 - en: '`B`: Search the message''s body'
+  id: totrans-331
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
 - en: '`D`: Match the regular expression in a case-sensitive manner'
+  id: totrans-332
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
 - en: '`e`: Only execute the rule if the rule immediately preceding it was unsuccessful'
+  id: totrans-333
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
 - en: '`c`: Create a copy of the message'
+  id: totrans-334
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
 - en: '`h`: Only send the message''s header to a piped program'
+  id: totrans-335
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
 - en: '`b`: Only send the message''s body to a piped program'
+  id: totrans-336
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
@@ -1533,35 +2118,46 @@
     the message is piped to it. Here''s an example that sends a copy of any messages
     received from the human resources department to the printer by piping it through
     `lpr`:'
+  id: totrans-337
   prefs: []
   type: TYPE_NORMAL
 - en: '[PRE89]'
+  id: totrans-338
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE89]'
 - en: 'If the action begins with `!` then the value is seen as an e-mail and the message
     is forwarded. This example routes an e-mail from a known recipient to a personal
     e-mail account instead:'
+  id: totrans-339
   prefs: []
   type: TYPE_NORMAL
 - en: '[PRE90]'
+  id: totrans-340
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE90]'
 - en: See also
+  id: totrans-341
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
 - en: 'Refer to the following resources for more information on Procmail:'
+  id: totrans-342
   prefs: []
   type: TYPE_NORMAL
 - en: The `procmail` manual page (`man 1 procmail`)
+  id: totrans-343
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
 - en: The `procmailrc` file manual page (`man 5 procmailrc`)
+  id: totrans-344
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
 - en: Timo's Promail tips and recipes ([http://www.netikka.net/tsneti/info/proctips.php](http://www.netikka.net/tsneti/info/proctips.php))
+  id: totrans-345
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
