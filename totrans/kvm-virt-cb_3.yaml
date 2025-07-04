@@ -1,61 +1,87 @@
 - en: KVM Networking with libvirt
+  id: totrans-0
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 使用libvirt进行KVM网络配置
 - en: 'In this chapter, we are going to cover the following topics:'
+  id: totrans-1
   prefs: []
   type: TYPE_NORMAL
+  zh: 在本章中，我们将涵盖以下主题：
 - en: The Linux bridge
+  id: totrans-2
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: Linux桥接
 - en: The Open vSwitch
+  id: totrans-3
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: Open vSwitch
 - en: Configuring NAT forwarding network
+  id: totrans-4
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 配置NAT转发网络
 - en: Configuring bridged network
+  id: totrans-5
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 配置桥接网络
 - en: Configuring PCI passthrough network
+  id: totrans-6
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 配置PCI直通网络
 - en: Manipulating network interfaces
+  id: totrans-7
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 操作网络接口
 - en: Introduction
+  id: totrans-8
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 简介
 - en: With libvirt, we can define different network types for our KVM guests, using
     the already familiar XML definition syntax and the `virsh` and `virt-install`
     userspace tools. In this chapter, we are going to deploy three different network
     types, explore the network XML format, and see examples on how to define and manipulate
     virtual interfaces for the KVM instances.
+  id: totrans-9
   prefs: []
   type: TYPE_NORMAL
+  zh: 使用libvirt，我们可以为KVM客户机定义不同的网络类型，使用已熟悉的XML定义语法，以及`virsh`和`virt-install`用户空间工具。在本章中，我们将部署三种不同的网络类型，探索网络XML格式，并展示如何定义和操作KVM实例的虚拟接口的示例。
 - en: To be able to connect the virtual machines to the host OS or to each other,
     we are going to use the Linux bridge and the **Open vSwitch** (**OVS**) daemons,
     userspace tools, and kernel modules. Both software bridging technologies are great
     at creating **Software-defined Networking** (**SDN**) of various complexity, in
     a consistent and easy-to-manipulate manner. The Linux bridge and OVS both act
     as a bridge/switch that the virtual interfaces of the KVM guests can connect to.
+  id: totrans-10
   prefs: []
   type: TYPE_NORMAL
+  zh: 为了能够将虚拟机连接到主机操作系统或彼此之间，我们将使用Linux桥接和**Open vSwitch**（**OVS**）守护进程、用户空间工具和内核模块。这两种软件桥接技术都非常擅长以一致且易于操作的方式创建**软件定义网络**（**SDN**），无论其复杂性如何。Linux桥接和OVS都充当桥接/交换机，KVM客户机的虚拟接口可以连接到这些设备。
 - en: With all this in mind, let's start by learning more about the software bridges
     in Linux.
+  id: totrans-11
   prefs: []
   type: TYPE_NORMAL
+  zh: 了解这些内容后，让我们开始深入学习Linux中的软件桥接。
 - en: The Linux bridge
+  id: totrans-12
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: Linux桥接
 - en: The Linux bridge is a software layer 2 device that provides some of the functionality
     of a physical bridge device. It can forward frames between KVM guests, the host
     OS, and virtual machines running on other servers, or networks. The Linux bridge
@@ -69,471 +95,713 @@
     works with MAC addresses and maintains a kernel structure to keep track of ports
     and associated MAC addresses in the form of a **Content Addressable Memory** (**CAM**)
     table.
+  id: totrans-13
   prefs: []
   type: TYPE_NORMAL
+  zh: Linux桥接是一个软件层2设备，提供了物理桥接设备的一些功能。它可以在KVM客户机、主机操作系统和运行在其他服务器或网络上的虚拟机之间转发数据帧。Linux桥接由两个组件组成——一个用户空间管理工具，我们将在本示例中使用它，以及一个内核模块，负责将多个以太网段连接在一起。每个我们创建的软件桥接可以附加多个端口，网络流量可以从这些端口转发进出。在创建KVM实例时，我们可以将与之关联的虚拟接口连接到桥接上，这类似于将一根网络电缆从物理服务器的网卡插入到桥接/交换机设备中。作为一个层2设备，Linux桥接使用MAC地址，并维护一个内核结构，以**内容可寻址存储器**（**CAM**）表的形式跟踪端口和关联的MAC地址。
 - en: In this recipe, we are going to create a new Linux bridge and use the `brctl`
     utility to manipulate it.
+  id: totrans-14
   prefs: []
   type: TYPE_NORMAL
+  zh: 在这个示例中，我们将创建一个新的Linux桥接，并使用`brctl`工具来操作它。
 - en: Getting ready
+  id: totrans-15
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 准备工作
 - en: 'For this recipe, we are going to need the following:'
+  id: totrans-16
   prefs: []
   type: TYPE_NORMAL
+  zh: 对于本示例，我们需要以下内容：
 - en: Recent Linux kernel with enabled `802.1d Ethernet` bridging options
+  id: totrans-17
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 启用了`802.1d Ethernet`桥接选项的最新Linux内核
 - en: 'To check whether your kernel is compiled with those features or exposed as
     kernel modules, run the following command:'
+  id: totrans-18
   prefs: []
   type: TYPE_NORMAL
+  zh: 要检查你的内核是否编译了这些特性，或者是否作为内核模块暴露，请运行以下命令：
 - en: '[PRE0]'
+  id: totrans-19
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE0]'
 - en: The `bridge` kernel module
+  id: totrans-20
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '`bridge`内核模块'
 - en: 'To verify that the module is loaded and to obtain more information about its
     version and features, execute the following command:'
+  id: totrans-21
   prefs: []
   type: TYPE_NORMAL
+  zh: 要验证模块是否已加载并获取有关其版本和功能的更多信息，请执行以下命令：
 - en: '[PRE1]'
+  id: totrans-22
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE1]'
 - en: The `bridge-utils` package that provides the tool to create and manipulate the
     Linux bridge
+  id: totrans-23
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 提供创建和操作Linux桥接的工具的`bridge-utils`包
 - en: The ability to create new KVM guests using libvirt or the QEMU utilities or
     an existing KVM instance from the previous chapters
+  id: totrans-24
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 使用libvirt或QEMU工具，或使用前几章中的现有KVM实例创建新的KVM客户机的能力
 - en: How to do it...
+  id: totrans-25
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 如何操作…
 - en: 'To create, list, and manipulate a new Linux bridge, follow these steps:'
+  id: totrans-26
   prefs: []
   type: TYPE_NORMAL
+  zh: 要创建、列出并操作一个新的 Linux 桥接，请按照以下步骤操作：
 - en: 'Install the Linux bridge package, if it is not already present:'
+  id: totrans-27
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 如果尚未安装，请安装 Linux 桥接包：
 - en: '[PRE2]'
+  id: totrans-28
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE2]'
 - en: 'Build a new KVM instance using the raw image from the *Installing a custom
     OS on the image with debootstrap *recipe from [Chapter 1](part0026.html#OPEK0-c1e587dcccb14690b55c247c1809e6ce)*,
     Getting Started with QEMU and KVM*, if you are not reading this book cover to
     cover:'
+  id: totrans-29
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 使用来自 [第 1 章](part0026.html#OPEK0-c1e587dcccb14690b55c247c1809e6ce)*、QEMU 和 KVM
+    入门*章节中的 *使用 debootstrap 安装自定义操作系统镜像* 配方的原始镜像构建新的 KVM 实例，如果你不是通读本书：
 - en: '[PRE3]'
+  id: totrans-30
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE3]'
 - en: 'List all the available bridge devices:'
+  id: totrans-31
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 列出所有可用的桥接设备：
 - en: '[PRE4]'
+  id: totrans-32
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE4]'
 - en: 'Bring the virtual bridge down, delete it, and ensure that it''s been deleted:'
+  id: totrans-33
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 将虚拟桥接关闭，删除它，并确保它已被删除：
 - en: '[PRE5]'
+  id: totrans-34
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE5]'
 - en: 'Create a new bridge and bring it up:'
+  id: totrans-35
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 创建一个新的桥接并启用它：
 - en: '[PRE6]'
+  id: totrans-36
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE6]'
 - en: 'Assign an IP address to bridge:'
+  id: totrans-37
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 为桥接分配一个 IP 地址：
 - en: '[PRE7]'
+  id: totrans-38
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE7]'
 - en: 'List the virtual interfaces on the host OS:'
+  id: totrans-39
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 列出主机操作系统上的虚拟接口：
 - en: '[PRE8]'
+  id: totrans-40
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE8]'
 - en: 'Add the virtual interface `vnet0` to the bridge:'
+  id: totrans-41
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 将虚拟接口 `vnet0` 添加到桥接中：
 - en: '[PRE9]'
+  id: totrans-42
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE9]'
 - en: 'Enable the **Spanning Tree Protocol** (**STP**) on bridge and obtain more information:'
+  id: totrans-43
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 启用 **生成树协议** (**STP**) 并获取更多信息：
 - en: '[PRE10]'
+  id: totrans-44
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE10]'
 - en: 'From inside the KVM instance, bring the interface up, request an IP address,
     and test connectivity to the host OS:'
+  id: totrans-45
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 从 KVM 实例内部，启用接口，请求 IP 地址，并测试与主机操作系统的连接：
 - en: '[PRE11]'
+  id: totrans-46
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE11]'
 - en: How it works...
+  id: totrans-47
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 它是如何工作的……
 - en: 'When we first installed and started the `libvirt` daemon, a few things happened
     automatically:'
+  id: totrans-48
   prefs: []
   type: TYPE_NORMAL
+  zh: 当我们第一次安装并启动 `libvirt` 守护进程时，自动发生了几件事：
 - en: A new Linux bridge was created with the name and IP address defined in the `/etc/libvirt/qemu/networks/default.xml`
     configuration file
+  id: totrans-49
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 创建了一个新的 Linux 桥接，名称和 IP 地址在 `/etc/libvirt/qemu/networks/default.xml` 配置文件中定义。
 - en: The `dnsmasq` service was started with a configuration specified in the `/var/lib/libvirt/dnsmasq/default.conf`
     file
+  id: totrans-50
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '`dnsmasq` 服务启动，并根据 `/var/lib/libvirt/dnsmasq/default.conf` 文件中的配置进行设置。'
 - en: 'Let''s examine the default `libvirt` bridge configuration:'
+  id: totrans-51
   prefs: []
   type: TYPE_NORMAL
+  zh: 让我们检查默认的 `libvirt` 桥接配置：
 - en: '[PRE12]'
+  id: totrans-52
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE12]'
 - en: This is the default network that libvirt created for us, specifying the bridge
     name, IP address, and the IP range used by the DHCP server that was started. We
     are going to talk about libvirt networking in much more detail later in this chapter;
     however, we've shown it here to help you understand where all the IP addresses
     and the bridge name came from.
+  id: totrans-53
   prefs: []
   type: TYPE_NORMAL
+  zh: 这是 libvirt 为我们创建的默认网络，指定了桥接名称、IP 地址以及 DHCP 服务器启动时使用的 IP 范围。我们将在本章稍后详细讨论 libvirt
+    网络；不过，我们在这里展示它，帮助你理解所有 IP 地址和桥接名称的来源。
 - en: 'We can see that a DHCP server is running on the host OS and its configuration
     file by running the following command:'
+  id: totrans-54
   prefs: []
   type: TYPE_NORMAL
+  zh: 我们可以通过运行以下命令查看主机操作系统上运行的 DHCP 服务器及其配置文件：
 - en: '[PRE13]'
+  id: totrans-55
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE13]'
 - en: From the configuration file earlier, note how the IP address range for the DHCP
     service  and the name of the virtual bridge match what is configured in the default
     libvirt network file that we just saw.
+  id: totrans-56
   prefs: []
   type: TYPE_NORMAL
+  zh: 从之前的配置文件中，可以看到 DHCP 服务的 IP 地址范围和虚拟桥接的名称与我们刚才看到的默认 libvirt 网络文件中的配置相匹配。
 - en: 'With all this in mind, let''s step through all the actions we performed earlier:'
+  id: totrans-57
   prefs: []
   type: TYPE_NORMAL
+  zh: 牢记这些内容，让我们回顾一下我们之前执行的所有操作：
 - en: In step 1, we installed the userspace tool `brctl` that we use to create, configure,
     and inspect the Linux bridge configuration in the Linux kernel.
+  id: totrans-58
   prefs: []
   type: TYPE_NORMAL
+  zh: 在第 1 步中，我们安装了用户空间工具 `brctl`，它用于创建、配置和检查 Linux 内核中的 Linux 桥接配置。
 - en: In step 2, we provisioned a new KVM instance using a custom raw image containing
     the guest OS. This step is not required if you completed the recipes in the previous
     chapters.
+  id: totrans-59
   prefs: []
   type: TYPE_NORMAL
+  zh: 在第 2 步中，我们使用包含客户操作系统的自定义原始镜像创建了一个新的 KVM 实例。如果你已经完成了前面章节中的示例，这一步不需要执行。
 - en: In step 3, we invoked the `bridge` utility to list all available bridge devices.
     From the output, we can observe that currently there's one bridge, named `virbr0`,
     which libvirt created automatically. Note that under the interfaces column, we
     can see the `vnet0` interface. This is the virtual NIC that was exposed to the
     host OS, when we started the KVM instance. This means that the virtual machine
     is connected to the host bridge.
+  id: totrans-60
   prefs: []
   type: TYPE_NORMAL
+  zh: 在第 3 步中，我们调用了 `bridge` 工具列出所有可用的桥接设备。从输出中可以看到，目前有一个桥接，名为 `virbr0`，是 libvirt
+    自动创建的。注意，在接口列下，我们可以看到 `vnet0` 接口。这是我们启动 KVM 实例时暴露给主机操作系统的虚拟网卡。这意味着虚拟机连接到了主机桥接。
 - en: In step 4, we first bring the bridge down in order to delete it, then we use
     the `brctl` command again to remove the bridge and ensure that it's not present
     on the host OS.
+  id: totrans-61
   prefs: []
   type: TYPE_NORMAL
+  zh: 在第 4 步中，我们首先将桥接关闭以便删除它，然后再次使用 `brctl` 命令删除该桥接，并确保它不再出现在主机操作系统中。
 - en: In step 5, we recreated the bridge and brought it back up. We do this to demonstrate
     the steps required to create a new bridge.
+  id: totrans-62
   prefs: []
   type: TYPE_NORMAL
+  zh: 在第5步中，我们重新创建了桥接器并将其重新启用。我们这样做是为了演示创建新桥接器所需的步骤。
 - en: In step 6, we reassigned the same IP address to the bridge and listed it.
+  id: totrans-63
   prefs: []
   type: TYPE_NORMAL
+  zh: 在第6步中，我们将相同的 IP 地址重新分配给桥接器，并列出了该地址。
 - en: In steps 7 and 8, we list all virtual interfaces on the host OS. Because we
     only have one KVM guest currently running on the server, we only see one virtual
     interface, that is, `vnet0`. We then proceed to add/connect the virtual NIC to
     the bridge.
+  id: totrans-64
   prefs: []
   type: TYPE_NORMAL
+  zh: 在第7步和第8步中，我们列出了主机操作系统上的所有虚拟接口。由于当前服务器上只运行了一个 KVM 客户机，我们只看到了一个虚拟接口，即`vnet0`。然后我们继续将虚拟网卡添加/连接到桥接器。
 - en: In step 9, we enabled the STP on the bridge. STP is a layer 2 protocol that
     helps prevent network loops if we have redundant network paths. This is especially
     useful in larger, more complex network topologies, where multiple bridges are
     connected together.
+  id: totrans-65
   prefs: []
   type: TYPE_NORMAL
+  zh: 在第9步中，我们启用了桥接上的 STP。STP 是一种二层协议，有助于防止在存在冗余网络路径时出现网络环路。它在更大、更复杂的网络拓扑中尤其有用，在这种拓扑中，多个桥接器相互连接。
 - en: Finally, in step 10, we connect to the KVM guest using the console, list its
     interface configuration, and ensure that we can ping the bridge on the host OS.
     In order to do that, we need to bring the network interface inside the guest up
     with `ifconfig eth0 up`, then obtain an IP address with the `dhclient eth0` command
     from the `dnsmasq` server running on the host.
+  id: totrans-66
   prefs: []
   type: TYPE_NORMAL
+  zh: 最后，在第10步中，我们通过控制台连接到 KVM 客户机，列出其接口配置，并确保我们可以在主机操作系统上 ping 到桥接器。为此，我们需要通过`ifconfig
+    eth0 up`命令启动客户机内部的网络接口，然后通过运行`dhclient eth0`命令从主机上的`dnsmasq`服务器获取 IP 地址。
 - en: There's more...
+  id: totrans-67
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 还有更多内容...
 - en: There are few more useful commands we can use on the Linux bridge.
+  id: totrans-68
   prefs: []
   type: TYPE_NORMAL
+  zh: 还有一些其他有用的命令可以在 Linux 桥接器上使用。
 - en: 'We already know that a bridge forwards frames based on the MAC addresses contained
     therein. To examine the table of MAC addresses the bridge knows about, run the
     following command:'
+  id: totrans-69
   prefs: []
   type: TYPE_NORMAL
+  zh: 我们已经知道，桥接器是根据其中包含的 MAC 地址转发数据帧的。要查看桥接器已知的 MAC 地址表，请运行以下命令：
 - en: '[PRE14]'
+  id: totrans-70
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE14]'
 - en: 'From the preceding output, we can see that the bridge has recorded two MAC
     addresses on its only port. The first record is a nonlocal address, and it belongs
     to the network interface inside the KVM instances. We can confirm that by connecting
     to the KVM guest as follows:'
+  id: totrans-71
   prefs: []
   type: TYPE_NORMAL
+  zh: 从前面的输出中，我们可以看到桥接器在其唯一的端口上记录了两个 MAC 地址。第一个记录是非本地地址，属于 KVM 实例内部的网络接口。我们可以通过如下方式连接到
+    KVM 客户机来确认这一点：
 - en: '[PRE15]'
+  id: totrans-72
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE15]'
 - en: 'The second MAC address is the address of the bridge itself and the MAC address
     of the virtual interface, belonging to the KVM virtual machine, exposed to the
     host OS. To confirm this, run the following command:'
+  id: totrans-73
   prefs: []
   type: TYPE_NORMAL
+  zh: 第二个 MAC 地址是桥接器本身的地址，也是虚拟接口的 MAC 地址，该接口属于 KVM 虚拟机，并暴露给主机操作系统。要确认这一点，请运行以下命令：
 - en: '[PRE16]'
+  id: totrans-74
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE16]'
 - en: 'When the bridge sees a frame on one of its ports, it records the time then after
     a set amount of time not seeing the same MAC address again, it will remove the
     record from the its CAM table. We can set the time limit in seconds before the
     bridge will expire the MAC address entry by executing the following command:'
+  id: totrans-75
   prefs: []
   type: TYPE_NORMAL
+  zh: 当桥接器在其某个端口看到数据帧时，它会记录下时间，然后在一段时间内如果没有再次看到相同的 MAC 地址，它将从其 CAM 表中删除该记录。我们可以通过执行以下命令来设置桥接器在过期
+    MAC 地址条目之前的时间限制（以秒为单位）：
 - en: '[PRE17]'
+  id: totrans-76
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE17]'
 - en: 'The `brctl` command is well documented; to list all available subcommands,
     run it without any parameters:'
+  id: totrans-77
   prefs: []
   type: TYPE_NORMAL
+  zh: '`brctl`命令有很好的文档说明；要列出所有可用的子命令，只需运行该命令而不带任何参数：'
 - en: '[PRE18]'
+  id: totrans-78
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE18]'
 - en: 'Most Linux distributions package the `brctl` utility and this is what we used
     in this recipe. However, to use the latest version, or if a package is not available
     for your distribution, we can build the utility from source by cloning the project
     with `git`, then configure and compile:'
+  id: totrans-79
   prefs: []
   type: TYPE_NORMAL
+  zh: 大多数 Linux 发行版都打包了`brctl`工具，这也是我们在本教程中使用的工具。然而，为了使用最新版本，或者如果你的发行版没有该工具的包，我们可以通过克隆项目并使用`git`构建工具的最新版本，然后进行配置和编译：
 - en: '[PRE19]'
+  id: totrans-80
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE19]'
 - en: From the preceding output, we can see that we first cloned the `git` repository
     for the `bridge-utils` project and then compiled the source code.
+  id: totrans-81
   prefs: []
   type: TYPE_NORMAL
+  zh: 从前面的输出中，我们可以看到我们首先克隆了`git`仓库中的`bridge-utils`项目，然后编译了源代码。
 - en: 'On a RedHat/CentOS host, the process is similar:'
+  id: totrans-82
   prefs: []
   type: TYPE_NORMAL
+  zh: 在 RedHat/CentOS 主机上，过程类似：
 - en: '[PRE20]'
+  id: totrans-83
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE20]'
 - en: The Open vSwitch
+  id: totrans-84
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: Open vSwitch
 - en: OVS is another software bridging/switching device that can be used to create
     various virtual network topologies and connect KVM instances to it. OVS can be
     used instead of the Linux bridge, and it provides an extensive feature set, including policy
     routing, **Access Control Lists** (**ACLs**), **Quality of Service** (**QoS**)
     policing, traffic monitoring, flow management, VLAN tagging, GRE tunneling, and
     much more.
+  id: totrans-85
   prefs: []
   type: TYPE_NORMAL
+  zh: OVS 是另一种可以用来创建各种虚拟网络拓扑并将 KVM 实例连接到其上的软件桥接/交换设备。OVS 可以替代 Linux 桥接，并提供广泛的功能集，包括策略路由、**访问控制列表**
+    (**ACLs**)、**服务质量** (**QoS**) 管控、流量监控、流量管理、VLAN 标签、GRE 隧道等功能。
 - en: In this recipe, we are going to install, configure, and use the OVS bridge to
     connect a KVM instance to the host OS, in a similar way to what we did in the
     previous recipe with the Linux bridge.
+  id: totrans-86
   prefs: []
   type: TYPE_NORMAL
+  zh: 在本教程中，我们将安装、配置并使用 OVS 桥接，将 KVM 实例连接到宿主操作系统，方式类似于我们在上一教程中使用 Linux 桥接所做的操作。
 - en: Getting ready
+  id: totrans-87
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 准备工作
 - en: 'In order for this recipe to work, we need to ensure the following:'
+  id: totrans-88
   prefs: []
   type: TYPE_NORMAL
+  zh: 为了使本教程能够顺利进行，我们需要确保以下几点：
 - en: The Linux bridge is deleted, if present, and OVS is installed
+  id: totrans-89
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 如果存在，Linux 桥接将被删除，并安装 OVS
 - en: We have at least one KVM instance running
+  id: totrans-90
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 我们至少有一个 KVM 实例在运行
 - en: How to do it...
+  id: totrans-91
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 如何操作...
 - en: 'To create a new OVS bridge and attach the virtual interface of a KVM guest,
     follow these steps:'
+  id: totrans-92
   prefs: []
   type: TYPE_NORMAL
+  zh: 创建新的 OVS 桥接并连接 KVM 客户机的虚拟接口，按照以下步骤操作：
 - en: 'Remove the existing Linux bridge, if any:'
+  id: totrans-93
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 如果存在，删除现有的 Linux 桥接：
 - en: '[PRE21]'
+  id: totrans-94
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE21]'
 - en: On some Linux distributions, it helps to unload the kernel module for the Linux
     bridge before using OVS. To do this, execute `root@kvm:/usr/src# modprobe -r bridge`.
+  id: totrans-95
   prefs: []
   type: TYPE_NORMAL
+  zh: 在某些 Linux 发行版中，使用 OVS 之前，卸载 Linux 桥接的内核模块是有帮助的。为此，执行 `root@kvm:/usr/src# modprobe
+    -r bridge`。
 - en: 'Install the OVS package on Ubuntu:'
+  id: totrans-96
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 在 Ubuntu 上安装 OVS 软件包：
 - en: '[PRE22]'
+  id: totrans-97
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE22]'
 - en: 'Ensure that the OVS processes are running:'
+  id: totrans-98
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 确保 OVS 进程正在运行：
 - en: '[PRE23]'
+  id: totrans-99
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE23]'
 - en: 'Ensure that the OVS kernel module has been loaded:'
+  id: totrans-100
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 确保 OVS 内核模块已加载：
 - en: '[PRE24]'
+  id: totrans-101
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE24]'
 - en: 'List the available OVS switches:'
+  id: totrans-102
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 列出可用的 OVS 交换机：
 - en: '[PRE25]'
+  id: totrans-103
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE25]'
 - en: 'Create a new OVS switch:'
+  id: totrans-104
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 创建新的 OVS 交换机：
 - en: '[PRE26]'
+  id: totrans-105
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE26]'
 - en: 'Add the interface of the running KVM instance to the OVS switch:'
+  id: totrans-106
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 将正在运行的 KVM 实例的接口添加到 OVS 交换机：
 - en: '[PRE27]'
+  id: totrans-107
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE27]'
 - en: 'Configure an IP address on the OVS switch:'
+  id: totrans-108
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 在 OVS 交换机上配置 IP 地址：
 - en: '[PRE28]'
+  id: totrans-109
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE28]'
 - en: 'Configure an IP address inside the KVM guest and ensure connectivity to the
     host OS (if the image does not have console access configure, connect to it using
     VNC):'
+  id: totrans-110
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 在 KVM 客户机内配置 IP 地址，并确保可以连接到宿主操作系统（如果镜像没有控制台访问权限，则配置并使用 VNC 连接）：
 - en: '[PRE29]'
+  id: totrans-111
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE29]'
 - en: How it works...
+  id: totrans-112
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 工作原理...
 - en: In order to simplify our setup and avoid conflicts, it's prudent to first remove
     the Linux bridge before creating a new OVS switch. We delete the bridge in step
     1 and optionally unloaded the kernel module.
+  id: totrans-113
   prefs: []
   type: TYPE_NORMAL
+  zh: 为了简化设置并避免冲突，最好先删除 Linux 桥接，然后再创建新的 OVS 交换机。我们在第 1 步中删除了桥接，并选择性地卸载了内核模块。
 - en: In step 2, we install the OVS package that also starts the main OVS daemon `ovs-vswitchd` responsible
     for creating and modifying the bridges/switches on the host OS.
+  id: totrans-114
   prefs: []
   type: TYPE_NORMAL
+  zh: 在第 2 步中，我们安装了 OVS 软件包，该软件包还启动了负责在宿主操作系统上创建和修改桥接/交换机的主要 OVS 守护进程 `ovs-vswitchd`。
 - en: In step 4, we make sure that the OVS kernel module has been loaded, and we list
     all available OVS switches on the host in step 5.
+  id: totrans-115
   prefs: []
   type: TYPE_NORMAL
+  zh: 在第 4 步中，我们确保 OVS 内核模块已经加载，并在第 5 步中列出了宿主上所有可用的 OVS 交换机。
 - en: In steps 6 and 7, we create a new OVS switch and add the KVM virtual interface
     to the switch.
+  id: totrans-116
   prefs: []
   type: TYPE_NORMAL
+  zh: 在步骤 6 和 7 中，我们创建一个新的 OVS 交换机并将 KVM 虚拟接口添加到该交换机。
 - en: 'The `ovsdb`-server process that was also started after installing the package,
     as seen from the output in step 3, is a database engine that uses JSON **Remote
     Procedure Calls** (**RPC**) to communicate with the main OVS daemon. The `ovsdb` server
     process stores information, such as the switch network flows, ports, and `QoS`
     to name just few. You can query the database by running the following command:'
+  id: totrans-117
   prefs: []
   type: TYPE_NORMAL
+  zh: 安装软件包后启动的 `ovsdb`-server 进程，如第 3 步中的输出所示，是一个数据库引擎，通过 JSON **远程过程调用** (**RPC**)
+    与主要 OVS 守护进程进行通信。`ovsdb` 服务器进程存储了信息，如交换机网络流、端口和 `QoS` 等。你可以通过以下命令查询数据库：
 - en: '[PRE30]'
+  id: totrans-118
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE30]'
 - en: Note from the preceding output that the new switch `virbr1` and port `vnet0`
     are now displaying, when querying the OVS database.
+  id: totrans-119
   prefs: []
   type: TYPE_NORMAL
+  zh: 从前面的输出中可以看到，新的交换机 `virbr1` 和端口 `vnet0` 现在出现在查询 OVS 数据库时。
 - en: In steps 8 and 9, we assign IP addresses to the OVS switch and the KVM guest
     and ensure that we can reach the host bridge from inside the virtual machine.
+  id: totrans-120
   prefs: []
   type: TYPE_NORMAL
+  zh: 在步骤 8 和 9 中，我们为 OVS 交换机和 KVM 客户机分配了 IP 地址，并确保能够从虚拟机内部访问宿主桥接。
 - en: There's more...
+  id: totrans-121
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 还有更多...
 - en: OVS is a rather complex software switch; in this recipe, we only scratched the
     surface. In the next few recipes, we can use both the Linux bridge and OVS, with
     minor configuration changes in libvirt, which we are going to point out as we
     go.
+  id: totrans-122
   prefs: []
   type: TYPE_NORMAL
+  zh: OVS 是一个相当复杂的软件交换机；在这个步骤中，我们只是粗略了解了它。接下来的几个步骤中，我们将结合使用 Linux 桥接和 OVS，只需在 libvirt
+    中做些许配置更改，我们将在操作中指出这些变化。
 - en: 'To remove the KVM virtual interface from the OVS switch, execute the following
     command:'
+  id: totrans-123
   prefs: []
   type: TYPE_NORMAL
+  zh: 要从 OVS 开关中移除 KVM 虚拟接口，请执行以下命令：
 - en: '[PRE31]'
+  id: totrans-124
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE31]'
 - en: 'To completely delete the OVS switch, run the following command:'
+  id: totrans-125
   prefs: []
   type: TYPE_NORMAL
+  zh: 要完全删除 OVS 开关，请运行以下命令：
 - en: '[PRE32]'
+  id: totrans-126
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE32]'
 - en: For more information about the OVS, please visit the projects website, [http://openvswitch.org/](http://openvswitch.org/).
+  id: totrans-127
   prefs: []
   type: TYPE_NORMAL
+  zh: 要了解有关 OVS 的更多信息，请访问该项目网站：[http://openvswitch.org/](http://openvswitch.org/)。
 - en: Configuring NAT forwarding network
+  id: totrans-128
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 配置 NAT 转发网络
 - en: When the `libvirt` daemon starts, it creates a default network defined in the
     `/etc/libvirt/qemu/networks/default.xml` configuration file. When a new KVM guest
     is build without specifying any networking options, it will use the default network
@@ -544,256 +812,385 @@
     OS provides one IP address allowing multiple guests on the same host to use that
     address to establish outbound connections. The virtual machines IP addresses are
     essentially translated to appear as the host machine's IP address.
+  id: totrans-129
   prefs: []
   type: TYPE_NORMAL
+  zh: 当 `libvirt` 守护进程启动时，它会创建一个默认网络，该网络在 `/etc/libvirt/qemu/networks/default.xml`
+    配置文件中定义。当创建一个新的 KVM 客户机而没有指定任何网络选项时，它将使用默认网络与主机操作系统和其他客户机以及网络进行通信。默认的 `libvirt`
+    网络使用 **网络地址转换**（**NAT**）方法。NAT 通过修改 IP 数据报头中的 IP 地址来将一个 IP 地址空间映射到另一个地址空间。这在主机操作系统提供一个
+    IP 地址并允许多个客户机共享该地址以建立外部连接时特别有用。虚拟机的 IP 地址本质上会被转换为主机机器的 IP 地址。
 - en: The default NAT forwarding network defines and sets up a Linux bridge, for the
     guests to connect to. In this recipe, we are going to explore the default NAT
     network and learn about the XML attributes used to define it. Then, we are going
     to create a new NAT network and connect our KVM guest to it.
+  id: totrans-130
   prefs: []
   type: TYPE_NORMAL
+  zh: 默认的 NAT 转发网络定义并设置了一个 Linux 桥接，供客户机连接。在这个步骤中，我们将探索默认的 NAT 网络并了解用于定义它的 XML 属性。接着，我们将创建一个新的
+    NAT 网络，并将 KVM 客户机连接到它。
 - en: Getting ready
+  id: totrans-131
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 准备工作
 - en: 'For this recipe, we are going to need the following:'
+  id: totrans-132
   prefs: []
   type: TYPE_NORMAL
+  zh: 本步骤中，我们需要以下内容：
 - en: A Linux host with libvirt installed and the daemon running.
+  id: totrans-133
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 一台安装了 libvirt 并正在运行守护进程的 Linux 主机。
 - en: The `iptables` and `iproute2` packages installed on the host OS. If you installed
     libvirt from a package, chances are that `iptables` and `iproute2`  have been installed,
     as dependencies of the `libvirt` package. If you've built libvirt from source,
     you might need to install them manually.
+  id: totrans-134
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 主机操作系统上已安装 `iptables` 和 `iproute2` 包。如果你是通过包管理安装 libvirt，那么 `iptables` 和 `iproute2`
+    很可能作为 `libvirt` 的依赖包一起安装。如果你是从源代码编译安装 libvirt，可能需要手动安装这些包。
 - en: A running KVM instances.
+  id: totrans-135
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 一个运行中的 KVM 实例。
 - en: How to do it...
+  id: totrans-136
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 如何操作...
 - en: 'To configure a new NAT network and connect a KVM instance to it, run the following:'
+  id: totrans-137
   prefs: []
   type: TYPE_NORMAL
+  zh: 要配置新的 NAT 网络并将 KVM 实例连接到它，请运行以下命令：
 - en: 'List all available networks:'
+  id: totrans-138
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 列出所有可用的网络：
 - en: '[PRE33]'
+  id: totrans-139
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE33]'
 - en: 'Dump the configuration of the default network:'
+  id: totrans-140
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 导出默认网络的配置：
 - en: '[PRE34]'
+  id: totrans-141
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE34]'
 - en: 'Compare that with the XML definition file for the default network:'
+  id: totrans-142
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 与默认网络的 XML 定义文件进行比较：
 - en: '[PRE35]'
+  id: totrans-143
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE35]'
 - en: 'List all running instances on the host:'
+  id: totrans-144
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 列出主机上所有运行中的实例：
 - en: '[PRE36]'
+  id: totrans-145
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE36]'
 - en: 'Ensure that the KVM instances are connected to the default Linux bridge:'
+  id: totrans-146
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 确保 KVM 实例连接到默认的 Linux 桥接网络：
 - en: '[PRE37]'
+  id: totrans-147
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE37]'
 - en: 'Create a new NAT network definition:'
+  id: totrans-148
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 创建一个新的 NAT 网络定义：
 - en: '[PRE38]'
+  id: totrans-149
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE38]'
 - en: 'Define the new network:'
+  id: totrans-150
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 定义新网络：
 - en: '[PRE39]'
+  id: totrans-151
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE39]'
 - en: 'Start the new network and enable autostarting:'
+  id: totrans-152
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 启动新网络并启用自动启动：
 - en: '[PRE40]'
+  id: totrans-153
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE40]'
 - en: 'Obtain more information about the new network:'
+  id: totrans-154
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 获取有关新网络的更多信息：
 - en: '[PRE41]'
+  id: totrans-155
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE41]'
 - en: 'Edit the XML definition of the `kvm1` instance and change the name of the source
     network:'
+  id: totrans-156
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 编辑 `kvm1` 实例的 XML 定义，并更改源网络的名称：
 - en: '[PRE42]'
+  id: totrans-157
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE42]'
 - en: 'Restart the KVM guest:'
+  id: totrans-158
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 重启 KVM 客户机：
 - en: '[PRE43]'
+  id: totrans-159
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE43]'
 - en: 'List all software bridges on the host:'
+  id: totrans-160
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 列出主机上的所有软件桥接：
 - en: '[PRE44]'
+  id: totrans-161
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE44]'
 - en: 'Connect to the KVM instances and check the IP address of the `eth0` interface
     and ensure connectivity to the host bridge (if the image is not configured for
     console access, use a VNC client instead):'
+  id: totrans-162
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 连接到 KVM 实例并检查 `eth0` 接口的 IP 地址，确保可以连接到主机桥接（如果镜像未配置控制台访问，请改用 VNC 客户端）：
 - en: '[PRE45]'
+  id: totrans-163
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE45]'
 - en: 'On the host OS, examine which DHCP services are running:'
+  id: totrans-164
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 在主机操作系统上，检查正在运行的DHCP服务：
 - en: '[PRE46]'
+  id: totrans-165
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE46]'
 - en: 'Check the IP of the new bridge interface:'
+  id: totrans-166
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 检查新桥接接口的IP：
 - en: '[PRE47]'
+  id: totrans-167
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE47]'
 - en: 'List the `iptables` rules for the NAT table:'
+  id: totrans-168
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 列出`iptables`规则以供NAT表使用：
 - en: '[PRE48]'
+  id: totrans-169
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE48]'
 - en: How it works...
+  id: totrans-170
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 它是如何工作的……
 - en: We start by listing all available networks on the host OS in step 1\. As we
     can see from the output of the `virsh` command, there's only one default network
     running.
+  id: totrans-171
   prefs: []
   type: TYPE_NORMAL
+  zh: 我们从第一步开始，列出主机操作系统上所有可用的网络。从`virsh`命令的输出中可以看到，当前只运行了一个默认网络。
 - en: 'In step 2, we examine the configuration of the default network. The XML definition
     uses the following attributes:'
+  id: totrans-172
   prefs: []
   type: TYPE_NORMAL
+  zh: 在第二步中，我们检查了默认网络的配置。XML定义使用了以下属性：
 - en: The `<network>` attribute is the root element, instructing libvirt that we are
     defining a network.
+  id: totrans-173
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '`<network>`属性是根元素，指示libvirt我们正在定义一个网络。'
 - en: The `<name>` element specifies the name of the network and needs to be unique.
+  id: totrans-174
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '`<name>`元素指定网络的名称，且该名称必须唯一。'
 - en: The `<uuid>` attribute provides a globally unique identifier for the virtual
     network and if omitted, it will be autogenerated.
+  id: totrans-175
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '`<uuid>`属性提供了虚拟网络的全球唯一标识符，若省略该属性，它将自动生成。'
 - en: The `<forward>` element and its mode attribute define the network as being connected
     to the host network stack, using NAT. If this element is missing, libvirt will
     create an isolated network.
+  id: totrans-176
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '`<forward>`元素及其模式属性将网络定义为连接到主机网络堆栈，使用NAT。如果缺少此元素，libvirt将创建一个隔离网络。'
 - en: The `<nat>` subelement further defines the `<port>` range that will be used
     while the host is preforming NAT.
+  id: totrans-177
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '`<nat>`子元素进一步定义了主机执行NAT时将使用的`<port>`范围。'
 - en: The `<bridge>` element specifies the bridge to be created, its name, and STP
     options.
+  id: totrans-178
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '`<bridge>`元素指定要创建的桥接、其名称和STP选项。'
 - en: The `<ip>` attribute defines the IP range for the DHCP server to assign addresses
     to the guest VMs.
+  id: totrans-179
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '`<ip>`属性定义了DHCP服务器为来宾虚拟机分配地址的IP范围。'
 - en: In step 3, we look at the config file for the default network on this. Note
     that some of the attributes are missing. Libvirt autogenerates certain attributes
     and assigns default values where appropriate.
+  id: totrans-180
   prefs: []
   type: TYPE_NORMAL
+  zh: 在第三步中，我们查看该默认网络的配置文件。注意，有些属性缺失。Libvirt会自动生成某些属性，并在适当的地方分配默认值。
 - en: In step 4 and 5, we make sure that we have a running instance connected to the
     default Linux bridge.
+  id: totrans-181
   prefs: []
   type: TYPE_NORMAL
+  zh: 在第4步和第5步中，我们确保有一个运行实例连接到默认的Linux桥接。
 - en: In step 6, we create a new network definition using the default network as a
     template. We change the name of the network and define new IP range.
+  id: totrans-182
   prefs: []
   type: TYPE_NORMAL
+  zh: 在第6步中，我们使用默认网络作为模板创建新的网络定义。我们更改了网络的名称并定义了新的IP范围。
 - en: With the new network definition file ready, in steps 7 and 8, we define the
     new network, start it, and make sure that it will automatically start when the
     `libvirt` daemon starts, in the case of a server reboot.
+  id: totrans-183
   prefs: []
   type: TYPE_NORMAL
+  zh: 准备好新的网络定义文件后，在第7步和第8步中，我们定义了新网络，启动它，并确保在`libvirt`守护进程启动时它会自动启动，以防服务器重启。
 - en: After obtaining more information about the newly created network in step 9,
     we proceed to edit the XML definition of the KVM guest in step 10\. To make the
     VM part of the new network, all we need to do is update the `<source network>`
     element.
+  id: totrans-184
   prefs: []
   type: TYPE_NORMAL
+  zh: 在第9步获取了有关新创建的网络的更多信息后，我们继续在第10步编辑KVM来宾的XML定义。为了让虚拟机成为新网络的一部分，我们只需更新`<source
+    network>`元素。
 - en: After restarting the KVM guest in step 11, we proceed to list all available
     software bridges on the host OS in step 12\. Note that we now have two bridges,
     with the new bridge having the VMs virtual interface `vnet0` connected to it.
+  id: totrans-185
   prefs: []
   type: TYPE_NORMAL
+  zh: 在第11步重新启动KVM来宾后，我们继续在第12步列出主机操作系统上所有可用的软件桥接。请注意，现在我们有了两个桥接，其中新的桥接连接了虚拟机的虚拟接口`vnet0`。
 - en: We then connect to the running KVM guest and ensure that its eth0 network interface
     has obtained an IP address from the DHCP server running on the host and that the
     IP is part of the address range we configured earlier. We also ensured connectivity
     to the host bridge using the `ping` command.
+  id: totrans-186
   prefs: []
   type: TYPE_NORMAL
+  zh: 然后，我们连接到运行中的KVM来宾，确保其eth0网络接口从主机上的DHCP服务器获取到了IP地址，且该IP属于我们先前配置的地址范围。我们还通过`ping`命令确保能够连接到主机桥接。
 - en: 'Back on the host OS, in steps 14 and 15, we check what DHCP services are running.
     Note, from the output of the `pgrep` command, that we now have two `dnsmasq` processes
     running: one for each defined network.'
+  id: totrans-187
   prefs: []
   type: TYPE_NORMAL
+  zh: 返回主机操作系统，在第14步和第15步中，我们检查了正在运行的DHCP服务。注意，从`pgrep`命令的输出中，我们现在有两个`dnsmasq`进程在运行：每个网络各一个。
 - en: The NAT forwarding is achieved by setting iptables rules as we can see in step
     18\. Each time we define and start a new NAT network, libvirt creates the required
     rules in iptables. From the output in step 18, we can observe the presence of
     two sets of NAT rules, one for each running NAT network.
+  id: totrans-188
   prefs: []
   type: TYPE_NORMAL
+  zh: NAT 转发是通过设置 iptables 规则来实现的，如第 18 步所示。每次我们定义并启动一个新的 NAT 网络时，libvirt 都会在 iptables
+    中创建所需的规则。从第 18 步的输出中，我们可以观察到有两组 NAT 规则，每个运行的 NAT 网络都有一组。
 - en: Configuring bridged network
+  id: totrans-189
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 配置桥接网络
 - en: With full bridging, we can connect the KVM guests directly to the host network,
     without using NAT. However, this setup requires an IP address, which is part of
     the host subnet, for each virtual machine. If you cannot allocate that many IP
@@ -801,95 +1198,146 @@
     NAT forwarding network* recipe given before. In this networking mode, the virtual
     machines still use the host OS bridge for connectivity; however, the bridge enslaves
     the physical interface that is going to be used for the guests.
+  id: totrans-190
   prefs: []
   type: TYPE_NORMAL
+  zh: 使用完全桥接后，我们可以直接将 KVM 客户机连接到主机网络，而不使用 NAT。然而，这种设置需要为每个虚拟机分配一个属于主机子网的 IP 地址。如果你无法分配这么多
+    IP 地址，可以考虑使用之前提到的 *配置 NAT 转发网络* 的设置。在这种网络模式下，虚拟机仍然使用主机操作系统的桥接来进行连接；然而，桥接会控制将用于虚拟机的物理接口。
 - en: Getting ready
+  id: totrans-191
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 准备工作
 - en: 'For this recipe, we are going to need the following:'
+  id: totrans-192
   prefs: []
   type: TYPE_NORMAL
+  zh: 对于这个配方，我们需要以下内容：
 - en: A server with at least two physical interfaces
+  id: totrans-193
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 至少有两个物理接口的服务器
 - en: The ability to provision and start KVM instances with libvirt
+  id: totrans-194
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 使用 libvirt 配置和启动 KVM 实例的能力
 - en: A running KVM instance
+  id: totrans-195
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 一个正在运行的 KVM 实例
 - en: How to do it...
+  id: totrans-196
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 如何操作...
 - en: 'To define a new bridged network and attach a guest to it, follow the steps:'
+  id: totrans-197
   prefs: []
   type: TYPE_NORMAL
+  zh: 要定义一个新的桥接网络并将客户机连接到它，请按照以下步骤操作：
 - en: 'Take down the interface we are going to bridge:'
+  id: totrans-198
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 关闭我们将要桥接的接口：
 - en: '[PRE49]'
+  id: totrans-199
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE49]'
 - en: 'Edit the network configuration file on the host and replace the `eth1` block
     with the following, if your host OS is Debian/Ubuntu:'
+  id: totrans-200
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 如果你的主机操作系统是 Debian/Ubuntu，请编辑主机上的网络配置文件，并用以下内容替换 `eth1` 块：
 - en: '[PRE50]'
+  id: totrans-201
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE50]'
 - en: 'If using RedHat/CentOS distributions, edit the following two files instead:'
+  id: totrans-202
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 如果使用 RedHat/CentOS 发行版，请编辑以下两个文件：
 - en: '[PRE51]'
+  id: totrans-203
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE51]'
 - en: 'Start the new interface up:'
+  id: totrans-204
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 启动新接口：
 - en: '[PRE52]'
+  id: totrans-205
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE52]'
 - en: 'Disable sending packets to `iptables` that originate from the guest VMs:'
+  id: totrans-206
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 禁止将来自客户机虚拟机的包发送到 `iptables`：
 - en: '[PRE53]'
+  id: totrans-207
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE53]'
 - en: 'List all bridges on the host:'
+  id: totrans-208
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 列出主机上的所有桥接：
 - en: '[PRE54]'
+  id: totrans-209
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE54]'
 - en: 'Edit the XML definition for the KVM instance:'
+  id: totrans-210
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 编辑 KVM 实例的 XML 定义：
 - en: '[PRE55]'
+  id: totrans-211
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE55]'
 - en: 'Restart the KVM instance:'
+  id: totrans-212
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 重启 KVM 实例：
 - en: '[PRE56]'
+  id: totrans-213
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE56]'
 - en: How it works...
+  id: totrans-214
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 它是如何工作的...
 - en: To set up bridge networking, in steps 1 and 2, we first bring the physical interface
     (`eth1` in this example) down, in order to enslave it (make it a part of the new
     bridge we are going to create). We then create the network configuration, specifying
@@ -899,41 +1347,58 @@
     it. However, you will need an additional way of connecting to the server because
     once you bring your main interface down, you will loose connectivity and troubleshooting
     might be impossible over an SSH connection.
+  id: totrans-215
   prefs: []
   type: TYPE_NORMAL
+  zh: 要设置桥接网络，在第 1 步和第 2 步中，我们首先将物理接口（本例中为 `eth1`）关闭，以便将其奴役（使其成为我们将要创建的新桥的一部分）。然后，我们创建网络配置，指定新的桥接和将成为该桥接一部分的物理接口。这样，实际上将物理接口上配置的子网映射到桥接上。如果你的服务器只有一个网络接口，仍然可以将其奴役。然而，你将需要另一种连接到服务器的方式，因为一旦关闭主接口，你将失去连接，且通过
+    SSH 连接进行故障排除可能变得不可能。
 - en: Once the new bridge has been configured, we start it in step 3.
+  id: totrans-216
   prefs: []
   type: TYPE_NORMAL
+  zh: 一旦新桥接配置完成，我们将在第 3 步启动它。
 - en: In step 4, we instruct the kernel not to apply iptable rules to any traffic
     originating from the virtual guests connected to the Linux bridge because we are
     not using any NAT rules.
+  id: totrans-217
   prefs: []
   type: TYPE_NORMAL
+  zh: 在第 4 步中，我们指示内核不要对连接到 Linux 桥接的虚拟客户机发出的任何流量应用 iptable 规则，因为我们不使用任何 NAT 规则。
 - en: With the new interface up, we can now see the bridge and the enslaved physical
     interface attached to it, in step 5.
+  id: totrans-218
   prefs: []
   type: TYPE_NORMAL
+  zh: 在新接口启动后，我们可以在第 5 步看到桥接和附加到它的物理接口。
 - en: In step 6, we edit the XML definition of the `kvm1` instance, where we specify
     the type of network we would like to use; for this recipe, it's the bridge network.
     If you recall from the *Configuring NAT forwarding network* recipe, we used the
     network type instead of bridge and we specified a `libvirt` network name, instead
     of the bridge name.
+  id: totrans-219
   prefs: []
   type: TYPE_NORMAL
+  zh: 在步骤6中，我们编辑`kvm1`实例的XML定义，在其中指定我们希望使用的网络类型；对于本教程，这是桥接网络。如果你还记得*配置NAT转发网络*教程，我们使用的是网络类型而非桥接，并且我们指定了`libvirt`网络名称，而不是桥接名称。
 - en: Finally, after restarting the KVM instance in step 7, the guest OS should now
     be able to reach other instances that are a part of the same subnet without using
     NAT.
+  id: totrans-220
   prefs: []
   type: TYPE_NORMAL
+  zh: 最后，在步骤7中重新启动KVM实例后，客户操作系统现在应该能够在不使用NAT的情况下访问属于同一子网的其他实例。
 - en: Configuring PCI passthrough network
+  id: totrans-221
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 配置PCI直通网络
 - en: The KVM hypervisor supports directly attaching PCI devices from the host OS
     to the virtual machines. We can use this feature to attach a network interface
     directly to the guest OS, without the need for using NAT or software bridges.
+  id: totrans-222
   prefs: []
   type: TYPE_NORMAL
+  zh: KVM虚拟化管理程序支持将主机操作系统中的PCI设备直接附加到虚拟机上。我们可以利用这个功能将网络接口直接附加到客户操作系统，而无需使用NAT或软件桥接。
 - en: In this recipe, we are going to attach a **Network Interface Card** (**NIC**)
     that supports SR-IOV **Single Root I/O Virtualization** (**SR-IOV**) from the
     host to the KVM guest. SR-IOV is a specification that allows a **Peripheral Component
@@ -941,125 +1406,188 @@
     devices that can be shared between many virtual machines on the same host, bypassing
     the hypervisor layer, thus achieving native network speeds. Cloud providers such
     as Amazon AWS expose this feature for its EC2 compute instances through API calls.
+  id: totrans-223
   prefs: []
   type: TYPE_NORMAL
+  zh: 在本教程中，我们将连接支持SR-IOV **单根I/O虚拟化**（**SR-IOV**）的**网络接口卡**（**NIC**），将其从主机附加到KVM客户机。SR-IOV是一种规范，允许**外设组件互连快速**（**PCIe**）设备表现为多个独立的物理设备，可以在同一主机上的多个虚拟机之间共享，绕过虚拟化层，从而实现原生网络速度。像Amazon
+    AWS这样的云服务提供商通过API调用将这一功能暴露给其EC2计算实例。
 - en: Getting ready
+  id: totrans-224
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 准备工作
 - en: 'In order to complete this recipe, we are going to need the following:'
+  id: totrans-225
   prefs: []
   type: TYPE_NORMAL
+  zh: 为了完成本教程，我们需要以下内容：
 - en: A physical host with NIC that supports SR-IOV
+  id: totrans-226
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 支持SR-IOV的NIC的物理主机
 - en: A `802.1Qbh` capable switch with connection to the physical server
+  id: totrans-227
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 具有物理服务器连接的`802.1Qbh`兼容交换机
 - en: CPU with either the Intel VT-d or AMD IOMMU extensions
+  id: totrans-228
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 配备Intel VT-d或AMD IOMMU扩展的CPU
 - en: Linux host with `libvirt` installed, ready-to-provision KVM instances
+  id: totrans-229
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 安装了`libvirt`的Linux主机，准备好部署KVM实例
 - en: How to do it...
+  id: totrans-230
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 操作步骤...
 - en: 'To set up a new PCI passthrough network follow the steps:'
+  id: totrans-231
   prefs: []
   type: TYPE_NORMAL
+  zh: 设置新的PCI直通网络，按照以下步骤进行：
 - en: 'Enumerate all devices on the host OS:'
+  id: totrans-232
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 枚举主机操作系统上的所有设备：
 - en: '[PRE57]'
+  id: totrans-233
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE57]'
 - en: 'List all PCI `Ethernet` adapters:'
+  id: totrans-234
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 列出所有PCI `以太网`适配器：
 - en: '[PRE58]'
+  id: totrans-235
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE58]'
 - en: 'Obtain more information about NIC that the `eth1` device is using:'
+  id: totrans-236
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 获取关于`eth1`设备使用的NIC的更多信息：
 - en: '[PRE59]'
+  id: totrans-237
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE59]'
 - en: 'Convert the domain, bus, slot, and function values to hexadecimal:'
+  id: totrans-238
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 将域、总线、插槽和功能值转换为十六进制：
 - en: '[PRE60]'
+  id: totrans-239
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE60]'
 - en: 'Create a new `libvirt` network definition file:'
+  id: totrans-240
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 创建新的`libvirt`网络定义文件：
 - en: '[PRE61]'
+  id: totrans-241
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE61]'
 - en: 'Define, start, and enable autostarting on the new `libvirt` network:'
+  id: totrans-242
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 定义、启动并启用新的`libvirt`网络的自动启动：
 - en: '[PRE62]'
+  id: totrans-243
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE62]'
 - en: 'Edit the XML definition for the KVM guest:'
+  id: totrans-244
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 编辑KVM客户机的XML定义：
 - en: '[PRE63]'
+  id: totrans-245
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE63]'
 - en: 'Restart the KVM instance:'
+  id: totrans-246
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 重启KVM实例：
 - en: '[PRE64]'
+  id: totrans-247
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE64]'
 - en: 'List the **Virtual Functions** (**VFs**) provided by SR-IOV NIC:'
+  id: totrans-248
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 列出SR-IOV NIC提供的**虚拟功能**（**VFs**）：
 - en: '[PRE65]'
+  id: totrans-249
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE65]'
 - en: How it works...
+  id: totrans-250
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 工作原理...
 - en: In order to directly attach PCI NIC from the host OS to the guest VM, we first
     need to gather some hardware information about the device, such as domain, bus,
     slot, and function IDs. In step 1, we collect information about all available
     devices on the host server. We are interested in using the eth1 network interface
     for this example; therefore, we note down the unique PCI identification from the
     output--`pci_0000_03_00_1` in this case.
+  id: totrans-251
   prefs: []
   type: TYPE_NORMAL
+  zh: 为了将主机操作系统中的PCI NIC直接附加到客户虚拟机，我们首先需要收集一些关于设备的硬件信息，比如域、总线、插槽和功能ID。在步骤1中，我们收集了主机服务器上所有可用设备的信息。我们希望使用eth1网络接口作为本例中的设备，因此我们从输出中记下了唯一的PCI标识符——`pci_0000_03_00_1`。
 - en: To confirm this is indeed NIC we would like to expose to the guest, we list
     all PCI devices in step 2\. From the output, we can see that the PCI ID is the
     same `03:00.1`.
+  id: totrans-252
   prefs: []
   type: TYPE_NORMAL
+  zh: 为了确认这是我们希望暴露给客户机的NIC，我们在步骤2中列出了所有PCI设备。从输出中可以看到，PCI ID是相同的`03:00.1`。
 - en: Using the PCI ID from step 1, we proceed to collect more information about NIC
     in step 3\. Note that `0000_03_00_1 ID` is broken down into domain ID, bus ID,
     slot ID, and function ID, as shown by the XML attributes. We are going to use
     those IDs in step 7; however, we need to convert them to hexadecimals first, which
     we do in step 4.
+  id: totrans-253
   prefs: []
   type: TYPE_NORMAL
+  zh: 使用第1步中的PCI ID，我们继续在第3步收集有关NIC的更多信息。请注意，`0000_03_00_1 ID`被分解为域ID、总线ID、插槽ID和功能ID，如XML属性所示。我们将在第7步使用这些ID；但是，我们首先需要将它们转换为十六进制格式，这将在第4步完成。
 - en: In steps 5 and 6, we define a new `libvirt` network for our guest, start the
     network, and enable autostarting in case the host server restarts. If you completed
     the other recipes in this chapter, you should be already familiar with most of
@@ -1070,148 +1598,222 @@
     PCI device from the host before passing it on to the guest and reattaching it
     back to the host after the guest terminates. Finally, the `<pf>` subelement specifies
     the physical interface that will be virtualized and presented to the guest.
+  id: totrans-254
   prefs: []
   type: TYPE_NORMAL
+  zh: 在第5和第6步中，我们为我们的虚拟机定义了一个新的`libvirt`网络，启动网络，并启用自动启动，以防主机服务器重新启动。如果你完成了本章中的其他食谱，你应该已经熟悉我们刚刚创建的网络XML定义文件中的大多数属性。`<forward>`属性中定义的`hostdev`模式指示`libvirt`新网络将使用PCI直通。`<forward>`属性中指定的`managed=yes`参数告诉`libvirt`在将PCI设备传递给虚拟机之前，首先将其从主机中分离，并在虚拟机终止后重新将其附加回主机。最后，`<pf>`子元素指定将被虚拟化并呈现给虚拟机的物理接口。
 - en: For more information on the available XML attributes, please refer to [http://libvirt.org/formatdomain.html](http://libvirt.org/formatdomain.html).
+  id: totrans-255
   prefs: []
   type: TYPE_NORMAL
+  zh: 有关可用XML属性的更多信息，请参考[http://libvirt.org/formatdomain.html](http://libvirt.org/formatdomain.html)。
 - en: In step 7, we edit the XML definition of the KVM instance, specifying the PCI
     IDs we obtained in step 3 and defined an interface that will use the new PCI passthrough
     network we created in steps 5 and 6.
+  id: totrans-256
   prefs: []
   type: TYPE_NORMAL
+  zh: 在第7步中，我们编辑KVM实例的XML定义，指定在第3步中获取的PCI ID，并定义一个将使用我们在第5和第6步中创建的新的PCI直通网络的接口。
 - en: We restart the KVM instance in step 8 and finally verify that the physical PCI
     NIC device is now part of the new passthrough network we defined earlier. Note
     the presence of multiple PCI type devices. This is because the PCI passthrough
     device we are using supports SR-IOV. All KVM guests that will use this network
     will now be able to directly use the host NIC by assigning one of the listed virtual
     PCI devices.
+  id: totrans-257
   prefs: []
   type: TYPE_NORMAL
+  zh: 我们在第8步重启KVM实例，最后验证物理PCI NIC设备现在已成为我们之前定义的新直通网络的一部分。请注意，出现了多个PCI类型的设备。这是因为我们使用的PCI直通设备支持SR-IOV。所有将使用此网络的KVM虚拟机现在都可以通过分配其中一个列出的虚拟PCI设备来直接使用主机的NIC。
 - en: Manipulating network interfaces
+  id: totrans-258
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 操作网络接口
 - en: Libvirt provides a handy way to manage network interfaces on the host through the
     already familiar XML definition syntax. We can use the `virsh` command to define,
     provision, and delete Linux bridges and obtain more information about existing
     network interfaces, as you've already seen in this chapter.
+  id: totrans-259
   prefs: []
   type: TYPE_NORMAL
+  zh: Libvirt提供了一种方便的方式，通过已经熟悉的XML定义语法来管理主机上的网络接口。我们可以使用`virsh`命令来定义、配置和删除Linux桥接，并获取有关现有网络接口的更多信息，就像你在本章中已经看到的那样。
 - en: In this recipe, we are going to define a new Linux bridge, create it, and finally
     remove it using `virsh`. If you recall from earlier recipes, we can manipulate
     the Linux bridge through utilities such as `brctl`. With libvirt, however, we
     have a way to control this programmatically by writing the definition file and
     using the API bindings, as we'll see in [Chapter 7](part0248.html#7CGBG0-c1e587dcccb14690b55c247c1809e6ce)*,
     Using Python to Build and Manage KVM Instances*.
+  id: totrans-260
   prefs: []
   type: TYPE_NORMAL
+  zh: 在本食谱中，我们将定义一个新的Linux桥接、创建它，并最终使用`virsh`将其删除。如果你还记得之前的食谱，我们可以通过`brctl`等工具来操作Linux桥接。然而，使用libvirt，我们有一种通过编写定义文件并使用API绑定来以编程方式控制它的方法，正如我们在[第7章](part0248.html#7CGBG0-c1e587dcccb14690b55c247c1809e6ce)*《使用Python构建和管理KVM实例》*中将看到的那样。
 - en: Getting ready
+  id: totrans-261
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 准备工作
 - en: 'For this recipe, we are going to need the following:'
+  id: totrans-262
   prefs: []
   type: TYPE_NORMAL
+  zh: 对于这个食谱，我们需要以下材料：
 - en: The `libvirt` package installed on the host
+  id: totrans-263
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 主机上安装了`libvirt`包
 - en: A Linux host with the bridge kernel module
+  id: totrans-264
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 具有桥接内核模块的Linux主机
 - en: How to do it...
+  id: totrans-265
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 操作步骤...
 - en: 'To create a new bridge interface using libvirt, run the following commands:'
+  id: totrans-266
   prefs: []
   type: TYPE_NORMAL
+  zh: 要使用libvirt创建新的桥接接口，请运行以下命令：
 - en: 'Create a new bridge interface configuration file:'
+  id: totrans-267
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 创建一个新的桥接接口配置文件：
 - en: '[PRE66]'
+  id: totrans-268
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE66]'
 - en: 'Define the new interface:'
+  id: totrans-269
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 定义新的接口：
 - en: '[PRE67]'
+  id: totrans-270
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE67]'
 - en: 'List all interfaces libvirt knows about:'
+  id: totrans-271
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 列出所有 libvirt 知道的接口：
 - en: '[PRE68]'
+  id: totrans-272
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE68]'
 - en: 'Start the new bridge interface:'
+  id: totrans-273
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 启动新的桥接接口：
 - en: '[PRE69]'
+  id: totrans-274
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE69]'
 - en: 'List all bridge devices on the host:'
+  id: totrans-275
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 列出主机上的所有桥接设备：
 - en: '[PRE70]'
+  id: totrans-276
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE70]'
 - en: 'Check the active network configuration of the new bridge:'
+  id: totrans-277
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 检查新桥接的活动网络配置：
 - en: '[PRE71]'
+  id: totrans-278
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE71]'
 - en: 'Obtain the MAC address of bridge:'
+  id: totrans-279
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 获取桥接的 MAC 地址：
 - en: '[PRE72]'
+  id: totrans-280
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE72]'
 - en: 'Obtain the name of the bridge based by providing its MAC address:'
+  id: totrans-281
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 通过提供 MAC 地址获取桥接的名称：
 - en: '[PRE73]'
+  id: totrans-282
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE73]'
 - en: 'Destroy the interface, as follows:'
+  id: totrans-283
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 销毁接口，方法如下：
 - en: '[PRE74]'
+  id: totrans-284
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE74]'
 - en: How it works...
+  id: totrans-285
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 它是如何工作的...
 - en: In step 1, we write the XML definition for the new network interface. We specify
     bridge as the type, an IP address for the interface, and optionally a MAC address.
+  id: totrans-286
   prefs: []
   type: TYPE_NORMAL
+  zh: 在第 1 步中，我们为新的网络接口编写 XML 定义。我们指定桥接（bridge）作为类型，为接口指定一个 IP 地址，并可选地指定一个 MAC 地址。
 - en: In steps 2 and 3, we define the new bridge interface and list it. Defining an
     interface does not automatically make it active, so we activate it in step 4.
+  id: totrans-287
   prefs: []
   type: TYPE_NORMAL
+  zh: 在第 2 步和第 3 步中，我们定义新的桥接接口并列出它。定义接口并不会自动使其生效，因此我们在第 4 步中激活它。
 - en: Activating the bridge creates the actual interface on the host, as shown in
     step 5.
+  id: totrans-288
   prefs: []
   type: TYPE_NORMAL
+  zh: 启动桥接会在主机上创建实际的接口，如第 5 步所示。
 - en: In step 6, we confirm that the IP and MAC address assigned to the bridge are indeed
     what we specified in step 1.
+  id: totrans-289
   prefs: []
   type: TYPE_NORMAL
+  zh: 在第 6 步中，我们确认分配给桥接的 IP 地址和 MAC 地址确实是我们在第 1 步中指定的。
 - en: In steps 7 and 8, we obtain both the name and MAC address using the `virsh`
     utility and finally, in step 9, we remove the `bridge` interface.
+  id: totrans-290
   prefs: []
   type: TYPE_NORMAL
+  zh: 在第 7 步和第 8 步中，我们使用 `virsh` 工具获得接口的名称和 MAC 地址，最后在第 9 步中，我们移除 `bridge` 接口。

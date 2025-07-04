@@ -1,35 +1,51 @@
 - en: Migrating KVM Instances
+  id: totrans-0
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 迁移KVM实例
 - en: 'In this chapter, we are going to demonstrate the following libvirt KVM migration
     concepts:'
+  id: totrans-1
   prefs: []
   type: TYPE_NORMAL
+  zh: 在本章中，我们将演示以下libvirt KVM迁移概念：
 - en: Manual offline migration using an iSCSI storage pool
+  id: totrans-2
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 使用iSCSI存储池进行手动离线迁移
 - en: Manual offline migration using GlusterFS shared volumes
+  id: totrans-3
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 使用GlusterFS共享卷进行手动离线迁移
 - en: Online migration using the virsh command with shared storage
+  id: totrans-4
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 使用共享存储通过virsh命令进行在线迁移
 - en: Offline migration using the virsh command and local image
+  id: totrans-5
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 使用virsh命令和本地镜像进行离线迁移
 - en: Online migration using the virsh command and local image
+  id: totrans-6
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 使用virsh命令和本地镜像进行在线迁移
 - en: Introduction
+  id: totrans-7
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 介绍
 - en: 'Migrating KVM instances is the process of sending the state of the guest virtual
     machine''s memory, CPU, and virtualized devices attached to it, to a different
     server. Migrating KVM instances is a somewhat complicated process, depending on
@@ -37,442 +53,656 @@
     shared storage, or storage pools), the network infrastructure, and the number
     of block devices attached to the guest. There are following the two types of migrations
     as far as libvirt is concerned:'
+  id: totrans-8
   prefs: []
   type: TYPE_NORMAL
+  zh: 迁移KVM实例是将客户虚拟机的内存、CPU状态以及与之附加的虚拟化设备的状态发送到不同服务器的过程。迁移KVM实例是一个相对复杂的过程，具体取决于虚拟机使用的后端存储（即目录、镜像文件、iSCSI卷、共享存储或存储池）、网络基础设施和附加到客户机的块设备数量。就libvirt而言，以下是两种迁移类型：
 - en: Offline migration involves downtime for the instance. It works by first suspending
     the guest VM, then copying an image of the guest memory to the destination hypervisor.
     The KVM machine is then resumed on the target host. If the filesystem of the VM
     is not on a shared storage, then it needs to be moved to the target server as
     well.
+  id: totrans-9
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 离线迁移涉及实例的停机。它的工作方式是先暂停客户虚拟机，然后将客户虚拟机的内存镜像复制到目标虚拟化主机。然后，KVM虚拟机在目标主机上恢复运行。如果虚拟机的文件系统不在共享存储中，它还需要被移动到目标服务器。
 - en: Live migration works by moving the instance in its current state with no perceived downtime,
     preserving the memory and CPU register states.
+  id: totrans-10
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 实时迁移通过在没有感知停机的情况下移动实例的当前状态来工作，保持内存和CPU寄存器状态不变。
 - en: 'Broadly speaking, the offline migration involves the following:'
+  id: totrans-11
   prefs: []
   type: TYPE_NORMAL
+  zh: 广义来说，离线迁移涉及以下步骤：
 - en: Stopping the instance
+  id: totrans-12
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 停止实例
 - en: Dumping its XML definition to a file
+  id: totrans-13
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 将其XML定义导出到文件中
 - en: Copying the guest filesystem image to the destination server (if not using shared
     storage)
+  id: totrans-14
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 将客户文件系统镜像复制到目标服务器（如果未使用共享存储）
 - en: Defining the instance on the destination host and starting it
+  id: totrans-15
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 在目标主机上定义实例并启动它
 - en: In contrast, the online migration requires shared storage, such as NFS or GlusterFS,
     removing the need to transfer the guest filesystem to the target server. The speed
     of the migration depends on how often the memory of the source instance is being
     updated/written to, the size of the memory, and the available network bandwidth
     between the source and target hosts.
+  id: totrans-16
   prefs: []
   type: TYPE_NORMAL
+  zh: 相比之下，在线迁移需要共享存储，如NFS或GlusterFS，避免了将客户机文件系统传输到目标服务器的需求。迁移的速度取决于源实例的内存更新/写入频率、内存的大小，以及源主机和目标主机之间的可用网络带宽。
 - en: 'Live migration follows this process:'
+  id: totrans-17
   prefs: []
   type: TYPE_NORMAL
+  zh: 实时迁移遵循以下过程：
 - en: The original VM continues to run while the content of its memory is being transferred
     to the target host
+  id: totrans-18
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 原始虚拟机在内存内容传输到目标主机时继续运行
 - en: Libvirt monitors for any changes in the already transferred memory pages, and
     if they have been updated, it retransmits them
+  id: totrans-19
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: Libvirt监控已传输内存页的任何变化，如果它们已被更新，则会重新传输它们
 - en: Once the memory content has been transferred to the destination host, the original
     instance is suspended and the new instance on the target host is resumed
+  id: totrans-20
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 一旦内存内容传输到目标主机，原始实例将被暂停，目标主机上的新实例将被恢复
 - en: In this chapter, we are going to perform offline and live migrations using iSCSI
     and GlusterFS with the help of storage pools.
+  id: totrans-21
   prefs: []
   type: TYPE_NORMAL
+  zh: 在本章中，我们将通过存储池的帮助，使用iSCSI和GlusterFS执行离线和实时迁移。
 - en: Manual offline migration using an iSCSI storage pool
+  id: totrans-22
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 使用iSCSI存储池进行手动离线迁移
 - en: In this recipe, we are going to set up an iSCSI target, configure a storage
     pool for it, and create a new KVM instance using the attached iSCSI block device
     as its backend volume. Then, we are going to perform a manual offline migration
     of the instance to a new host.
+  id: totrans-23
   prefs: []
   type: TYPE_NORMAL
+  zh: 在此方案中，我们将设置一个iSCSI目标，配置一个存储池，并使用附加的iSCSI块设备作为后端卷创建一个新的KVM实例。接着，我们将执行实例的手动离线迁移到新主机。
 - en: Getting ready
+  id: totrans-24
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 准备工作
 - en: 'For this recipe, we are going to need the following:'
+  id: totrans-25
   prefs: []
   type: TYPE_NORMAL
+  zh: 对于此方案，我们需要以下内容：
 - en: Two servers with `libvirt` and `qemu` installed and configured, named `kvm1`
     and `kvm2`. The two hosts must be able to connect to each other using SSH keys
     and short hostname.
+  id: totrans-26
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 两台已安装并配置了 `libvirt` 和 `qemu` 的服务器，分别命名为 `kvm1` 和 `kvm2`。这两台主机必须能够通过 SSH 密钥和简短的主机名互相连接。
 - en: A server with an available block device that will be exported as an iSCSI target
     and reachable from both `libvirt` servers. If a block device is not available,
     please refer to the *There's more...* section in this recipe for instructions
     on how to create one using a regular file. The name of the iSCSI target server
     in this recipe is `iscsi_target`.
+  id: totrans-27
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 一台带有可用块设备的服务器，该块设备将作为 iSCSI 目标导出，并且可以从两台 `libvirt` 服务器访问。如果没有可用块设备，请参阅此食谱中的
+    *更多信息...* 部分，了解如何使用常规文件创建一个。此食谱中的 iSCSI 目标服务器名称是 `iscsi_target`。
 - en: Connectivity to a Linux repository to install the guest OS.
+  id: totrans-28
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 需要连接到 Linux 仓库以安装客户机操作系统。
 - en: How to do it...
+  id: totrans-29
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 如何操作……
 - en: 'To perform a manual offline migration of a KVM guest using an iSCSI storage
     pool, follow these steps:'
+  id: totrans-30
   prefs: []
   type: TYPE_NORMAL
+  zh: 要执行使用 iSCSI 存储池的 KVM 客户机的手动脱机迁移，请按照以下步骤进行：
 - en: 'On the iSCSI target host, install the `iscsitarget` package and kernel module
     package:'
+  id: totrans-31
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 在 iSCSI 目标主机上安装 `iscsitarget` 包和内核模块包：
 - en: '[PRE0]'
+  id: totrans-32
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE0]'
 - en: 'Enable the target functionality:'
+  id: totrans-33
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 启用目标功能：
 - en: '[PRE1]'
+  id: totrans-34
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE1]'
 - en: 'Configure the block device to export with iSCSI:'
+  id: totrans-35
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 配置块设备以通过 iSCSI 导出：
 - en: '[PRE2]'
+  id: totrans-36
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE2]'
 - en: Replace the `/dev/loop1` device with the block device you are exporting with
     iSCSI.
+  id: totrans-37
   prefs: []
   type: TYPE_NORMAL
+  zh: 用您要通过 iSCSI 导出的块设备替换 `/dev/loop1` 设备。
 - en: 'Restart the iSCSI target service:'
+  id: totrans-38
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 重启 iSCSI 目标服务：
 - en: '[PRE3]'
+  id: totrans-39
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE3]'
 - en: 'On both `libvirt` hosts, install the iSCSI initiator:'
+  id: totrans-40
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 在两个 `libvirt` 主机上安装 iSCSI 启动器：
 - en: '[PRE4]'
+  id: totrans-41
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE4]'
 - en: 'On both `libvirt` servers, enable the iSCSI initiator service and start it:'
+  id: totrans-42
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 在两个 `libvirt` 服务器上启用 iSCSI 启动器服务并启动它：
 - en: '[PRE5]'
+  id: totrans-43
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE5]'
 - en: 'From both `libvirt` initiator hosts, list what iSCSI volumes are available
     by querying the iSCSI target server:'
+  id: totrans-44
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 从两个 `libvirt` 启动器主机上，通过查询 iSCSI 目标服务器，列出可用的 iSCSI 卷：
 - en: '[PRE6]'
+  id: totrans-45
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE6]'
 - en: 'On one of the `libvirt` servers, create a new iSCSI storage pool:'
+  id: totrans-46
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 在其中一台 `libvirt` 服务器上创建新的 iSCSI 存储池：
 - en: '[PRE7]'
+  id: totrans-47
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE7]'
 - en: Make sure to replace the hostname of the iSCSI target server with what is appropriate
     for your environment. Both a hostname and an IP address can be used when specifying
     the iSCSI target host.
+  id: totrans-48
   prefs: []
   type: TYPE_NORMAL
+  zh: 确保将 iSCSI 目标服务器的主机名替换为适合您环境的主机名。指定 iSCSI 目标主机时，可以使用主机名和 IP 地址。
 - en: 'Start the new iSCIS pool:'
+  id: totrans-49
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 启动新的 iSCSI 存储池：
 - en: '[PRE8]'
+  id: totrans-50
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE8]'
 - en: 'List the available iSCSI volumes from the pool and obtain more information
     on it:'
+  id: totrans-51
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 列出来自存储池的可用 iSCSI 卷并获取更多信息：
 - en: '[PRE9]'
+  id: totrans-52
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE9]'
 - en: 'List the iSCSI session and the associated block devices:'
+  id: totrans-53
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 列出 iSCSI 会话及其相关的块设备：
 - en: '[PRE10]'
+  id: totrans-54
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE10]'
 - en: 'Examine the partition scheme of the iSCSI block device:'
+  id: totrans-55
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 检查 iSCSI 块设备的分区方案：
 - en: '[PRE11]'
+  id: totrans-56
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE11]'
 - en: 'Install a new KVM guest using the iSCSI volume and pool:'
+  id: totrans-57
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 使用 iSCSI 卷和存储池安装新的 KVM 客户机：
 - en: '[PRE12]'
+  id: totrans-58
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE12]'
 - en: 'Refresh the partition table list and examine the new block devices after the
     installation:'
+  id: totrans-59
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 刷新分区表列表并检查安装后的新块设备：
 - en: '[PRE13]'
+  id: totrans-60
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE13]'
 - en: 'Start the new KVM guest and ensure that it''s running, and that you can connect
     to it using a VNC client:'
+  id: totrans-61
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 启动新的 KVM 客户机并确保它正在运行，并且可以通过 VNC 客户端连接到它：
 - en: '[PRE14]'
+  id: totrans-62
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE14]'
 - en: 'To manually migrate the instance to a new host, first stop the VM and the iSCSI
     pool:'
+  id: totrans-63
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 若要手动迁移实例到新主机，首先停止虚拟机和 iSCSI 存储池：
 - en: '[PRE15]'
+  id: totrans-64
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE15]'
 - en: 'Dump the XML configuration of the KVM instance to a file and examine it:'
+  id: totrans-65
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 将 KVM 实例的 XML 配置转储到文件并检查：
 - en: '[PRE16]'
+  id: totrans-66
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE16]'
 - en: 'Remotely create the iSCSI storage pool from the `kvm1` host to the `kvm2` host:'
+  id: totrans-67
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 从 `kvm1` 主机到 `kvm2` 主机远程创建 iSCSI 存储池：
 - en: '[PRE17]'
+  id: totrans-68
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE17]'
 - en: If you are not using keys for the SSH connection between both the KVM hosts,
     you will be asked to provide a password before the `libvirt` command can proceed.
     We recommend that you use SSH keys on the `libvirt` hosts you are migrating between.
+  id: totrans-69
   prefs: []
   type: TYPE_NORMAL
+  zh: 如果您在两个 KVM 主机之间未使用 SSH 密钥连接，系统会提示您在执行 `libvirt` 命令之前提供密码。我们建议在迁移的 `libvirt`
+    主机上使用 SSH 密钥。
 - en: 'Remotely start the iSCSI pool on the `kvm2` server and ensure that it''s running:'
+  id: totrans-70
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 在 `kvm2` 服务器上远程启动 iSCSI 存储池并确保它正在运行：
 - en: '[PRE18]'
+  id: totrans-71
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE18]'
 - en: You can also SSH to the `kvm2` server and perform all of the pool and volume operations
     locally. We do it remotely to demonstrate the concept.
+  id: totrans-72
   prefs: []
   type: TYPE_NORMAL
+  zh: 您也可以通过 SSH 登录到 `kvm2` 服务器，执行所有存储池和卷操作。我们远程操作是为了演示这一概念。
 - en: 'Remotely list the available iSCSI volumes on the `kvm2` node from the source
     host:'
+  id: totrans-73
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 从源主机远程列出 `kvm2` 节点上的可用 iSCSI 卷：
 - en: '[PRE19]'
+  id: totrans-74
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE19]'
 - en: 'SSH to the second KVM server and ensure that the iSCSI block devices are now
     available on the host OS:'
+  id: totrans-75
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: SSH 登录到第二台 KVM 服务器，并确保 iSCSI 块设备现在在主机操作系统中可用：
 - en: '[PRE20]'
+  id: totrans-76
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE20]'
 - en: 'Complete the migration by remotely defining the KVM instance and starting it
     on the target host:'
+  id: totrans-77
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 通过远程定义 KVM 实例并在目标主机上启动它来完成迁移：
 - en: '[PRE21]'
+  id: totrans-78
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE21]'
 - en: How it works...
+  id: totrans-79
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 它是如何工作的……
 - en: In this recipe, we demonstrated how to manually perform an offline migration
     of a KVM instance from one host to another, using an iSCSI pool. In the *Online
     migration using the virsh command* recipe later in this chapter, we are going
     to perform a live migration using the same iSCSI pool and instance we created
     in this recipe, using the `virsh` command, thus avoiding downtime for the instance.
+  id: totrans-80
   prefs: []
   type: TYPE_NORMAL
+  zh: 在本配方中，我们演示了如何手动执行 KVM 实例的离线迁移，从一个主机迁移到另一个主机，使用 iSCSI 存储池。在本章稍后的*使用 virsh 命令进行在线迁移*配方中，我们将使用相同的
+    iSCSI 存储池和实例，通过 `virsh` 命令执行实时迁移，从而避免实例的停机时间。
 - en: Let's step through the process and explore in more detail how the manual offline
     migration was accomplished.
+  id: totrans-81
   prefs: []
   type: TYPE_NORMAL
+  zh: 让我们一步步探索，并更详细地了解如何完成手动离线迁移。
 - en: We start with the server that is going to be presenting the iSCSI target by
     first installing the required iSCSI target server packages in step 1.
+  id: totrans-82
   prefs: []
   type: TYPE_NORMAL
+  zh: 我们从将要提供 iSCSI 目标的服务器开始，首先在步骤 1 中安装所需的 iSCSI 目标服务器软件包。
 - en: In step 2, we enable the iSCSI target functionality, enabling the server to
     export block devices via the iSCSI protocol.
+  id: totrans-83
   prefs: []
   type: TYPE_NORMAL
+  zh: 在步骤 2 中，我们启用了 iSCSI 目标功能，使服务器能够通过 iSCSI 协议导出块设备。
 - en: 'In step 3, we specify an identified (iSCSI qualified name) `iqn.2001-04.com.example:kvm`
     for the iSCSI target device that the initiators are going to use. We are using
     the `/dev/loop1` block device for this example. The iSCSI-qualified name has the
     format **iqn.yyyy-mm.naming-authority:unique name** where:'
+  id: totrans-84
   prefs: []
   type: TYPE_NORMAL
+  zh: 在步骤 3 中，我们为 iSCSI 目标设备指定了一个标识符（iSCSI 合格名称）`iqn.2001-04.com.example:kvm`，该设备将供启动器使用。我们在这个示例中使用的是
+    `/dev/loop1` 块设备。iSCSI 合格名称的格式为 **iqn.yyyy-mm.naming-authority:unique name**，其中：
 - en: '**iqn**: This is the iSCSI-qualified name identifier'
+  id: totrans-85
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '**iqn**：这是 iSCSI 合格名称标识符'
 - en: '**yyyy-mm**: This is the year and month when the naming authority was established'
+  id: totrans-86
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '**yyyy-mm**：这是命名机构成立的年份和月份'
 - en: '**naming-authority:** This is usually reverse syntax of the Internet domain
     name of the naming authority or the domain name of the server'
+  id: totrans-87
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '**命名机构**：这通常是命名机构的互联网域名或服务器域名的反向语法'
 - en: '**Unique name**: This is any name you would like to use'
+  id: totrans-88
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '**唯一名称**：这是你想要使用的任何名称'
 - en: For more information about iSCSI and the naming scheme it uses, please refer
     to [https://en.wikipedia.org/wiki/ISCSI](https://en.wikipedia.org/wiki/ISCSI).
+  id: totrans-89
   prefs: []
   type: TYPE_NORMAL
+  zh: 有关 iSCSI 和它使用的命名方案的更多信息，请参阅 [https://en.wikipedia.org/wiki/ISCSI](https://en.wikipedia.org/wiki/ISCSI)。
 - en: With the target definition in place, in step 4, we restart the iSCSI service
     on the server.
+  id: totrans-90
   prefs: []
   type: TYPE_NORMAL
+  zh: 在目标定义完成后，我们在步骤 4 中重启了服务器上的 iSCSI 服务。
 - en: In steps 5 and 6, we install and configure the iSCSI initiator service on both
     KVM nodes, and in step 7, we request all available iSCSI targets. In steps 8 and
     9, we define and start a new iSCSI-based storage pool. The syntax of the storage
     pool definition should look familiar if you've completed the *Working with storage
     pools *recipe from [Chapter 2](part0068.html#20R680-c1e587dcccb14690b55c247c1809e6ce), *Using
     libvirt to Manage KVM.*
+  id: totrans-91
   prefs: []
   type: TYPE_NORMAL
+  zh: 在步骤 5 和 6 中，我们在两个 KVM 节点上安装并配置了 iSCSI 启动器服务，在步骤 7 中，我们请求所有可用的 iSCSI 目标。在步骤 8
+    和 9 中，我们定义并启动了一个新的基于 iSCSI 的存储池。如果你已经完成了 [第 2 章](part0068.html#20R680-c1e587dcccb14690b55c247c1809e6ce)中的*使用存储池*配方，你会发现存储池定义的语法非常熟悉，*使用
+    libvirt 管理 KVM*。
 - en: After creating the iSCSI storage pool, we proceeded to list the volumes part
     of that pool in step 10\. Note that when we started the pool, it logged the iSCSI
     target in, resulting in a new block device present in the `/dev/disk/by-path/`
     directory, as we can further see in step 11\. We can now use this block device
     locally to install a new Linux OS. In step 12, we can see that the iSCSI block
     device presented to the host OS does not yet contain any partitions.
+  id: totrans-92
   prefs: []
   type: TYPE_NORMAL
+  zh: 在创建 iSCSI 存储池后，我们继续在步骤 10 中列出该存储池中的卷。请注意，当我们启动存储池时，它登录了 iSCSI 目标，导致在 `/dev/disk/by-path/`
+    目录下出现了一个新的块设备，正如我们在步骤 11 中进一步看到的那样。我们现在可以在本地使用这个块设备来安装新的 Linux 操作系统。在步骤 12 中，我们可以看到提供给主机操作系统的
+    iSCSI 块设备尚未包含任何分区。
 - en: With the new block device present, we proceed to build a new KVM instance in
     step 13, specifying the storage pool and volume as the target for the installation.
     After the guest OS installation completes, we can now see that there are multiple
     partitions on the iSCSI block device in step 14\. We then proceed to start the
     new guest in step 15.
+  id: totrans-93
   prefs: []
   type: TYPE_NORMAL
+  zh: 随着新的块设备出现，我们继续在步骤 13 中创建一个新的 KVM 实例，指定存储池和卷作为安装目标。操作系统安装完成后，我们现在可以看到 iSCSI 块设备上有多个分区（见步骤
+    14）。接着，我们在步骤 15 中启动新的客户机。
 - en: Now that we have a running KVM instance using an iSCSI block device, we can
     proceed with the offline manual migration from the `kvm1`  hosts to the `kvm2`
     hosts.
+  id: totrans-94
   prefs: []
   type: TYPE_NORMAL
+  zh: 现在我们有一个使用 iSCSI 块设备的运行 KVM 实例，我们可以继续进行从 `kvm1` 主机到 `kvm2` 主机的离线手动迁移。
 - en: 'We start the migration process by first stopping the running KVM instance and
     the associated storage pool in step 16\. We then dump the XML configuration of
     the KVM guest to a file in step 17\. We are going to use it to define the guest
     on the target server. We have a few options for this: we can copy the file over
     to the target server and define the instance there or we can do that remotely
     from the original host.'
+  id: totrans-95
   prefs: []
   type: TYPE_NORMAL
+  zh: 我们通过首先在第 16 步停止运行的 KVM 实例及其关联的存储池来启动迁移过程。然后在第 17 步中，我们将 KVM 客户端的 XML 配置导出到文件中。我们将使用它来在目标服务器上定义客户机。我们有几个选项：我们可以将文件复制到目标服务器并在那里定义实例，或者我们可以从原始主机远程执行此操作。
 - en: In steps 18 and 19, we create the iSCSI storage pool remotely from the original
     host to the target host. We could have logged in to the target host and performed
     the same operations locally as well with the same result. The point here is that
     we can use the `qemu+ssh` connection string to remotely connect to other qemu
     instances over SSH. In steps 20 and 21, we ensure that the same iSCSI volume has
     been successfully logged in to the target host.
+  id: totrans-96
   prefs: []
   type: TYPE_NORMAL
+  zh: 在第 18 和 19 步中，我们从原始主机到目标主机远程创建 iSCSI 存储池。我们本来也可以登录到目标主机并执行相同的操作，结果也一样。这里的重点是，我们可以使用
+    `qemu+ssh` 连接字符串通过 SSH 远程连接到其他 qemu 实例。在第 20 和 21 步中，我们确保相同的 iSCSI 卷已成功登录到目标主机。
 - en: Finally, in step 22, we define the instance on the target host using the XML
     configuration we dumped in step 17 and then start it. Because we are using the
     same XML definition file and the same iSCSI block device containing the guest
     OS filesystem, we now have exactly the same instance created on the new server,
     thus completing the offline migration.
+  id: totrans-97
   prefs: []
   type: TYPE_NORMAL
+  zh: 最后，在第 22 步中，我们使用第 17 步中导出的 XML 配置定义目标主机上的实例，并启动它。因为我们使用的是相同的 XML 定义文件和包含客户操作系统文件系统的相同
+    iSCSI 块设备，所以我们现在在新服务器上创建了完全相同的实例，从而完成了离线迁移。
 - en: There's more...
+  id: totrans-98
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 还有更多…
 - en: 'If the iSCSI target server does not have any available block devices to export,
     we can create a new block device using a regular file by following the steps outlined
     here:'
+  id: totrans-99
   prefs: []
   type: TYPE_NORMAL
+  zh: 如果 iSCSI 目标服务器没有可用的块设备可以导出，我们可以通过按照此处列出的步骤使用常规文件创建一个新的块设备：
 - en: 'Create a new image file of a given size:'
+  id: totrans-100
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 创建一个给定大小的新映像文件：
 - en: '[PRE22]'
+  id: totrans-101
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE22]'
 - en: 'Ensure that the loop kernel module is compiled in (or load it with `modprobe
     loop`) and find the first available loop device to use:'
+  id: totrans-102
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 确保环回内核模块已编译（或使用 `modprobe loop` 加载它），并找到第一个可用的环回设备供使用：
 - en: '[PRE23]'
+  id: totrans-103
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE23]'
 - en: 'Associate the raw file image with the first available loop device:'
+  id: totrans-104
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 将原始文件映像与第一个可用的环回设备关联：
 - en: '[PRE24]'
+  id: totrans-105
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE24]'
 - en: In step 1, we create a new image file using the `truncate` command.
+  id: totrans-106
   prefs: []
   type: TYPE_NORMAL
+  zh: 在第 1 步中，我们使用 `truncate` 命令创建一个新映像文件。
 - en: In step 2, we list the first available block device to use and in step 3, we
     associate it with the raw image file we created in step 1\. The result is a new
     block device available as `/dev/loop0` that we can use to export in iSCSI.
+  id: totrans-107
   prefs: []
   type: TYPE_NORMAL
+  zh: 在第 2 步中，我们列出第一个可用的块设备，并在第 3 步中将其与第 1 步中创建的原始映像文件关联。结果是一个新的块设备 `/dev/loop0` 可供我们用于
+    iSCSI 导出。
 - en: Manual offline migration using GlusterFS shared volumes
+  id: totrans-108
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 使用 GlusterFS 共享卷的手动离线迁移
 - en: In the *Manual offline migration using an iSCSI storage pool* recipe, we created
     an iSCSI storage pool and used it while performing manual offline migration. With
     storage pools, we can delegate the operation of a shared storage to libvirt rather
@@ -480,193 +710,291 @@
     useful when we perform live migrations with the `virsh` command, as we are going
     to see in the next recipe. Even though the use of storage pools is not required,
     it simplifies and centralizes the management of backend volumes.
+  id: totrans-109
   prefs: []
   type: TYPE_NORMAL
+  zh: 在 *使用 iSCSI 存储池的手动离线迁移* 食谱中，我们创建了一个 iSCSI 存储池并在执行手动离线迁移时使用了它。使用存储池时，我们可以将共享存储的操作委托给
+    libvirt，而无需手动登录/退出 iSCSI 目标等。这在我们执行带有 `virsh` 命令的实时迁移时尤其有用，正如我们在下一个食谱中将看到的那样。尽管使用存储池不是必须的，但它简化并集中管理后端卷。
 - en: In this recipe, we are going to use the GlusterFS network filesystem to demonstrate
     an alternative way of manually migrating a KVM instance, this time not using storage
     pools.
+  id: totrans-110
   prefs: []
   type: TYPE_NORMAL
+  zh: 在这个食谱中，我们将使用 GlusterFS 网络文件系统来演示手动迁移 KVM 实例的另一种方法，这次不使用存储池。
 - en: 'GlusterFS has the following two components:'
+  id: totrans-111
   prefs: []
   type: TYPE_NORMAL
+  zh: GlusterFS 有以下两个组件：
 - en: '**Server component**: This runs the `GlusterFS` daemon and exports local block
     devices named **bricks** as volumes that can be mounted by the client component'
+  id: totrans-112
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '**服务器组件**：这运行 `GlusterFS` 守护进程，并将本地块设备命名为 **砖块** 作为卷导出，客户端组件可以挂载这些卷'
 - en: '**Client component**: This connects to the GlusterFS cluster over TCP/IP and
     can mount the exported volumes'
+  id: totrans-113
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '**客户端组件**：这通过 TCP/IP 连接到 GlusterFS 集群，并可以挂载导出的卷'
 - en: 'There are the following three types of volumes:'
+  id: totrans-114
   prefs: []
   type: TYPE_NORMAL
+  zh: 有以下三种类型的卷：
 - en: '**Distributed**: These are volumes that distribute files throughout the cluster'
+  id: totrans-115
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '**分布式**：这些是将文件分布到整个集群的卷'
 - en: '**Replicated**: These are volumes that replicate data across two or more nodes
     in the storage cluster'
+  id: totrans-116
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '**复制**：这些是跨两个或更多节点在存储集群中复制数据的卷'
 - en: '**Striped**: These are stripe files across multiple storage nodes'
+  id: totrans-117
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '**条带化**：这些是跨多个存储节点的条带文件'
 - en: For high availability, we are going to use two GFS nodes using the replicated
     volumes (two bricks containing the same data).
+  id: totrans-118
   prefs: []
   type: TYPE_NORMAL
+  zh: 为了实现高可用性，我们将使用两个 GFS 节点，使用复制卷（两个砖块包含相同的数据）。
 - en: Getting ready
+  id: totrans-119
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 准备就绪
 - en: 'To complete this recipe, we are going to use the following:'
+  id: totrans-120
   prefs: []
   type: TYPE_NORMAL
+  zh: 为了完成这个食谱，我们将使用以下内容：
 - en: Two servers that will host the GlusterFS shared filesystem.
+  id: totrans-121
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 两台将托管 GlusterFS 共享文件系统的服务器。
 - en: Two hosts running `libvirt` and `qemu` that will be used to migrate the KVM
     guest.
+  id: totrans-122
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 运行 `libvirt` 和 `qemu` 的两台主机，将用于迁移 KVM 客户机。
 - en: All servers should be able to communicate with each other using hostnames.
+  id: totrans-123
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 所有服务器应该能够通过主机名相互通信。
 - en: Both servers hosting the shared volumes should have one block device available
     for use as GlusterFS bricks. If a block device is not available, please refer
     to the *There's more...* section of the *Manual offline migration using an iSCSI
     storage pool* recipe in this chapter on how to create one using a regular file.
+  id: totrans-124
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 托管共享卷的两台服务器应该有一个块设备可用，作为 GlusterFS 的砖块。如果没有可用的块设备，请参考本章中 *使用 iSCSI 存储池进行手动离线迁移*
+    处的 *更多内容...* 部分，了解如何使用常规文件创建块设备。
 - en: Connectivity to a Linux repository to install the guest OS.
+  id: totrans-125
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 连接到 Linux 仓库以安装客户机操作系统。
 - en: How to do it...
+  id: totrans-126
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 如何操作...
 - en: 'To migrate a KVM guest using a shared GlusterFS backend store, run the following:'
+  id: totrans-127
   prefs: []
   type: TYPE_NORMAL
+  zh: 要使用共享的 GlusterFS 后端存储迁移 KVM 客户机，请运行以下命令：
 - en: 'On both servers that will host the shared volumes, install GlusterFS:'
+  id: totrans-128
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 在两台将托管共享卷的服务器上，安装 GlusterFS：
 - en: '[PRE25]'
+  id: totrans-129
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE25]'
 - en: 'From one of the GlusterFS nodes, probe the other in order to form a cluster:'
+  id: totrans-130
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 从一个 GlusterFS 节点，探测另一个节点以形成集群：
 - en: '[PRE26]'
+  id: totrans-131
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE26]'
 - en: 'Verify that the GlusterFS nodes are aware of each other:'
+  id: totrans-132
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 验证 GlusterFS 节点是否互相识别：
 - en: '[PRE27]'
+  id: totrans-133
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE27]'
 - en: 'On both GlusterFS hosts, create a filesystem on the block devices that will
     be used as GlusterFS bricks and mount them:'
+  id: totrans-134
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 在两台 GlusterFS 主机上，创建将用作 GlusterFS 砖块的块设备文件系统并挂载它们：
 - en: '[PRE28]'
+  id: totrans-135
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE28]'
 - en: Make sure to replace the block device name with what is appropriate on your
     system.
+  id: totrans-136
   prefs: []
   type: TYPE_NORMAL
+  zh: 确保将块设备名称替换为适合你系统的名称。
 - en: 'From one of the GlusterFS nodes, create the replicated storage volume, using
     the bricks from both servers and then list it:'
+  id: totrans-137
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 从其中一个 GlusterFS 节点，使用来自两台服务器的砖块创建复制存储卷，然后列出它：
 - en: '[PRE29]'
+  id: totrans-138
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE29]'
 - en: 'From one of the GlusterFS hosts, start the new volume and obtain more information
     on it:'
+  id: totrans-139
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 从其中一台 GlusterFS 主机，启动新的卷并获取更多信息：
 - en: '[PRE30]'
+  id: totrans-140
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE30]'
 - en: 'On both `libvirt` nodes, install the GlusterFS client and mount the GlusterFS volume
     that will be used to host the KVM image:'
+  id: totrans-141
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 在两个 `libvirt` 节点上，安装 GlusterFS 客户端并挂载将用于托管 KVM 镜像的 GlusterFS 卷：
 - en: '[PRE31]'
+  id: totrans-142
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE31]'
 - en: When mounting the GlusterFS volume, you can specify either one of the cluster
     nodes. In the preceding example, we are mounting from the `glusterfs1` node.
+  id: totrans-143
   prefs: []
   type: TYPE_NORMAL
+  zh: 挂载 GlusterFS 卷时，你可以指定集群中的任一节点。在前面的示例中，我们从 `glusterfs1` 节点挂载。
 - en: 'On one of the `libvirt` nodes, build a new KVM instance, using the mounted
     GlusterFS volume:'
+  id: totrans-144
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 在其中一个 `libvirt` 节点上，创建一个新的 KVM 实例，使用挂载的 GlusterFS 卷：
 - en: '[PRE32]'
+  id: totrans-145
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE32]'
 - en: 'Ensure that both `libvirt` nodes can see the guest image:'
+  id: totrans-146
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 确保两个 `libvirt` 节点可以看到客户机镜像：
 - en: '[PRE33]'
+  id: totrans-147
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE33]'
 - en: 'To manually migrate the KVM instance from one `libvirt` node to the other,
     first stop the instance and dump its XML definition:'
+  id: totrans-148
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 要手动迁移 KVM 实例从一个 `libvirt` 节点到另一个，首先停止实例并导出其 XML 定义：
 - en: '[PRE34]'
+  id: totrans-149
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE34]'
 - en: 'From the source `libvirt` node, define the instance on the target host:'
+  id: totrans-150
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 从源 `libvirt` 节点，在目标主机上定义实例：
 - en: '[PRE35]'
+  id: totrans-151
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE35]'
 - en: 'Start the KVM instance on the target host to complete the migration:'
+  id: totrans-152
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 在目标主机上启动 KVM 实例以完成迁移：
 - en: '[PRE36]'
+  id: totrans-153
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE36]'
 - en: 'We can also start the KVM instance on the destination host from the source
     host using the `qemu+ssh` connection as follows:'
+  id: totrans-154
   prefs: []
   type: TYPE_NORMAL
+  zh: 我们还可以使用 `qemu+ssh` 连接从源主机启动目标主机上的 KVM 实例，如下所示：
 - en: '`root@kvm1:~# virsh --connect qemu+ssh://kvm2/system start kvm_gfs`'
+  id: totrans-155
   prefs: []
   type: TYPE_NORMAL
+  zh: '`root@kvm1:~# virsh --connect qemu+ssh://kvm2/system start kvm_gfs`'
 - en: How it works...
+  id: totrans-156
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 它是如何工作的...
 - en: We begin by installing the GlusterFS server-side package on both servers in
     step 1\. Then, in step 2, we proceed to form a cluster by sending a probe from
     the first GlusterFS node. If the probe was successful, we further obtain information
@@ -674,8 +1002,10 @@
     GlusterFS servers for use by creating a filesystem on them, then mounting them.
     The block device once mounted will contain the bricks that will form a virtual
     replicated volume for GlusterFS to export.
+  id: totrans-157
   prefs: []
   type: TYPE_NORMAL
+  zh: 我们首先在步骤1中在两个服务器上安装GlusterFS服务端包。然后，在步骤2中，我们通过从第一个GlusterFS节点发送探测来形成集群。如果探测成功，我们将在步骤3中进一步获取集群信息。在步骤4中，我们通过在GlusterFS服务器上创建文件系统并挂载它们来准备块设备。挂载后，块设备将包含形成虚拟复制卷的砖块，供GlusterFS导出。
 - en: In step 5, we create the new replicated volume on one of the nodes (this will
     affect the entire cluster and only needs to be run from one GlusterFS node). We
     specify that the type is going to be replicated, using the TCP protocol and the
@@ -683,107 +1013,152 @@
     it in step 6 and get more information about it. Note that from the output of the
     volume information, we can see the number of bricks in use and their location
     in the cluster.
+  id: totrans-158
   prefs: []
   type: TYPE_NORMAL
+  zh: 在步骤5中，我们在其中一个节点上创建新的复制卷（这将影响整个集群，且只需从一个GlusterFS节点运行）。我们指定类型为复制，使用TCP协议，并指定将要使用的砖块位置。卷创建完成后，在步骤6中我们启动它，并获取更多信息。注意，从卷信息的输出中，我们可以看到正在使用的砖块数量以及它们在集群中的位置。
 - en: In step 7, we install the GlusterFS client component on both `libvirt` servers
     and mount the GFS volume. Both KVM hosts now share the same replicated storage
     that is physically hosted on the GlusterFS nodes. We are going to use that shared
     storage to host the new KVM image file.
+  id: totrans-159
   prefs: []
   type: TYPE_NORMAL
+  zh: 在步骤7中，我们在两个`libvirt`服务器上安装GlusterFS客户端组件，并挂载GFS卷。现在，两个KVM主机共享同一物理托管在GlusterFS节点上的复制存储。我们将使用该共享存储来托管新的KVM镜像文件。
 - en: In step 8, we proceed with the installation of a new KVM instance, using the
     GlusterFS volume that we mounted in the previous step. Once the installation is
     complete, we verify that both `libvirt` servers can see the new KVM image, in
     step 9.
+  id: totrans-160
   prefs: []
   type: TYPE_NORMAL
+  zh: 在步骤8中，我们继续安装新的KVM实例，使用在前一步挂载的GlusterFS卷。安装完成后，我们在步骤9中验证两个`libvirt`服务器是否可以看到新的KVM镜像。
 - en: We start the manual migration in step 10 by first stopping the running KVM instance,
     then saving its configuration to the disk.  In step 11, we remotely define the
     KVM guest using the XML dump and verify that it has been successfully defined
     on the target host. Finally, we start the KVM instance on the target server, completing
     the migration.
+  id: totrans-161
   prefs: []
   type: TYPE_NORMAL
+  zh: 我们在步骤10中开始手动迁移，首先停止正在运行的KVM实例，然后将其配置保存到磁盘。在步骤11中，我们使用XML转储远程定义KVM客户端，并验证它是否已成功在目标主机上定义。最后，我们在目标服务器上启动KVM实例，完成迁移。
 - en: Online migration using the virsh command with shared storage
+  id: totrans-162
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 使用virsh命令进行的在线迁移和共享存储
 - en: The `virsh` command provides a migrate parameter that we can use to migrate
     KVM instances between hosts. In the previous two recipes, we saw how to migrate
     instances manually with downtime. In this recipe, we are going to perform a live
     migration on an instance that uses either the iSCSI storage pool or the GlusterFS
     shared volumes that we used earlier in this chapter.
+  id: totrans-163
   prefs: []
   type: TYPE_NORMAL
+  zh: '`virsh`命令提供了一个迁移参数，我们可以用它来在主机之间迁移KVM实例。在前面的两个配方中，我们了解了如何手动迁移实例并停机。在本配方中，我们将对使用iSCSI存储池或本章前面提到的GlusterFS共享卷的实例执行在线迁移。'
 - en: If you recall, live migration only works when the guest filesystem resides on
     some sort of shared media, such as NFS, iSCSI, GlusterFS, or if we first copy
     the image file to all nodes and use the `--copy-storage-all` option with `virsh
     migrate`, as we'll see later in this chapter.
+  id: totrans-164
   prefs: []
   type: TYPE_NORMAL
+  zh: 如果你记得，在线迁移只有在客户端文件系统位于某种共享介质上时才有效，例如NFS、iSCSI、GlusterFS，或者如果我们先将镜像文件复制到所有节点，并在使用`virsh
+    migrate`时带上`--copy-storage-all`选项，就像我们将在本章后面看到的那样。
 - en: Getting ready
+  id: totrans-165
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 准备工作
 - en: 'In order to complete this recipe, we are going to need the following:'
+  id: totrans-166
   prefs: []
   type: TYPE_NORMAL
+  zh: 为了完成本配方，我们需要以下内容：
 - en: Two `libvirt` hosts with a shared storage between them. If you've completed
     the earlier recipes in this chapter, you can either use the iSCSI storage pool
     we created and the KVM instance that is using it or the GFS shared storage with
     the KVM guest.
+  id: totrans-167
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 两个`libvirt`主机之间具有共享存储。如果你已经完成了本章前面的配方，你可以使用我们创建的iSCSI存储池和正在使用它的KVM实例，或者使用带有KVM客户端的GFS共享存储。
 - en: Both `libvirt` hosts should be able to communicate with each other using short
     hostnames.
+  id: totrans-168
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 两个 `libvirt` 主机应能够使用短主机名相互通信。
 - en: How to do it...
+  id: totrans-169
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 如何操作...
 - en: 'To perform a live migration using the shared storage, perform the operations listed
     here:'
+  id: totrans-170
   prefs: []
   type: TYPE_NORMAL
+  zh: 要执行使用共享存储的实时迁移，请执行此处列出的操作：
 - en: 'Ensure that the iSCSI KVM instance we built earlier is running on the source
     host:'
+  id: totrans-171
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 确保我们之前创建的 iSCSI KVM 实例在源主机上运行：
 - en: '[PRE37]'
+  id: totrans-172
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE37]'
 - en: 'Live migrate the instance to the second `libvirt` server (the target node should
     already have the iSCSI pool configured). If this operation errors out, please
     consult the *There''s more...* section of this recipe for troubleshooting tips:'
+  id: totrans-173
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 将实例实时迁移到第二个 `libvirt` 服务器（目标节点应已配置 iSCSI 存储池）。如果此操作失败，请参阅本食谱的 *还有更多内容...* 部分以获取故障排除提示：
 - en: '[PRE38]'
+  id: totrans-174
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE38]'
 - en: 'Ensure that the KVM instance has been stopped on the source host and started
     on the target server:'
+  id: totrans-175
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 确保 KVM 实例已在源主机上停止，并在目标服务器上启动：
 - en: '[PRE39]'
+  id: totrans-176
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE39]'
 - en: 'To migrate the instance back, from the `kvm2` node, run the following:'
+  id: totrans-177
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 要将实例迁移回原服务器，从 `kvm2` 节点执行以下命令：
 - en: '[PRE40]'
+  id: totrans-178
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE40]'
 - en: How it works...
+  id: totrans-179
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 它是如何工作的...
 - en: When migrating a KVM instance that is using a shared storage, such as the iSCSI
     storage pool in this example, once we initiate the migration with the `migrate
     --live` parameter, libvirt takes care of logging out the iSCSI session from the
@@ -792,134 +1167,201 @@
     need to copy all the data. You might have noted that the migration took only a
     few seconds because the only data that was migrated was the memory pages of the
     running VM on the source host.
+  id: totrans-180
   prefs: []
   type: TYPE_NORMAL
+  zh: 当迁移一个使用共享存储的 KVM 实例时，例如本示例中的 iSCSI 存储池，一旦我们启动带有 `migrate --live` 参数的迁移，libvirt
+    会自动处理退出原主机的 iSCSI 会话并登录到目标服务器，从而使包含虚拟机文件系统的块设备在目标服务器上可用，而无需复制所有数据。你可能已经注意到，迁移只用了几秒钟，因为迁移的唯一数据是运行中的虚拟机在源主机上的内存页。
 - en: There's more...
+  id: totrans-181
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 还有更多内容...
 - en: Depending on your Linux distribution and the server type (on-metal or a cloud
     instance) you are running this recipe on, you might encounter a few common errors
     when trying to migrate the instance.
+  id: totrans-182
   prefs: []
   type: TYPE_NORMAL
+  zh: 根据你运行该操作的 Linux 发行版和服务器类型（物理机或云实例），你可能会遇到一些常见错误，当尝试迁移实例时。
 - en: '**Error**: error: Unsafe migration: Migration may lead to data corruption if
     disks use cache != none.'
+  id: totrans-183
   prefs: []
   type: TYPE_NORMAL
+  zh: '**错误**：错误：不安全的迁移：如果磁盘使用的缓存设置不为 none，迁移可能会导致数据损坏。'
 - en: '**Solution**: Edit the XML definition of the instance you are trying to migrate
     and update the driver section of the block device to contain the `cache=none` attribute:'
+  id: totrans-184
   prefs: []
   type: TYPE_NORMAL
+  zh: '**解决方案**：编辑你正在尝试迁移的实例的 XML 定义，并更新块设备的驱动程序部分，添加 `cache=none` 属性：'
 - en: '[PRE41]'
+  id: totrans-185
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE41]'
 - en: '**Error**: error: Internal error: Attempt to migrate guest to the same host
     `02000100-0300-0400-0005-000600070008`.'
+  id: totrans-186
   prefs: []
   type: TYPE_NORMAL
+  zh: '**错误**：错误：内部错误：尝试将虚拟机迁移到相同的主机 `02000100-0300-0400-0005-000600070008`。'
 - en: '**Solution**: Some servers, usually virtualized, may return the same system
     UUID, which causes the migration to fail. To see if this is the case, run the
     following on both the source and target machines:'
+  id: totrans-187
   prefs: []
   type: TYPE_NORMAL
+  zh: '**解决方案**：某些服务器，通常是虚拟化的，可能会返回相同的系统 UUID，这会导致迁移失败。要查看是否是这种情况，请在源机器和目标机器上运行以下命令：'
 - en: '[PRE42]'
+  id: totrans-188
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE42]'
 - en: 'If the UUID is the same on both servers, edit the `libvirt` configuration file
     and assign a unique UUID, then restart `libvirt`:'
+  id: totrans-189
   prefs: []
   type: TYPE_NORMAL
+  zh: 如果两个服务器的 UUID 相同，请编辑 `libvirt` 配置文件并分配一个唯一的 UUID，然后重启 `libvirt`：
 - en: '[PRE43]'
+  id: totrans-190
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE43]'
 - en: '**Error**: error: Unable to resolve address `kvm2.localdomain` service 49152:
     Name or service is not known.'
+  id: totrans-191
   prefs: []
   type: TYPE_NORMAL
+  zh: '**错误**：错误：无法解析地址 `kvm2.localdomain` 服务 49152：名称或服务无法识别。'
 - en: '**Solution**: This indicates that `libvirt` is unable to resolve the hostname
     of the instances. Make sure that the hostname does not resolve to localhost and
     that you can ping, or SSH between the source and target servers using the hostname
     instead of the IP address of the server. An example of a working host file for
     both `libvirt` nodes is as follows:'
+  id: totrans-192
   prefs: []
   type: TYPE_NORMAL
+  zh: '**解决方案**：这表明 `libvirt` 无法解析实例的主机名。确保主机名不会解析为 localhost，并且你可以使用主机名而不是服务器的 IP
+    地址，在源主机和目标主机之间进行 ping 或 SSH 连接。以下是两个 `libvirt` 节点的工作主机文件示例：'
 - en: '[PRE44]'
+  id: totrans-193
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE44]'
 - en: 'You can find more information about the operation of an instance by examining
     the following logs:'
+  id: totrans-194
   prefs: []
   type: TYPE_NORMAL
+  zh: 你可以通过检查以下日志来获取更多关于实例操作的信息：
 - en: '[PRE45]'
+  id: totrans-195
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE45]'
 - en: Offline migration using the virsh command and local image
+  id: totrans-196
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 使用 virsh 命令和本地镜像进行离线迁移
 - en: Performing offline migration with virsh does not require a shared storage; however,
     we are responsible for providing the guest filesystem to the new host (by coping
     the image file and so on). The offline migration transfers the instance definition
     without starting the guest on the destination host and without stopping it on
     the source host. In this recipe, we are going to perform an offline migration
     using the virsh command on a running KVM guest using an image file for its filesystem.
+  id: totrans-197
   prefs: []
   type: TYPE_NORMAL
+  zh: 使用 virsh 执行离线迁移时不需要共享存储；但是我们需要为新主机提供客户机文件系统（通过复制镜像文件等）。离线迁移会传输实例定义，而不会在目标主机上启动客户机，也不会停止源主机上的客户机。在这个示例中，我们将使用
+    virsh 命令对运行中的 KVM 客户机进行离线迁移，使用其文件系统的镜像文件。
 - en: Getting ready
+  id: totrans-198
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 准备工作
 - en: 'For this simple recipe, we are going to need the following:'
+  id: totrans-199
   prefs: []
   type: TYPE_NORMAL
+  zh: 对于这个简单的示例，我们需要以下内容：
 - en: 'Two `libvirt` hosts and a running KVM instance. If one is not present on your
     host, you can install and start a new guest VM using a local image file:'
+  id: totrans-200
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 两台 `libvirt` 主机和一个运行中的 KVM 实例。如果你的主机上没有其中之一，可以使用本地镜像文件安装并启动一个新的客户机虚拟机：
 - en: '[PRE46]'
+  id: totrans-201
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE46]'
 - en: Both hosts should be able to communicate with each other using hostnames.
+  id: totrans-202
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 两台主机应该能够通过主机名互相通信。
 - en: How to do it...
+  id: totrans-203
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 如何操作...
 - en: 'To perform an offline migration using the `virsh` command, run the following:'
+  id: totrans-204
   prefs: []
   type: TYPE_NORMAL
+  zh: 要使用 `virsh` 命令执行离线迁移，请运行以下命令：
 - en: 'Make sure that we have a running KVM instance:'
+  id: totrans-205
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 确保我们有一个运行中的 KVM 实例：
 - en: '[PRE47]'
+  id: totrans-206
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE47]'
 - en: 'Migrate the instance using the offline mode. If this operation errors out,
     please consult the *There''s more...* section of the *Online migration using the
     virsh command* recipe for troubleshooting tips:'
+  id: totrans-207
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 使用离线模式迁移实例。如果此操作出错，请参阅 *更多...* 部分中的 *使用 virsh 命令进行在线迁移* 示例，获取故障排除提示：
 - en: '[PRE48]'
+  id: totrans-208
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE48]'
 - en: 'Unlike the live migration, the source instance is still running, and the destination
     instance is stopped:'
+  id: totrans-209
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 与实时迁移不同，源实例仍在运行，而目标实例已停止：
 - en: '[PRE49]'
+  id: totrans-210
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE49]'
 - en: How it works...
+  id: totrans-211
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 它是如何工作的...
 - en: Offline migrations are quite simple; the `virsh` command transfers the definition
     file from the target host to the destination and defines the instance. The original
     KVM guest is left running. In order to start the migrated instance, its image
@@ -928,94 +1370,141 @@
     an offline migration as compared with just dumping the XML file and defining it
     on the destination host is that `libvirt` makes updates to the destination XML
     file, such as assigning new UUIDs.
+  id: totrans-212
   prefs: []
   type: TYPE_NORMAL
+  zh: 离线迁移相当简单；`virsh` 命令将定义文件从目标主机传输到目标并定义实例。原始的 KVM 客户机保持运行状态。为了启动迁移后的实例，首先需要将其镜像文件传输到目标主机，并且文件路径必须与源服务器上的路径完全一致。与直接转储
+    XML 文件并在目标主机上定义它的主要区别在于，`libvirt` 会对目标 XML 文件进行更新，比如分配新的 UUID。
 - en: In the earlier-mentioned example, the only two new flags were the offline and
     persistent flags. The prior specifies an offline type migration, and the latter leaves
     the domain persistent on the destination host.
+  id: totrans-213
   prefs: []
   type: TYPE_NORMAL
+  zh: 在前面提到的示例中，唯一的两个新标志是离线标志和持久标志。前者指定了离线类型的迁移，后者将域设置为在目标主机上持久存在。
 - en: Online migration using the virsh command and local image
+  id: totrans-214
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 使用 virsh 命令和本地镜像进行在线迁移
 - en: In this recipe, we are going to live migrate a running instance, without shared
     storage.
+  id: totrans-215
   prefs: []
   type: TYPE_NORMAL
+  zh: 在这个示例中，我们将进行一个实时迁移运行中的实例，且没有共享存储。
 - en: Getting ready
+  id: totrans-216
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 准备工作
 - en: 'For this recipe, we are going to need the following:'
+  id: totrans-217
   prefs: []
   type: TYPE_NORMAL
+  zh: 对于这个示例，我们需要以下内容：
 - en: Two `libvirt` servers with a running KVM instance using a local image file.
     We are going to use the KVM guest we built in the previous recipe, *Offline migration
     using the virsh command and local image*.
+  id: totrans-218
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 两台 `libvirt` 服务器，运行中的 KVM 实例，使用本地镜像文件。我们将使用在之前的示例中构建的 KVM 客户机，*使用 virsh 命令和本地镜像进行离线迁移*。
 - en: Both servers must be able to communicate with each other using their hostnames.
+  id: totrans-219
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 两台服务器必须能够通过主机名互相通信。
 - en: How to do it...
+  id: totrans-220
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 如何操作...
 - en: 'To migrate an instance without shared storage, use the following steps:'
+  id: totrans-221
   prefs: []
   type: TYPE_NORMAL
+  zh: 要迁移没有共享存储的实例，请按照以下步骤操作：
 - en: 'Ensure that the KVM guest is running:'
+  id: totrans-222
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 确保 KVM 客户机正在运行：
 - en: '[PRE50]'
+  id: totrans-223
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE50]'
 - en: 'Find the location of the image file:'
+  id: totrans-224
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 查找镜像文件的位置：
 - en: '[PRE51]'
+  id: totrans-225
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE51]'
 - en: 'Transfer the image file to the destination host:'
+  id: totrans-226
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 将镜像文件传输到目标主机：
 - en: '[PRE52]'
+  id: totrans-227
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE52]'
 - en: 'Migrate the instance and ensure that it''s running on the destination host:'
+  id: totrans-228
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 迁移实例并确保它在目标主机上运行：
 - en: '[PRE53]'
+  id: totrans-229
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE53]'
 - en: 'From the destination host, migrate the instance back, using the incremental
     image transfer:'
+  id: totrans-230
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 从目标主机迁移实例，使用增量镜像传输：
 - en: '[PRE54]'
+  id: totrans-231
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE54]'
 - en: How it works...
+  id: totrans-232
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 它是如何工作的...
 - en: After we ensure that the source instance is in a running state in step 1, we
     transfer the image file to the destination file, in the exact same location as
     the source in step 3\. With the image file in place, we can now perform a live
     migration, which we do in step 4 and then back in step 5.
+  id: totrans-233
   prefs: []
   type: TYPE_NORMAL
+  zh: 在步骤1中确保源实例处于运行状态后，我们将镜像文件传输到目标文件，并确保它与源实例在步骤3中的位置完全相同。镜像文件就位后，我们可以执行实时迁移，这将在步骤4中完成，随后回到步骤5。
 - en: The two new parameters we haven't used so far are `--copy-storage-all` and `copy-storage-inc.`
     The first one instructs `libvirt` to transfer the entire image file to the destination,
     whereas the second performs an incremental transfer, copying only the data that
     has changed, reducing the transfer time.
+  id: totrans-234
   prefs: []
   type: TYPE_NORMAL
+  zh: 我们到目前为止还没有使用的两个新参数是`--copy-storage-all`和`copy-storage-inc.`。第一个参数指示`libvirt`将整个镜像文件传输到目标位置，而第二个则执行增量传输，仅复制已更改的数据，从而减少传输时间。
