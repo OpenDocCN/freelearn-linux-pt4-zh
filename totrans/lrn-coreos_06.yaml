@@ -1,47 +1,69 @@
 - en: Chapter 6. Service Chaining and Networking Across Services
+  id: totrans-0
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 第6章 服务链路和跨服务网络
 - en: This chapter explains the need and mechanism for chaining different services
     running in a cluster.
+  id: totrans-1
   prefs: []
   type: TYPE_NORMAL
+  zh: 本章解释了在集群中链路不同服务的需求和机制。
 - en: 'This chapter covers the following topics:'
+  id: totrans-2
   prefs: []
   type: TYPE_NORMAL
+  zh: 本章涵盖以下主题：
 - en: Introduction to and necessity of service chaining
+  id: totrans-3
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 服务链路的介绍及其必要性
 - en: Introduction to Docker networking
+  id: totrans-4
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: Docker 网络介绍
 - en: Service chaining using Flannel/Rudder
+  id: totrans-5
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 使用 Flannel/Rudder 进行服务链路
 - en: Service chaining using Weave
+  id: totrans-6
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 使用 Weave 进行服务链路
 - en: In the previous chapter, we discussed in detail how the services running in
     different CoreOS instances can be discovered from other services. Once the services
     are discovered, one or more services may need to talk to each other. This chapter
     explains the need and mechanism for chaining different services running in the
     CoreOS cluster.
+  id: totrans-7
   prefs: []
   type: TYPE_NORMAL
+  zh: 在上一章中，我们详细讨论了如何从其他服务发现运行在不同 CoreOS 实例中的服务。一旦服务被发现，一个或多个服务可能需要相互通信。本章解释了在 CoreOS
+    集群中链路不同服务的需求和机制。
 - en: Introduction to and necessity of service chaining
+  id: totrans-8
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 服务链路的介绍及其必要性
 - en: As different services in the CoreOS clusters are deployed as a docker/Rackt
     container, it is inevitable that we will provide a mechanism to communicate between
     these services. These services may run in the same CoreOS instances of a cluster
     or they may run across different CoreOS instances in the cluster.
+  id: totrans-9
   prefs: []
   type: TYPE_NORMAL
+  zh: 由于 CoreOS 集群中的不同服务作为 docker/Rackt 容器部署，因此不可避免地需要提供一个机制，以便这些服务之间进行通信。这些服务可能运行在同一个
+    CoreOS 实例中，也可能跨不同的 CoreOS 实例运行。
 - en: 'An example is, when a web server is deployed in node1 of a CoreOS cluster and
     database services are deployed in node2 of the cluster. Here, the database service
     provides a service to the web server and we can call this a service provider.
@@ -51,21 +73,31 @@
     the web server may need to interact with the database service for storing some
     information persistently or to fetch some information from the persistent storage.
     In order to do this, it may need to do the following:'
+  id: totrans-10
   prefs: []
   type: TYPE_NORMAL
+  zh: 一个例子是，当一个 Web 服务器部署在 CoreOS 集群的节点1上，而数据库服务部署在节点2上时。在这种情况下，数据库服务为 Web 服务器提供服务，我们可以称之为服务提供者。通过上一章中描述的服务发现机制，Web
+    服务器服务可能会发现数据库服务及其参数，例如连接字符串、IP 地址、端口号等。一旦这些信息被发现，Web 服务器可能需要与数据库服务交互，以便持久化存储一些信息或从持久化存储中获取信息。为了实现这一点，可能需要执行以下操作：
 - en: Establish a network connection between each other
+  id: totrans-11
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 在彼此之间建立网络连接
 - en: Use the service provided by the service provider
+  id: totrans-12
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 使用服务提供者提供的服务
 - en: Everything looks fine. But when providing a network connection between the containers,
     there are some complexities. Let's look into those. Throughout this chapter, we
     assume that the services in the CoreOS instances are deployed as a docker container.
+  id: totrans-13
   prefs: []
   type: TYPE_NORMAL
+  zh: 一切看起来都没问题。但在为容器提供网络连接时，会出现一些复杂性。我们来深入了解这些问题。在本章中，我们假设 CoreOS 实例中的服务都是作为 docker
+    容器部署的。
 - en: Each service/docker container in the CoreOS node is assigned an IP address.
     This IP address can be used by the applications running in the container to talk/communicate
     with each other. This works well when the services are running in the same CoreOS
@@ -79,80 +111,121 @@
     in the fleet unit file. This way, the container will be able to access the host
     IP. The host machine IP address and network is not available to the containers.
     This allows some other external entity to provide this service.
+  id: totrans-14
   prefs: []
   type: TYPE_NORMAL
+  zh: CoreOS 节点中的每个服务/ Docker 容器都分配一个 IP 地址。应用程序可以使用这个 IP 地址在容器内相互通信。这在服务都运行在同一个 CoreOS
+    节点时效果很好，因为同一 CoreOS 节点中的所有 Docker 实例或服务都会处于同一个网络中，并通过 docker0 桥接进行连接。当这些服务运行在不同的
+    CoreOS 节点上时，这些节点应该使用主机 CoreOS 提供的端口映射功能来访问目标容器。但在使用这种机制时，容器应该在发现服务中公布主机机器的 IP
+    地址。将主机 IP 推送到发现服务的一个选项是使用 `ExecStartPost` 选项，在 fleet 单元文件中进行配置。这样，容器就能访问主机 IP
+    地址。主机的 IP 地址和网络对于容器是不可用的，这允许其他外部实体提供此服务。
 - en: Before looking into how this issue is being solved by mechanisms like Flannel
     and Weave, let us have a look at the details of Docker container networking.
+  id: totrans-15
   prefs: []
   type: TYPE_NORMAL
+  zh: 在了解 Flannel 和 Weave 等机制如何解决这个问题之前，让我们先看看 Docker 容器网络的详细信息。
 - en: Introduction to Docker networking
+  id: totrans-16
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: Docker 网络简介
 - en: 'There are multiple communication requirements for containers/service as follows.
     CoreOS and Docker together should provide a mechanism to meet all the following
     requirements:'
+  id: totrans-17
   prefs: []
   type: TYPE_NORMAL
+  zh: 容器/服务有多种通信需求。CoreOS 和 Docker 共同应提供机制来满足以下所有需求：
 - en: Container–Container communication in the same CoreOS node
+  id: totrans-18
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 在同一 CoreOS 节点中的容器–容器通信
 - en: Container to CoreOS host communication
+  id: totrans-19
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 容器与 CoreOS 主机的通信
 - en: Container to external world communication
+  id: totrans-20
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 容器与外部世界的通信
 - en: Container–Container communication in a different CoreOS node
+  id: totrans-21
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 在不同 CoreOS 节点中的容器–容器通信
 - en: Let us look into how CoreOS provides these functionalities for the docker container
     in the following sections.
+  id: totrans-22
   prefs: []
   type: TYPE_NORMAL
+  zh: 让我们在接下来的部分中探讨 CoreOS 如何为 Docker 容器提供这些功能。
 - en: Container–Container communication
+  id: totrans-23
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 容器–容器通信
 - en: 'This section describes in detail the different mechanisms provided by the CoreOS
     and Docker/Container technology to provide communication across different instances
     of Docker. There are multiple ways to provide this communication as follows:'
+  id: totrans-24
   prefs: []
   type: TYPE_NORMAL
+  zh: 本节详细描述了 CoreOS 和 Docker/容器技术提供的不同机制，用于在 Docker 的不同实例之间提供通信。以下是实现这种通信的多种方式：
 - en: Docker0 bridge and veth pair
+  id: totrans-25
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: Docker0 桥接与 veth 对
 - en: Using Link
+  id: totrans-26
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 使用链接
 - en: Using common network stack
+  id: totrans-27
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 使用共享网络栈
 - en: Docker0 bridge and veth pair
+  id: totrans-28
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
+  zh: Docker0 桥接与 veth 对
 - en: '**Docker0** bridge is a Linux bridge created by docker in order to provide
     communication across different docker containers. By default, docker creates a
     Linux bridge called docker0 bridge, which provides connectivity for all the docker
     containers in the CoreOS host.'
+  id: totrans-29
   prefs: []
   type: TYPE_NORMAL
+  zh: '**Docker0** 桥接是 Docker 创建的一个 Linux 桥接，用于提供不同 Docker 容器之间的通信。默认情况下，Docker 创建一个名为
+    docker0 的 Linux 桥接，提供 CoreOS 主机上所有 Docker 容器的连接。'
 - en: Tip
+  id: totrans-30
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
+  zh: 提示
 - en: Docker0 bridge is created only at the instantiation of the first container instance.
     No new bridge will be created on subsequent container instantiation.
+  id: totrans-31
   prefs: []
   type: TYPE_NORMAL
+  zh: Docker0 桥接仅在实例化第一个容器实例时创建。后续的容器实例化不会创建新的桥接。
 - en: Veth is a **Virtual Ethernet Device** that can be used as a virtual link inside
     the Linux kernel. Typically, the veth device will be created in a pair (called
     veth pair) to provide connectivity across different instances of a container.
@@ -161,8 +234,12 @@
     and the other end is connected to docker0 bridge. These docker0 bridge and veth
     pairs provide connectivity across different containers running in the same CoreOS
     node.
+  id: totrans-32
   prefs: []
   type: TYPE_NORMAL
+  zh: Veth 是一种可以在 Linux 内核内部用作虚拟链接的**虚拟以太网设备**。通常，veth 设备将成对创建（称为 veth 对），以在容器的不同实例之间提供连通性。当在
+    CoreOS 节点中实例化新的容器/服务时，将创建新的 veth 对。veth 对的一端附加到容器服务，另一端连接到 docker0 桥接。这些 docker0
+    桥接和 veth 对为在同一 CoreOS 节点上运行的不同容器提供连通性。
 - en: In the following diagram, the docker1 and docker2 containers are connected to
     docker0 bridge via the veth pair, which provides connectivity across the docker
     containers. One end of the veth pair, which is attached to the docker instance,
@@ -170,50 +247,77 @@
     to configure the IP address for this eth0 interface. The user can configure the
     eth0 interface of the docker1 and docker2 instances with the same network in order
     to provide connectivity across them.
+  id: totrans-33
   prefs: []
   type: TYPE_NORMAL
+  zh: 在以下图表中，docker1 和 docker2 容器通过 veth 对连接到 docker0 桥接，从而提供跨 Docker 容器的连通性。连接到 docker
+    实例的 veth 对的一端将作为 eth0 接口在 docker 实例内可见。可以配置此 eth0 接口的 IP 地址。用户可以配置 docker1 和 docker2
+    实例的 eth0 接口为相同的网络，以在它们之间提供连通性。
 - en: '![Docker0 bridge and veth pair](img/00023.jpeg)'
+  id: totrans-34
   prefs: []
   type: TYPE_IMG
+  zh: '![Docker0 桥接和 veth 对](img/00023.jpeg)'
 - en: Container–Container communication using docker0 bridge
+  id: totrans-35
   prefs: []
   type: TYPE_NORMAL
+  zh: 使用 docker0 桥接进行容器之间的容器通信
 - en: The docker instances are attached to docker0 bridge using a virtual subnet with
     an IP address ranging from `172.17.51.1` – `172.17.51.25`. As the docker side
     of the veth pair gets the IP in the same range, there is a possibility that, in
     two different servers/VM instances, two containers have the same IP address. This
     may result in problems while routing the IP packet.
+  id: totrans-36
   prefs: []
   type: TYPE_NORMAL
+  zh: Docker 实例通过具有 IP 地址范围从 `172.17.51.1` 到 `172.17.51.25` 的虚拟子网附加到 docker0 桥接。由于
+    veth 对的 docker 端在同一范围内获取 IP，可能会导致在两个不同的服务器/虚拟机实例中，两个容器具有相同的 IP 地址。这可能导致在路由 IP
+    包时出现问题。
 - en: Using Link
+  id: totrans-37
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
+  zh: 使用链接
 - en: This is one of the simple ways of providing communication between Docker containers.
     **Docker Link** is a unidirectional conduit/pipe between the source and the destination
     containers. The `docker` command provides a way to link the containers while instantiating
     the container itself. The `–link` option is used for this purpose. Docker Link
     can be used only to provide communication between containers running on the same
     host.
+  id: totrans-38
   prefs: []
   type: TYPE_NORMAL
+  zh: 这是在 Docker 容器之间提供通信的简单方式之一。**Docker Link** 是源容器和目标容器之间的单向通道/管道。`docker` 命令在实例化容器本身时提供了一种链接容器的方法。`–link`
+    选项用于此目的。Docker Link 只能用于在同一主机上运行的容器之间提供通信。
 - en: 'As an example, if the `docker2` container wants to use the networking stack
     of another container, `docker1`, then the command to start `docker2` is as follows:'
+  id: totrans-39
   prefs: []
   type: TYPE_NORMAL
+  zh: 例如，如果 `docker2` 容器希望使用另一个容器 `docker1` 的网络堆栈，则启动 `docker2` 的命令如下：
 - en: '[PRE0]'
+  id: totrans-40
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE0]'
 - en: '![Using Link](img/00024.jpeg)'
+  id: totrans-41
   prefs: []
   type: TYPE_IMG
+  zh: '![使用链接](img/00024.jpeg)'
 - en: Container–Container communication using Docker Link
+  id: totrans-42
   prefs: []
   type: TYPE_NORMAL
+  zh: 使用 Docker Link 进行容器之间的容器通信
 - en: Using common network stack
+  id: totrans-43
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
+  zh: 使用常见的网络堆栈
 - en: In this mechanism, one docker container will use the networking stack provided
     by some other docker container's networking stack, instead of having its own networking
     stack. The docker container will not use the network namespace construct explained
@@ -222,27 +326,37 @@
     any application in one container can communicate with the other container as if
     both the docker container services are running as an application in one networking
     stack.
+  id: totrans-44
   prefs: []
   type: TYPE_NORMAL
+  zh: 在这种机制中，一个 Docker 容器将使用由另一个 Docker 容器的网络堆栈提供的网络堆栈，而不是拥有自己的网络堆栈。Docker 容器不会使用本书介绍部分中解释的网络命名空间构造，而是与另一个
+    Docker 共享网络命名空间。由于容器与另一个容器共享命名空间，一个容器中的任何应用程序都可以与另一个容器通信，就像两个 Docker 容器服务都在一个网络堆栈中作为应用程序运行一样。
 - en: The `docker` command provides a way to use another docker's networking stack
     while instantiating the container itself. The `–net=container1` option is used
     for this purpose.
+  id: totrans-45
   prefs: []
   type: TYPE_NORMAL
 - en: 'As an example, if the container `cont_net1` wants to use the networking stack
     of another container, `b1`, then the command to start `cont_net1` is as follows:'
+  id: totrans-46
   prefs: []
   type: TYPE_NORMAL
 - en: '[PRE1]'
+  id: totrans-47
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE1]'
 - en: '![Using common network stack](img/00025.jpeg)'
+  id: totrans-48
   prefs: []
   type: TYPE_IMG
 - en: Container–Container communication using common network stack
+  id: totrans-49
   prefs: []
   type: TYPE_NORMAL
 - en: Container to CoreOS host communication
+  id: totrans-50
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
@@ -250,17 +364,21 @@
     instances where the service running inside the container may want to talk or exchange
     some information with applications running in the CoreOS host. CoreOS and docker
     provide some mechanisms to achieve this using the following mechanisms:'
+  id: totrans-51
   prefs: []
   type: TYPE_NORMAL
 - en: Host networking
+  id: totrans-52
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
 - en: docker0 bridge
+  id: totrans-53
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
 - en: Host networking
+  id: totrans-54
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
@@ -272,27 +390,35 @@
     any application in the CoreOS host can communicate with the docker container as
     if the docker container service is running as an application in the CoreOS host.
     This is one of the simpler mechanisms to allow docker to host communication.
+  id: totrans-55
   prefs: []
   type: TYPE_NORMAL
 - en: The `docker` command provides a way to use the host machine's networking stack
     while instantiating the container itself. The `–net=host` option is used for this
     purpose.
+  id: totrans-56
   prefs: []
   type: TYPE_NORMAL
 - en: 'As an example, if the docker1 container wants to use the networking stack of
     the host CoreOS, then the command to start `docker1` is as follows:'
+  id: totrans-57
   prefs: []
   type: TYPE_NORMAL
 - en: '[PRE2]'
+  id: totrans-58
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE2]'
 - en: '![Host networking](img/00026.jpeg)'
+  id: totrans-59
   prefs: []
   type: TYPE_IMG
 - en: Container–Container communication using the host network stack
+  id: totrans-60
   prefs: []
   type: TYPE_NORMAL
 - en: docker0 bridge
+  id: totrans-61
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
@@ -304,15 +430,19 @@
     to and from docker and the WAN. In this case, the eth0 interface of docker1, docker2,
     and the eth1 interface should be in the same network to provide network connectivity
     between docker and the host CoreOS.
+  id: totrans-62
   prefs: []
   type: TYPE_NORMAL
 - en: '![docker0 bridge](img/00027.jpeg)'
+  id: totrans-63
   prefs: []
   type: TYPE_IMG
 - en: Container – External world communication using docker0 bridge
+  id: totrans-64
   prefs: []
   type: TYPE_NORMAL
 - en: Container to CoreOS outside world communication
+  id: totrans-65
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
@@ -320,46 +450,64 @@
     in the CoreOS cluster. The services running in the CoreOS cluster (as docker)
     should be accessible from the external world and vice versa. CoreOS and docker
     provide the following mechanisms to achieve this:'
+  id: totrans-66
   prefs: []
   type: TYPE_NORMAL
 - en: Host networking
+  id: totrans-67
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
 - en: Port mapping
+  id: totrans-68
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 端口映射
 - en: Using docker0 bridge
+  id: totrans-69
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 使用docker0桥接
 - en: Host networking
+  id: totrans-70
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
+  zh: 主机网络
 - en: Host networking is described in detail in the previous section. As the container
     shares the namespace with the host CoreOS operating system, when the host CoreOS
     operating system is connected to WAN, the service running inside the container
     should also be able to be part of the WAN network.
+  id: totrans-71
   prefs: []
   type: TYPE_NORMAL
+  zh: 主机网络在前一节中已详细描述。由于容器与主机CoreOS操作系统共享命名空间，当主机CoreOS操作系统连接到广域网时，运行在容器中的服务也应该能够成为广域网网络的一部分。
 - en: The `docker` command provides a way to use the host machine's networking stack
     while instantiating the container itself. The `–net=host` option is used for this
     purpose.
+  id: totrans-72
   prefs: []
   type: TYPE_NORMAL
+  zh: '`docker`命令提供了一种在实例化容器本身时使用主机机器网络堆栈的方法。为此，使用`–net=host`选项。'
 - en: 'As an example, if the docker1 container wants to use the networking stack of
     the host CoreOS, then the command to start docker1 is as follows:'
+  id: totrans-73
   prefs: []
   type: TYPE_NORMAL
+  zh: 作为一个例子，如果docker1容器想要使用主机CoreOS的网络堆栈，那么启动docker1的命令如下：
 - en: '[PRE3]'
+  id: totrans-74
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE3]'
 - en: Port mapping
+  id: totrans-75
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
+  zh: 端口映射
 - en: This is one of the most widely used mechanisms for communicating a docker container
     to the external world. In this mechanism, a port number in the host machine will
     be mapped to a port number in the docker container. Here, the port refers to transport
@@ -371,74 +519,103 @@
     respect to this mechanism is that the same service won't be able to deploy in
     multiple docker containers, as it results in port collision in the host operating
     system.
+  id: totrans-76
   prefs: []
   type: TYPE_NORMAL
+  zh: 这是最广泛使用的机制之一，用于将docker容器与外部世界进行通信。在这种机制中，主机机器上的端口号将映射到docker容器中的端口号。这里的端口指的是传输层端口，如UDP端口/TCP端口。例如，如果用户在docker容器中部署了一个web服务器，他们可以将主机CoreOS操作系统中的`HTTP`端口（端口号`80`）映射到docker容器中的`HTTP`端口（端口号`80`）。因此，当CoreOS主机接收到HTTP请求时，它会将请求转发到容器，容器会处理这个HTTP请求。但与这种机制相关的一个主要挑战是，不能在多个docker容器中部署相同的服务，因为这会导致主机操作系统中的端口冲突。
 - en: '![Port mapping](img/00028.jpeg)'
+  id: totrans-77
   prefs: []
   type: TYPE_IMG
+  zh: '![端口映射](img/00028.jpeg)'
 - en: Container – External world communication using port mapping
+  id: totrans-78
   prefs: []
   type: TYPE_NORMAL
+  zh: 容器 - 使用端口映射进行外部世界通信
 - en: Container – Container communication in different CoreOS nodes
+  id: totrans-79
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 容器 - 在不同CoreOS节点中的容器间通信
 - en: 'We have seen how CoreOS or docker provides networking from a single node perspective.
     As the services are deployed inside the CoreOS cluster, it is necessary to provide
     communication between containers running in different CoreOS nodes in a cluster.
     The rest of the chapter discusses this communication mechanism in detail. There
     are multiple tools that provide this as follows:'
+  id: totrans-80
   prefs: []
   type: TYPE_NORMAL
+  zh: 我们已经看到CoreOS或docker如何从单节点的角度提供网络服务。随着服务在CoreOS集群中部署，需要提供不同CoreOS节点中运行的容器之间的通信。本章其余部分将详细讨论这一通信机制。以下是提供这一功能的多个工具：
 - en: Weave
+  id: totrans-81
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: Weave
 - en: Flannel/Rudder
+  id: totrans-82
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: Flannel/Rudder
 - en: Using **OVS** (**OpenVSwitch**)
+  id: totrans-83
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 使用**OVS**（**OpenVSwitch**）
 - en: In this chapter, we are going to see how Flannel and Weave provide the communication
     mechanism. In the next chapter, we will discuss OVS in detail and how it can be
     used to provide communication between the various containers.
+  id: totrans-84
   prefs: []
   type: TYPE_NORMAL
+  zh: 在本章中，我们将看到Flannel和Weave如何提供通信机制。在下一章中，我们将详细讨论OVS及其如何用于在不同容器之间提供通信。
 - en: Introduction to Weave
+  id: totrans-85
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: Weave简介
 - en: We learned before that applications running inside Docker have no knowledge
     of the IP address of the host machine. Hence, they are not in position to register
     their IP for the service, since another container running outside the host has
     to use the host IP address for accessing the service.
+  id: totrans-86
   prefs: []
   type: TYPE_NORMAL
+  zh: 我们之前学到，运行在Docker中的应用程序无法知道主机机器的IP地址。因此，它们无法注册其IP地址以供服务使用，因为运行在主机外部的另一个容器必须使用主机IP地址来访问该服务。
 - en: If an IP address of the host machine is passed as an environment variable, service
     information can be stored in `etcd` and read by the service user as illustrated
     in [Chapter 5](part0033_split_000.html#VF2I1-31555e2039a14139a7f00b384a5a2dd8
     "Chapter 5. Discovering Services Running in a Cluster"), *Discovering Services
     Running in Cluster*. This approach requires the application code to be aware of
     how services can be discovered.
+  id: totrans-87
   prefs: []
   type: TYPE_NORMAL
+  zh: 如果将主机机器的IP地址作为环境变量传递，服务信息可以存储在`etcd`中，并由服务用户读取，如[第5章](part0033_split_000.html#VF2I1-31555e2039a14139a7f00b384a5a2dd8
+    "Chapter 5. Discovering Services Running in a Cluster")中所示，“在集群中运行的服务的发现”。此方法要求应用程序代码了解如何发现服务。
 - en: '**Weave** simplifies service discovery and does a lot more. Weave provides
     a mechanism to connect applications running inside a Docker container irrespective
     of where they are deployed. Since application services are running as a Docker
     container, the ease of communication of micro-services running in Docker containers
     is very important.'
+  id: totrans-88
   prefs: []
   type: TYPE_NORMAL
+  zh: '**Weave**简化了服务发现并且做了更多。Weave提供了一种机制，连接在Docker容器内运行的应用程序，无论它们部署在哪里。由于应用程序服务作为Docker容器运行，微服务之间的通信的便利性非常重要。'
 - en: Weave registers the named containers automatically in **weaveDNS**, hence services
     or dockers can be accessed by resolving their names through regular name resolution.
     This requires application-specific code as routine system calls like `gethostbyname`,
     or `getaddrinfo` with a pre-defined Docker name used for service, will resolve
     the name to the IP address using `weaveDNS`.
+  id: totrans-89
   prefs: []
   type: TYPE_NORMAL
+  zh: Weave会自动在**weaveDNS**中注册命名的容器，因此服务或docker可以通过常规名称解析解析它们的名称来访问。这需要应用程序特定的代码，如`gethostbyname`或`getaddrinfo`，使用预定义的Docker名称用于服务，将名称解析为IP地址使用`weaveDNS`。
 - en: Weave sets up a Virtual Ethernet Switch connecting all docker containers and
     in turn services or applications running inside Docker. Weave builds up the network
     assigning unique IP addresses to each of the docker containers as they come up
@@ -449,17 +626,23 @@
     the IP addresses to the containers manually, which can eventually be used to create
     isolated subnets. This enables the isolation of a group of applications from another
     group.
+  id: totrans-90
   prefs: []
   type: TYPE_NORMAL
+  zh: Weave建立了一个虚拟以太网交换机，连接所有Docker容器以及其中运行的服务或应用程序。Weave建立了分配唯一IP地址的网络，每次容器启动时分配IP地址，并在它们关闭时释放IP地址。通过这种方式，启动Docker时不再需要显式导出端口，并且可以从任何地方访问服务，因此不再需要前端应用程序运行在公共网络上的主机上。还可以手动分配IP地址给容器，最终用于创建隔离子网。这使得能够将一组应用程序与另一组隔离开来。
 - en: Weave is simple to integrate with Docker, which we will see when we go hands-on
     later in this chapter. Weave also offers security by encrypting traffic when docker
     containers need to be connected through public or untrusted networks.
+  id: totrans-91
   prefs: []
   type: TYPE_NORMAL
+  zh: Weave与Docker集成简单，我们稍后在本章节中进行实际操作时会看到。Weave还通过在需要通过公共或不受信任的网络连接Docker容器时加密流量来提供安全性。
 - en: Introduction to Flannel/Rudder
+  id: totrans-92
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: Flannel/Rudder简介
 - en: Similar to Weave, **Flannel** also assigns an IP address to a container that
     can be used for container to container communication by creating an overlay mesh
     network. Flannel internally uses `etcd` to store the mapping between the assigned
@@ -467,58 +650,85 @@
     Weave and can be used if other feature sets provided by Weave are not required.
     For example, Flannel doesn't provide automatic service discovery through DNS and
     still requires application coding or instrumentation to discover service endpoints.
+  id: totrans-93
   prefs: []
   type: TYPE_NORMAL
+  zh: 与Weave类似，**Flannel**也为容器分配IP地址，可通过创建覆盖网格网络进行容器到容器的通信。Flannel在内部使用`etcd`存储分配的容器IP地址与主机IP地址之间的映射。它没有像Weave那样复杂的功能，并且可以在不需要Weave提供的其他功能集的情况下使用。例如，Flannel不通过DNS提供自动服务发现，仍然需要应用程序编码或工具化来发现服务端点。
 - en: By default, each container is assigned an IP address in the `/24` subnet. Subnet
     size can be configured. Flannel uses UDP to encapsulate traffic to transmit to
     a destination.
+  id: totrans-94
   prefs: []
   type: TYPE_NORMAL
+  zh: 默认情况下，每个容器在`/24`子网中被分配一个IP地址。子网大小可以进行配置。Flannel使用UDP封装流量以传输到目的地。
 - en: In later sections, we will learn about using Flannel. Flannel was previously
     referred to as **Rudder**.
+  id: totrans-95
   prefs: []
   type: TYPE_NORMAL
+  zh: 在后续章节中，我们将学习如何使用Flannel。Flannel之前被称为**Rudder**。
 - en: Integrating Weave with `CoreOSWeave` is rather simple to install. The standalone
     installation is as simple as pulling the Weave script from the repository and
     calling another command to set up and start the Weave router.
+  id: totrans-96
   prefs: []
   type: TYPE_NORMAL
+  zh: 将`CoreOSWeave`与Weave集成非常简单。独立安装只需从代码库中拉取Weave脚本，并通过另一个命令设置并启动Weave路由器。
 - en: Let's run through the sequence of command manually, and then we will run the
     installation and setup through `cloud config`.
+  id: totrans-97
   prefs: []
   type: TYPE_NORMAL
+  zh: 让我们手动运行一遍命令序列，然后通过`cloud config`进行安装和设置。
 - en: Installation
+  id: totrans-98
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 安装
 - en: Weave can be installed onto the system by fetching the script using `wget` or
     `curl`. After downloading, change the permission to make it executable.
+  id: totrans-99
   prefs: []
   type: TYPE_NORMAL
+  zh: Weave可以通过使用`wget`或`curl`获取脚本并安装到系统中。下载后，修改权限使其可执行。
 - en: '[PRE4]'
+  id: totrans-100
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE4]'
 - en: Setting up Weave
+  id: totrans-101
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 设置Weave
 - en: Run the command `weave launch` to set up and start the Weave router, Weave DNS,
     and proxy for Docker API commands like `docker run` and so on. This command also
     sets up the Weave network. When this command is run for the first time in the
     machine, the `Weave Docker` image required for setup is downloaded.
+  id: totrans-102
   prefs: []
   type: TYPE_NORMAL
+  zh: 运行命令`weave launch`来设置并启动Weave路由器、Weave DNS以及Docker API命令的代理（如`docker run`等）。该命令还会设置Weave网络。当第一次在机器上运行此命令时，将下载设置所需的`Weave
+    Docker`镜像。
 - en: '[PRE5]'
+  id: totrans-103
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE5]'
 - en: To check the status, the `status` command is used to check the router status.
     If this command is run for the first time, the Weave Docker image required for
     setup is downloaded.
+  id: totrans-104
   prefs: []
   type: TYPE_NORMAL
+  zh: 要检查状态，可以使用`status`命令查看路由器状态。如果首次运行该命令，则会下载设置所需的Weave Docker镜像。
 - en: '[PRE6]'
+  id: totrans-105
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE6]'
 - en: If specific IP addresses were not provided during container startup, Weave assigns
     a free IP from the address pool to the container and releases that address (that
     is, marks it free) when the container exits. The IP address pool is maintained
@@ -528,29 +738,43 @@
     the number of members. To illustrate, if there are three members with the IP addresses
     `172.17.8.101`, `172.17.8.102`, and `172.17.8.103` then the following commands
     are the right way to launch Weave for allocating the IP addresses.
+  id: totrans-106
   prefs: []
   type: TYPE_NORMAL
+  zh: 如果在容器启动时没有提供特定的IP地址，Weave会从地址池中分配一个空闲IP给容器，并在容器退出时释放该地址（即标记为免费）。IP地址池在集群中所有的Weave实例中共享。因此，在启动Weave时，必须提供集群中的所有成员或一个或多个成员。此外，还应包括一个参数，以告知Weave成员的数量。例如，如果有三个成员，IP地址分别为`172.17.8.101`、`172.17.8.102`和`172.17.8.103`，则以下命令是正确的启动Weave并分配IP地址的方法。
 - en: 'Option one:'
+  id: totrans-107
   prefs: []
   type: TYPE_NORMAL
+  zh: 选项一：
 - en: '[PRE7]'
+  id: totrans-108
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE7]'
 - en: 'Option two:'
+  id: totrans-109
   prefs: []
   type: TYPE_NORMAL
+  zh: 选项二：
 - en: '[PRE8]'
+  id: totrans-110
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE8]'
 - en: Weave allocates IP addresses in the `10.32.0.0/12` range by default, unless
     it's overridden with the `--ipalloc-range` option at the time of launch. For instance,
     if the subnet to be used is `10.1.0.0` with a size of `16`, the following command
     can be provided. The same value should be provided across all the members.
+  id: totrans-111
   prefs: []
   type: TYPE_NORMAL
+  zh: Weave默认分配`10.32.0.0/12`范围内的IP地址，除非在启动时通过`--ipalloc-range`选项进行覆盖。例如，如果要使用的子网是`10.1.0.0`，大小为`16`，可以提供以下命令。相同的值应在所有成员中提供。
 - en: '[PRE9]'
+  id: totrans-112
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE9]'
 - en: Weave gives an option to enable or disable the use of the Weave DNS service.
     By default, the Weave DNS service is enabled. To disable this service, the `--without-dns`
     option can be provided while running Weave. Weave maintains an in-memory database
@@ -562,129 +786,178 @@
     across the entire cluster. When DNS query arrives for the name in a domain other
     than `.weave.local`, it queries the host's configured nameserver, hence complying
     with default behavior.
+  id: totrans-113
   prefs: []
   type: TYPE_NORMAL
+  zh: Weave提供了启用或禁用Weave DNS服务的选项。默认情况下，Weave DNS服务是启用的。要禁用此服务，可以在运行Weave时提供`--without-dns`选项。Weave在内存中维护所有主机的数据库。随着节点的加入，这个数据库不断建立。这个数据库在所有主机上都被维护，并且在主机之间进行复制。如果主机名位于`.weave.local`域中，则Weave
+    DNS会将该名称与容器的Weave IP地址关联。当针对`.weave.local`域发起DNS查询时，Weave DNS数据库将用于返回整个集群中该主机名所有容器的IP地址。当针对其他域名的名称发起DNS查询时，查询将发送到主机配置的名称服务器，从而遵循默认行为。
 - en: Container startup
+  id: totrans-114
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 容器启动
 - en: Docker containers can be started by using the Weave proxy or without using the
     Weave proxy. When containers are created using the Weave proxy, the container
     initialization waits for the Weave network interface to become available and then
     proceeds with further startup of the container. The IP addresses of the containers
     are assigned and the container is connected to the Weave network.
+  id: totrans-115
   prefs: []
   type: TYPE_NORMAL
+  zh: 可以通过使用Weave代理或不使用Weave代理来启动Docker容器。当使用Weave代理创建容器时，容器初始化会等待Weave网络接口变得可用，然后继续容器的进一步启动。容器的IP地址会被分配，并且容器将连接到Weave网络。
 - en: 'The following command sets up the environment so that Docker containers can
     connect to the Weave network automatically. The usual Docker commands can be used
     to start the Docker container:'
+  id: totrans-116
   prefs: []
   type: TYPE_NORMAL
+  zh: 以下命令设置环境，使得Docker容器可以自动连接到Weave网络。可以使用常规的Docker命令来启动Docker容器：
 - en: '[PRE10]'
+  id: totrans-117
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE10]'
 - en: 'By default, Weave allows the communication of a container with all other containers
     in the cluster. This can be restricted by providing a subnet range from which
     an IP address can be allocated. Multiple subnets can also be provided. Also, an
     IP address can be provided that will be assigned to the container in addition
     to the automatic IP address allocation. It is also possible to avoid automatic
     IP address allocation:'
+  id: totrans-118
   prefs: []
   type: TYPE_NORMAL
+  zh: 默认情况下，Weave允许容器与集群中所有其他容器通信。可以通过提供一个子网范围来限制分配IP地址的范围。也可以提供多个子网。此外，还可以提供一个IP地址，分配给容器，作为自动分配IP地址的补充。也可以避免自动分配IP地址：
 - en: '[PRE11]'
+  id: totrans-119
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE11]'
 - en: Containers can be launched without the Weave proxy by starting them using the
     command `weave run`.
+  id: totrans-120
   prefs: []
   type: TYPE_NORMAL
+  zh: 可以通过使用命令`weave run`启动容器，而无需使用Weave代理。
 - en: The following is the setup that will be used to illustrate a network between
     two CoreOS hosts. We will instantiate two CoreOS members in a cluster and spawn
     two docker containers inside members. The docker container runs a busybox shell
     so that we can run the networking command and check the IP address assignments
     and peer container reachability. This setup illustrates the scenario where communication
     is happening between docker containers across two CoreOS hosts.
+  id: totrans-121
   prefs: []
   type: TYPE_NORMAL
+  zh: 以下是将用于说明两个CoreOS主机之间网络的设置。我们将在一个集群中实例化两个CoreOS成员，并在成员内部启动两个docker容器。docker容器运行一个busybox
+    shell，以便我们可以运行网络命令并检查IP地址分配和对等容器的可达性。此设置演示了跨两个CoreOS主机之间的docker容器通信场景。
 - en: '![Container startup](img/00029.jpeg)'
+  id: totrans-122
   prefs: []
   type: TYPE_IMG
+  zh: '![容器启动](img/00029.jpeg)'
 - en: Weave setup
+  id: totrans-123
   prefs: []
   type: TYPE_NORMAL
+  zh: Weave 设置
 - en: The following is the `cloud-config` file used to create the setup. The other
     configuration files reused are from the section *Static discovery* in [Chapter
     3](part0026_split_000.html#OPEK1-31555e2039a14139a7f00b384a5a2dd8 "Chapter 3. Creating
     Your CoreOS Cluster and Managing the Cluster"), *Creating your CoreOS cluster
     and managing the Cluster*. Set `$num_instances` to `2` in the `config.rb` file
     as we need to start only two instances of members.
+  id: totrans-124
   prefs: []
   type: TYPE_NORMAL
+  zh: 以下是用于创建设置的`cloud-config`文件。其他重用的配置文件来自[第3章](part0026_split_000.html#OPEK1-31555e2039a14139a7f00b384a5a2dd8
+    "第3章：创建你的CoreOS集群并管理集群")中的*静态发现*部分，*创建你的CoreOS集群并管理集群*。在`config.rb`文件中将`$num_instances`设置为`2`，因为我们只需要启动两个成员实例。
 - en: '[PRE12]'
+  id: totrans-125
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE12]'
 - en: Let's run through the finer details of the `cloud-config` file before we start
     containers in the members and check connectivity.
+  id: totrans-126
   prefs: []
   type: TYPE_NORMAL
+  zh: 在我们启动成员中的容器并检查连接性之前，让我们详细了解一下`cloud-config`文件。
 - en: Firstly, we create two files using the `write_files` section. They will be used
     before starting Weave on respective machines. Each file has the hostname in their
     name, so that using `%H` in `EnvironmentFile` results in referring the file meant
     for the member.
+  id: totrans-127
   prefs: []
   type: TYPE_NORMAL
+  zh: 首先，我们使用`write_files`部分创建两个文件。它们将在启动Weave之前使用在各自的机器上。每个文件的名称中都包含主机名，因此在`EnvironmentFile`中使用`%H`时，会引用专门为该成员准备的文件。
 - en: Unit file `10-weave.network` is added to allow the Weave network to be used
     for DHCP queries. By default, `docker0` bridge is used. This is optional and is
     required if the Weave network is being used for DHCP.
+  id: totrans-128
   prefs: []
   type: TYPE_NORMAL
+  zh: 单元文件`10-weave.network`被添加以允许Weave网络用于DHCP查询。默认情况下，使用`docker0`桥接。这是可选的，只有在Weave网络用于DHCP时才需要。
 - en: Unit `install-weave.service` installs Weave onto the member and sets the required
     permissions. This is a one-shot service as it has served its purpose once Weave
     is installed. `After=network-online.target` is added to ensure that this network
     is up before Weave is installed. This is required so that packages can be downloaded
     from the Internet.
+  id: totrans-129
   prefs: []
   type: TYPE_NORMAL
 - en: Unit `weave.service` sources the corresponding environment file and launches
     Weave.
+  id: totrans-130
   prefs: []
   type: TYPE_NORMAL
 - en: 'Boot the cluster using `Vagrant up`. After booting up, the nodes in the cluster
     comes up with weave networking up:'
+  id: totrans-131
   prefs: []
   type: TYPE_NORMAL
 - en: '[PRE13]'
+  id: totrans-132
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE13]'
 - en: We can see that both the peers are connected. We can also see that the DNS and
     router services are enabled with default settings.
+  id: totrans-133
   prefs: []
   type: TYPE_NORMAL
 - en: Now we will start a Docker container on each of the members. We will run a simple
     shell on busybox. The following command is executed on both the members. Note
     that we are providing the name of the docker container explicitly. This will result
     in two DNS entries with the domain `.weave.local`.
+  id: totrans-134
   prefs: []
   type: TYPE_NORMAL
 - en: '[PRE14]'
+  id: totrans-135
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE14]'
 - en: Now ping the IP address and hostname of the other container to ensure that the
     network across containers and the DNS service is working. You can also run the
     status command to check that two DNS entries has been updated, once the containers
     are started.
+  id: totrans-136
   prefs: []
   type: TYPE_NORMAL
 - en: '[PRE15]'
+  id: totrans-137
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE15]'
 - en: Integrating Flannel with CoreOS
+  id: totrans-138
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
 - en: Flannel runs a daemon `flanneld` on each host, responsible for allocating a
     free IP within the configured subnet. `flanneld` sets a watch on `etcd` information
     and routes the packets using the mechanism configured.
+  id: totrans-139
   prefs: []
   type: TYPE_NORMAL
 - en: Although the `flanneld` service is not part of the standard CoreOS distribution,
@@ -692,10 +965,12 @@
     starts a service before other initializations to pull `flanneld` from the `docker`
     registry. `flanneld` is stored as a `docker` container in the CoreOS enterprise
     registry.
+  id: totrans-140
   prefs: []
   type: TYPE_NORMAL
 - en: The same setup used for Weave networking is being used here. Note that for Flannel,
     hostnames are irrelevant.
+  id: totrans-141
   prefs: []
   type: TYPE_NORMAL
 - en: The following is the `cloud-config` file used to create setup. The other configuration
@@ -703,30 +978,38 @@
     "Chapter 3. Creating Your CoreOS Cluster and Managing the Cluster"), *Creating
     your CoreOS cluster and Managing the Cluster*. Set `$num_instances` to `2` in
     the `config.rb` file as we need to start only two instance of members.
+  id: totrans-142
   prefs: []
   type: TYPE_NORMAL
 - en: '[PRE16]'
+  id: totrans-143
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE16]'
 - en: 'Vagrant setup will configure the interface that Flannel should use. This is
     done by providing the following configuration in `cloud-config`:'
+  id: totrans-144
   prefs: []
   type: TYPE_NORMAL
 - en: '[PRE17]'
+  id: totrans-145
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE17]'
 - en: 'Directive `ExecStartPre` is added to the `flanneld` service configuration as
     a drop-in file with the name `50-network-config.conf`. Using `ExecStartPre`, `Flannel`
     configuration is updated in `etcd`. This is mandatory for Flannel to work as it
     looks up the configuration at `/coreos.com/network/config`. The following are
     the Flannel configurations that can be provided as comma-separated values while
     setting the configuration to etcd:'
+  id: totrans-146
   prefs: []
   type: TYPE_NORMAL
 - en: '`Network`: This specifies the subnets to be used across all Flannel networks.
     This field is mandatory. In the preceding example, the subnet configuration was
     provided as `10.1.0.0/16`. Further subnets for each of the hosts will be created
     within this subnet.'
+  id: totrans-147
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
@@ -736,16 +1019,19 @@
     if the `Network` field has a subnet size more than or equal to `24`. If the `Network`
     field has a subnet size less than `24` and this field is not configured, one less
     than the value configured for the `Network` is used.'
+  id: totrans-148
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
 - en: '`SubnetMin`: This specifies the starting IP range from which the subnet allocation
     starts. This defaults to the first subnet of Network if this field is not provided.'
+  id: totrans-149
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
 - en: '`SubnetMax`: This specifies the end IP range from which the subnet allocation
     starts. This defaults to the first subnet of Network if this field is not provided.'
+  id: totrans-150
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
@@ -754,48 +1040,63 @@
     not provided, `udp` is used. If `udp` is used, the port number to be used for
     UDP is configured. If the port is not provided, the default port of 8285 is used.
     This port should be allowed if the hosts are to be networked across firewalls.'
+  id: totrans-151
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
 - en: 'The following is another sample configuration for Flannel, which contains other
     optional parameters set to their respective defaults:'
+  id: totrans-152
   prefs: []
   type: TYPE_NORMAL
 - en: '[PRE18]'
+  id: totrans-153
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE18]'
 - en: Boot the cluster using `Vagrant up`. After booting up, the clusters come up
     with the interfaces setup on the host by Flannel.
+  id: totrans-154
   prefs: []
   type: TYPE_NORMAL
 - en: '[PRE19]'
+  id: totrans-155
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE19]'
 - en: Similarly, we can see that interfaces were created by Flannel on other instances
     also.
+  id: totrans-156
   prefs: []
   type: TYPE_NORMAL
 - en: '[PRE20]'
+  id: totrans-157
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE20]'
 - en: 'Flannel sets up subnets `10.1.35.0` for host1 and `10.1.27.0` for host2 to
     be used by containers. Flannel decides on the available subnets before allocating
     to a host. Now, we will start a `Docker` container on each of the members. We
     will run a simple shell on `busybox`. The following command is executed on both
     the members:'
+  id: totrans-158
   prefs: []
   type: TYPE_NORMAL
 - en: '[PRE21]'
+  id: totrans-159
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE21]'
 - en: As we see, an IP address from the corresponding subnet of the hosts has been
     allocated to the container and the IP addresses can be pinged from the other container.
     This also illustrates that with add-ons like Weave and Flannel, communication
     across containers is much simpler and closer to the communication of applications
     across bare metal.
+  id: totrans-160
   prefs: []
   type: TYPE_NORMAL
 - en: Summary
+  id: totrans-161
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
@@ -805,5 +1106,6 @@
     used to provide the communication mechanism over an underlay network. Apart from
     Flannel, Weave, and OVS, there are other mechanisms like pipework available to
     provision the network inside the CoreOS and docker environment.
+  id: totrans-162
   prefs: []
   type: TYPE_NORMAL

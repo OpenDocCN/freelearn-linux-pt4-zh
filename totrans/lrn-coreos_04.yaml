@@ -1,89 +1,125 @@
 - en: Chapter 4. Managing Services with User-Defined Constraints
+  id: totrans-0
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 第4章 管理具有用户定义约束的服务
 - en: This chapter takes the CoreOS cluster to the next level by putting constraints
     on the services so that they run on the required members.
+  id: totrans-1
   prefs: []
   type: TYPE_NORMAL
+  zh: 本章通过对服务施加约束，将CoreOS集群提升到一个新层次，确保它们仅在所需的成员上运行。
 - en: 'This chapter covers the following topics:'
+  id: totrans-2
   prefs: []
   type: TYPE_NORMAL
+  zh: 本章涵盖以下主题：
 - en: Pre-defined constraints using metadata
+  id: totrans-3
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 使用元数据的预定义约束
 - en: Service-level affinity/anti-affinity
+  id: totrans-4
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 服务级亲和性/反亲和性
 - en: Node-level affinity
+  id: totrans-5
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 节点级亲和性
 - en: High availability
+  id: totrans-6
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 高可用性
 - en: Introduction to service constraints
+  id: totrans-7
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 服务约束简介
 - en: Not all cluster members run all the services in a deployment. Some may run the
     services running business logic, some may run management software, and some may
     run logging or auditing software, and so on. Hence, it's imperative that cluster
     management software provides mechanisms to control service deployment so they
     run only on the members satisfying their properties. We will study the mechanisms
     provided by CoreOS to control the deployment.
+  id: totrans-8
   prefs: []
   type: TYPE_NORMAL
+  zh: 并非所有集群成员都会在部署中运行所有服务。有些可能运行业务逻辑服务，有些可能运行管理软件，还有一些可能运行日志或审计软件，等等。因此，集群管理软件必须提供控制服务部署的机制，以确保服务仅在满足特定属性的成员上运行。我们将学习CoreOS提供的控制部署的机制。
 - en: CoreOS uses the `fleet` service to schedule the services on the members with
     constraints. Unit file configuration options help to target a service on a particular
     member or members meeting configured properties. In due course, we will also learn
     to integrate the `fleet` service into the `cloud-config` file and auto start a
     custom service inside a `docker` container.
+  id: totrans-9
   prefs: []
   type: TYPE_NORMAL
+  zh: CoreOS使用`fleet`服务在具有约束的成员上调度服务。单元文件配置选项帮助将服务定向到满足配置属性的特定成员或成员组。随后，我们还将学习如何将`fleet`服务集成到`cloud-config`文件中，并在`docker`容器内自动启动自定义服务。
 - en: Predefined constraints using metadata
+  id: totrans-10
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 使用元数据的预定义约束
 - en: This mechanism enables a service to be runn on a machine having matching metadata
     configured in the `metadata` parameter of the `coreos.fleet` section. Metadata
     can be used to describe a member properties such as disk type, region, platform,
     and special member property like exposed public IPs and so on. Since it is provided
     as a multiple key-value pair, the flexibility it provides is immense for defining
     a member.
+  id: totrans-11
   prefs: []
   type: TYPE_NORMAL
+  zh: 该机制使得服务可以在具有与`coreos.fleet`部分的`metadata`参数中配置的匹配元数据的机器上运行。元数据可以用来描述成员的属性，如磁盘类型、区域、平台以及特殊的成员属性（如公开IP等）。由于它是以多个键值对的形式提供的，因此它在定义成员时提供了巨大的灵活性。
 - en: The metadata can then also be used to associate services to be run on those
     members. For instance, we can say that a particular service is supposed to run
     on members that are running in a particular region and/or having a particular
     disk type and/or having a particular member type (bare metal, cloud, and so on)
     and/or having a particular provider (machine vendor, cloud provider, and so on).
+  id: totrans-12
   prefs: []
   type: TYPE_NORMAL
+  zh: 然后，元数据还可以用于将服务关联到在这些成员上运行的服务。例如，我们可以指定某个特定的服务应该在运行于特定区域和/或具有特定磁盘类型和/或具有特定成员类型（裸金属、云等）和/或具有特定提供商（机器供应商、云服务提供商等）的成员上运行。
 - en: 'In our example, we will create three members, each having their own metadata,
     and then bind the service to run on a metadata matching its property. The following
     is the setup:'
+  id: totrans-13
   prefs: []
   type: TYPE_NORMAL
+  zh: 在我们的示例中，我们将创建三个成员，每个成员都有自己的元数据，然后将服务绑定到与其属性匹配的元数据上运行。以下是设置：
 - en: '![Predefined constraints using metadata](img/00018.jpeg)'
+  id: totrans-14
   prefs: []
   type: TYPE_IMG
+  zh: '![使用元数据定义的预定义约束](img/00018.jpeg)'
 - en: 'The following is the `cloud-config` file used to create the cluster with services
     running on their designated members:'
+  id: totrans-15
   prefs: []
   type: TYPE_NORMAL
+  zh: 以下是用于创建集群并在指定成员上运行服务的`cloud-config`文件：
 - en: '[PRE0]'
+  id: totrans-16
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE0]'
 - en: The `write_files` section is added to generate the unit files for `fleet`. Three
     unit files are created; each service would be running only one of the members.
     Each unit file has the `X-Fleet` section adding a constraint that it should only
     run on a machine having specific metadata.
+  id: totrans-17
   prefs: []
   type: TYPE_NORMAL
+  zh: '`write_files`部分被添加到生成`fleet`的单元文件。创建了三个单元文件，每个服务只会在其中一个成员上运行。每个单元文件都添加了`X-Fleet`部分，添加了一个约束，要求它只能在具有特定元数据的机器上运行。'
 - en: The `fleet` section updated to start `fleet` and specify the IP address used
     to contact the `etcd2` service. Additionally, the metadata parameter is added
     to specify the metadata for the member. Instrumentation is required to generate
@@ -92,66 +128,95 @@
     "Chapter 3. Creating Your CoreOS Cluster and Managing the Cluster"), *Creating
     Your Coreos Cluster and Managing the Cluster*, is used as the base file and the
     highlighted instrumentation is done to modify metadata for each of the members.
+  id: totrans-18
   prefs: []
   type: TYPE_NORMAL
+  zh: '`fleet`部分已更新，以启动`fleet`并指定用于联系`etcd2`服务的IP地址。此外，添加了元数据参数，用于指定成员的元数据。需要进行仪表化操作，以为每个成员生成独立的元数据。静态集群的`Vagrantfile`在[第3章](part0026_split_000.html#OPEK1-31555e2039a14139a7f00b384a5a2dd8
+    "第3章：创建CoreOS集群并管理集群")中，*创建您的CoreOS集群并管理集群*，作为基础文件，并通过突出显示的仪表化修改每个成员的元数据。'
 - en: '[PRE1]'
+  id: totrans-19
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE1]'
 - en: 'The units section is updated to start the `fleet` service and wrapper `oneshot`
     service to invoke `fleetctl` upon startup. `Fleetctl` then manages the service.
     The following is the sequence of events:'
+  id: totrans-20
   prefs: []
   type: TYPE_NORMAL
+  zh: 单元部分已更新，以启动`fleet`服务并包装`oneshot`服务，以在启动时调用`fleetctl`。然后，`Fleetctl`管理该服务。以下是事件的顺序：
 - en: Unit files for the services `/home/core/example_01.service`, `/home/core/example_02.service`
     and `/home/core/example_03.service` are created at the time of boot-up. Note that
     `write_files` is kept before the `coreos` section so that the files are created
     before services are started.
+  id: totrans-21
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 服务的单元文件`/home/core/example_01.service`、`/home/core/example_02.service`和`/home/core/example_03.service`在启动时创建。请注意，`write_files`保持在`coreos`部分之前，以确保在启动服务之前先创建文件。
 - en: Services are started by `systemd` running on each member. A sleep of ten seconds
     is added in the `oneshot` services `example_01.service`, `example_01.service`,
     and `example_01.service` to allow initialization of `etcd2` and the `fleetd` service
     before the job is submitted using `fleetctl`.
+  id: totrans-22
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 服务由在每个成员上运行的`systemd`启动。在`oneshot`服务`example_01.service`、`example_02.service`和`example_03.service`中添加了十秒钟的休眠，以便在使用`fleetctl`提交作业之前，初始化`etcd2`和`fleetd`服务。
 - en: '`Fleetd` then coordinates and schedules the services on respective members.'
+  id: totrans-23
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 然后，`Fleetd`协调并调度各个成员上的服务。
 - en: 'Boot the cluster using `Vagrant up`. Upon successful boot-up, we can see the
     members in the cluster and the services running on the members. Note that `example_01.service`
     is started on `member 01` having the metadata `service_01`, `example_02.service`
     is started on `member 01` having the metadata `service_02`, and so on:'
+  id: totrans-24
   prefs: []
   type: TYPE_NORMAL
+  zh: 使用`Vagrant up`启动集群。启动成功后，我们可以看到集群中的成员以及各个成员上运行的服务。请注意，`example_01.service`在具有元数据`service_01`的`member
+    01`上启动，`example_02.service`在具有元数据`service_02`的`member 01`上启动，依此类推：
 - en: '[PRE2]'
+  id: totrans-25
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE2]'
 - en: Now, let's modify the `cloud-config` file to create another deployment where
     one instance of `example.service` is running on every member along with respective
     services on member 2 and member 3 as the previous example.
+  id: totrans-26
   prefs: []
   type: TYPE_NORMAL
+  zh: 现在，让我们修改`cloud-config`文件，以创建另一个部署，在该部署中，`example.service`的每个实例都在每个成员上运行，同时成员
+    2 和成员 3 上也有相应的服务，和之前的示例相同。
 - en: '![Predefined constraints using metadata](img/00019.jpeg)'
+  id: totrans-27
   prefs: []
   type: TYPE_IMG
+  zh: '![使用元数据定义的预定义约束](img/00019.jpeg)'
 - en: We will now go through the modifications that are required in the `cloud-config`
     file prepared earlier.
+  id: totrans-28
   prefs: []
   type: TYPE_NORMAL
+  zh: 现在，我们将查看之前准备的`cloud-config`文件中所需的修改。
 - en: The unit files for `fleetctl` were modified for the first service to create
     a template unit. A template file helps the creation of multiple units from a single
     configuration file. While adding a unit, `Fleet/systemd` looks for the configuration
     file with an exact name match. If such a file is not found, a filename with the
     same name the `@` character is used. For example, to add the unit `common@1` file,
     `common@.service` will be used.
+  id: totrans-29
   prefs: []
   type: TYPE_NORMAL
+  zh: 对`fleetctl`的单元文件进行了修改，以便为第一个服务创建一个模板单元。模板文件有助于从一个配置文件创建多个单元。在添加单元时，`Fleet/systemd`会查找名称完全匹配的配置文件。如果找不到这样的文件，则会使用带有`@`字符的同名文件。例如，要添加`common@1`文件，将使用`common@.service`。
 - en: '[PRE3]'
+  id: totrans-30
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE3]'
 - en: Additional constraints were added to the section `X-Fleet`. `MachineMetaData`
     was changed to use the disk as `ssd`. Metadata `disk=ssd` is also added to all
     the members using `Vagrantfile` instrumentation. This makes the service fit for
@@ -160,112 +225,166 @@
     if a service is already running on the member, other instances of the service
     can't be scheduled on the same machine. Note how the service name is provided
     with a wildcard to match any of the instance numbers.
+  id: totrans-31
   prefs: []
   type: TYPE_NORMAL
+  zh: 在`X-Fleet`部分添加了附加的约束条件。`MachineMetaData`被更改为使用磁盘类型`ssd`。使用`Vagrantfile`工具的所有成员也添加了`disk=ssd`的元数据。这使得该服务适合在所有成员上运行。添加的`Conflicts`约束确保每台机器上仅运行一个实例。此约束意味着，如果某个服务已经在成员上运行，其他实例将不能在同一台机器上调度。请注意，服务名称使用了通配符以匹配任何实例编号。
 - en: '[PRE4]'
+  id: totrans-32
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE4]'
 - en: The service section of the unit file is updated to be capable of spawning a
     service for any instance. To refer to the instance string from within the configuration
     file, we can use `%i specifier`. `%i` gets replaced with the instance number provided
     during start. This feature was not required to be used in the example but is worth
     a mention.
+  id: totrans-33
   prefs: []
   type: TYPE_NORMAL
+  zh: 单元文件的服务部分已更新，以能够为任何实例启动服务。要在配置文件中引用实例字符串，可以使用`%i`占位符。`%i`会被启动时提供的实例号所替代。在此示例中，虽然没有使用此功能，但值得一提。
 - en: '[PRE5]'
+  id: totrans-34
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE5]'
 - en: 'The wrapper service to invoke `fleetctl` is also updated to start three instances
     of service:'
+  id: totrans-35
   prefs: []
   type: TYPE_NORMAL
+  zh: 用于调用`fleetctl`的包装服务也已更新，以启动三个服务实例：
 - en: '[PRE6]'
+  id: totrans-36
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE6]'
 - en: '`Vagrantfile` was modified with the following instrumentation to add the metadata
     `disk=ssd` to all the members:'
+  id: totrans-37
   prefs: []
   type: TYPE_NORMAL
+  zh: 修改了`Vagrantfile`，并增加了以下配置，将`disk=ssd`的元数据添加到所有成员：
 - en: '[PRE7]'
+  id: totrans-38
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE7]'
 - en: Boot the cluster using `Vagrant up`. Upon successful boot-up, we can see the
     members in the cluster and the services running on the members. Note that `common@.service`
     is running on all the members, whereas `example_02.service` and `example_03.service`
     are only instantiated on respective members.
+  id: totrans-39
   prefs: []
   type: TYPE_NORMAL
+  zh: 使用`Vagrant up`启动集群。启动成功后，我们可以看到集群中的成员及其上运行的服务。请注意，`common@.service`在所有成员上都在运行，而`example_02.service`和`example_03.service`仅在各自的成员上实例化。
 - en: '[PRE8]'
+  id: totrans-40
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE8]'
 - en: In this example, we also touched upon constraints based on running services
     on the machine. We will discuss it further in the next section.
+  id: totrans-41
   prefs: []
   type: TYPE_NORMAL
+  zh: 在这个示例中，我们还涉及了基于机器上运行服务的约束条件。我们将在下一部分进一步讨论它。
 - en: Service level affinity/anti-affinity
+  id: totrans-42
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 服务级亲和性/反亲和性
 - en: This mechanism enables clubbing services together, to be run on the same member
     or vice versa; that is, making sure that if a particular service is running on
     the member, the current service is not to be scheduled on that machine.
+  id: totrans-43
   prefs: []
   type: TYPE_NORMAL
+  zh: 这一机制使得将服务捆绑在一起，确保它们在同一成员上运行或反之亦然；也就是说，确保如果某个特定服务在成员上运行，当前服务就不会在该机器上调度。
 - en: In the second example for predefined constraints using metadata, we added a
     constraint, `Conflicts`, so that only one instance of service is started on a
     member. Hence, the constraint was added for the self-service name. This can also
     be added for another service. This ensures that two services don't co-exist in
     a member. To understand this, we will modify the example slightly so that `common@.service`
     doesn't run along with `example_02.service`.
+  id: totrans-44
   prefs: []
   type: TYPE_NORMAL
+  zh: 在第二个示例中，通过使用元数据预定义约束，我们添加了一个`Conflicts`约束，以确保在成员上只启动一个服务实例。因此，该约束已应用于自服务名称。这也可以为其他服务添加。这确保了两个服务不会在同一成员上共存。为了理解这一点，我们将稍微修改示例，以确保`common@.service`不会与`example_02.service`一起运行。
 - en: '![Service level affinity/anti-affinity](img/00020.jpeg)'
+  id: totrans-45
   prefs: []
   type: TYPE_IMG
+  zh: '![服务级亲和性/反亲和性](img/00020.jpeg)'
 - en: Another `Conflicts` parameter is added for `example_02.server` in the unit configuration
     file of `common@.service`. Also, the `units` section of `coreos` is modified to
     add an entry for `example_fleet_02.service` before `example_fleet1.service`.
+  id: totrans-46
   prefs: []
   type: TYPE_NORMAL
+  zh: 在`common@.service`的单元配置文件中，新增了另一个`Conflicts`参数，针对`example_02.server`。此外，`coreos`的`units`部分已修改，添加了`example_fleet_02.service`的条目，并且该条目位于`example_fleet1.service`之前。
 - en: '[PRE9]'
+  id: totrans-47
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE9]'
 - en: Boot the cluster using `Vagrant up`. Upon successful boot-up, we can see the
     members in the cluster and the services running on the members. Note that `common@.service`
     is running on all the members except on the member where `example_02.service`
     is running.
+  id: totrans-48
   prefs: []
   type: TYPE_NORMAL
+  zh: 使用`Vagrant up`启动集群。启动成功后，我们可以看到集群中的成员及其上运行的服务。请注意，`common@.service`在所有成员上都在运行，除了运行`example_02.service`的成员。
 - en: '[PRE10]'
+  id: totrans-49
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE10]'
 - en: 'Now let''s discuss a reverse use case: we want a particular service to run
     on a member with another service. We will run the common service only where `example_02.service`
     is running.'
+  id: totrans-50
   prefs: []
   type: TYPE_NORMAL
+  zh: 现在让我们讨论一个反向使用案例：我们希望特定的服务与另一个服务一起在某个成员上运行。我们只会在 `example_02.service` 运行的地方启动通用服务。
 - en: '![Service level affinity/anti-affinity](img/00021.jpeg)'
+  id: totrans-51
   prefs: []
   type: TYPE_IMG
+  zh: '![服务级亲和性/反亲和性](img/00021.jpeg)'
 - en: The `X-Fleet` section is updated with the new parameter `MachineOf`. This ensures
     that `common@.service` only runs along with `example_02.service`.
+  id: totrans-52
   prefs: []
   type: TYPE_NORMAL
+  zh: '`X-Fleet` 部分已更新，添加了新的参数 `MachineOf`。这确保了 `common@.service` 仅与 `example_02.service`
+    一起运行。'
 - en: '[PRE11]'
+  id: totrans-53
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE11]'
 - en: Boot the cluster using `Vagrant up`. Upon successful boot-up, we can see the
     members in the cluster and the services running on the members. Note that `common@1.service`
     is running only on the member where `example_02.service` is running.
+  id: totrans-54
   prefs: []
   type: TYPE_NORMAL
+  zh: 使用 `Vagrant up` 启动集群。在启动成功后，我们可以看到集群中的成员以及在成员上运行的服务。请注意，`common@1.service` 仅在
+    `example_02.service` 运行的成员上运行。
 - en: '[PRE12]'
+  id: totrans-55
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE12]'
 - en: Node-level affinity
+  id: totrans-56
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 节点级亲和性
 - en: This mechanism uses the `systemd` generated machine ID to schedule the services.
     Upon member installation, `systemd` generates a machine ID that is the same across
     subsequent system boots. Node-level affinity ensures the user targets a service
@@ -274,51 +393,76 @@
     this mechanism has limited use. Typical use cases can be running a service to
     collect specific data from a machine, or for testing a service where a new service
     can be scheduled on a test member for observing the behavior.
+  id: totrans-57
   prefs: []
   type: TYPE_NORMAL
+  zh: 该机制使用 `systemd` 生成的机器 ID 来调度服务。在成员安装时，`systemd` 会生成一个机器 ID，该 ID 在后续的系统启动中保持不变。节点级亲和性确保用户将服务目标定位到特定的成员上，而不是其他地方。在考虑到集群时，如果基于成员属性而非成员标识符来调度服务更为灵活，这个机制的使用就会受到限制。典型的使用场景包括运行服务以从机器收集特定数据，或者在测试成员上调度新服务来观察其行为。
 - en: The following is the `cloud-config` file used to create the cluster. This file
     also creates a service unit file in the home directory that will be used by fleet
     to start the service.
+  id: totrans-58
   prefs: []
   type: TYPE_NORMAL
+  zh: 以下是用来创建集群的 `cloud-config` 文件。该文件还会在主目录中创建一个服务单元文件，供 fleet 用于启动服务。
 - en: '[PRE13]'
+  id: totrans-59
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE13]'
 - en: 'This `cloud-config` file serves two main purpose: starting `fleetd` services
     and creating the service file `/home/core/example_test.service`.'
+  id: totrans-60
   prefs: []
   type: TYPE_NORMAL
+  zh: 这个 `cloud-config` 文件有两个主要目的：启动 `fleetd` 服务并创建服务文件 `/home/core/example_test.service`。
 - en: 'We will now find the machine IDs of members in the cluster:'
+  id: totrans-61
   prefs: []
   type: TYPE_NORMAL
+  zh: 我们现在将查找集群中成员的机器 ID：
 - en: '[PRE14]'
+  id: totrans-62
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE14]'
 - en: Modify the service file so that the service is instantiated on the machine ID
     `f70fc5f45cdc49f99fc47757f6fe5ae6`. This can be any machine ID of your choice.
     We are not able to automate using Vagrant as machine IDs are not known to us earlier.
+  id: totrans-63
   prefs: []
   type: TYPE_NORMAL
+  zh: 修改服务文件，使得服务可以在机器 ID `f70fc5f45cdc49f99fc47757f6fe5ae6` 上实例化。这个机器 ID 可以是你选择的任何
+    ID。我们无法使用 Vagrant 自动化操作，因为机器 ID 在之前对我们是未知的。
 - en: '[PRE15]'
+  id: totrans-64
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE15]'
 - en: 'Launch the service and check that it''s running on the desired machine:'
+  id: totrans-65
   prefs: []
   type: TYPE_NORMAL
+  zh: 启动服务并检查它是否在所需的机器上运行：
 - en: '[PRE16]'
+  id: totrans-66
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE16]'
 - en: High availability
+  id: totrans-67
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 高可用性
 - en: There are two key principles in designing a highly available system. One is
     to avoid single point of failure; that is, the complete system should not fail
     when a fault occurs. For example, there should not be a dependency on a single
     process, interface, and so on. The second principle is how quickly the system
     can recover in case of failure so that downtime is short.
+  id: totrans-68
   prefs: []
   type: TYPE_NORMAL
+  zh: 设计一个高度可用系统有两个关键原则。其一是避免单点故障；也就是说，当发生故障时，整个系统不应出现停机。例如，不应依赖单一进程、接口等。第二个原则是系统在发生故障时能够多快恢复，以便停机时间尽可能短。
 - en: '`Fleetd` helps design a highly available system by allowing the configuration
     of multiple instances of the service on different members and not multiple instances
     on the same member. This means that the failure of a single member doesn''t bring
@@ -326,17 +470,26 @@
     to do with reduced capacity until a recovery happens. Once the member is recovered
     or another member is started by the orchestration application detecting member
     failure, fleet will reschedule the service on the new member automatically.'
+  id: totrans-69
   prefs: []
   type: TYPE_NORMAL
+  zh: '`Fleetd` 通过允许在不同的成员上配置服务的多个实例，而不是在同一成员上配置多个实例，帮助设计一个高度可用的系统。这意味着单个成员的故障不会导致整个服务停机，但它仍然可以以减少的容量执行其应有的功能，直到恢复发生。一旦成员恢复，或者在编排应用检测到成员故障后启动了另一个成员，fleet
+    将自动将服务重新调度到新成员上。'
 - en: Summary
+  id: totrans-70
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 总结
 - en: In this chapter, we understood service constraints which help to deploy services
     on suitable members.
+  id: totrans-71
   prefs: []
   type: TYPE_NORMAL
+  zh: 在本章中，我们理解了服务约束，这有助于将服务部署到合适的成员上。
 - en: In the next chapter, we will understand more about discovering services running
     in the CoreOS cluster.
+  id: totrans-72
   prefs: []
   type: TYPE_NORMAL
+  zh: 在下一章中，我们将进一步了解如何发现运行在 CoreOS 集群中的服务。
