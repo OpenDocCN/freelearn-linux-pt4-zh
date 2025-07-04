@@ -1,329 +1,487 @@
 - en: Chapter 6. Performance Tuning
+  id: totrans-0
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 第6章 性能调优
 - en: Performance tuning is the improvement of system performance. In our context,
     it is the performance of an entire web service or an individual web server. The
     need for such activity arises when there is a real or anticipated performance
     problem, such as excessive response latency, insufficient upload or download rate,
     lack of system scalability, or excessive use of computer system resources for
     seemingly low service usage.
+  id: totrans-1
   prefs: []
   type: TYPE_NORMAL
+  zh: 性能调优是系统性能的改进。在我们的上下文中，它指的是整个 Web 服务或单个 Web 服务器的性能。当出现真实或预期的性能问题时，比如响应延迟过高、上传或下载速率不足、系统可扩展性差，或计算机系统资源在看似低服务使用的情况下被过度使用时，就需要进行这样的活动。
 - en: In this chapter, we will look at a number of topics that deal with performance
     problems using features of Nginx. Each section explains when and how a solution
     is applicable; that is, what kind of performance problems it addresses.
+  id: totrans-2
   prefs: []
   type: TYPE_NORMAL
+  zh: 本章将讨论一系列使用 Nginx 功能解决性能问题的主题。每个章节都会解释何时以及如何应用某种解决方案；也就是说，它解决了什么类型的性能问题。
 - en: 'In this chapter you will learn about:'
+  id: totrans-3
   prefs: []
   type: TYPE_NORMAL
+  zh: 在本章中，你将学习到：
 - en: How to optimize static file retrieval
+  id: totrans-4
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 如何优化静态文件检索
 - en: How to set up response compression
+  id: totrans-5
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 如何设置响应压缩
 - en: How to optimize data buffer allocation
+  id: totrans-6
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 如何优化数据缓冲区分配
 - en: How to accelerate SSL by enabling session caching
+  id: totrans-7
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 如何通过启用会话缓存来加速 SSL
 - en: How to optimize worker process allocation on multi-core systems
+  id: totrans-8
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 如何在多核系统上优化工作进程分配
 - en: Optimizing static file retrieval
+  id: totrans-9
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 优化静态文件检索
 - en: Static file retrieval performance directly affects visitors' perceived website
     performance. This happens because web pages usually contain numerous references
     to dependent resources. These resources need to be quickly retrieved before the
     entire page can be rendered. The faster the web server can start returning a static
     file (lower latency) and the higher the parallelism of retrieval, the higher the
     perceived performance of the website.
+  id: totrans-10
   prefs: []
   type: TYPE_NORMAL
+  zh: 静态文件检索性能直接影响到访客对网站性能的感知。这是因为网页通常包含大量对依赖资源的引用。这些资源需要在整个页面渲染之前被快速检索。网站的感知性能越高，意味着
+    Web 服务器能更快地开始返回静态文件（更低的延迟）并且具有更高的并发检索能力。
 - en: When the latency is the driving factor, it is important that files are returned
     predominantly from the main memory, as it has much lower latency compared to hard
     drives.
+  id: totrans-11
   prefs: []
   type: TYPE_NORMAL
+  zh: 当延迟是驱动因素时，重要的是文件主要从主内存中返回，因为主内存相比硬盘有更低的延迟。
 - en: 'Fortunately, the operating system already takes very good care of that through
     filesystem cache. You only need to stimulate cache usage by specifying some advisory
     parameters and eliminating waste:'
+  id: totrans-12
   prefs: []
   type: TYPE_NORMAL
+  zh: 幸运的是，操作系统已经通过文件系统缓存很好地处理了这一点。你只需要通过指定一些建议的参数并消除浪费来刺激缓存的使用：
 - en: '[PRE0]'
+  id: totrans-13
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE0]'
 - en: By default, Nginx reads the content of a file into the user space before sending
     to the client. This is suboptimal and can be avoided by using the `sendfile()`
     system call if it is available. The `sendfile()` function implements a zero-copy
     transfer strategy by copying data from one file descriptor to another bypassing
     user space.
+  id: totrans-14
   prefs: []
   type: TYPE_NORMAL
+  zh: 默认情况下，Nginx 会在将文件内容发送给客户端之前，将其读取到用户空间。这是一个次优方案，如果`sendfile()`系统调用可用，可以通过使用它来避免这一点。`sendfile()`函数通过将数据从一个文件描述符复制到另一个文件描述符并绕过用户空间，实现了零拷贝传输策略。
 - en: We enable `sendfile()` by specifying the `sendfile on` parameter in code. We
     limit the maximum amount of data that `sendfile()` can send in one invocation
     to 1 MB using the `sendfile_max_chunk` directive. In this way, we prevent a single
     fast connection from occupying the whole worker process.
+  id: totrans-15
   prefs: []
   type: TYPE_NORMAL
+  zh: 我们通过在代码中指定`sendfile on`参数来启用`sendfile()`。我们使用`sendfile_max_chunk`指令限制`sendfile()`在一次调用中发送的最大数据量为
+    1 MB。这样，我们就避免了单个快速连接占用整个工作进程的情况。
 - en: Note
+  id: totrans-16
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
+  zh: 注意事项
 - en: Response body filters such as the `.gzip` compressor require response data in
     the user space. They cannot be combined with a zero-copy strategy and consequently
     with `sendfile()`. When enabled, they cancel the effect of `sendfile()`.
+  id: totrans-17
   prefs: []
   type: TYPE_NORMAL
+  zh: 响应体过滤器，如`.gzip`压缩器，需要响应数据位于用户空间。它们无法与零拷贝策略以及`sendfile()`函数结合使用。因此，在启用时，它们会取消`sendfile()`的效果。
 - en: The preceding configuration is optimized for latency. Compare it to the example
     from the *Setting up Nginx to serve static data* section in [Chapter 2](ch02.html
     "Chapter 2. Managing Nginx"), *Managing Nginx*. You will see that the `tcp_nopush`
     directive is gone. The `off` state of this option will make network utilization
     a bit less efficient, but will deliver data—including the HTTP header—to the client
     as soon as possible.
+  id: totrans-18
   prefs: []
   type: TYPE_NORMAL
+  zh: 上述配置经过优化以减少延迟。与 [第二章](ch02.html "第二章：管理 Nginx") *《管理 Nginx》* 中的 *设置 Nginx 提供静态数据*
+    部分中的示例进行比较，你会发现 `tcp_nopush` 指令已经被去除。此选项的 `off` 状态会使网络利用效率稍微降低，但会尽可能快地将数据（包括 HTTP
+    头）传输给客户端。
 - en: With `tcp_nopush` set to `on`, the first packet of the response will be sent
     as soon as the chunk of data is obtained by `sendfile()`.
+  id: totrans-19
   prefs: []
   type: TYPE_NORMAL
+  zh: 当 `tcp_nopush` 设置为 `on` 时，响应的第一个数据包将在 `sendfile()` 获取数据块后立即发送。
 - en: Another aspect of static file retrieval is large file download. In this case,
     the startup time is not as important as the download throughput or, in other words,
     the download speed that a server can attain while returning a large file. Caching
     stops being desirable for large files. Nginx reads them sequentially, so cache
     hits are much less likely for them. Cached segments of a large file would therefore
     simply pollute the cache.
+  id: totrans-20
   prefs: []
   type: TYPE_NORMAL
+  zh: 静态文件获取的另一个方面是大文件下载。在这种情况下，启动时间不像下载吞吐量那么重要，换句话说，就是服务器返回大文件时能达到的下载速度。对于大文件，缓存不再是理想选择。Nginx
+    会按顺序读取它们，因此缓存命中率较低。大文件的缓存片段会污染缓存。
 - en: 'On Linux, caching can be bypassed by using Direct I/O. With Direct I/O enabled,
     the operating system translates read offsets into the underlying block device
     addresses, and queues read requests directly into the underlying block device
     queue. The following configuration shows how to enable Direct I/O:'
+  id: totrans-21
   prefs: []
   type: TYPE_NORMAL
+  zh: 在 Linux 上，可以通过使用直接 I/O 绕过缓存。启用直接 I/O 后，操作系统会将读取偏移量转换为底层块设备地址，并直接将读取请求排入底层块设备队列。以下配置展示了如何启用直接
+    I/O：
 - en: '[PRE1]'
+  id: totrans-22
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE1]'
 - en: The `directio` directive takes a single argument that specifies the minimum
     size a file must have in order to be read with Direct I/O. In addition to specifying
     `direction`, we extend the output buffer using the `output_buffers` directive
     in order to increase system call efficiency.
+  id: totrans-23
   prefs: []
   type: TYPE_NORMAL
+  zh: '`directio` 指令接受一个参数，指定文件必须具备的最小大小，才能使用直接 I/O 读取文件。除了指定 `directio`，我们还通过 `output_buffers`
+    指令扩展输出缓冲区，以提高系统调用效率。'
 - en: 'Note that Direct I/O blocks the worker processes during reads. This reduces
     parallelism and throughput of file retrieval. To avoid blocking and increase parallelism,
     you can enable **Asynchronous I/O** (**AIO**):'
+  id: totrans-24
   prefs: []
   type: TYPE_NORMAL
+  zh: '请注意，直接 I/O 会在读取过程中阻塞工作进程。这会降低文件获取的并行性和吞吐量。为了避免阻塞并提高并行性，你可以启用 **异步 I/O** (**AIO**):'
 - en: '[PRE2]'
+  id: totrans-25
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE2]'
 - en: 'On Linux, AIO is available as of kernel version 2.6.22 and it is non-blocking
     only in combination with Direct I/O. AIO and Direct I/O can be combined with `sendfile()`:'
+  id: totrans-26
   prefs: []
   type: TYPE_NORMAL
+  zh: 在 Linux 上，AIO 从内核版本 2.6.22 开始支持，且只有与直接 I/O（Direct I/O）结合使用时才是非阻塞的。AIO 和直接 I/O
+    可以与 `sendfile()` 一起使用：
 - en: '[PRE3]'
+  id: totrans-27
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE3]'
 - en: In this case, files smaller than the size specified in `directio` will be send
     using `sendfile()`, or else with AIO plus Direct I/O.
+  id: totrans-28
   prefs: []
   type: TYPE_NORMAL
+  zh: 在这种情况下，小于 `directio` 指定大小的文件将使用 `sendfile()` 发送，否则将使用 AIO 加上直接 I/O。
 - en: 'As of Nginx version 1.7.11, you can delegate file read operations to a pool
     of threads. This makes perfect sense if you are not limited by memory or CPU resources.
     As threads do not require Direct I/O, enabling them on large files will lead to
     aggressive caching:'
+  id: totrans-29
   prefs: []
   type: TYPE_NORMAL
+  zh: 从 Nginx 版本 1.7.11 开始，你可以将文件读取操作委托给线程池。如果你的内存或 CPU 资源不受限制，这样做是非常合理的。由于线程不需要直接
+    I/O，因此在大文件上启用线程会导致积极的缓存。
 - en: '[PRE4]'
+  id: totrans-30
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE4]'
 - en: Threads are not compiled by default (at the moment of writing this chapter),
     so you have to enable them using the with-threads configuration switch. In addition
     to that, threads can work only with `epoll`, `kqueue`, and `eventport` event processing
     methods.
+  id: totrans-31
   prefs: []
   type: TYPE_NORMAL
+  zh: 线程默认情况下没有被编译（在写本章时），因此你需要通过 with-threads 配置开关来启用它们。除此之外，线程只能与 `epoll`、`kqueue`
+    和 `eventport` 事件处理方法一起使用。
 - en: With threads, both higher parallelism and caching can be attained without blocking
     the worker process, although threads and communication between threads require
     some additional resources.
+  id: totrans-32
   prefs: []
   type: TYPE_NORMAL
+  zh: 使用线程可以在不阻塞工作进程的情况下实现更高的并行性和缓存，尽管线程和线程之间的通信需要一些额外资源。
 - en: Enabling response compression
+  id: totrans-33
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 启用响应压缩
 - en: Performance of your website can be improved by enabling response compression
     using GZIP. Compression reduces the size of a response body, reduces the bandwidth
     required to transfer the response data, and ultimately makes sure the resources
     of your website are delivered to the client side sooner.
+  id: totrans-34
   prefs: []
   type: TYPE_NORMAL
+  zh: 通过启用 GZIP 响应压缩，可以提高你网站的性能。压缩减小了响应体的大小，减少了传输响应数据所需的带宽，并最终确保你的网站资源能更快地交付给客户端。
 - en: 'Compression can be enabled using the `gzip` directive:'
+  id: totrans-35
   prefs: []
   type: TYPE_NORMAL
+  zh: 可以使用 `gzip` 指令启用压缩：
 - en: '[PRE5]'
+  id: totrans-36
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE5]'
 - en: This directive is valid in the `http`, `server`, `location`, and `if` sections.
     Specifying `off` as the first argument of this directive disables compression
     in the corresponding location if it was enabled in outer sections.
+  id: totrans-37
   prefs: []
   type: TYPE_NORMAL
+  zh: 该指令在 `http`、`server`、`location` 和 `if` 块中有效。如果该指令的第一个参数指定为 `off`，则在外部块启用压缩时，禁用对应位置的压缩。
 - en: 'By default, only documents with MIME type *text/HTML* are compressed. To enable
     compression for other types of documents, use the `gzip_types` directive:'
+  id: totrans-38
   prefs: []
   type: TYPE_NORMAL
+  zh: 默认情况下，只有 MIME 类型为*text/HTML*的文档会被压缩。要启用其他类型文档的压缩，可以使用 `gzip_types` 指令：
 - en: '[PRE6]'
+  id: totrans-39
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE6]'
 - en: The preceding configuration enables compression for MIME types that hypertext
     documents, cascading style sheets, and JavaScript files appear to be in. These
     are the types of documents that benefit most from the compression, as text files
     and source code files—if they are large enough—usually contain a lot of entropy.
+  id: totrans-40
   prefs: []
   type: TYPE_NORMAL
+  zh: 前述配置启用了超文本文档、层叠样式表和 JavaScript 文件的 MIME 类型压缩。这些类型的文档最能从压缩中获益，因为文本文件和源代码文件——如果足够大——通常包含大量熵。
 - en: Tip
+  id: totrans-41
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
+  zh: 提示
 - en: Archives, images, and movies are not suitable for compression, as they are usually
     already compressed. Executable files are less suitable for compression, but can
     benefit from it in some cases.
+  id: totrans-42
   prefs: []
   type: TYPE_NORMAL
+  zh: 压缩不适用于档案、图片和电影，因为它们通常已经是压缩过的。可执行文件压缩的适用性较低，但在某些情况下也可以从中受益。
 - en: 'It makes sense to disable compression for small documents, as compression efficiency
     might not be worth the efforts—or even worse—might be negative. In Nginx, you
     can implement compression using the `gzip_min_length` directive. This directive
     specifies the minimum length a document must be in order to be eligible for compression:'
+  id: totrans-43
   prefs: []
   type: TYPE_NORMAL
+  zh: 对于小文档，禁用压缩是有意义的，因为压缩效率可能不值得付出——甚至更糟——可能会带来负面效果。在 Nginx 中，你可以使用 `gzip_min_length`
+    指令实现压缩。该指令指定文档的最小长度，只有超过该长度的文档才有资格进行压缩：
 - en: '[PRE7]'
+  id: totrans-44
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE7]'
 - en: With the preceding configuration, all documents smaller than 512 bytes will
     not be compressed. The length information that is used to apply this restriction
     is extracted from the Content-Length response header. If no such header is present,
     the response will be compressed regardless of its length.
+  id: totrans-45
   prefs: []
   type: TYPE_NORMAL
+  zh: 使用前述配置，所有小于 512 字节的文档将不会被压缩。应用此限制的长度信息来自 `Content-Length` 响应头。如果没有该头信息，则无论响应的长度如何，都将进行压缩。
 - en: Note
+  id: totrans-46
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
+  zh: 注意
 - en: 'Response compression comes at a cost: it is CPU-intensive. You need to consider
     that in your capacity planning and system design. If CPU utilization becomes a
     bottleneck, try reducing the compression level using the `gzip_comp_level` directive.'
+  id: totrans-47
   prefs: []
   type: TYPE_NORMAL
+  zh: 响应压缩是有代价的：它非常消耗 CPU。你需要在容量规划和系统设计时考虑这一点。如果 CPU 使用率成为瓶颈，可以尝试使用 `gzip_comp_level`
+    指令减少压缩级别。
 - en: 'The following table lists some other directives that affect the behavior of
     compression:'
+  id: totrans-48
   prefs: []
   type: TYPE_NORMAL
+  zh: 下表列出了一些其他影响压缩行为的指令：
 - en: '| Directive | Function |'
+  id: totrans-49
   prefs: []
   type: TYPE_TB
+  zh: '| 指令 | 功能 |'
 - en: '| --- | --- |'
+  id: totrans-50
   prefs: []
   type: TYPE_TB
+  zh: '| --- | --- |'
 - en: '| `gzip_disable <regex>` | If the User-Agent field of a request matches the
     specified regular expression, the compression for that request will be disabled.
     |'
+  id: totrans-51
   prefs: []
   type: TYPE_TB
+  zh: '| `gzip_disable <regex>` | 如果请求的 User-Agent 字段与指定的正则表达式匹配，则该请求的压缩将被禁用。 |'
 - en: '| `gzip_comp_level <level>` | This specifies the GZIP compression level to
     use. The lowest is 1 and the highest is 9\. These values correspond to options
     -1 … -9 of the `gzip` command. |'
+  id: totrans-52
   prefs: []
   type: TYPE_TB
+  zh: '| `gzip_comp_level <level>` | 该指令指定使用的 GZIP 压缩级别。最小值为 1，最大值为 9。这些值对应 `gzip`
+    命令的选项 -1 … -9。 |'
 - en: The preceding directives can help you fine-tune the response compression in
     your system.
+  id: totrans-53
   prefs: []
   type: TYPE_NORMAL
+  zh: 前述指令可以帮助你精细调整系统中的响应压缩设置。
 - en: The efficiency of response body compression can be monitored via the `$gzip_ratio`
     variable. This variable indicates the attained compression ratio equal to the
     ratio of the size of the original response body to the size of the compressed
     one.
+  id: totrans-54
   prefs: []
   type: TYPE_NORMAL
+  zh: 响应体压缩效率可以通过 `$gzip_ratio` 变量进行监控。该变量表示获得的压缩比，即原始响应体的大小与压缩后响应体的大小之比。
 - en: 'The value of this variable can be written to the log file and later extracted
     and picked up by your monitoring system. Consider the following example:'
+  id: totrans-55
   prefs: []
   type: TYPE_NORMAL
+  zh: 该变量的值可以写入日志文件，稍后由你的监控系统提取并进行处理。考虑以下示例：
 - en: '[PRE8]'
+  id: totrans-56
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE8]'
 - en: The preceding configuration creates a log file format named `gzip` and uses
     this format to log HTTP requests in one of the virtual hosts. The last field in
     the log file will indicate the attained compression ratio.
+  id: totrans-57
   prefs: []
   type: TYPE_NORMAL
+  zh: 上述配置创建了一个名为 `gzip` 的日志文件格式，并在其中一个虚拟主机中使用此格式记录 HTTP 请求。日志文件中的最后一个字段将显示获得的压缩比。
 - en: Optimizing buffer allocation
+  id: totrans-58
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 优化缓冲区分配
 - en: 'Nginx uses buffers to store request and response data at various stages. Optimal
     buffer allocation can help you spare memory consumption and reduce CPU usage.
     The following table lists directives that control buffer allocation and the stages
     they are applied to:'
+  id: totrans-59
   prefs: []
   type: TYPE_NORMAL
+  zh: Nginx 使用缓冲区在不同阶段存储请求和响应数据。优化缓冲区分配可以帮助减少内存消耗并降低 CPU 使用率。下表列出了控制缓冲区分配的指令以及它们应用的阶段：
 - en: '| Directive | Function |'
+  id: totrans-60
   prefs: []
   type: TYPE_TB
+  zh: '| 指令 | 功能 |'
 - en: '| --- | --- |'
+  id: totrans-61
   prefs: []
   type: TYPE_TB
+  zh: '| --- | --- |'
 - en: '| `client_body_buffer_size <size>` | This specifies the size of the buffer
     that is used to receive the request body from the client. |'
+  id: totrans-62
   prefs: []
   type: TYPE_TB
+  zh: '| `client_body_buffer_size <size>` | 该指令指定用于接收来自客户端请求主体的缓冲区大小。 |'
 - en: '| `output_buffers <number> <size>` | This specifies the number and the size
     of buffers that are used to send the response body to the client in case no acceleration
     is used. |'
+  id: totrans-63
   prefs: []
   type: TYPE_TB
+  zh: '| `output_buffers <number> <size>` | 该指令指定在没有加速的情况下，用于将响应主体发送到客户端的缓冲区数量和大小。
+    |'
 - en: '| `gzip_buffers <number> <size>` | This specifies the number and the size of
     the buffers that are used to compress the response body. |'
+  id: totrans-64
   prefs: []
   type: TYPE_TB
+  zh: '| `gzip_buffers <number> <size>` | 该指令指定用于压缩响应主体的缓冲区数量和大小。 |'
 - en: '| `proxy_buffers <number> <size>` | This specifies the number and the size
     of the buffers that are used to receive the response body from a proxied server.
     This directive makes sense only if buffering is enabled. |'
+  id: totrans-65
   prefs: []
   type: TYPE_TB
+  zh: '| `proxy_buffers <number> <size>` | 该指令指定用于接收来自代理服务器响应主体的缓冲区数量和大小。此指令仅在启用缓冲区的情况下有效。
+    |'
 - en: '| `fastcgi_buffers <number> <size>` | This specifies the number and the size
     of the buffers that are used to receive the response body from a FastCGI server.
     |'
+  id: totrans-66
   prefs: []
   type: TYPE_TB
+  zh: '| `fastcgi_buffers <number> <size>` | 该指令指定用于接收来自 FastCGI 服务器响应主体的缓冲区数量和大小。
+    |'
 - en: '| `uwcgi_buffers <number> <size>` | This specifies the number and the size
     of the buffers that are used to receive the response body from a UWCGI server.
     |'
+  id: totrans-67
   prefs: []
   type: TYPE_TB
+  zh: '| `uwcgi_buffers <number> <size>` | 该指令指定用于接收来自 UWCGI 服务器响应主体的缓冲区数量和大小。 |'
 - en: '| `scgi_buffers <number> <size>` | This specifies the number and the size of
     the buffers that are used to receive the response body from a SCGI server. |'
+  id: totrans-68
   prefs: []
   type: TYPE_TB
+  zh: '| `scgi_buffers <number> <size>` | 该指令指定用于接收来自 SCGI 服务器响应主体的缓冲区数量和大小。 |'
 - en: 'As you can see, most of the directives take two arguments: a number and a size.
     The number argument specifies the maximum number of buffers that can be allocated
     per request. The size argument specifies the size of each buffer.'
+  id: totrans-69
   prefs: []
   type: TYPE_NORMAL
+  zh: 如你所见，大多数指令都需要两个参数：一个是数量参数，另一个是大小参数。数量参数指定每次请求最多可以分配的缓冲区数。大小参数指定每个缓冲区的大小。
 - en: '![Optimizing buffer allocation](img/B04282_06_01.jpg)'
+  id: totrans-70
   prefs: []
   type: TYPE_IMG
+  zh: '![优化缓冲区分配](img/B04282_06_01.jpg)'
 - en: The preceding figure illustrates how buffers are allocated for a data stream.
     Part **a** shows what happens when an input data stream is shorter than the buffer
     size specified in the directives above. The data stream occupies the entire buffer
@@ -335,13 +493,18 @@
     longest chain of buffers allowed. Nginx tries to fill all available buffers with
     input data and flushes them once the data is sent. After that, empty buffers wait
     until more input data becomes available.
+  id: totrans-71
   prefs: []
   type: TYPE_NORMAL
+  zh: 上面的图示展示了数据流的缓冲区分配方式。部分 **a** 显示当输入数据流比上述指令中指定的缓冲区大小短时发生的情况。即使整个缓冲区的空间是从堆中分配的，数据流也会占用整个缓冲区。部分
+    **b** 显示一个数据流，它比单个缓冲区长，但比允许的最长缓冲区链条短。如你所见，如果以最有效的方式使用缓冲区，其中一些将会完全被使用，最后一个可能只会部分使用。部分
+    **c** 显示一个数据流，它远比允许的最长缓冲区链条长。Nginx 会尝试用输入数据填充所有可用的缓冲区，并在数据发送后刷新它们。之后，空缓冲区会等待更多输入数据的到来。
 - en: New buffers are allocated as long as there are no free buffers at hand and input
     data is available. Once the maximum number of buffers is allocated, Nginx waits
     until used buffers are emptied and reuses them. This makes sure that no matter
     how long the data stream, it will not consume more memory per request (the number
     of buffers multiplied by the size) than specified by the corresponding directive.
+  id: totrans-72
   prefs: []
   type: TYPE_NORMAL
 - en: The smaller the buffers, the higher the allocation overhead. Nginx needs to
@@ -349,11 +512,13 @@
     larger memory consumption overhead. If a response occupies only a fraction of
     a buffer, the remainder of the buffer is not used—even though the entire buffer
     has to be allocated from the heap.
+  id: totrans-73
   prefs: []
   type: TYPE_NORMAL
 - en: The minimum portion of the configuration that the buffer size directives can
     be applied to is a location. This means that if mixtures of large and small responses
     share the same location, the combined buffer usage pattern will vary.
+  id: totrans-74
   prefs: []
   type: TYPE_NORMAL
 - en: 'Static files are read into buffers controlled by the `output_buffers` directive
@@ -361,38 +526,50 @@
     make much sense, as they are filled in the blocking mode anyway (this means a
     buffer cannot be emptied while the other one is being filled). However, larger
     buffers lead to lower system call rate. Consider the following example:'
+  id: totrans-75
   prefs: []
   type: TYPE_NORMAL
 - en: '[PRE9]'
+  id: totrans-76
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE9]'
 - en: If the output buffer size is too large without threads or AIO, it can lead to
     long blocking reads that will affect worker process responsiveness.
+  id: totrans-77
   prefs: []
   type: TYPE_NORMAL
 - en: When a response body is pipelined from a proxied server, FastCGI, UWCGI, or
     SCGI server, Nginx is able to read data into one part of the buffers and simultaneously
     send the other part to the client. This makes the most sense for long replies.
+  id: totrans-78
   prefs: []
   type: TYPE_NORMAL
 - en: 'Assume you tuned your TCP stack before reading this chapter. The total size
     of a buffer chain is then connected to the kernel socket''s read and write buffer
     sizes. On Linux, the maximum size of a kernel socket read buffer can be examined
     using the following command:'
+  id: totrans-79
   prefs: []
   type: TYPE_NORMAL
 - en: '[PRE10]'
+  id: totrans-80
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE10]'
 - en: 'While the maximum size of a kernel socket write buffer can be examined using
     the following command:'
+  id: totrans-81
   prefs: []
   type: TYPE_NORMAL
 - en: '[PRE11]'
+  id: totrans-82
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE11]'
 - en: These settings can be changed using the `sysctl` command or via `/etc/sysctl.conf`
     at system startup.
+  id: totrans-83
   prefs: []
   type: TYPE_NORMAL
 - en: In my case, both of them are set to `163840` (160 KB). This is low for a real
@@ -401,52 +578,70 @@
     being suspended. With reads and writes going asynchronously, we need a buffer
     space no less than the sum of `rmem_max` and `wmem_max` for optimal system call
     rate.
+  id: totrans-84
   prefs: []
   type: TYPE_NORMAL
 - en: 'Assume that the preceding Nginx proxies long files with `rmem_max` and `wmem_max`
     settings. The following configuration must yield the lowest system call rate with
     the minimum amount of memory per request in the most extreme case:'
+  id: totrans-85
   prefs: []
   type: TYPE_NORMAL
 - en: '[PRE12]'
+  id: totrans-86
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE12]'
 - en: The same considerations apply to the `fastcgi_buffers`, `uwcgi_buffers`, and
     `scgi_buffers` directives.
+  id: totrans-87
   prefs: []
   type: TYPE_NORMAL
 - en: For short response bodies, the buffer size has to be a bit larger than the predominant
     size of a response. In this case, all replies will fit into one buffer—only one
     allocation per request will be needed.
+  id: totrans-88
   prefs: []
   type: TYPE_NORMAL
+  zh: 对于较短的响应体，缓冲区的大小必须比响应的主要大小稍大。在这种情况下，所有的回复将适合一个缓冲区——每个请求只需要一次分配。
 - en: For the preceding setup, assume that most of the replies fit 128 KB, while some
     span up to dozens of megabytes. The optimal buffer configuration will be somewhere
     between `proxy_buffers 2 160k` and `proxy_buffers 4 80k`.
+  id: totrans-89
   prefs: []
   type: TYPE_NORMAL
+  zh: 对于上述配置，假设大部分回复适合 128 KB，而某些回复可以达到数十兆字节。最佳的缓冲区配置将在 `proxy_buffers 2 160k` 和 `proxy_buffers
+    4 80k` 之间。
 - en: 'In the case of response body compression, the size of the GZIP buffer chain
     must be downscaled by the average compression ratio. For the preceding setup,
     assume that the average compression ratio is 3.4\. The following configuration
     must yield the lowest system call rate with a minimal amount of memory per request
     in presence of response body compression:'
+  id: totrans-90
   prefs: []
   type: TYPE_NORMAL
+  zh: 在响应体压缩的情况下，GZIP 缓冲区链的大小必须根据平均压缩比进行缩小。对于上述配置，假设平均压缩比为 3.4。以下配置必须在存在响应体压缩时，产生最低的系统调用频率，并且每个请求所需的内存量最小：
 - en: '[PRE13]'
+  id: totrans-91
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE13]'
 - en: In the preceding configuration we make sure that in the most extreme case, if
     half of the proxy buffers are being used for reception, the other half is ready
     for compression. GZIP buffers are configured in a way that makes sure that the
     compressor output for half of the uncompressed data occupies half of the output
     buffers, while the other half of the buffers with compressed data are sent to
     the client.
+  id: totrans-92
   prefs: []
   type: TYPE_NORMAL
+  zh: 在上述配置中，我们确保在最极端的情况下，如果一半的代理缓冲区用于接收，另一半则准备用于压缩。GZIP 缓冲区的配置确保未压缩数据的一半占据输出缓冲区的一半，而另一半含有压缩数据的缓冲区则发送给客户端。
 - en: Enabling SSL session reuse
+  id: totrans-93
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 启用 SSL 会话重用
 - en: An SSL session is started by a handshake procedure that involves multiple round
     trips (see the following figure). The client and server have to exchange four
     messages with a latency of around 50 milliseconds each. In total, we have at least
@@ -454,117 +649,172 @@
     to that, both the client and the server need to perform public-key cryptographic
     operations in order to share a common secret. These operations are computationally
     expensive.
+  id: totrans-94
   prefs: []
   type: TYPE_NORMAL
+  zh: SSL 会话通过握手过程启动，该过程涉及多个往返（见下图）。客户端和服务器必须交换四个消息，每个消息的延迟大约为 50 毫秒。总的来说，在建立安全连接时我们至少有
+    200 毫秒的开销。除此之外，客户端和服务器还需要执行公钥加密操作以共享一个共同的密钥。这些操作在计算上非常昂贵。
 - en: '![Enabling SSL session reuse](img/B04282_06_02.jpg)'
+  id: totrans-95
   prefs: []
   type: TYPE_IMG
+  zh: '![启用 SSL 会话重用](img/B04282_06_02.jpg)'
 - en: Normal SSL handshake
+  id: totrans-96
   prefs: []
   type: TYPE_NORMAL
+  zh: 正常的 SSL 握手
 - en: 'The client can request an abbreviated handshake in effect (see the following
     figure), saving a full round-trip of 100 milliseconds and avoiding the most expensive
     part of the full SSL handshake:'
+  id: totrans-97
   prefs: []
   type: TYPE_NORMAL
+  zh: 客户端可以请求有效的简化握手（见下图），节省 100 毫秒的完整往返时间，并避免 SSL 握手中最昂贵的部分：
 - en: '![Enabling SSL session reuse](img/B04282_06_03.jpg)'
+  id: totrans-98
   prefs: []
   type: TYPE_IMG
+  zh: '![启用 SSL 会话重用](img/B04282_06_03.jpg)'
 - en: Abbreviated handshake
+  id: totrans-99
   prefs: []
   type: TYPE_NORMAL
+  zh: 简化握手
 - en: The abbreviated handshake can be accomplished either through the *session identifiers*
     mechanism defined by RFC 5246, or through the *session tickets* mechanism detailed
     in RFC 5077.
+  id: totrans-100
   prefs: []
   type: TYPE_NORMAL
+  zh: 简化握手可以通过 RFC 5246 中定义的 *会话标识符* 机制完成，也可以通过 RFC 5077 中详细描述的 *会话票证* 机制完成。
 - en: To make abbreviated handshakes with session identifiers possible, the server
     needs to store session parameters in a cache keyed by a session identifier. In
     Nginx, this cache can be configured to be shared with all worker processes. When
     a client requests an abbreviated handshake, it provides the server with a session
     identifier so that it can retrieve session parameters from the cache. After that,
     the handshake procedure can be shortened and public-key cryptography can be skipped.
+  id: totrans-101
   prefs: []
   type: TYPE_NORMAL
+  zh: 为了使带有会话标识符的简化握手成为可能，服务器需要将会话参数存储在由会话标识符键控的缓存中。在 Nginx 中，可以配置这个缓存与所有工作进程共享。当客户端请求简化握手时，它会向服务器提供一个会话标识符，以便服务器从缓存中检索会话参数。之后，握手过程可以缩短，并且公钥加密操作可以跳过。
 - en: 'To enable SSL session cache, use the `ssl_session_cache` directive:'
+  id: totrans-102
   prefs: []
   type: TYPE_NORMAL
+  zh: 要启用 SSL 会话缓存，请使用 `ssl_session_cache` 指令：
 - en: '[PRE14]'
+  id: totrans-103
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE14]'
 - en: This configuration enables SSL session caching with built-in OpenSSL session
     cache. The number in the first argument (`40000`) specifies the size of the cache
     in sessions. The built-in cache cannot be shared between worker processes. Consequently,
     this reduces efficiency of SSL session reuse.
+  id: totrans-104
   prefs: []
   type: TYPE_NORMAL
+  zh: 此配置启用使用内置OpenSSL会话缓存的SSL会话缓存。第一个参数中的数字（`40000`）指定缓存的会话数量。内置缓存不能在工作进程之间共享。因此，这会降低SSL会话重用的效率。
 - en: 'The following configuration enables SSL session caching with a cache shared
     between worker processes:'
+  id: totrans-105
   prefs: []
   type: TYPE_NORMAL
+  zh: 以下配置启用SSL会话缓存，并在工作进程之间共享该缓存：
 - en: '[PRE15]'
+  id: totrans-106
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE15]'
 - en: This creates a shared SSL session cache named `ssl` and enables SSL session
     reuse with this cache. The size of the cache is now specified in bytes. Each session
     occupies around 300 bytes in such cache.
+  id: totrans-107
   prefs: []
   type: TYPE_NORMAL
+  zh: 这会创建一个名为`ssl`的共享SSL会话缓存，并启用与该缓存的SSL会话重用。缓存的大小现在以字节为单位指定。每个会话在该缓存中占用大约300字节。
 - en: It is possible to perform an abbreviated SSL handshake without the server state
     using an SSL session tickets mechanism. This is done by packaging session parameters
     into a binary object and encrypting it with a key known only to the server. This
     encrypted object is called a session ticket.
+  id: totrans-108
   prefs: []
   type: TYPE_NORMAL
+  zh: 可以使用SSL会话票证机制执行简化的SSL握手，无需服务器状态。这是通过将会话参数打包成二进制对象，并用只有服务器知道的密钥加密来实现的。这个加密对象被称为会话票证。
 - en: A session ticket then can be safely transferred to the client. When the client
     wishes to resume a session, it presents the session ticket to the server. The
     server decrypts it and extracts the session parameters.
+  id: totrans-109
   prefs: []
   type: TYPE_NORMAL
+  zh: 会话票证可以安全地传输给客户端。当客户端希望恢复会话时，它将会话票证提交给服务器。服务器解密它并提取会话参数。
 - en: Session tickets are an extension of the TLS protocol and can be used with TLS
     1.0 and further (SSL is a predecessor of TLS).
+  id: totrans-110
   prefs: []
   type: TYPE_NORMAL
+  zh: 会话票证是TLS协议的扩展，并且可以与TLS 1.0及更高版本一起使用（SSL是TLS的前身）。
 - en: 'To enable session tickets, use the `ssl_session_tickets` directive:'
+  id: totrans-111
   prefs: []
   type: TYPE_NORMAL
+  zh: 要启用会话票证，请使用`ssl_session_tickets`指令：
 - en: '[PRE16]'
+  id: totrans-112
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE16]'
 - en: 'Naturally, both mechanisms can be enabled at once:'
+  id: totrans-113
   prefs: []
   type: TYPE_NORMAL
+  zh: 自然地，两个机制可以同时启用：
 - en: '[PRE17]'
+  id: totrans-114
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE17]'
 - en: For security reasons, cached session lifetime is limited so that session parameters
     cannot be attacked while session is active. Nginx sets the default maximum SSL
     session lifetime to 5 minutes. If security is not a big concern and visitors spend
     considerable time on your website, you can extend the maximum session lifetime,
     increasing the efficiency of SSL in effect.
+  id: totrans-115
   prefs: []
   type: TYPE_NORMAL
+  zh: 出于安全原因，缓存的会话生命周期有限，以便在会话活动时不能被攻击。Nginx将默认的最大SSL会话生命周期设置为5分钟。如果安全性不是大问题，且访问者在你的网站上停留的时间较长，可以延长最大会话生命周期，从而提高SSL的效率。
 - en: 'The maximum SSL session lifetime is controlled by the `ssl_session_timeout`
     directive:'
+  id: totrans-116
   prefs: []
   type: TYPE_NORMAL
+  zh: 最大SSL会话生命周期由`ssl_session_timeout`指令控制：
 - en: '[PRE18]'
+  id: totrans-117
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE18]'
 - en: The preceding configuration enables both session reuse mechanisms and sets the
     maximum SSL session lifetime to 1 hour.
+  id: totrans-118
   prefs: []
   type: TYPE_NORMAL
+  zh: 前面的配置启用了会话重用机制，并将最大SSL会话生命周期设置为1小时。
 - en: Worker processes allocation on multi-core systems
+  id: totrans-119
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 在多核系统上分配工作进程
 - en: If your Nginx workload is CPU-bound, such as when using response compression
     on proxied content, on systems with multiple processors or multiple processor
     cores, it might be possible to obtain additional performance by associating each
     worker process with its own processor/core.
+  id: totrans-120
   prefs: []
   type: TYPE_NORMAL
+  zh: 如果你的Nginx工作负载是CPU密集型的，比如在代理内容上使用响应压缩，且系统具有多个处理器或多个处理器核心，则可以通过将每个工作进程与其自身的处理器/核心关联，来获得额外的性能。
 - en: In a multi-core processor, each core has its own instance of **Translation Lookaside
     Buffer** (**TLB**) that is used by the memory-management unit to accelerate virtual
     address translation. In a preemptive multitasking operating system, each process
@@ -572,53 +822,77 @@
     process to a processor core and the virtual memory context does not match the
     context that filled the TLB of that processor core, the operating system has to
     flush the TLB as its content is no longer valid.
+  id: totrans-121
   prefs: []
   type: TYPE_NORMAL
+  zh: 在多核处理器中，每个核心都有自己的**转换旁路缓存**（**TLB**），用于加速虚拟地址转换。 在抢占式多任务操作系统中，每个进程都有自己的虚拟内存上下文。当操作系统将一个活动进程分配给一个处理器核心，而该虚拟内存上下文与填充该处理器核心TLB的上下文不匹配时，操作系统必须清空TLB，因为其内容不再有效。
 - en: The new active process then receives a performance penalty, because it has to
     fill the TLB with new entries as it reads or writes memory locations.
+  id: totrans-122
   prefs: []
   type: TYPE_NORMAL
+  zh: 新的活动进程将会面临性能惩罚，因为它必须在读取或写入内存位置时填充TLB（Translation Lookaside Buffer）。
 - en: Nginx has an option to "stick" a process to a processor core. On a system with
     a single Nginx instance, worker processes will be scheduled most of the time.
     In such circumstances, there is a very high probability that the virtual memory
     context does not need to be switched and TLB does not need to be flushed. The
     "stickiness" of a process then becomes useful. The "stickiness" is called CPU
     affinity.
+  id: totrans-123
   prefs: []
   type: TYPE_NORMAL
+  zh: Nginx 提供了一个选项，可以将一个进程“固定”到某个处理器核心。在单个 Nginx 实例的系统中，工作进程大多数时间会被调度。在这种情况下，虚拟内存上下文很可能不需要切换，TLB
+    也不需要刷新。这时，进程的“粘性”就显得很有用。这种“粘性”被称为 CPU 亲和性。
 - en: 'Consider a system with four processor cores. The CPU affinity can be configured
     as follows:'
+  id: totrans-124
   prefs: []
   type: TYPE_NORMAL
+  zh: 假设系统有四个处理器核心。CPU 亲和性可以按如下方式配置：
 - en: '[PRE19]'
+  id: totrans-125
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE19]'
 - en: This configuration assigns each worker to its own processor core. The configuration
     directive `worker_cpu_affinity` receives many arguments as many worker process
     are to be started. Each argument specifies a mask, where a bit with a value of
     1 specifies affinity with the corresponding processor, and a bit with a value
     of 0 specifies no affinity with the corresponding processor.
+  id: totrans-126
   prefs: []
   type: TYPE_NORMAL
+  zh: 这个配置将每个工作进程分配到各自的处理器核心。配置指令 `worker_cpu_affinity` 需要接受多个参数，以便启动多个工作进程。每个参数指定一个掩码，其中值为
+    1 的位表示与对应处理器的亲和性，而值为 0 的位表示没有与对应处理器的亲和性。
 - en: Note
+  id: totrans-127
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
+  zh: 注意
 - en: CPU affinity does not guarantee an increase in performance, but make sure to
     give it a try if your Nginx server is performing CPU-bound tasks.
+  id: totrans-128
   prefs: []
   type: TYPE_NORMAL
+  zh: CPU 亲和性并不能保证性能提升，但如果你的 Nginx 服务器执行的是 CPU 密集型任务，还是值得尝试一下。
 - en: Summary
+  id: totrans-129
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 总结
 - en: In this chapter, you learned a number of recipes that will help you tackle performance
     and scalability challenges of your system. It is important to remember that these
     recipes are not solutions for all possible performance problems and represent
     mere trade-offs between different ways of using the resources of your system.
+  id: totrans-130
   prefs: []
   type: TYPE_NORMAL
+  zh: 在这一章中，你学到了一些技巧，这些技巧将帮助你解决系统的性能和可扩展性问题。重要的是要记住，这些技巧并不是所有性能问题的解决方案，而是不同方式使用系统资源之间的权衡。
 - en: Nevertheless, they are must-haves in the toolbox of a web master or a site reliability
     engineer who wants to master Nginx and its performance and scalability features.
+  id: totrans-131
   prefs: []
   type: TYPE_NORMAL
+  zh: 然而，它们是每个网站管理员或网站可靠性工程师在掌握 Nginx 及其性能和可扩展性特性时必不可少的工具。
