@@ -1,0 +1,5283 @@
+- en: Chapter 5. Debugging, Tracing, and Profiling
+  id: totrans-0
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 第五章：调试、追踪和分析
+- en: 'In this chapter, we will cover the following recipes:'
+  id: totrans-1
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在本章中，我们将涵盖以下配方：
+- en: Analyzing core dumps
+  id: totrans-2
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 分析核心转储
+- en: Native GDB debugging
+  id: totrans-3
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 本地GDB调试
+- en: Cross GDB debugging
+  id: totrans-4
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 跨平台GDB调试
+- en: Using strace for application debugging
+  id: totrans-5
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 使用strace进行应用程序调试
+- en: Using the kernel's performance counters
+  id: totrans-6
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 使用内核的性能计数器
+- en: Using static kernel tracing
+  id: totrans-7
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 使用静态内核追踪
+- en: Using dynamic kernel tracing
+  id: totrans-8
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 使用动态内核追踪
+- en: Using dynamic kernel events
+  id: totrans-9
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 使用动态内核事件
+- en: Exploring Yocto's tracing and profiling tools
+  id: totrans-10
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 探索Yocto的追踪和分析工具
+- en: Tracing and profiling with perf
+  id: totrans-11
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 使用perf进行追踪和分析
+- en: Using SystemTap
+  id: totrans-12
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 使用SystemTap
+- en: Using OProfile
+  id: totrans-13
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 使用OProfile
+- en: Using LTTng
+  id: totrans-14
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 使用LTTng
+- en: Using blktrace
+  id: totrans-15
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 使用blktrace
+- en: Introduction
+  id: totrans-16
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 介绍
+- en: Debugging an embedded Linux product is a common task not only during development,
+    but also in deployed production systems.
+  id: totrans-17
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 嵌入式Linux产品的调试不仅是开发过程中常见的任务，在部署后的生产系统中也同样重要。
+- en: Application debugging in embedded Linux is different from debugging in a traditional
+    embedded device in that we don't have a flat memory model with an operating system
+    and applications sharing the same address space. Instead, we have a virtual memory
+    model with the Linux operating system, sharing the address space and assigning
+    virtual memory areas to running processes.
+  id: totrans-18
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 嵌入式Linux中的应用程序调试与传统嵌入式设备中的调试不同，因为我们没有一个操作系统和应用程序共享相同地址空间的平坦内存模型。相反，我们有一个虚拟内存模型，Linux操作系统共享地址空间，并为运行中的进程分配虚拟内存区域。
+- en: With this model, the mechanisms used for kernel and user space debugging differ.
+    For example, the traditional model of using a JTAG-based hardware debugger is
+    useful for kernel debugging, but unless it knows about the user space processes
+    memory mapping, it will not be able to debug user space applications.
+  id: totrans-19
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在这种模型中，内核和用户空间调试使用的机制有所不同。例如，传统的基于JTAG的硬件调试器在内核调试中非常有用，但除非它了解用户空间进程的内存映射，否则无法调试用户空间应用程序。
+- en: Application debugging is approached with the use of a user space debugger service.
+    We have seen an example of this methodology in action with the TCF agent used
+    in the Eclipse GDB. The other commonly used agent is the **gdbserver**, which
+    we will use in this chapter.
+  id: totrans-20
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 应用程序调试通过使用用户空间调试服务来进行。我们已经看到过这种方法在Eclipse GDB中使用的TCF代理的实例。另一个常用的代理是**gdbserver**，我们将在本章中使用它。
+- en: Finally we will explore the area of tracing and profiling. Tracing is a low-level
+    logging of frequent system events, and the statistical analysis of these captured
+    traces is called profiling.
+  id: totrans-21
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 最后，我们将探索追踪和分析的领域。追踪是对频繁的系统事件进行低级别的日志记录，而这些捕获的日志的统计分析被称为分析。
+- en: We will use some of the tools embedded Linux and Yocto offer to trace and profile
+    our systems so that they run to their maximum potential.
+  id: totrans-22
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 我们将使用嵌入式Linux和Yocto提供的某些工具来追踪和分析我们的系统，使其达到最大潜力。
+- en: Analyzing core dumps
+  id: totrans-23
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 分析核心转储
+- en: Even after extensive quality assurance testing, embedded systems in-field also
+    fail and need to be debugged. Moreover, often the failure is not something that
+    can be easily reproduced in a laboratory environment, so we are left with production,
+    often hardened system, to debug.
+  id: totrans-24
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 即使经过广泛的质量保证测试，嵌入式系统在现场也可能发生故障，需要进行调试。此外，故障往往不是可以在实验室环境中轻松重现的，因此我们只能在生产环境中调试，通常是已经硬化过的系统。
+- en: Assuming we have designed our system with the aforementioned scenario in mind,
+    our first debugging choice is usually to extract as much information about the
+    failing system—for example, by obtaining and analyzing a core dump of the misbehaving
+    processes.
+  id: totrans-25
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 假设我们已经设计了符合上述情境的系统，我们的第一个调试选择通常是提取尽可能多的关于故障系统的信息——例如，通过获取并分析有问题进程的核心转储。
+- en: Getting ready
+  id: totrans-26
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+  zh: 做好准备
+- en: In the process of debugging embedded Linux systems, we can use the same toolbox
+    as standard Linux systems. One of the tools enables applications to generate into
+    the disk a memory core dump upon crashing. This assumes that we have enough disk
+    space to store the application's entire memory map, and that writing to disk is
+    quick enough that it will not drag the system to a halt.
+  id: totrans-27
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在调试嵌入式Linux系统的过程中，我们可以使用与标准Linux系统相同的工具箱。工具之一使得应用程序在崩溃时可以将内存核心转储到磁盘。这要求我们有足够的磁盘空间来存储应用程序的完整内存映射，并且磁盘写入速度足够快，避免系统停滞。
+- en: 'Once the memory core dump is generated, we use the host''s GDB to analyze the
+    core dump. GDB needs to have debug information available. Debug information can
+    be in the executable itself—for example, when we install the `-dbg` version of
+    a package, or we configure our project to not strip binaries—or can be kept in
+    a separate file. To install debug information separately from the executable,
+    we use the `dbg-pkgs` feature. By default, this installs the debug information
+    of a package in a `.debug` directory in the same location as the executable itself.
+    To add debug information for all packages in a target image, we add the following
+    to our `conf/local.conf` configuration file:'
+  id: totrans-28
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 一旦生成内存核心转储，我们使用主机的 GDB 来分析核心转储。GDB 需要有调试信息可用。调试信息可以包含在可执行文件本身中——例如，当我们安装`-dbg`版本的包，或者我们配置项目不剥离二进制文件——也可以保存在一个单独的文件中。要将调试信息与可执行文件分开安装，我们使用`dbg-pkgs`功能。默认情况下，这将把包的调试信息安装到与可执行文件本身相同位置的`.debug`目录中。要为目标镜像中的所有包添加调试信息，我们需要在`conf/local.conf`配置文件中添加以下内容：
+- en: '[PRE0]'
+  id: totrans-29
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: We can then build an appropriate toolchain generated to match our filesystem,
+    as we saw in the *Preparing and using an SDK* recipe in [Chapter 4](ch04.html
+    "Chapter 4. Application Development"), *Application Development*. The core dump
+    contains build IDs for the executables and libraries in use at the time of the
+    crash, so it's important to match the toolchain and the target image.
+  id: totrans-30
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 然后我们可以构建一个适当的工具链，与我们的文件系统匹配，就像我们在[第 4 章](ch04.html "第 4 章 应用程序开发")中的*准备和使用 SDK*食谱中看到的那样。核心转储包含崩溃时正在使用的可执行文件和库的构建
+    ID，因此将工具链与目标镜像匹配非常重要。
+- en: How to do it...
+  id: totrans-31
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+  zh: 如何操作...
+- en: 'We can display the limits of the system-wide resources with the `ulimit` tool.
+    We are interested in the core file size, which by default is set to zero to avoid
+    the creation of application core dumps. In our failing system, preferably in a
+    test environment, make your application dump a memory core upon crashing with:'
+  id: totrans-32
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 我们可以使用`ulimit`工具显示系统范围内的资源限制。我们关注的是核心文件的大小，默认情况下设置为零，以避免创建应用程序核心转储。在我们失败的系统中，最好在测试环境中，使应用程序在崩溃时通过以下命令生成内存核心转储：
+- en: '[PRE1]'
+  id: totrans-33
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: 'You can then verify the change with:'
+  id: totrans-34
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 然后你可以通过以下命令验证更改：
+- en: '[PRE2]'
+  id: totrans-35
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE2]'
+- en: For this example, we will be using the `wvdial` application in a real segmentation
+    fault scenario. The purpose is not to debug the application itself but to showcase
+    the methodology used for core dump analysis; so, details regarding the application-specific
+    configuration and system setup are not provided. However, being a real crash,
+    the example is more illustrative.
+  id: totrans-36
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在这个示例中，我们将在一个真实的段错误场景中使用`wvdial`应用程序。目的是展示核心转储分析的使用方法，而不是调试应用程序本身；因此，不提供应用程序特定配置和系统设置的详细信息。不过，作为一个真实的崩溃，示例具有更强的说明性。
+- en: 'To run `wvdial` on the target, use the following code:'
+  id: totrans-37
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要在目标上运行`wvdial`，请使用以下代码：
+- en: '[PRE3]'
+  id: totrans-38
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE3]'
+- en: The application will create a core file in the same folder, which you can then
+    copy to your host system to analyze.
+  id: totrans-39
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 应用程序将在相同的文件夹中创建一个核心文件，你可以将其复制到主机系统进行分析。
+- en: Tip
+  id: totrans-40
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+  zh: 提示
+- en: 'You can also simulate a core dump by sending a `SIGQUIT` signal to a running
+    process. For example, you could force the sleep command to core dump with a `SIGQUIT`
+    signal as follows:'
+  id: totrans-41
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 你也可以通过向正在运行的进程发送`SIGQUIT`信号来模拟核心转储。例如，你可以通过以下方式强制`sleep`命令生成核心转储：
+- en: '[PRE4]'
+  id: totrans-42
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE4]'
+- en: How it works...
+  id: totrans-43
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+  zh: 它是如何工作的...
+- en: 'Once in possession of the core dump, use the cross GDB in the host to load
+    it and get some useful information, such as the backtrace, using the following
+    steps:'
+  id: totrans-44
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 一旦获得核心转储，使用主机中的交叉 GDB 加载它，并通过以下步骤获取一些有用的信息，比如回溯：
+- en: 'First set up the environment in the host:'
+  id: totrans-45
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 首先在主机中设置环境：
+- en: '[PRE5]'
+  id: totrans-46
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE5]'
+- en: You can then start the cross GDB debugger, passing it a debug version of the
+    application. Debug versions are stored in the `sysroot` file in the same location
+    as the unstripped binary, but under a `.debug` directory.
+  id: totrans-47
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 然后你可以启动交叉 GDB 调试器，传递一个调试版本的应用程序。调试版本存储在与未剥离的二进制文件相同位置的`sysroot`文件中，但在`.debug`目录下。
+- en: The whole GDB banner is showed below but will be omitted in future examples.
+  id: totrans-48
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 以下是完整的 GDB 横幅，但在以后的示例中将省略。
+- en: '[PRE6]'
+  id: totrans-49
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE6]'
+- en: 'Now point GDB to the location of the toolchain''s `sysroot`:'
+  id: totrans-50
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 现在将 GDB 指向工具链`sysroot`的所在位置：
+- en: '[PRE7]'
+  id: totrans-51
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE7]'
+- en: 'You can now inquire GDB for the application''s backtrace as follows:'
+  id: totrans-52
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 现在你可以使用以下命令查询 GDB 获取应用程序的回溯：
+- en: '[PRE8]'
+  id: totrans-53
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE8]'
+- en: See also
+  id: totrans-54
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+  zh: 另见
+- en: The usage documentation for GDB found at [http://www.gnu.org/software/gdb/documentation/](http://www.gnu.org/software/gdb/documentation/)
+  id: totrans-55
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: GDB的使用文档可以在[http://www.gnu.org/software/gdb/documentation/](http://www.gnu.org/software/gdb/documentation/)找到。
+- en: Native GDB debugging
+  id: totrans-56
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 本地 GDB 调试
+- en: On devices as powerful as the Wandboard, native debugging is also an option
+    to debug sporadic failures. This recipe will explore the native debugging method.
+  id: totrans-57
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在像 Wandboard 这样强大的设备上，本地调试也是调试间歇性故障的一个选择。本食谱将探讨本地调试方法。
+- en: Getting ready
+  id: totrans-58
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+  zh: 准备工作
+- en: 'For native development and debugging, Yocto offers the `-dev` and `-sdk` target
+    images. To add developing tools to the `-dev` images, we can use the `tools-sdk`
+    feature. We also want to install debug information and debug tools, and we do
+    this by adding the `dbg-pkgs` and `tools-debug` features to our image. For example,
+    for `core-image-minimal-dev`, we would add the following to our `conf/local.conf`
+    file:'
+  id: totrans-59
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于本地开发和调试，Yocto 提供了 `-dev` 和 `-sdk` 目标镜像。为了将开发工具添加到 `-dev` 镜像中，我们可以使用 `tools-sdk`
+    功能。我们还需要安装调试信息和调试工具，方法是将 `dbg-pkgs` 和 `tools-debug` 功能添加到镜像中。例如，对于 `core-image-minimal-dev`，我们可以将以下内容添加到
+    `conf/local.conf` 文件中：
+- en: '[PRE9]'
+  id: totrans-60
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE9]'
+- en: 'To prepare a development-ready version of the `core-image-minimal-dev` target
+    image, we would execute the following commands:'
+  id: totrans-61
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要准备一个开发就绪的 `core-image-minimal-dev` 目标镜像版本，我们将执行以下命令：
+- en: '[PRE10]'
+  id: totrans-62
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE10]'
+- en: We will then program the development image to our target.
+  id: totrans-63
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 我们接下来将把开发镜像写入目标设备。
+- en: How to do it...
+  id: totrans-64
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+  zh: 如何做...
+- en: 'Once the target has booted, you can start the `wvdial` application through
+    the native GDB using the following steps:'
+  id: totrans-65
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 一旦目标设备启动，您可以通过本地 GDB 使用以下步骤启动 `wvdial` 应用程序：
+- en: 'In the target command prompt, start the GDB debugger with the application as
+    argument:'
+  id: totrans-66
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 在目标设备的命令提示符中，使用应用程序作为参数启动 GDB 调试器：
+- en: '[PRE11]'
+  id: totrans-67
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE11]'
+- en: 'Now instruct GDB to run the application:'
+  id: totrans-68
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 现在指示 GDB 运行应用程序：
+- en: '[PRE12]'
+  id: totrans-69
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE12]'
+- en: 'Then request to print a backtrace:'
+  id: totrans-70
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 然后请求打印回溯信息：
+- en: '[PRE13]'
+  id: totrans-71
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE13]'
+- en: This is not the same backtrace you got when analyzing the core dump. What is
+    going on here? The clue is on libcrypto, part of the OpenSSL library. OpenSSL
+    probes the capabilities of the system by trying each capability and trapping the
+    illegal instruction errors. So the `SIGILL` signal you are seeing during startup
+    is normal and you should instruct GDB to continue.
+  id: totrans-72
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 这不是您在分析核心转储时获得的相同回溯信息。那么这里发生了什么？线索在于 libcrypto，它是 OpenSSL 库的一部分。OpenSSL 通过尝试每个功能并捕获非法指令错误来探测系统的功能。因此，您在启动过程中看到的
+    `SIGILL` 信号是正常的，您应该指示 GDB 继续执行。
+- en: 'Instruct GDB to continue:'
+  id: totrans-73
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 指示 GDB 继续执行：
+- en: '[PRE14]'
+  id: totrans-74
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE14]'
+- en: This result is now compatible with the core dump you saw in the previous recipe.
+  id: totrans-75
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 该结果现在与您在前一个食谱中看到的核心转储兼容。
+- en: There's more...
+  id: totrans-76
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+  zh: 还有更多...
+- en: 'When debugging applications, it is sometimes useful to reduce the level of
+    optimization used by the compiler. This will reduce the application''s performance
+    but will facilitate debugging by improving the accuracy of the debug information.
+    You can configure the build system to reduce optimization and add debug information
+    by adding the following line of code to your `conf/local.conf` file:'
+  id: totrans-77
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在调试应用程序时，有时通过减少编译器使用的优化级别会非常有用。这会降低应用程序的性能，但通过提高调试信息的准确性，有助于调试。您可以通过将以下代码行添加到
+    `conf/local.conf` 文件中来配置构建系统，减少优化并添加调试信息：
+- en: '[PRE15]'
+  id: totrans-78
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE15]'
+- en: By using this configuration, the optimization is reduced from `FULL_OPTIMIZATION
+    (-O2)` to `DEBUG_OPTIMIZATION (-O -fno-omit-frame-pointer)`. But sometimes this
+    is not enough, and you may like to build with no optimization. You can achieve
+    this by overriding the `DEBUG_OPTIMIZATION` variable either globally or for a
+    specific recipe.
+  id: totrans-79
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 通过使用此配置，优化级别从 `FULL_OPTIMIZATION (-O2)` 降低到 `DEBUG_OPTIMIZATION (-O -fno-omit-frame-pointer)`。但有时这还不够，您可能希望在没有优化的情况下进行构建。您可以通过全局或针对特定食谱覆盖
+    `DEBUG_OPTIMIZATION` 变量来实现这一点。
+- en: See also
+  id: totrans-80
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+  zh: 另请参见
+- en: The example on using a debug-optimized build in the upcoming recipe on *Cross
+    GDB debugging*
+  id: totrans-81
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 接下来的 *交叉 GDB 调试* 食谱中的调试优化构建示例
+- en: Cross GDB debugging
+  id: totrans-82
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 交叉 GDB 调试
+- en: When we run a cross compiled GDB in the host, which connects to a native gdbserver
+    running on the target, it is referred to as cross debugging. This is the same
+    scenario we saw in the *Using the Eclipse IDE* recipe earlier, except that Eclipse
+    uses the **Target Communications Framework** (**TCF**). Cross debugging has the
+    advantage of not needing debug information on target images, as they are already
+    available in the host.
+  id: totrans-83
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当我们在主机上运行交叉编译的 GDB，并连接到在目标设备上运行的本地 gdbserver 时，这被称为交叉调试。这与我们之前在 *使用 Eclipse
+    IDE* 食谱中看到的场景相同，唯一不同的是 Eclipse 使用 **目标通信框架**（**TCF**）。交叉调试的优势在于不需要目标镜像上的调试信息，因为这些信息已经在主机上可用。
+- en: This recipe will show how to use a cross GDB and gdbserver.
+  id: totrans-84
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 本食谱将展示如何使用交叉 GDB 和 gdbserver。
+- en: Getting ready
+  id: totrans-85
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+  zh: 准备工作
+- en: 'To include gdbserver in your target image, you can use an `-sdk` image, or
+    you can add the `tools-debug` feature to your image by adding the following to
+    your `conf/local.conf` configuration file:'
+  id: totrans-86
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要在目标镜像中包含 gdbserver，你可以使用 `-sdk` 镜像，或者通过将以下内容添加到 `conf/local.conf` 配置文件中，向镜像中添加
+    `tools-debug` 功能：
+- en: '[PRE16]'
+  id: totrans-87
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE16]'
+- en: 'So that GDB can access debug information of the shared libraries and executables,
+    add the following to the `conf/local.conf` file:'
+  id: totrans-88
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 为了让 GDB 能访问共享库和可执行文件的调试信息，请在 `conf/local.conf` 文件中添加以下内容：
+- en: '[PRE17]'
+  id: totrans-89
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE17]'
+- en: 'The images running on the target and the toolchain''s `sysroot` need to match.
+    For example, if you are using `core-image-minimal` images, the toolchain needs
+    to have been generated in the same project with:'
+  id: totrans-90
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在目标上运行的镜像与工具链的 `sysroot` 需要匹配。例如，如果你使用的是 `core-image-minimal` 镜像，则工具链需要在同一项目中生成，且：
+- en: '[PRE18]'
+  id: totrans-91
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE18]'
+- en: This will generate a `sysroot` containing debug information for binaries and
+    libraries.
+  id: totrans-92
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 这将生成一个包含二进制文件和库调试信息的 `sysroot`。
+- en: How to do it...
+  id: totrans-93
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+  zh: 如何操作...
+- en: 'Once the toolchain is installed, you can run the application to be debugged
+    on the target using gdbserver—in this case, `wvdial`—in the following steps:'
+  id: totrans-94
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 一旦工具链安装完成，你可以在目标机上使用 gdbserver 运行待调试的应用程序——在本例中是 `wvdial`——并执行以下步骤：
+- en: 'Launch gdbserver with the application to run as argument:'
+  id: totrans-95
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 使用应用程序作为参数启动 gdbserver：
+- en: '[PRE19]'
+  id: totrans-96
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE19]'
+- en: The gdbserver is launched listening on localhost on a random 1234 port and is
+    waiting for a connection from the remote GDB.
+  id: totrans-97
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: gdbserver 启动并在 localhost 上监听一个随机的 1234 端口，等待远程 GDB 的连接。
+- en: 'In the host, you can now set up the environment using the recently installed
+    toolchain:'
+  id: totrans-98
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 在主机上，你现在可以使用最近安装的工具链来设置环境：
+- en: '[PRE20]'
+  id: totrans-99
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE20]'
+- en: 'You can then launch the cross GDB, passing to it the absolute path to the debug
+    version of the application to debug, which is located in a `.debug` directory
+    on the `sysroot`:'
+  id: totrans-100
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 然后你可以启动跨平台 GDB，传递给它应用程序的调试版本的绝对路径，该版本位于 `sysroot` 中的 `.debug` 目录下：
+- en: '[PRE21]'
+  id: totrans-101
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE21]'
+- en: 'Next configure GDB to consider all files as trusted so that it auto loads whatever
+    it needs:'
+  id: totrans-102
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 接下来，配置 GDB 将所有文件视为可信，以便它自动加载所需的内容：
+- en: '[PRE22]'
+  id: totrans-103
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE22]'
+- en: 'Also as you know, `wvdial` will generate a `SIGILL` signal that will interrupt
+    our debugging session, instruct GDB not to stop when that signal is seen:'
+  id: totrans-104
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 正如你所知，`wvdial` 会生成一个 `SIGILL` 信号，打断我们的调试会话，指示 GDB 在遇到该信号时不要停止：
+- en: '[PRE23]'
+  id: totrans-105
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE23]'
+- en: 'You can then connect to the remote target on the `1234` port with:'
+  id: totrans-106
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 然后你可以通过以下命令连接到 `1234` 端口的远程目标：
+- en: '[PRE24]'
+  id: totrans-107
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE24]'
+- en: 'The first thing to do is to set `sysroot` so that GDB is able to find dynamically
+    loaded libraries:'
+  id: totrans-108
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 首先要做的是设置 `sysroot`，使 GDB 能找到动态加载的库：
+- en: '[PRE25]'
+  id: totrans-109
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE25]'
+- en: 'Type `c` to continue with the program''s execution. You will see `wvdial` continuing
+    on the target:'
+  id: totrans-110
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 输入 `c` 以继续程序的执行。你将看到 `wvdial` 在目标机上继续执行：
+- en: '[PRE26]'
+  id: totrans-111
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE26]'
+- en: 'You will then see GDB intercepting a `SIGILL` and `SEGSEGV` signal on the host:'
+  id: totrans-112
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 然后你会看到 GDB 在主机上拦截到 `SIGILL` 和 `SEGSEGV` 信号：
+- en: '[PRE27]'
+  id: totrans-113
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE27]'
+- en: 'You can now ask to see a backtrace:'
+  id: totrans-114
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 现在你可以请求查看回溯信息：
+- en: '[PRE28]'
+  id: totrans-115
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE28]'
+- en: Although limited, this backtrace could still be useful to debug the application.
+  id: totrans-116
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 虽然有限，这个回溯仍然对调试应用程序有所帮助。
+- en: How it works...
+  id: totrans-117
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+  zh: 它是如何工作的...
+- en: 'We see a limited backtrace because the compiled binaries are not suitable for
+    debugging, as they omit stack frames. To keep information on stack frames, add
+    the following to the `conf/local.conf` configuration file:'
+  id: totrans-118
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 我们看到的回溯信息有限，因为编译后的二进制文件不适合调试，它们省略了栈帧。为了保留栈帧信息，请在 `conf/local.conf` 配置文件中添加以下内容：
+- en: '[PRE29]'
+  id: totrans-119
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE29]'
+- en: 'This changes the compilation flags to debug optimization as follows:'
+  id: totrans-120
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 这将把编译标志更改为调试优化，具体如下：
+- en: '[PRE30]'
+  id: totrans-121
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE30]'
+- en: The `-fno-omit-frame-pointer` flag will tell `gcc` to keep stack frames. The
+    compiler will also reduce the optimization level to provide a better debugging
+    experience.
+  id: totrans-122
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`-fno-omit-frame-pointer` 标志会告诉 `gcc` 保留栈帧。编译器还会减少优化级别，以提供更好的调试体验。'
+- en: A debug build will also make it possible to trace variables and set breakpoints
+    and watchpoints, as well as other common debugging features.
+  id: totrans-123
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 调试构建还可以让你追踪变量，设置断点和观察点，以及其他常见的调试功能。
+- en: 'After building and installing the target images and toolchain again, you can
+    now follow the same process as in the preceding recipe:'
+  id: totrans-124
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在重新构建和安装目标镜像及工具链之后，你现在可以按照前述步骤中的相同步骤继续操作：
+- en: 'Use the following code for connecting to the remote target:'
+  id: totrans-125
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 使用以下代码连接到远程目标：
+- en: '[PRE31]'
+  id: totrans-126
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE31]'
+- en: 'Set the `sysroot` as follows:'
+  id: totrans-127
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 如下设置 `sysroot`：
+- en: '[PRE32]'
+  id: totrans-128
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE32]'
+- en: 'Once you are done with the setup, instruct the program to continue as follows:'
+  id: totrans-129
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 完成设置后，按照如下方式指示程序继续运行：
+- en: '[PRE33]'
+  id: totrans-130
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE33]'
+- en: You can now see a complete backtrace.
+  id: totrans-131
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 你现在可以看到完整的回溯信息。
+- en: Using strace for application debugging
+  id: totrans-132
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 使用 strace 进行应用程序调试
+- en: Debugging does not always involve working with source code. Sometimes it is
+    a change in an external factor that is causing the problem.
+  id: totrans-133
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 调试并不总是与源代码打交道。有时候，是外部因素的变化引起了问题。
+- en: Strace is a tool that is useful for scenarios where we are looking for problems
+    outside of the binary itself; for example configuration files, input data, and
+    kernel interfaces. This recipe will explain how to use it.
+  id: totrans-134
+  prefs: []
+  type: TYPE_NORMAL
+  zh: Strace 是一个有用的工具，适用于我们在寻找二进制文件本身以外的问题时；例如配置文件、输入数据和内核接口。本章节将解释如何使用它。
+- en: Getting ready
+  id: totrans-135
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+  zh: 准备工作
+- en: 'To include strace in your system, add the following to your `conf/local.conf`
+    file:'
+  id: totrans-136
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要在你的系统中包含 strace，请将以下内容添加到你的 `conf/local.conf` 配置文件中：
+- en: '[PRE34]'
+  id: totrans-137
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE34]'
+- en: 'Strace is also part of the `tools-debug` image feature, so you can also add
+    it with:'
+  id: totrans-138
+  prefs: []
+  type: TYPE_NORMAL
+  zh: Strace 也包含在 `tools-debug` 镜像特性中，因此你也可以通过以下方式添加它：
+- en: '[PRE35]'
+  id: totrans-139
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE35]'
+- en: Strace is also included in the `-sdk` images.
+  id: totrans-140
+  prefs: []
+  type: TYPE_NORMAL
+  zh: Strace 也包含在 `-sdk` 镜像中。
+- en: 'Before starting, we will also include `pgrep`, a process utility that will
+    make our debugging easier by looking up process IDs by name. To do so, add the
+    following to your `conf/local.conf` configuration file:'
+  id: totrans-141
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在开始之前，我们还将包括 `pgrep`，这是一个进程工具，它通过名称查找进程 ID，从而让我们的调试更为轻松。为此，请将以下内容添加到你的 `conf/local.conf`
+    配置文件中：
+- en: '[PRE36]'
+  id: totrans-142
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE36]'
+- en: How to do it...
+  id: totrans-143
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+  zh: 如何操作...
+- en: When printing a system call, strace prints the values passed to the kernel or
+    returned from the kernel. The verbose option prints more details for some system
+    calls.
+  id: totrans-144
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当打印系统调用时，strace 会打印传递给内核或从内核返回的值。详细模式选项会为某些系统调用打印更多的细节。
+- en: 'For example, filtering just the `sendto()` system calls from a single ping
+    looks as follows:'
+  id: totrans-145
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 例如，过滤来自单个 ping 的 `sendto()` 系统调用，如下所示：
+- en: '[PRE37]'
+  id: totrans-146
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE37]'
+- en: How it works...
+  id: totrans-147
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+  zh: 它是如何工作的...
+- en: Strace allows the monitoring of system calls of running processes into the Linux
+    kernel. It uses the `ptrace()` system call to do so. This means that other programs
+    that use `ptrace()`, such as `gdb`, will not run simultaneously.
+  id: totrans-148
+  prefs: []
+  type: TYPE_NORMAL
+  zh: Strace 允许监视运行中的进程的系统调用并将其传递到 Linux 内核中。它使用 `ptrace()` 系统调用来实现这一功能。这意味着，其他使用
+    `ptrace()` 的程序，如 `gdb`，将无法同时运行。
+- en: 'Strace is a disruptive monitoring tool, and the process being monitored will
+    slow down and create many more context switches. A generic way of running strace
+    on a given program is:'
+  id: totrans-149
+  prefs: []
+  type: TYPE_NORMAL
+  zh: Strace 是一种具有破坏性的监控工具，监控的进程将会变慢，并且会产生更多的上下文切换。对给定程序运行 strace 的通用方式如下：
+- en: '[PRE38]'
+  id: totrans-150
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE38]'
+- en: 'The arguments are explained below:'
+  id: totrans-151
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 下面解释了这些参数：
+- en: '`f`: Tells strace to trace all child processes.'
+  id: totrans-152
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`f`：告诉 strace 跟踪所有子进程。'
+- en: '`e`: Filters the output to a selection of comma separated system calls.'
+  id: totrans-153
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`e`：过滤输出，仅显示以逗号分隔的系统调用。'
+- en: '`t`: Prints absolute timestamps. Use `r` for timestamps relative to the last
+    syscall, and `T` to add the time spent in the syscall.'
+  id: totrans-154
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`t`：打印绝对时间戳。使用 `r` 以获取相对于上一个系统调用的时间戳，使用 `T` 添加系统调用的执行时间。'
+- en: '`s`: Increases the maximum length of strings from the default of `32`.'
+  id: totrans-155
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`s`：增加字符串的最大长度，默认值为 `32`。'
+- en: '`o`: Redirects the output to a file that can then be analyzed offline.'
+  id: totrans-156
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`o`：将输出重定向到一个文件，供离线分析。'
+- en: 'It can also attach to running processes using the following command:'
+  id: totrans-157
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 它还可以使用以下命令附加到正在运行的进程：
+- en: '[PRE39]'
+  id: totrans-158
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE39]'
+- en: 'Or several instances of a process using the following command:'
+  id: totrans-159
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 或者使用以下命令来查看某个进程的多个实例：
+- en: '[PRE40]'
+  id: totrans-160
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE40]'
+- en: To detach, just press *Ctrl* + *C*.
+  id: totrans-161
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要分离，只需按 *Ctrl* + *C*。
+- en: See also
+  id: totrans-162
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+  zh: 另见
+- en: The corresponding man pages for more information about strace at [http://man7.org/linux/man-pages/man1/strace.1.html](http://man7.org/linux/man-pages/man1/strace.1.html)
+  id: totrans-163
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 相关的 man 页面可供参考，了解更多关于 strace 的信息：[http://man7.org/linux/man-pages/man1/strace.1.html](http://man7.org/linux/man-pages/man1/strace.1.html)
+- en: Using the kernel's performance counters
+  id: totrans-164
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 使用内核的性能计数器
+- en: Hardware performance counters are perfect for code optimization, especially
+    in embedded systems with a single workload. They are actively used by a wide range
+    of tracing and profiling tools. This recipe will introduce the Linux performance
+    counters subsystem and show how to use it.
+  id: totrans-165
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 硬件性能计数器非常适合代码优化，特别是在只有单一工作负载的嵌入式系统中。它们被广泛用于各种追踪和分析工具中。本章节将介绍 Linux 性能计数器子系统，并展示如何使用它。
+- en: Getting ready
+  id: totrans-166
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+  zh: 准备工作
+- en: The **Linux Kernel Performance Counters Subsystem** (**LPC**), commonly known
+    as `linux_perf`, is an abstraction interface to different CPU-specific performance
+    measurements. The `perf_events` subsystem not only exposes hardware performance
+    counters from the CPU, but also kernel software events using the same API. It
+    also allows the mapping of events to processes, although this has a performance
+    overhead. Further, it provides generalized events which are common across architectures.
+  id: totrans-167
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '**Linux 内核性能计数子系统**（**LPC**），通常称为 `linux_perf`，是一个用于不同 CPU 特定性能测量的抽象接口。`perf_events`
+    子系统不仅暴露来自 CPU 的硬件性能计数器，还通过相同的 API 提供内核软件事件。它还允许将事件映射到进程，尽管这会带来性能开销。此外，它提供了跨架构通用的事件。'
+- en: 'Events can be categorized into three main groups:'
+  id: totrans-168
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 事件可以分为三大类：
+- en: '**Software events**: Based on kernel counters, these events are used for things
+    such as context switches and minor faults tracking.'
+  id: totrans-169
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '**软件事件**：基于内核计数器，这些事件用于跟踪上下文切换、次要故障等。'
+- en: '**Hardware events**: These come from the processor''s CPU **Performance Monitoring
+    Unit** (**PMU**) and are used to track architecture-specific items, such as the
+    number of cycles, cache misses, and so on. They vary with each processor type.'
+  id: totrans-170
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '**硬件事件**：这些来自处理器的 CPU **性能监控单元**（**PMU**），用于跟踪特定于架构的项目，如周期数、缓存未命中等。它们随每种处理器类型而变化。'
+- en: '**Hardware cache events**: These are common hardware events that will only
+    be available if they actually map to a CPU hardware event.'
+  id: totrans-171
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '**硬件缓存事件**：这些是常见的硬件事件，只有在它们实际上映射到 CPU 硬件事件时才会可用。'
+- en: 'To know whether `perf_event` support is available for your platform, you can
+    check for the existence of the `/proc/sys/kernel/perf_event_paranoid` file. This
+    file is also used to restrict access to the performance counters, which by default
+    are set to allow both user and kernel measurement. It can have the following values:'
+  id: totrans-172
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要了解你的平台是否支持 `perf_event`，你可以检查 `/proc/sys/kernel/perf_event_paranoid` 文件的存在。该文件还用于限制对性能计数器的访问，默认情况下允许内核和用户测量。它可以有以下值：
+- en: '`2`: Only allows user-space measurements'
+  id: totrans-173
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`2`: 仅允许用户空间测量'
+- en: '`1`: Allows both kernel and user measurements (default)'
+  id: totrans-174
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`1`: 允许内核和用户测量（默认）'
+- en: '`0`: Allows access to CPU-specific data but not raw tracepoint samples'
+  id: totrans-175
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`0`: 允许访问特定于 CPU 的数据，但不包括原始追踪点样本'
+- en: '`-1`: No restrictions'
+  id: totrans-176
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`-1`: 无限制'
+- en: The i.MX6 SoC has a Cortex-A9 CPU which includes a PMU, providing six counters
+    to gather statistics on the operation of the processor and memory, each one of
+    them able to monitor any of 58 available events.
+  id: totrans-177
+  prefs: []
+  type: TYPE_NORMAL
+  zh: i.MX6 SoC 配备了 Cortex-A9 CPU，其中包含一个 PMU，提供六个计数器，用于收集处理器和内存操作的统计数据，每个计数器都可以监控
+    58 个可用事件中的任何一个。
+- en: You can find a description of the available events in the *Cortex-A9 Technical
+    Reference Manual*.
+  id: totrans-178
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 你可以在 *Cortex-A9 技术参考手册* 中找到可用事件的描述。
+- en: The i.MX6 performance counters do not allow exclusive access to just user or
+    just kernel measurements. Also, i.MX6 SoC designers have unfortunately joined
+    the PMU interrupts from all CPU cores, when ideally they should only be handled
+    by the same CPU that raises them. You can start the i.MX6 with just one core,
+    using the `maxcpus=1` kernel command-line argument, so that you can still use
+    the `perf_events` interface.
+  id: totrans-179
+  prefs: []
+  type: TYPE_NORMAL
+  zh: i.MX6 性能计数器不允许仅对用户或仅对内核测量进行独占访问。此外，不幸的是，i.MX6 SoC 设计师将所有 CPU 核心的 PMU 中断合并在一起，而理想情况下它们应该仅由触发它们的
+    CPU 处理。你可以使用 `maxcpus=1` 内核命令行参数启动 i.MX6，只使用一个核心，这样你仍然可以使用 `perf_events` 接口。
+- en: 'To configure the Linux kernel to boot with one core, stop at the U-Boot prompt
+    and change the `mmcargs` environment variable as follows:'
+  id: totrans-180
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要配置 Linux 内核使用单核启动，请在 U-Boot 提示符下停止并按如下方式更改 `mmcargs` 环境变量：
+- en: '[PRE41]'
+  id: totrans-181
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE41]'
+- en: Note
+  id: totrans-182
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+  zh: 注意
+- en: The `mmcargs` environmental variable is only used when booting from an MMC device
+    like the microSD card. If the target is booting from another source, such as a
+    network, the corresponding environmental variable will have to be changed. You
+    can dump the whole U-Boot environment with the `printenv` U-Boot command, and
+    change the required variable with `setenv`.
+  id: totrans-183
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`mmcargs` 环境变量仅在从 MMC 设备（如 microSD 卡）启动时使用。如果目标是从其他来源启动，如网络，则需要更改相应的环境变量。你可以使用
+    `printenv` U-Boot 命令转储整个 U-Boot 环境，并使用 `setenv` 更改所需的变量。'
+- en: How to do it...
+  id: totrans-184
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+  zh: 如何操作...
+- en: 'The interface introduces a `sys_perf_event_open()` syscall, with the counters
+    being started and stopped using `ioctls`, and read either with `read()` calls
+    or `mmapping` samples into circular buffers. The `perf_event_open()` syscall is
+    defined as follows:'
+  id: totrans-185
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 该接口引入了`sys_perf_event_open()`系统调用，计数器通过`ioctls`启动和停止，读取可以通过`read()`调用或`mmapping`样本写入循环缓冲区。`perf_event_open()`系统调用定义如下：
+- en: '[PRE42]'
+  id: totrans-186
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE42]'
+- en: There is no `C` library wrapper for it, so it needs to be called using `syscall()`.
+  id: totrans-187
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 由于没有`C`库包装器，因此需要使用`syscall()`调用它。
+- en: How it works...
+  id: totrans-188
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+  zh: 它是如何工作的...
+- en: 'Following is an example, `perf_example.c`, program modified from the `perf_event_open`
+    man page to measure instruction count for a `printf` call:'
+  id: totrans-189
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 以下是一个例子，`perf_example.c`，该程序修改自`perf_event_open`手册页面，用于测量`printf`调用的指令数：
+- en: '[PRE43]'
+  id: totrans-190
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE43]'
+- en: 'For compiling this program externally, we can use the following commands:'
+  id: totrans-191
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要在外部编译此程序，我们可以使用以下命令：
+- en: '[PRE44]'
+  id: totrans-192
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE44]'
+- en: 'After copying the binary to your target, you can then execute it with the help
+    of the following code:'
+  id: totrans-193
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 将二进制文件复制到目标设备后，您可以通过以下代码执行它：
+- en: '[PRE45]'
+  id: totrans-194
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE45]'
+- en: Obviously, using zero instructions for the `printf()` call can't be correct.
+    Looking into possible causes, we find a documented erratum (ERR006259) on i.MX6
+    processors that states that in order for the PMU to be used, the SoC needs to
+    receive at least 4 JTAG clock cycles after power on reset.
+  id: totrans-195
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 显然，使用零指令来调用`printf()`是不正确的。经过检查，发现i.MX6处理器上有一个已记录的错误（ERR006259），该错误指出为了使用PMU，SoC在上电重置后需要至少接收4个JTAG时钟周期。
+- en: 'Rerun the example with the JTAG connected:'
+  id: totrans-196
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 重新连接JTAG并重新运行该示例：
+- en: '[PRE46]'
+  id: totrans-197
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE46]'
+- en: There's more...
+  id: totrans-198
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+  zh: 还有更多...
+- en: Even though you can access the `perf_events` interface directly as in the preceding
+    example, the recommended way to use it is through a user space application, such
+    as perf, which we will see in the *Tracing and profiling with perf* recipe in
+    this chapter.
+  id: totrans-199
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 即使你可以像前面例子中那样直接访问`perf_events`接口，推荐的使用方法是通过用户空间应用程序（如perf），我们将在本章的*使用perf进行跟踪和分析*示例中看到。
+- en: See also
+  id: totrans-200
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+  zh: 另见
+- en: The Technical Reference Manual at [http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.ddi0388f/BEHGGDJC.html](http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.ddi0388f/BEHGGDJC.html)for
+    more information about the Cortex-A9 PMU
+  id: totrans-201
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 更多信息请参见技术参考手册：[http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.ddi0388f/BEHGGDJC.html](http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.ddi0388f/BEHGGDJC.html)，了解有关Cortex-A9
+    PMU的更多信息。
+- en: Using static kernel tracing
+  id: totrans-202
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 使用静态内核跟踪
+- en: The Linux kernel is continuously being instrumented with static probe points
+    called **tracepoints**, which when disabled have a very small overhead. They allow
+    us to record more information than the function tracer we saw in [Chapter 2](ch02.html
+    "Chapter 2. The BSP Layer"), *The BSP Layer*. Tracepoints are used by multiple
+    tracing and profiling tools in Yocto.
+  id: totrans-203
+  prefs: []
+  type: TYPE_NORMAL
+  zh: Linux内核不断通过静态探针点（称为**tracepoints**）进行插桩，这些探针在禁用时会带来非常小的开销。它们允许我们记录比我们在[第2章](ch02.html
+    "第2章：BSP层")中看到的函数跟踪器更多的信息，*BSP层*。Tracepoints被Yocto中的多个跟踪和分析工具使用。
+- en: This recipe will explain how to use and define static tracepoints independently
+    of user space tools.
+  id: totrans-204
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 本示例将解释如何独立于用户空间工具使用和定义静态跟踪点。
+- en: Getting ready
+  id: totrans-205
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+  zh: 准备工作
+- en: Static tracepoints can be instrumented using custom kernel modules, and also
+    through the event tracing infrastructure. Enabling any of the tracing features
+    in the kernel will create a `/sys/kernel/debug/tracing/` directory; for example,
+    the function tracing feature as explained in the *Using the kernel function tracing
+    system* in [Chapter 2](ch02.html "Chapter 2. The BSP Layer"), *The BSP Layer*.
+  id: totrans-206
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 静态探针可以通过自定义内核模块进行插桩，也可以通过事件跟踪基础设施插桩。启用内核中的任何跟踪功能将创建一个`/sys/kernel/debug/tracing/`目录；例如，前面在[第2章](ch02.html
+    "第2章：BSP层")中解释的函数跟踪功能，*BSP层*。
+- en: So before continuing with this recipe, you need to configure the function tracing
+    feature in the Linux kernel as explained before.
+  id: totrans-207
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 因此，在继续本示例之前，您需要如前所述配置Linux内核中的函数跟踪功能。
+- en: How to do it...
+  id: totrans-208
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+  zh: 如何操作...
+- en: 'The static tracing functionality is exposed via the `debugfs` filesystem. The
+    functionality offered by the interface includes:'
+  id: totrans-209
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 静态跟踪功能通过`debugfs`文件系统暴露。该接口提供的功能包括：
+- en: '**Listing events**:'
+  id: totrans-210
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '**列出事件**：'
+- en: 'You can see a list of available tracepoints exposed via `sysfs` and ordered
+    in subsystem directories with:'
+  id: totrans-211
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 您可以查看通过`sysfs`暴露的可用跟踪点，并按子系统目录进行排序，方法是：
+- en: '[PRE47]'
+  id: totrans-212
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE47]'
+- en: 'Or in the `available_events` file with the `<subsystem>:<event>` format using
+    the following commands:'
+  id: totrans-213
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 或者在`available_events`文件中使用`<subsystem>:<event>`格式，通过以下命令：
+- en: '[PRE48]'
+  id: totrans-214
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE48]'
+- en: '**Describing events**:'
+  id: totrans-215
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '**描述事件**：'
+- en: 'Each event has a specific printing format that describes the information included
+    in the log event, as follows:'
+  id: totrans-216
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 每个事件都有一个特定的打印格式，描述了日志事件中包含的信息，如下所示：
+- en: '[PRE49]'
+  id: totrans-217
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE49]'
+- en: '**Enabling and disabling events**:'
+  id: totrans-218
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '**启用和禁用事件**：'
+- en: 'You can enable or disable events in the following ways:'
+  id: totrans-219
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 您可以通过以下几种方式启用或禁用事件：
+- en: 'By echoing 0 or 1 to the event `enable` file:'
+  id: totrans-220
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 通过向事件`enable`文件中回显0或1：
+- en: '[PRE50]'
+  id: totrans-221
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE50]'
+- en: 'By subsystem directory, which will enable or disable all the tracepoints in
+    the directory/subsystem:'
+  id: totrans-222
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 按子系统目录，可以启用或禁用该目录/子系统中的所有跟踪点：
+- en: '[PRE51]'
+  id: totrans-223
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE51]'
+- en: 'By echoing the unique tracepoint name into the `set_event` file:'
+  id: totrans-224
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 通过将唯一的跟踪点名称回显到`set_event`文件中：
+- en: '[PRE52]'
+  id: totrans-225
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE52]'
+- en: Note the append operation `>>` is used not to clear events.
+  id: totrans-226
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 请注意，追加操作`>>`用于不清除事件。
+- en: 'Events can be disabled by appending an exclamation mark to their names:'
+  id: totrans-227
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 通过向事件名称追加感叹号，可以禁用事件：
+- en: '[PRE53]'
+  id: totrans-228
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE53]'
+- en: 'Events can also be enabled/disabled by subsystem:'
+  id: totrans-229
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 事件也可以通过子系统来启用/禁用：
+- en: '[PRE54]'
+  id: totrans-230
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE54]'
+- en: 'To disable all events:'
+  id: totrans-231
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 要禁用所有事件：
+- en: '[PRE55]'
+  id: totrans-232
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE55]'
+- en: You can also enable tracepoints from boot by passing a `trace_event=<comma separated
+    event list>` kernel command line-argument.
+  id: totrans-233
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 您还可以通过传递`trace_event=<用逗号分隔的事件列表>`内核命令行参数，从启动时启用跟踪点。
+- en: '**Adding events to the tracing buffer**:'
+  id: totrans-234
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '**将事件添加到跟踪缓冲区**：'
+- en: 'To see the tracepoints appear on the tracing buffer, turn tracing on:'
+  id: totrans-235
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 要在跟踪缓冲区上看到跟踪点的出现，请打开跟踪功能：
+- en: '[PRE56]'
+  id: totrans-236
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE56]'
+- en: 'Tracepoint events are integrated into the `ftrace` subsystem so that if you
+    enable a tracepoint, when a tracer is running, it will show up in the trace. Take
+    a look at the following commands:'
+  id: totrans-237
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 跟踪点事件集成到`ftrace`子系统中，因此，如果启用跟踪点，在运行跟踪器时，它会出现在跟踪中。请看以下命令：
+- en: '[PRE57]'
+  id: totrans-238
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE57]'
+- en: How it works...
+  id: totrans-239
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+  zh: 它的工作原理...
+- en: A tracepoint is inserted using the `TRACE_EVENT` macro. It inserts a callback
+    in the kernel source that gets called with the tracepoint parameters as arguments.
+    Tracepoints added with the `TRACE_EVENT` macro allow `ftrace` or any other tracer
+    to use them. The callback inserts the trace at the calling tracer's ring buffer.
+  id: totrans-240
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 跟踪点是通过使用`TRACE_EVENT`宏插入的。它在内核源代码中插入一个回调，该回调使用跟踪点参数作为参数进行调用。使用`TRACE_EVENT`宏添加的跟踪点允许`ftrace`或任何其他跟踪器使用它们。回调将跟踪插入调用跟踪器的环形缓冲区。
+- en: To insert a new tracepoint into the Linux kernel, define a new header file with
+    a special format. By default, tracepoint kernel files are located in `include/trace/events`,
+    but the kernel has functionality so that the header files can be located in a
+    different path. This is useful when defining a tracepoint in a kernel module.
+  id: totrans-241
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要将新的跟踪点插入到Linux内核中，需要定义一个具有特殊格式的新头文件。默认情况下，跟踪点内核文件位于`include/trace/events`中，但内核具有功能，可以将头文件放置在不同的路径中。这在定义内核模块中的跟踪点时非常有用。
+- en: 'To use the tracepoint, the header file must be included in any file that inserts
+    the tracepoint, and a single C file must define `CREATE_TRACE_POINT`. For example,
+    to extend the `hello world` Linux kernel module we saw in a previous chapter with
+    a tracepoint, add the following code to `meta-bsp-custom/recipes-kernel/hello-world-tracepoint/files/hello_world.c`:'
+  id: totrans-242
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要使用跟踪点，必须在插入跟踪点的任何文件中包含头文件，并且单个C文件必须定义`CREATE_TRACE_POINT`。例如，要扩展我们在前一章中看到的`hello
+    world`Linux内核模块并添加跟踪点，可以将以下代码添加到`meta-bsp-custom/recipes-kernel/hello-world-tracepoint/files/hello_world.c`：
+- en: '[PRE58]'
+  id: totrans-243
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE58]'
+- en: 'The tracepoint header file in `meta-bsp-custom/recipes-kernel/hello-world-tracepoint/files/trace.h`
+    would be:'
+  id: totrans-244
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`meta-bsp-custom/recipes-kernel/hello-world-tracepoint/files/trace.h`中的跟踪点头文件将是：'
+- en: '[PRE59]'
+  id: totrans-245
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE59]'
+- en: 'And the module''s `Makefile` file in `meta-bsp-custom/recipes-kernel/hello-world-tracepoint/files/Makefile`
+    would look as follows:'
+  id: totrans-246
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在`meta-bsp-custom/recipes-kernel/hello-world-tracepoint/files/Makefile`中的模块`Makefile`文件将如下所示：
+- en: '[PRE60]'
+  id: totrans-247
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE60]'
+- en: Note the highlighted line that includes the current folder in the search path
+    for `include` files.
+  id: totrans-248
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 请注意，突出显示的行包括当前文件夹在`include`文件的搜索路径中。
+- en: 'We can now build the module externally, as we saw in the *Building external
+    kernel modules* recipe in [Chapter 2](ch02.html "Chapter 2. The BSP Layer"), *The
+    BSP Layer*. The corresponding Yocto recipe is included in the source that accompanies
+    the book. Here is the code for the same:'
+  id: totrans-249
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 我们现在可以像在[第2章](ch02.html "第2章. BSP层")的*构建外部内核模块*食谱中看到的那样，外部构建模块，*BSP层*。对应的Yocto食谱包含在随书附带的源码中。以下是相应的代码：
+- en: '[PRE61]'
+  id: totrans-250
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE61]'
+- en: 'After copying the resulting `hello_world.ko` module to the Wandboard''s root
+    filesystem, you can load it with:'
+  id: totrans-251
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 将生成的`hello_world.ko`模块复制到Wandboard的根文件系统后，您可以使用以下命令加载它：
+- en: '[PRE62]'
+  id: totrans-252
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE62]'
+- en: 'You can now see a new `log_dbg` directory inside `/sys/kernel/debug/tracing/events`,
+    which contains a `log_dbg` event tracepoint with the following format:'
+  id: totrans-253
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 您现在可以在`/sys/kernel/debug/tracing/events`目录下看到一个新的`log_dbg`目录，其中包含一个`log_dbg`事件跟踪点，格式如下：
+- en: '[PRE63]'
+  id: totrans-254
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE63]'
+- en: 'You can then enable the function tracer on the `hello_timer_callback` function:'
+  id: totrans-255
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 然后你可以在 `hello_timer_callback` 函数上启用函数追踪器：
+- en: '[PRE64]'
+  id: totrans-256
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE64]'
+- en: There's more...
+  id: totrans-257
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+  zh: 还有更多内容...
+- en: Static tracepoints can also be filtered. When an event matches a filter set,
+    it is kept, otherwise it is discarded. Events without filters are always kept.
+  id: totrans-258
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 静态追踪点也可以进行过滤。当事件与设置的过滤器匹配时，事件会被保留，否则会被丢弃。没有过滤器的事件总是被保留。
+- en: 'For example, to set a matching filter for the `log_dbg` event inserted in the
+    preceding code, you could match either the `a` or `b` variables:'
+  id: totrans-259
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 例如，要为前面代码中插入的 `log_dbg` 事件设置匹配过滤器，你可以匹配 `a` 或 `b` 变量：
+- en: '[PRE65]'
+  id: totrans-260
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE65]'
+- en: See also
+  id: totrans-261
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+  zh: 另见
+- en: The Linux kernel documentation at [https://git.kernel.org/cgit/linux/kernel/git/torvalds/linux.git/plain/Documentation/trace/events.txt](https://git.kernel.org/cgit/linux/kernel/git/torvalds/linux.git/plain/Documentation/trace/events.txt)
+    for more information regarding static tracepoints events
+  id: totrans-262
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 更多信息请参见 Linux 内核文档：[https://git.kernel.org/cgit/linux/kernel/git/torvalds/linux.git/plain/Documentation/trace/events.txt](https://git.kernel.org/cgit/linux/kernel/git/torvalds/linux.git/plain/Documentation/trace/events.txt)
+- en: The *Using the TRACE_EVENT() macro* article series by Steven Rostedt at [http://lwn.net/Articles/379903/](http://lwn.net/Articles/379903/)
+  id: totrans-263
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: Steven Rostedt 在 [http://lwn.net/Articles/379903/](http://lwn.net/Articles/379903/)
+    上的 *使用 TRACE_EVENT() 宏* 文章系列
+- en: Using dynamic kernel tracing
+  id: totrans-264
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 使用动态内核追踪
+- en: '`kprobes` is a kernel debugging facility that allows us to dynamically break
+    into almost any kernel function (except `kprobe` itself) to collect debugging
+    and profiling information non-disruptively. Some architectures keep an array of
+    blacklisted functions, which cannot be probed using `kprobe`, but on ARM the list
+    is empty.'
+  id: totrans-265
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`kprobes` 是一个内核调试工具，允许我们动态地插入几乎任何内核函数（除了 `kprobe` 本身）以非破坏性地收集调试和性能分析信息。一些架构会维护一个黑名单函数数组，这些函数无法通过
+    `kprobe` 进行探测，但在 ARM 架构中，该列表为空。'
+- en: Because `kprobes` can be used to change a function's data and registers, it
+    should only be used in development environments.
+  id: totrans-266
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 因为 `kprobes` 可以用来修改函数的数据和寄存器，所以它应该只在开发环境中使用。
+- en: 'There are three types of probes:'
+  id: totrans-267
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 有三种类型的探测器：
+- en: '`kprobes`: This is the kernel probe which can be inserted into any location
+    with more than one `kprobe` added at a single location, if needed.'
+  id: totrans-268
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`kprobes`：这是内核探测器，可以插入到任何位置，若需要，可以在同一位置添加多个 `kprobe`。'
+- en: '`jprobe`: This is the jumper probe inserted at the entry point of a kernel
+    function to provide access to its arguments. Only one `jprobe` may be added at
+    a given location.'
+  id: totrans-269
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`jprobe`：这是插入内核函数入口点的跳转探测器，用于访问其参数。每个位置只能添加一个 `jprobe`。'
+- en: '`kretprobe`: This is the return probe which triggers on a function return.
+    Also, only one `kretprobe` may be added to the same location.'
+  id: totrans-270
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`kretprobe`：这是一个返回探测器，在函数返回时触发。此外，每个位置只能添加一个 `kretprobe`。'
+- en: They are packaged into a kernel module, with the `init` function registering
+    the probes and the `exit` function unregistering them.
+  id: totrans-271
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 它们被打包成一个内核模块，`init` 函数负责注册探测器，`exit` 函数负责注销探测器。
+- en: This recipe will explain how to use all types of dynamic probes.
+  id: totrans-272
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 本教程将解释如何使用所有类型的动态探测器。
+- en: Getting ready
+  id: totrans-273
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+  zh: 准备工作
+- en: 'To configure the Linux kernel with `kprobes` support, you need to:'
+  id: totrans-274
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要为 Linux 内核配置 `kprobes` 支持，你需要：
+- en: Define the `CONFIG_KPROBES` configuration variable
+  id: totrans-275
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 定义 `CONFIG_KPROBES` 配置变量
+- en: Define `CONFIG_MODULES` and `CONFIG_MODULE_UNLOAD` so that modules can be used
+    to register probes
+  id: totrans-276
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 定义 `CONFIG_MODULES` 和 `CONFIG_MODULE_UNLOAD` 以便可以使用模块来注册探测器。
+- en: Define `CONFIG_KALLSYMS` and `CONFIG_KALLSYMS_ALL` (recommended) so that kernel
+    symbols can be looked up
+  id: totrans-277
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 定义 `CONFIG_KALLSYMS` 和 `CONFIG_KALLSYMS_ALL`（推荐）以便能够查找内核符号
+- en: 'Optionally, define the `CONFIG_DEBUG_INFO` configuration variable so that probes
+    can be inserted in the middle of functions as offsets from the entry point. To
+    find the insertion point, you can use `objdump`, as seen in the following excerpt
+    for the `do_sys_open` function:'
+  id: totrans-278
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 可选地，定义 `CONFIG_DEBUG_INFO` 配置变量，这样探测器可以作为从入口点的偏移插入到函数中。要找到插入点，你可以使用 `objdump`，如下所示的
+    `do_sys_open` 函数片段：
+- en: '[PRE66]'
+  id: totrans-279
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE66]'
+- en: 'The `kprobes` API is defined in the `kprobes.h` file and includes registration/unregistration
+    and enabling/disabling functions for the three types of probes as follows:'
+  id: totrans-280
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '`kprobes` API 定义在 `kprobes.h` 文件中，包括三种类型探测器的注册/注销以及启用/禁用函数，具体如下：'
+- en: '[PRE67]'
+  id: totrans-281
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE67]'
+- en: 'By default, a `kprobe` probe is enabled when registering, except when the `KPROBE_FLAG_DISABLED`
+    flag is passed. The following function definitions enable or disable the probe:'
+  id: totrans-282
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 默认情况下，`kprobe` 探测器在注册时会被启用，除非传入 `KPROBE_FLAG_DISABLED` 标志。以下函数定义用于启用或禁用探测器：
+- en: '[PRE68]'
+  id: totrans-283
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE68]'
+- en: 'The registered `kprobe` probes can be listed through `debugfs`:'
+  id: totrans-284
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 注册的 `kprobe` 探针可以通过 `debugfs` 列出：
+- en: '[PRE69]'
+  id: totrans-285
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE69]'
+- en: 'They can globally be enabled or disabled with:'
+  id: totrans-286
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 它们可以全局启用或禁用：
+- en: '[PRE70]'
+  id: totrans-287
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE70]'
+- en: How to do it...
+  id: totrans-288
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+  zh: 如何操作...
+- en: On registration, the `kprobe` probe places a breakpoint (or jump, if optimized)
+    instruction at the start of the probed instruction. When the breakpoint is hit,
+    a trap occurs, the registers are saved, and control passes to `kprobes`, which
+    calls the pre-handler. It then single steps the breakpoint and calls the post-handler.
+    If a fault occurs, the fault handler is called. Handlers can be NULL if desired.
+  id: totrans-289
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在注册时，`kprobe` 探针会在被探测指令的起始位置放置一个断点（如果经过优化，则为跳转）指令。当断点被触发时，发生陷阱，寄存器被保存，控制权转交给
+    `kprobes`，并调用前处理程序。接着，它会单步执行断点，并调用后处理程序。如果发生故障，则会调用故障处理程序。如果需要，处理程序可以为 NULL。
+- en: A `kprobe` probe can be inserted either in a function symbol or into an address,
+    using the offset field, but not in both.
+  id: totrans-290
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`kprobe` 探针可以插入到函数符号或地址中，使用偏移字段，但不能同时插入两者。'
+- en: Note
+  id: totrans-291
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+  zh: 注意
+- en: On occasions, `kprobe` will still be too intrusive to debug certain problems,
+    as it slows the functions and may affect scheduling and be problematic when called
+    from interrupt context.
+  id: totrans-292
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 有时，`kprobe` 对于调试某些问题仍然过于干扰，因为它会减慢函数执行，可能影响调度，并且在中断上下文中调用时可能会引发问题。
+- en: 'For example, to place a `kprobe` probe in the open syscall, we would use the
+    `meta-bsp-custom/recipes-kernel/open-kprobe/files/kprobe_open.c` custom module:'
+  id: totrans-293
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 例如，要在 `open` 系统调用中放置一个 `kprobe` 探针，我们可以使用 `meta-bsp-custom/recipes-kernel/open-kprobe/files/kprobe_open.c`
+    自定义模块：
+- en: '[PRE71]'
+  id: totrans-294
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE71]'
+- en: 'We compile it with a Yocto recipe, as explained in the *Building external kernel
+    modules* recipe in [Chapter 2](ch02.html "Chapter 2. The BSP Layer"), *The BSP
+    Layer*. Here is the code for the `meta-bsp-custom/recipes-kernel/open-kprobe/open-kprobe.bb`
+    Yocto recipe file:'
+  id: totrans-295
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 我们通过 Yocto 配方编译它，正如 [第 2 章](ch02.html "第 2 章. BSP 层") 中 *构建外部内核模块* 配方所解释的那样，*BSP
+    层*。以下是 `meta-bsp-custom/recipes-kernel/open-kprobe/open-kprobe.bb` Yocto 配方文件的代码：
+- en: '[PRE72]'
+  id: totrans-296
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE72]'
+- en: 'With the `Makefile` file in `meta-bsp-custom/recipes-kernel/open-kprobe/files/Makefile`
+    being:'
+  id: totrans-297
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`meta-bsp-custom/recipes-kernel/open-kprobe/files/Makefile` 文件内容如下：'
+- en: '[PRE73]'
+  id: totrans-298
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE73]'
+- en: 'Copy it to a target running the same kernel it has been linked against, and
+    load it with the following:'
+  id: totrans-299
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 将其复制到运行相同内核的目标上，并使用以下命令加载：
+- en: '[PRE74]'
+  id: totrans-300
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE74]'
+- en: 'We can now see the handlers printing in the console when a file is opened:'
+  id: totrans-301
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当打开文件时，我们现在可以看到处理程序在控制台中打印出来：
+- en: '[PRE75]'
+  id: totrans-302
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE75]'
+- en: There's more...
+  id: totrans-303
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+  zh: 还有更多内容...
+- en: A `jprobe` probe is implemented with a `kprobe`. It sets a breakpoint at the
+    given symbol or address (but it must be the first instruction of a function),
+    and makes a copy of a portion of the stack. When hit, it then jumps to the handler
+    with the same registers and stack as the probed function. The handler must have
+    the same argument list and return type as the probed function, and call `jprobe_return()`
+    before returning to pass the control back to `kprobes`. Then the original stack
+    and CPU state are restored and the probed function is called.
+  id: totrans-304
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`jprobe` 探针是通过 `kprobe` 实现的。它会在给定的符号或地址处设置一个断点（但必须是函数的第一条指令），并复制一部分堆栈。当触发时，它会跳转到处理程序，使用与被探测函数相同的寄存器和堆栈。处理程序必须与被探测函数具有相同的参数列表和返回类型，并在返回之前调用
+    `jprobe_return()`，以将控制权传回 `kprobes`。然后恢复原始堆栈和 CPU 状态，并调用被探测的函数。'
+- en: 'Following is an example of a `jprobe` in the open syscall in the `meta-bsp-custom/recipes-kernel/open-jprobe/files/jprobe_open.c`
+    file:'
+  id: totrans-305
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 以下是 `meta-bsp-custom/recipes-kernel/open-jprobe/files/jprobe_open.c` 文件中 `open`
+    系统调用的 `jprobe` 示例：
+- en: '[PRE76]'
+  id: totrans-306
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE76]'
+- en: A `kretprobe` probe sets a `kprobe` at the given symbol or function address
+    which when hit, replaces the return address with a trampoline, usually a nop instruction,
+    where `kprobe` is registered. When the probed function returns, the `kprobe` probe
+    on the trampoline is hit, calling the return handler and setting back the original
+    return address before resuming execution.
+  id: totrans-307
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`kretprobe` 探针会在给定的符号或函数地址处设置一个 `kprobe`，当触发时，会用一个 trampoline（通常是一个 nop 指令）替换返回地址，`kprobe`
+    在此注册。当被探测函数返回时，trampoline 上的 `kprobe` 探针会被触发，调用返回处理程序，并在恢复执行之前设置回原始返回地址。'
+- en: 'Following is an example of a `kretprobe` probe in the open syscall in the `meta-bsp-custom/recipes-kernel/open-kretprobe/files/kretprobe_open.c`
+    file:'
+  id: totrans-308
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 以下是 `meta-bsp-custom/recipes-kernel/open-kretprobe/files/kretprobe_open.c` 文件中
+    `open` 系统调用的 `kretprobe` 探针示例：
+- en: '[PRE77]'
+  id: totrans-309
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE77]'
+- en: The highlighted `maxactive` variable is the number of reserved storage for return
+    addresses in the `kretprobe` probe, and by default, it is the number of CPUs (or
+    twice the number of CPUs in preemptive systems with a maximum of 10). If `maxactive`
+    is too low, some probes will be missed.
+  id: totrans-310
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 高亮显示的`maxactive`变量是`kretprobe`探针中用于返回地址的预留存储数量，默认情况下，它等于CPU的数量（或者在抢占系统中为CPU数量的两倍，最多为10）。如果`maxactive`值过低，一些探针将会被漏掉。
+- en: The complete examples, including Yocto recipes, can be found in the source that
+    accompanies the book.
+  id: totrans-311
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 完整的示例，包括Yocto食谱，可以在随书提供的源代码中找到。
+- en: See also
+  id: totrans-312
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+  zh: 另见
+- en: The kprobes documentation on the Linux kernel at [https://git.kernel.org/cgit/linux/kernel/git/torvalds/linux.git/tree/Documentation/kprobes.txt](https://git.kernel.org/cgit/linux/kernel/git/torvalds/linux.git/tree/Documentation/kprobes.txt)
+  id: totrans-313
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 关于`kprobes`的文档可以在Linux内核的[https://git.kernel.org/cgit/linux/kernel/git/torvalds/linux.git/tree/Documentation/kprobes.txt](https://git.kernel.org/cgit/linux/kernel/git/torvalds/linux.git/tree/Documentation/kprobes.txt)找到
+- en: Using dynamic kernel events
+  id: totrans-314
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 使用动态内核事件
+- en: Although dynamic tracing is a very useful feature, custom kernel modules is
+    not a user-friendly interface. Fortunately, the Linux kernel has been extended
+    with the support of `kprobe` events, which allow us to set `kprobes` probes using
+    a `debugfs` interface.
+  id: totrans-315
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 尽管动态追踪是一个非常有用的功能，但自定义内核模块并不是一个用户友好的接口。幸运的是，Linux内核通过支持`kprobe`事件进行了扩展，允许我们使用`debugfs`接口设置`kprobes`探针。
+- en: Getting ready
+  id: totrans-316
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+  zh: 准备就绪
+- en: To make use of this feature, we need to configure our kernel with the `CONFIG_KPROBE_EVENT`
+    configuration variable.
+  id: totrans-317
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要使用此功能，我们需要使用`CONFIG_KPROBE_EVENT`配置变量配置我们的内核。
+- en: How to do it...
+  id: totrans-318
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+  zh: 如何操作...
+- en: 'The `debugfs` interface adds probes via the `/sys/kernel/debug/tracing/kprobe_events`
+    file. For example, to add a `kprobe` called `example_probe` to the `do_sys_open`
+    function, you can execute the following command:'
+  id: totrans-319
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`debugfs`接口通过`/sys/kernel/debug/tracing/kprobe_events`文件添加探针。例如，要将名为`example_probe`的`kprobe`添加到`do_sys_open`函数中，可以执行以下命令：'
+- en: '[PRE78]'
+  id: totrans-320
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE78]'
+- en: 'The probe will print the function''s argument list, according to the function''s
+    declaration arguments as seen in the funcion''s definition below:'
+  id: totrans-321
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 探针将根据函数的声明参数列表，打印该函数的参数列表，如下所示：
+- en: '[PRE79]'
+  id: totrans-322
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE79]'
+- en: 'You can then manage `kprobes` through the sysfs as follows:'
+  id: totrans-323
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 然后，您可以通过sysfs管理`kprobes`，具体如下：
+- en: 'To see all the registered probes:'
+  id: totrans-324
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 查看所有已注册的探针：
+- en: '[PRE80]'
+  id: totrans-325
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE80]'
+- en: 'To print the probe format:'
+  id: totrans-326
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 要打印探针格式：
+- en: '[PRE81]'
+  id: totrans-327
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE81]'
+- en: 'To enable the probe use the following command:'
+  id: totrans-328
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 要启用探针，请使用以下命令：
+- en: '[PRE82]'
+  id: totrans-329
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE82]'
+- en: 'To see the probe output on either the `trace` or `trace_pipe` files:'
+  id: totrans-330
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 要查看探针输出，请在`trace`或`trace_pipe`文件中查看：
+- en: '[PRE83]'
+  id: totrans-331
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE83]'
+- en: 'To clear the probe (after disabling it):'
+  id: totrans-332
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 清除探针（在禁用后）：
+- en: '[PRE84]'
+  id: totrans-333
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE84]'
+- en: 'To clear all probes:'
+  id: totrans-334
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 清除所有探针：
+- en: '[PRE85]'
+  id: totrans-335
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE85]'
+- en: 'To check the number of hit and missed events:'
+  id: totrans-336
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 检查命中和漏掉事件的数量：
+- en: '[PRE86]'
+  id: totrans-337
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE86]'
+- en: 'With the format being as follows:'
+  id: totrans-338
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 格式如下：
+- en: '[PRE87]'
+  id: totrans-339
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE87]'
+- en: How it works...
+  id: totrans-340
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+  zh: 它是如何工作的...
+- en: 'To set a probe we use the following syntax:'
+  id: totrans-341
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要设置探针，我们使用以下语法：
+- en: '[PRE88]'
+  id: totrans-342
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE88]'
+- en: 'Let''s explain each of the mentioned parameters:'
+  id: totrans-343
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 让我们解释一下提到的每个参数：
+- en: '`type`: This is either `p` for `kprobe` or `r` for a return probe.'
+  id: totrans-344
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`type`：这可以是`p`表示`kprobe`，或者`r`表示返回探针。'
+- en: '`event name`: This is optional and has the format `<group/event>`. If the group
+    name is omitted, it defaults to `kprobes`, and if the event name is omitted, it
+    is autogenerated based on the symbol. When an event name is given, it adds a directory
+    under `/sys/kernel/debug/tracing/events/kprobes/` with the following content:'
+  id: totrans-345
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`event name`：这是可选的，格式为`<group/event>`。如果省略了组名，默认使用`kprobes`，如果省略了事件名，则根据符号自动生成事件名。给定事件名时，它将在`/sys/kernel/debug/tracing/events/kprobes/`下创建一个目录，内容如下：'
+- en: '`id`: This is the ID of the probe event'
+  id: totrans-346
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`id`：这是探针事件的ID'
+- en: '`filter`: This specifies user filtering rules'
+  id: totrans-347
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`filter`：这指定了用户的过滤规则'
+- en: '`format`: This is the format of the probe event'
+  id: totrans-348
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`format`：这是探针事件的格式'
+- en: '`enabled`: This is used to enable or disable the probe event'
+  id: totrans-349
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`enabled`：用于启用或禁用探针事件'
+- en: '`symbol`: This is either the symbol name plus an optional offset or the memory
+    address where the probe is to be inserted.'
+  id: totrans-350
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`symbol`：这是符号名称，后跟一个可选的偏移量，或者是要插入探针的内存地址。'
+- en: '`fetch arguments`: These are optional and represent the information to extract
+    with a maximum of 128 arguments. They have the following format:'
+  id: totrans-351
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`fetch arguments`：这些是可选的，表示要提取的信息，最多可提取128个参数。它们具有以下格式：'
+- en: '[PRE89]'
+  id: totrans-352
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE89]'
+- en: 'Lets explain each of the mentioned parameters:'
+  id: totrans-353
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 让我们解释一下提到的每个参数：
+- en: '`name`: This sets the argument name'
+  id: totrans-354
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`name`：这设置了参数名称'
+- en: '`offset`: This adds an offset to the address argument'
+  id: totrans-355
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`offset`：这会向地址参数添加一个偏移量'
+- en: '`argument`: This can be of the following format:'
+  id: totrans-356
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`argument`：这可以是以下格式：'
+- en: '`%<register>`: This fetches the specified register. For ARM these are:'
+  id: totrans-357
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '`%<register>`：这会获取指定的寄存器。对于ARM来说，这些是：'
+- en: '`r0 to r10`'
+  id: totrans-358
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '`r0 to r10`'
+- en: '`fp`'
+  id: totrans-359
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '`fp`'
+- en: '`ip`'
+  id: totrans-360
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '`ip`'
+- en: '`sp`'
+  id: totrans-361
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '`sp`'
+- en: '`lr`'
+  id: totrans-362
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '`lr`'
+- en: '`pc`'
+  id: totrans-363
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '`pc`'
+- en: '`cpsr`'
+  id: totrans-364
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '`cpsr`'
+- en: '`ORIG_r0`'
+  id: totrans-365
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '`ORIG_r0`'
+- en: '`@<address>`: This fetches the memory at the specified kernel address'
+  id: totrans-366
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '`@<address>`：这会获取指定内核地址的内存'
+- en: '`@<symbol><offset>`: This fetches the memory at the specified symbol and optional
+    offset'
+  id: totrans-367
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '`@<symbol><offset>`：这会获取指定符号和可选偏移量的内存'
+- en: '`$stack`: This fetches the stack address'
+  id: totrans-368
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '`$stack`：这会获取栈地址'
+- en: '`$stack<N>`: This fetches the *n*th entry of the stack'
+  id: totrans-369
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '`$stack<N>`：这会获取栈中的第*n*个条目'
+- en: 'And for return probes we have:'
+  id: totrans-370
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 对于返回探针，我们有：
+- en: '`$retval`: This fetches the return value'
+  id: totrans-371
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '`$retval`：这会获取返回值'
+- en: '`type`: This one sets the argument type used by `kprobe` to access the memory
+    from the following options:'
+  id: totrans-372
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`type`：此选项设置`kprobe`用于访问内存的参数类型，以下是可用选项：'
+- en: u8,u16,u32,u64, for unsigned types
+  id: totrans-373
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: u8, u16, u32, u64，适用于无符号类型
+- en: s8,s16,s32,s64, for signed types
+  id: totrans-374
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: s8, s16, s32, s64，适用于有符号类型
+- en: string, for null terminated strings
+  id: totrans-375
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: string，适用于以空字符结尾的字符串
+- en: 'bitfield, with the following format:'
+  id: totrans-376
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 位域，格式如下：
+- en: '[PRE90]'
+  id: totrans-377
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE90]'
+- en: There's more...
+  id: totrans-378
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+  zh: 还有更多...
+- en: Current versions of the Linux kernel (from v3.14 onwards) also have support
+    for user space probe events (uprobes), with a similar interface to the one for
+    the `kprobes` events.
+  id: totrans-379
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当前版本的Linux内核（从v3.14开始）也支持用户空间探针事件（uprobes），其接口与`kprobes`事件相似。
+- en: Exploring Yocto's tracing and profiling tools
+  id: totrans-380
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 探索Yocto的跟踪和性能分析工具
+- en: Tracing and profiling tools are used to increase the performance, efficiency,
+    and quality of both, applications and systems. User space tracing and profiling
+    tools make use of performance counters and static and dynamic tracing functionality
+    that the Linux kernel offers, as we have seen in the previous recipes.
+  id: totrans-381
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 跟踪和性能分析工具用于提高应用程序和系统的性能、效率和质量。用户空间的跟踪和性能分析工具利用Linux内核提供的性能计数器以及静态和动态跟踪功能，正如我们在前面的示例中看到的那样。
+- en: Getting ready
+  id: totrans-382
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+  zh: 正在准备
+- en: Tracing enables us to log an application's activity so that its behavior can
+    be analyzed, optimized, and corrected.
+  id: totrans-383
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 跟踪使我们能够记录应用程序的活动，以便分析、优化和修正其行为。
+- en: 'Yocto offers several tracing tools including:'
+  id: totrans-384
+  prefs: []
+  type: TYPE_NORMAL
+  zh: Yocto提供了包括以下几种跟踪工具：
+- en: '**trace-cmd**: This is a command line interface to the `ftrace` kernel subsystem,
+    and **kernelshark**, a graphical interface to trace-cmd.'
+  id: totrans-385
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '**trace-cmd**：这是`ftrace`内核子系统的命令行接口，以及**kernelshark**，一个图形化界面，用于与trace-cmd配合使用。'
+- en: '**perf**: This is a tool that originated in the Linux kernel as a command line
+    interface to its performance counter events subsystem. It has since then expanded
+    and added several other tracing mechanisms.'
+  id: totrans-386
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '**perf**：这是一个起源于Linux内核的工具，它提供了命令行接口，用于性能计数器事件子系统。此后，它已扩展并添加了其他几种跟踪机制。'
+- en: '**blktrace**: This is a tool that provides information about the block layer
+    input/output.'
+  id: totrans-387
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '**blktrace**：这是一个提供块层输入/输出信息的工具。'
+- en: '**Linux Trace Toolkit Next Generation** (**LTTng**): This is a tool that allows
+    for correlated tracing of the Linux kernel, applications, and libraries. Yocto
+    also includes **babeltrace**, a tool to translate the traces into human readable
+    logs.'
+  id: totrans-388
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '**Linux Trace Toolkit Next Generation** (**LTTng**)：这是一个工具，用于对Linux内核、应用程序和库进行相关联的跟踪。Yocto还包括**babeltrace**，一个将跟踪数据转换为人类可读日志的工具。'
+- en: '**SystemTap**: This is a tool to dynamically instrument the Linux kernel.'
+  id: totrans-389
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '**SystemTap**：这是一个用于动态插桩Linux内核的工具。'
+- en: Profiling refers to a group of techniques used to measure an application's consumed
+    resources and the time taken to execute an application. The data is then used
+    to improve the application's performance and optimize it. Some of the aforementioned
+    tools such as perf and SystemTap have evolved to become powerful tracing and profiling
+    tools.
+  id: totrans-390
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 性能分析是指一组技术，用于衡量应用程序消耗的资源和执行应用程序所需的时间。然后，这些数据被用来改善应用程序的性能并进行优化。一些前面提到的工具，如perf和SystemTap，已经发展成为强大的跟踪和性能分析工具。
+- en: 'Apart from the enlisted tracing tools, which can also be used for profiling,
+    Yocto offers several other profiling tools:'
+  id: totrans-391
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 除了已列出的跟踪工具外，它们也可以用于性能分析，Yocto还提供了其他几种性能分析工具：
+- en: '**OProfile**: This is a statistical profiler for Linux that profiles all running
+    code with low overhead.'
+  id: totrans-392
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '**OProfile**：这是一个Linux的统计性能分析工具，它以低开销分析所有正在运行的代码。'
+- en: '**Powertop**: This is a tool used to analyze the system''s power consumption
+    and power management.'
+  id: totrans-393
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '**Powertop**：这是一个用于分析系统功耗和电源管理的工具。'
+- en: '**Latencytop**: This is a tool used to analyze system latencies.'
+  id: totrans-394
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '**Latencytop**：这是一个用于分析系统延迟的工具。'
+- en: '**Sysprof**: This tool is included for Intel architectures on X11 graphical
+    images. It does not work on ARM architectures.'
+  id: totrans-395
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '**Sysprof**：该工具为X11图形镜像中的Intel架构提供，不能在ARM架构上使用。'
+- en: How to do it...
+  id: totrans-396
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+  zh: 如何操作...
+- en: 'These tools can be added to your target image either individually or with the
+    `tools-profile` feature. To use the tools, we also need to include debug information
+    in our applications. To this extent we should use the `-dbg` version of the packages,
+    or better, configure Yocto so that debug information is generated with the `dbg-pkgs`
+    image feature. To add both features to your images, add the following to your
+    project''s `conf/local.conf` file:'
+  id: totrans-397
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 这些工具可以单独添加到目标镜像中，或者通过`tools-profile`功能进行添加。为了使用这些工具，我们还需要在应用程序中包含调试信息。为此，我们应使用包的`-dbg`版本，或者更好地配置Yocto，使得通过`dbg-pkgs`镜像功能生成调试信息。要将这两个功能添加到镜像中，请将以下内容添加到项目的`conf/local.conf`文件中：
+- en: '[PRE91]'
+  id: totrans-398
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE91]'
+- en: The `-sdk` version of target images already adds these features.
+  id: totrans-399
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 目标镜像的`-sdk`版本已经添加了这些功能。
+- en: There's more...
+  id: totrans-400
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+  zh: 还有更多...
+- en: 'Apart from these tools, Yocto also offers the standard monitoring tools available
+    on a Linux system. Some examples are:'
+  id: totrans-401
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 除了这些工具，Yocto还提供了在Linux系统上可用的标准监控工具。一些示例如下：
+- en: '**htop**: This tool is available in the `meta-oe` layer and provides process
+    monitoring.'
+  id: totrans-402
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '**htop**：这个工具包含在`meta-oe`层中，提供进程监控功能。'
+- en: '**iotop**: This tool is also included in the `meta-oe` layer and provides block
+    device I/O statistics by process.'
+  id: totrans-403
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '**iotop**：这个工具也包含在`meta-oe`层中，它提供按进程分类的块设备I/O统计信息。'
+- en: '**procps**: This one is available in Poky and includes the following tools:'
+  id: totrans-404
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '**procps**：这个工具包在Poky中可用，包含以下工具：'
+- en: '**ps**: This tool is used to list and provide process statuses.'
+  id: totrans-405
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '**ps**：这个工具用于列出并提供进程状态信息。'
+- en: '**vmstat**: This is used for virtual memory statistics.'
+  id: totrans-406
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '**vmstat**：用于虚拟内存统计。'
+- en: '**uptime**: This is useful for load averages monitoring.'
+  id: totrans-407
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '**uptime**：用于负载平均值监控。'
+- en: '**free**: This is used for memory usage monitoring. Remember to take kernel
+    caches into account.'
+  id: totrans-408
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '**free**：用于监视内存使用情况。记得考虑内核缓存。'
+- en: '**slabtop**: This one provides memory usage statistics for the kernel slab
+    allocator.'
+  id: totrans-409
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '**slabtop**：该工具提供内核slab分配器的内存使用统计信息。'
+- en: '**sysstat**: This is available in Poky and contains, among others, the following
+    tools:'
+  id: totrans-410
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '**sysstat**：这个工具包在Poky中可用，包含以下工具：'
+- en: '**pidstat**: This is another option for process statistics.'
+  id: totrans-411
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '**pidstat**：另一个用于进程统计信息的工具。'
+- en: '**iostat**: This one provides block I/O statistics.'
+  id: totrans-412
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '**iostat**：提供块I/O统计信息。'
+- en: '**mpstat**: This tool provides multi-processor statistics.'
+  id: totrans-413
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '**mpstat**：该工具提供多处理器统计信息。'
+- en: 'And Yocto also offers the following network tools:'
+  id: totrans-414
+  prefs: []
+  type: TYPE_NORMAL
+  zh: Yocto还提供以下网络工具：
+- en: '**tcpdump**: This networking tool is included in the `meta-networking` layer
+    in `meta-openembedded`. It captures and analyzes network traffic.'
+  id: totrans-415
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '**tcpdump**：这个网络工具包含在`meta-networking`层的`meta-openembedded`中。它用于捕获和分析网络流量。'
+- en: '**netstat**: This is part of the `net-tools` package in Poky. It provides network
+    protocol statistics.'
+  id: totrans-416
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '**netstat**：这是Poky中`net-tools`包的一部分。它提供网络协议统计信息。'
+- en: '**ss**: This tool is included in the `iproute2` package in Poky. It provides
+    sockets statistics.'
+  id: totrans-417
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '**ss**：这个工具包含在Poky的`iproute2`包中。它提供套接字统计信息。'
+- en: Tracing and profiling with perf
+  id: totrans-418
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 使用perf进行跟踪和分析
+- en: The perf Linux tool can instrument the Linux kernel with both hardware and software
+    performance counter events as well as static and dynamic kernel trace points.
+    For this, it uses the kernel functionality we have seen in previous recipes, providing
+    a common interface to all of them.
+  id: totrans-419
+  prefs: []
+  type: TYPE_NORMAL
+  zh: perf Linux工具可以使用硬件和软件性能计数器事件，以及静态和动态内核跟踪点来对Linux内核进行仪器化。为此，它使用我们在前面的食谱中看到的内核功能，提供一个通用接口来管理它们。
+- en: This tool can be used to debug, troubleshoot, optimize, and measure applications,
+    workloads, or the full system, which covers the processor, kernel, and applications.
+    Perf is probably the most complete of the tracing and profiling tools available
+    for a Linux system.
+  id: totrans-420
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 该工具可用于调试、故障排除、优化和衡量应用程序、工作负载或整个系统，涵盖处理器、内核和应用程序。perf可能是可用于Linux系统的最完整的跟踪和分析工具。
+- en: Getting ready
+  id: totrans-421
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+  zh: 准备工作
+- en: 'The perf source is part of the Linux kernel. To include perf in your system,
+    add the following to your `conf/local.conf` file:'
+  id: totrans-422
+  prefs: []
+  type: TYPE_NORMAL
+  zh: perf源代码是Linux内核的一部分。要在系统中包含perf，请将以下内容添加到`conf/local.conf`文件中：
+- en: '[PRE92]'
+  id: totrans-423
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE92]'
+- en: 'Perf is also part of the `tools-profile` image feature, so you can also add
+    it with the following:'
+  id: totrans-424
+  prefs: []
+  type: TYPE_NORMAL
+  zh: perf也是`tools-profile`镜像功能的一部分，因此你也可以通过以下方式添加它：
+- en: '[PRE93]'
+  id: totrans-425
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE93]'
+- en: Perf is also included in the `-sdk` images.
+  id: totrans-426
+  prefs: []
+  type: TYPE_NORMAL
+  zh: perf也包含在`-sdk`镜像中。
+- en: 'To take the maximum advantage of this tool, we need to have symbols both in
+    user space applications and libraries, as well as the Linux kernel. For this,
+    we need to avoid stripping binaries by adding the following to the `conf/local.conf`
+    configuration file:'
+  id: totrans-427
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 为了最大化利用此工具，我们需要在用户空间应用程序、库以及 Linux 内核中都有符号。为此，我们需要避免剥离二进制文件，方法是在 `conf/local.conf`
+    配置文件中添加以下内容：
+- en: '[PRE94]'
+  id: totrans-428
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE94]'
+- en: 'Also, adding the debug information of the applications by adding the following
+    is recommended:'
+  id: totrans-429
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 另外，建议通过添加以下内容来增加应用程序的调试信息：
+- en: '[PRE95]'
+  id: totrans-430
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE95]'
+- en: 'By default, the debug information is placed in a `.debug` directory in the
+    same location as the binary it corresponds to. But perf needs a central location
+    to look for all debug information. So, to configure our debug information with
+    a structure that perf understands, we also need the following in our `conf/local.conf`
+    configuration file:'
+  id: totrans-431
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 默认情况下，调试信息会放在与其对应的二进制文件相同位置的 `.debug` 目录中。但是 perf 需要一个中央位置来查找所有调试信息。因此，为了使用
+    perf 理解的结构配置调试信息，我们还需要在 `conf/local.conf` 配置文件中添加以下内容：
+- en: '[PRE96]'
+  id: totrans-432
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE96]'
+- en: Finally, configure the Linux kernel with the `CONFIG_DEBUG_INFO` configuration
+    variable to include debug information, `CONFIG_KALLSYMS` to add debug symbols
+    into the kernel, and `CONFIG_FRAME_POINTER` to be able to see complete stack traces.
+  id: totrans-433
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 最后，使用 `CONFIG_DEBUG_INFO` 配置变量配置 Linux 内核以包含调试信息，使用 `CONFIG_KALLSYMS` 将调试符号添加到内核中，使用
+    `CONFIG_FRAME_POINTER` 以便能够看到完整的堆栈跟踪。
+- en: Note
+  id: totrans-434
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+  zh: 注意
+- en: As we saw in the *Using the kernel's performance counters* recipe, we will also
+    need to pass `maxcpus=1` (or `maxcpus=0` to disable SMP) to the Linux kernel in
+    order to use the i.MX6 PMU, due to the sharing of the PMU interrupt between all
+    cores. Also, in order to use the PMU on i.MX6 processors, the SoC needs to receive
+    at least 4 JTAG clock cycles after power on reset. This is documented in the errata
+    number *ERR006259*.
+  id: totrans-435
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 正如我们在 *使用内核性能计数器* 章节中看到的，我们还需要将 `maxcpus=1`（或 `maxcpus=0` 禁用 SMP）传递给 Linux 内核，以便使用
+    i.MX6 PMU，因为 PMU 中断在所有核心之间共享。此外，为了在 i.MX6 处理器上使用 PMU，SoC 在上电复位后需要至少 4 个 JTAG 时钟周期。这在
+    *ERR006259* 错误报告中有文档说明。
+- en: 'At the time of writing, the `meta-fsl-arm` layer for Yocto 1.7 disables some
+    of perf features. To be able to follow the upcoming examples, remove the following
+    line from the `meta-fsl-arm` layer''s `/opt/yocto/fsl-community-bsp/sources/meta-fsl-arm/conf/machine/include/imx-base.inc`
+    file:'
+  id: totrans-436
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在撰写本文时，Yocto 1.7 的 `meta-fsl-arm` 层禁用了部分 perf 功能。为了能够跟随接下来的示例，请从 `meta-fsl-arm`
+    层的 `/opt/yocto/fsl-community-bsp/sources/meta-fsl-arm/conf/machine/include/imx-base.inc`
+    文件中删除以下行：
+- en: '[PRE97]'
+  id: totrans-437
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE97]'
+- en: Newer Yocto releases will include this by default.
+  id: totrans-438
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 更新的 Yocto 版本默认会包括此功能。
+- en: How to do it...
+  id: totrans-439
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+  zh: 如何操作...
+- en: 'Perf can be used to provide a default set of event statistics for a particular
+    workload with:'
+  id: totrans-440
+  prefs: []
+  type: TYPE_NORMAL
+  zh: Perf 可以用于提供特定工作负载的默认事件统计信息：
+- en: '[PRE98]'
+  id: totrans-441
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE98]'
+- en: 'For example, a single ping will provide the following output:'
+  id: totrans-442
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 例如，单次 ping 会提供以下输出：
+- en: '[PRE99]'
+  id: totrans-443
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE99]'
+- en: If we are only interested in a particular set of events, we can specify the
+    events we want to output information from using the `-e` option.
+  id: totrans-444
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果我们只对特定的一组事件感兴趣，可以使用 `-e` 选项指定我们想要输出信息的事件。
+- en: 'We can also sample data and store it so that it can be later analyzed:'
+  id: totrans-445
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 我们还可以采样数据并存储，以便后续分析：
+- en: '[PRE100]'
+  id: totrans-446
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE100]'
+- en: 'Better still, we can add stack backtraces with the `-g` option:'
+  id: totrans-447
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 更好的是，我们可以使用 `-g` 选项添加堆栈回溯：
+- en: '[PRE101]'
+  id: totrans-448
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE101]'
+- en: 'The result will be stored on a `perf.data` file which we would then analyze
+    with:'
+  id: totrans-449
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 结果将存储在 `perf.data` 文件中，我们接着可以用以下命令分析：
+- en: '[PRE102]'
+  id: totrans-450
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE102]'
+- en: 'Its output can be seen in the following screenshot:'
+  id: totrans-451
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 其输出可以在以下屏幕截图中看到：
+- en: '![How to do it...](img/5186OS_05_01.jpg)'
+  id: totrans-452
+  prefs: []
+  type: TYPE_IMG
+  zh: '![如何操作...](img/5186OS_05_01.jpg)'
+- en: The functions order may be customized with the `--sort` option.
+  id: totrans-453
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 函数的顺序可以通过 `--sort` 选项自定义。
+- en: We can see how perf has resolved both user space and kernel symbols. Perf will
+    read kernel symbols from the Linux kernel ELF file under `/boot`. If it is stored
+    in a non-standard location, we can optionally pass its location with a `-k` option.
+    If it does not find it, it will fall back to using `/proc/kallsyms`, where the
+    Linux kernel exports the kernel symbols to user space when built with the `CONFIG_KALLSYMS`
+    configuration variable.
+  id: totrans-454
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 我们可以看到 perf 如何解析用户空间和内核符号。Perf 会从 `/boot` 目录下的 Linux 内核 ELF 文件读取内核符号。如果它存储在非标准位置，我们可以选择通过
+    `-k` 选项传递其位置。如果未找到，它将回退到使用 `/proc/kallsyms`，这是 Linux 内核在启用 `CONFIG_KALLSYMS` 配置变量时将内核符号导出到用户空间的地方。
+- en: Note
+  id: totrans-455
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+  zh: 注意
+- en: If a perf report is not showing kernel symbols, it may be because the ELF file
+    does not match the running kernel. You can try to rename it and see if using `/proc/kallsyms`
+    works.
+  id: totrans-456
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果 perf 报告中没有显示内核符号，可能是因为 ELF 文件与正在运行的内核不匹配。你可以尝试重命名它，看看使用 `/proc/kallsyms`
+    是否有效。
+- en: Also, to obtain complete backtraces, applications need to be compiled with debug
+    optimization by using the `DEBUG_BUILD` configuration variable, as we saw earlier
+    in this chapter.
+  id: totrans-457
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 此外，为了获取完整的回溯信息，应用程序需要通过使用`DEBUG_BUILD`配置变量进行调试优化编译，正如我们在本章之前所看到的那样。
+- en: 'By default, Perf uses a **newt** interface (TUI) that needs the `expand` utility,
+    part of coreutils. If coreutils is not included in your root filesystem, you can
+    ask for a text-only output with:'
+  id: totrans-458
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 默认情况下，Perf 使用 **newt** 界面（TUI），它需要 `expand` 工具，这是 coreutils 的一部分。如果你的根文件系统中没有包含
+    coreutils，你可以请求仅文本输出，如下所示：
+- en: '[PRE103]'
+  id: totrans-459
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE103]'
+- en: 'After executing the preceding command we get the following output:'
+  id: totrans-460
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 执行上述命令后，我们得到以下输出：
+- en: '![How to do it...](img/5186OS_05_03.jpg)'
+  id: totrans-461
+  prefs: []
+  type: TYPE_IMG
+  zh: '![如何操作...](img/5186OS_05_03.jpg)'
+- en: 'We can see all the functions called with the following columns:'
+  id: totrans-462
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 我们可以通过以下列显示所有调用的函数：
+- en: '**Overhead**: This represents the percentage of the sampling data corresponding
+    to that function.'
+  id: totrans-463
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '**开销**：表示与该函数相关的采样数据的百分比。'
+- en: '**Command**: This refers to the name of the command passed to the perf record.'
+  id: totrans-464
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '**命令**：指传递给 perf record 的命令名称。'
+- en: '**Shared Object**: This represents the ELF image name (`kernel.kallsyms` will
+    appear for the kernel).'
+  id: totrans-465
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '**共享对象**：表示 ELF 图像名称（内核会显示 `kernel.kallsyms`）。'
+- en: '**Privilege Level**: It has the following modes:'
+  id: totrans-466
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '**特权级别**：它有以下几种模式：'
+- en: for user mode
+  id: totrans-467
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 表示用户模式
+- en: '`k` for kernel mode'
+  id: totrans-468
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`k` 表示内核模式'
+- en: '`g` for virtualized guest kernel'
+  id: totrans-469
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`g` 表示虚拟化来宾内核'
+- en: '`u` for virtualized host user space'
+  id: totrans-470
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`u` 表示虚拟化主机用户空间'
+- en: '`H` for hypervisor'
+  id: totrans-471
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`H` 表示虚拟机监控器'
+- en: '**Symbol**: This is the resolved symbol name.'
+  id: totrans-472
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '**符号**：这是解析后的符号名称。'
+- en: 'In the TUI interface, we can press enter on a function name to access a sub-menu,
+    which will give us the following output:'
+  id: totrans-473
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在 TUI 界面中，我们可以按下回车键选择一个函数名称进入子菜单，系统会给出如下输出：
+- en: '![How to do it...](img/5186OS_05_04.jpg)'
+  id: totrans-474
+  prefs: []
+  type: TYPE_IMG
+  zh: '![如何操作...](img/5186OS_05_04.jpg)'
+- en: 'From this we can, for example, annotate the code as shown in the following
+    screenshot:'
+  id: totrans-475
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 通过这点，我们可以，例如，如下截图所示注释代码：
+- en: '![How to do it...](img/5186OS_05_05.jpg)'
+  id: totrans-476
+  prefs: []
+  type: TYPE_IMG
+  zh: '![如何操作...](img/5186OS_05_05.jpg)'
+- en: 'If using text mode, we can also get annotated output with:'
+  id: totrans-477
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果使用文本模式，我们还可以通过以下命令获得带注释的输出：
+- en: '[PRE104]'
+  id: totrans-478
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE104]'
+- en: 'Perf can also do system-wide profiling instead of focusing on a specific workload.
+    For example, to monitor the system for five seconds, we would execute the following
+    command:'
+  id: totrans-479
+  prefs: []
+  type: TYPE_NORMAL
+  zh: Perf 还可以进行系统范围的分析，而不仅仅关注特定的工作负载。例如，要监控系统五秒钟，我们可以执行以下命令：
+- en: '[PRE105]'
+  id: totrans-480
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE105]'
+- en: 'Or to sample the system for five seconds, we will execute the following command:'
+  id: totrans-481
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 或者，要采样系统五秒钟，我们可以执行以下命令：
+- en: '[PRE106]'
+  id: totrans-482
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE106]'
+- en: When using system-wide measurements the command is just used as measurement
+    duration. For this, the `sleep` command will not consume extra cycles.
+  id: totrans-483
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 使用系统范围测量时，命令仅作为测量时长。为此，`sleep` 命令不会消耗额外的周期。
+- en: How it works...
+  id: totrans-484
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+  zh: 它是如何工作的...
+- en: 'The perf tool provides statistics for both user and kernel events occurring
+    in the system. It can instrument in two modes:'
+  id: totrans-485
+  prefs: []
+  type: TYPE_NORMAL
+  zh: Perf 工具提供了系统中用户和内核事件的统计信息。它可以在两种模式下进行仪器化：
+- en: '**Event counting** (`perf stat`): This counts events in kernel context and
+    prints statistics at the end. It has the least overhead.'
+  id: totrans-486
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '**事件计数**（`perf stat`）：在内核上下文中计数事件并在结束时打印统计信息。它的开销最小。'
+- en: '**Event sampling** (`perf record`): This writes the gathered data to a file
+    at a given sampling period. The data can then be read as profiling (`perf report`)
+    or trace data (`perf script`). Gathering data to a file can be resource intensive
+    and the file can quickly grow in size.'
+  id: totrans-487
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '**事件采样**（`perf record`）：此命令将在给定的采样周期内将收集到的数据写入文件。然后可以将数据读取为分析数据（`perf report`）或跟踪数据（`perf
+    script`）。将数据收集到文件可能会消耗较多资源，并且文件大小会迅速增长。'
+- en: By default, perf counts events for all the threads in the given command, including
+    child processes, until the command finishes or is interrupted.
+  id: totrans-488
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 默认情况下，perf 会统计给定命令中所有线程的事件，包括子进程，直到命令执行完成或被中断。
+- en: 'A generic way to run perf is as follows:'
+  id: totrans-489
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 运行 perf 的通用方式如下：
+- en: '[PRE107]'
+  id: totrans-490
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE107]'
+- en: 'Let''s explain the preceding code in detail:'
+  id: totrans-491
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 让我们详细解释前面的代码：
+- en: '`e`: This specifies an event list to use instead of the default set of events.
+    An event filter can also be specified, with its syntax explained in the Linux
+    kernel source documentation at `Documentation/trace/events.txt`.'
+  id: totrans-492
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`e`：指定要使用的事件列表，而不是默认的事件集合。也可以指定事件过滤器，其语法可在 Linux 内核源代码文档中的 `Documentation/trace/events.txt`
+    找到。'
+- en: '`o`: This specifies the output file name, by default `perf.data`.'
+  id: totrans-493
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`o`：指定输出文件名，默认是`perf.data`。'
+- en: '`--`: This is used as a separator when the command needs arguments.'
+  id: totrans-494
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`--`：当命令需要参数时，用作分隔符。'
+- en: It can also start or sample a running process by passing the `-p <pid>` option.
+  id: totrans-495
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 它还可以通过传递`-p <pid>`选项来启动或采样正在运行的进程。
+- en: 'We can obtain a list of all available events by executing the following command:'
+  id: totrans-496
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 我们可以通过执行以下命令来获取所有可用事件的列表：
+- en: '[PRE108]'
+  id: totrans-497
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE108]'
+- en: 'Or on a specific subsystem with the following command:'
+  id: totrans-498
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 或使用以下命令在特定子系统上运行：
+- en: '[PRE109]'
+  id: totrans-499
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE109]'
+- en: 'You can also access raw PMU events directly by using the `r<event>` event,
+    for example, to read the data cache misses on an ARM core:'
+  id: totrans-500
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 你还可以通过使用`r<event>`事件直接访问原始PMU事件，例如，要读取ARM核心上的数据缓存未命中的情况：
+- en: '[PRE110]'
+  id: totrans-501
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE110]'
+- en: Unless specified, the perf record will sample hardware events at an average
+    rate of 1000 Hz, but the rate can be modified with the `-F <freq>` argument. Tracepoints
+    will be counted on each occurrence.
+  id: totrans-502
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 除非另有指定，否则perf record会以平均1000 Hz的频率采样硬件事件，但可以通过`-F <freq>`参数修改采样频率。每次发生时，跟踪点都会被计数。
+- en: Reading tracing data
+  id: totrans-503
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+  zh: 阅读跟踪数据
+- en: 'Perf records samples and stores tracing data in a file. The raw timestamped
+    trace data can be seen with:'
+  id: totrans-504
+  prefs: []
+  type: TYPE_NORMAL
+  zh: Perf记录采样并将跟踪数据存储到文件中。原始时间戳跟踪数据可以通过以下命令查看：
+- en: '[PRE111]'
+  id: totrans-505
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE111]'
+- en: 'After executing the command we get the following output:'
+  id: totrans-506
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 执行命令后，我们得到以下输出：
+- en: '![Reading tracing data](img/5186OS_05_06.jpg)'
+  id: totrans-507
+  prefs: []
+  type: TYPE_IMG
+  zh: '![阅读跟踪数据](img/5186OS_05_06.jpg)'
+- en: 'As we have seen, we can use a perf report to look at the sampled data formatted
+    for profiling analysis, but we can also generate python scripts that we can then
+    modify to change the way the data is presented, by running the following line
+    of code:'
+  id: totrans-508
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 正如我们所看到的，我们可以使用perf报告查看格式化的采样数据进行剖析分析，但我们也可以生成python脚本，然后修改它们以更改数据的展示方式，方法是运行以下代码行：
+- en: '[PRE112]'
+  id: totrans-509
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE112]'
+- en: 'This will generate a `perf-script.py` script that looks as follows:'
+  id: totrans-510
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 这将生成一个`perf-script.py`脚本，内容如下：
+- en: '![Reading tracing data](img/5186OS_05_07.jpg)'
+  id: totrans-511
+  prefs: []
+  type: TYPE_IMG
+  zh: '![阅读跟踪数据](img/5186OS_05_07.jpg)'
+- en: 'To run the script, use the following command:'
+  id: totrans-512
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要运行脚本，请使用以下命令：
+- en: '[PRE113]'
+  id: totrans-513
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE113]'
+- en: 'You need to install the `perf-python` package in our target image. You can
+    add this to your image with:'
+  id: totrans-514
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 你需要在目标镜像中安装`perf-python`包。你可以通过以下命令将其添加到镜像中：
+- en: '[PRE114]'
+  id: totrans-515
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE114]'
+- en: Now you will get a similar output as with the `perf` script earlier. But now
+    you can modify the print statements in the python code to post process the sampled
+    data to your specific needs.
+  id: totrans-516
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 现在你将得到类似于之前`perf`脚本的输出。但现在你可以修改python代码中的打印语句，以后处理采样数据，满足你的特定需求。
+- en: There's more...
+  id: totrans-517
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+  zh: 还有更多...
+- en: Perf can use dynamic events to extend the event list to any location where `kprobe`
+    can be placed. For this, configure the kernel for `kprobe` and `uprobe` support
+    (if available), as seen in the *Using dynamic kernel events* recipe earlier.
+  id: totrans-518
+  prefs: []
+  type: TYPE_NORMAL
+  zh: Perf可以使用动态事件扩展事件列表，将其添加到任何可以放置`kprobe`的位置。为此，需要配置内核以支持`kprobe`和`uprobe`（如果可用），如前面*使用动态内核事件*一节所示。
+- en: 'To add a probe point in a specific function execute the following command:'
+  id: totrans-519
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要在特定函数中添加探测点，执行以下命令：
+- en: '[PRE115]'
+  id: totrans-520
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE115]'
+- en: 'You can now use it in all perf tools, such as profiling the download of a file:'
+  id: totrans-521
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 现在你可以在所有perf工具中使用它，比如剖析文件下载：
+- en: '[PRE116]'
+  id: totrans-522
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE116]'
+- en: 'And you can view the profiling data executing the following command:'
+  id: totrans-523
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 然后，你可以执行以下命令查看剖析数据：
+- en: '[PRE117]'
+  id: totrans-524
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE117]'
+- en: 'And then you get the following output:'
+  id: totrans-525
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 然后你会得到以下输出：
+- en: '![There''s more...](img/5186OS_05_08.jpg)'
+  id: totrans-526
+  prefs: []
+  type: TYPE_IMG
+  zh: '![还有更多...](img/5186OS_05_08.jpg)'
+- en: Note
+  id: totrans-527
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+  zh: 注意
+- en: 'You may need to configure DNS servers in your target for the `wget` command
+    as seen in the preceding code to work. To use Google''s public DNS servers, you
+    can add the following to your `/etc/resolv.conf` file:'
+  id: totrans-528
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 你可能需要在目标系统中配置DNS服务器，以便`wget`命令正常工作，如前面的代码所示。要使用Google的公共DNS服务器，你可以将以下内容添加到`/etc/resolv.conf`文件中：
+- en: '[PRE118]'
+  id: totrans-529
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE118]'
+- en: 'You can then delete the probe with:'
+  id: totrans-530
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 然后你可以通过以下命令删除探测：
+- en: '[PRE119]'
+  id: totrans-531
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE119]'
+- en: Profile charts
+  id: totrans-532
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+  zh: 剖析图表
+- en: 'System behavior can be visualized using a perf timechart. To gather data, run:'
+  id: totrans-533
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 可以使用perf时间图可视化系统行为。要收集数据，请运行：
+- en: '[PRE120]'
+  id: totrans-534
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE120]'
+- en: 'And to turn it into an `svg` file use the following command:'
+  id: totrans-535
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 并使用以下命令将其转换为`svg`文件：
+- en: '[PRE121]'
+  id: totrans-536
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE121]'
+- en: Using perf as strace substitute
+  id: totrans-537
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+  zh: 使用perf作为strace替代品
+- en: 'Perf can be used as an alternative to strace but with much less overhead with
+    the following syntax:'
+  id: totrans-538
+  prefs: []
+  type: TYPE_NORMAL
+  zh: Perf可以作为strace的替代品，但具有更小的开销，使用以下语法：
+- en: '[PRE122]'
+  id: totrans-539
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE122]'
+- en: 'However, the Yocto recipe for perf does not currently build this support. We
+    can see the missing library in the compilation log:'
+  id: totrans-540
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 然而，Yocto中perf的食谱目前并没有构建此支持。我们可以在编译日志中看到缺失的库：
+- en: '[PRE123]'
+  id: totrans-541
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE123]'
+- en: See also
+  id: totrans-542
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+  zh: 另见
+- en: A list of the available ARM i.MX6 PMU events at [http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.ddi0388f/BEHGGDJC.html](http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.ddi0388f/BEHGGDJC.html)
+  id: totrans-543
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 可用的ARM i.MX6 PMU事件列表，见[http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.ddi0388f/BEHGGDJC.html](http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.ddi0388f/BEHGGDJC.html)
+- en: An extended tutorial in the use of perf at [https://perf.wiki.kernel.org/index.php/Tutorial](https://perf.wiki.kernel.org/index.php/Tutorial)
+  id: totrans-544
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在[https://perf.wiki.kernel.org/index.php/Tutorial](https://perf.wiki.kernel.org/index.php/Tutorial)上有一篇关于perf使用的扩展教程
+- en: Some advanced examples at Brendan Gregg's perf site [http://www.brendangregg.com/perf.html](http://www.brendangregg.com/perf.html)
+  id: totrans-545
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: Brendan Gregg的perf站点上的一些高级示例[http://www.brendangregg.com/perf.html](http://www.brendangregg.com/perf.html)
+- en: Using SystemTap
+  id: totrans-546
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 使用SystemTap
+- en: SystemTap is a GPLv2 licensed system wide tool that allows you to gather tracing
+    and profiling data from a running Linux system. The user writes a `systemtap`
+    script, which is then compiled into a Linux kernel module linked against the same
+    kernel source it is going to run under.
+  id: totrans-547
+  prefs: []
+  type: TYPE_NORMAL
+  zh: SystemTap是一个GPLv2许可证的系统级工具，它允许您从正在运行的Linux系统收集跟踪和分析数据。用户编写`systemtap`脚本，然后将其编译为一个Linux内核模块，该模块与它将要运行的内核源代码链接。
+- en: The script sets events and handlers, which are called by the kernel module on
+    the specified events triggering. For this, it uses the `kprobes` and `uprobes`
+    (if available) interfaces in the kernel, as we saw in the *Using dynamic kernel
+    events* recipe before.
+  id: totrans-548
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 脚本设置事件和处理程序，当指定的事件触发时，内核模块会调用这些处理程序。为此，它使用内核中的`kprobes`和`uprobes`（如果可用）接口，正如我们在*使用动态内核事件*配方中看到的那样。
+- en: Getting ready
+  id: totrans-549
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+  zh: 准备就绪
+- en: 'To use SystemTap, we need to add it to our target image either by adding it
+    specifically, as in:'
+  id: totrans-550
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要使用SystemTap，我们需要通过特定添加它到目标镜像中，例如：
+- en: '[PRE124]'
+  id: totrans-551
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE124]'
+- en: We can also add it by using the `tools-profile` image feature, or an `-sdk`
+    image.
+  id: totrans-552
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 我们还可以通过使用`tools-profile`镜像功能或`-sdk`镜像来添加它。
+- en: 'We will also need an SSH server running on the target. This is already available
+    on the `-sdk` image; otherwise we can add one to our image with the following:'
+  id: totrans-553
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 我们还需要在目标上运行一个SSH服务器。`-sdk`镜像中已经包含了这个功能；如果没有，我们可以通过以下方式将其添加到我们的镜像中：
+- en: '[PRE125]'
+  id: totrans-554
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE125]'
+- en: We will also need to compile the kernel with the `CONFIG_DEBUG_INFO` configuration
+    variable to include debug information, as well as performance events counters
+    and `kprobes` as explained in previous recipes.
+  id: totrans-555
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 我们还需要通过配置`CONFIG_DEBUG_INFO`变量来编译内核，以包含调试信息、性能事件计数器和`kprobes`，如前面配方中所述。
+- en: How to do it...
+  id: totrans-556
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+  zh: 如何操作...
+- en: 'To use systemtap on a Yocto system, we need to run the crosstap utility in
+    the host, passing it the `systemtap` script to run. For example, to run the `sys_open.stp`
+    sample script, we can run the following code:'
+  id: totrans-557
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要在Yocto系统上使用systemtap，我们需要在主机上运行crosstap工具，传递给它要运行的`systemtap`脚本。例如，要运行`sys_open.stp`示例脚本，我们可以运行以下代码：
+- en: '[PRE126]'
+  id: totrans-558
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE126]'
+- en: 'We would run the following commands:'
+  id: totrans-559
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 我们将运行以下命令：
+- en: '[PRE127]'
+  id: totrans-560
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE127]'
+- en: Yocto does not support running scripts on the target, as that would require
+    building modules on the target, and that is untested.
+  id: totrans-561
+  prefs: []
+  type: TYPE_NORMAL
+  zh: Yocto不支持在目标上运行脚本，因为这需要在目标上构建模块，而这是未经测试的。
+- en: How it works...
+  id: totrans-562
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+  zh: 它是如何工作的...
+- en: 'SystemTap scripts are written with its own C/awk like language. They enable
+    us to trace events by instrumenting the kernel code at different locations, such
+    as:'
+  id: totrans-563
+  prefs: []
+  type: TYPE_NORMAL
+  zh: SystemTap脚本使用其自己的类似C/awk的语言编写。它们使我们能够通过在不同位置对内核代码进行插桩，来跟踪事件，例如：
+- en: Beginning and end of SystemTap sessions
+  id: totrans-564
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 系统Tap会话的开始和结束
+- en: Entry, return, or specific offset of kernel and user space functions
+  id: totrans-565
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 内核和用户空间函数的入口、返回或特定偏移
+- en: Timer events
+  id: totrans-566
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 定时器事件
+- en: Performance hardware counter events
+  id: totrans-567
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 性能硬件计数事件
+- en: 'They also enable us to extract data, such as:'
+  id: totrans-568
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 它们还使我们能够提取数据，例如：
+- en: Thread, process, or user ID
+  id: totrans-569
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 线程、进程或用户ID
+- en: Current CPU
+  id: totrans-570
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 当前CPU
+- en: Process name
+  id: totrans-571
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 进程名称
+- en: Time
+  id: totrans-572
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 时间
+- en: Local variables
+  id: totrans-573
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 局部变量
+- en: Kernel and user space backtraces
+  id: totrans-574
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 内核和用户空间回溯
+- en: Additionally, SystemTap also offers the ability to analyze the gathered data,
+    and for different probes to work together. SystemTap includes a wide selection
+    of example scripts and a framework for creating script libraries that can be shared.
+    These tapsets are installed by default and can be extended by the user's own scripts.
+    When a symbol is not defined in a script, SystemTap will search the tapset library
+    for it.
+  id: totrans-575
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 此外，SystemTap还提供了分析收集到的数据的能力，并且不同的探针可以协同工作。SystemTap包括大量示例脚本，并提供一个框架来创建可以共享的脚本库。这些tapsets是默认安装的，并可以通过用户自己的脚本扩展。当脚本中未定义某个符号时，SystemTap将搜索tapset库以查找该符号。
+- en: See also
+  id: totrans-576
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+  zh: 另见
+- en: The tapset reference at [https://sourceware.org/systemtap/tapsets/](https://sourceware.org/systemtap/tapsets/)
+  id: totrans-577
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: Tapset参考：[https://sourceware.org/systemtap/tapsets/](https://sourceware.org/systemtap/tapsets/)
+- en: All examples included in the source at [https://sourceware.org/systemtap/examples/](https://sourceware.org/systemtap/examples/)
+  id: totrans-578
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 所有示例都包含在[https://sourceware.org/systemtap/examples/](https://sourceware.org/systemtap/examples/)源代码中。
+- en: A reference to the systemtap scripting language at [https://sourceware.org/systemtap/langref/](https://sourceware.org/systemtap/langref/)
+  id: totrans-579
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 参考SystemTap脚本语言文档：[https://sourceware.org/systemtap/langref/](https://sourceware.org/systemtap/langref/)
+- en: Using OProfile
+  id: totrans-580
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 使用OProfile
+- en: OProfile is a statistical profiler released under the GNU GPL license. The version
+    included in the Yocto 1.7 release is a system-wide profiler, which uses the legacy
+    profiling mode with a kernel module to sample hardware performance counters data
+    and a user space daemon to write them to a file. More recent Yocto releases use
+    newer versions that use the performance events subsystem, which we introduced
+    in the *Using the kernel's performance counters* recipe, so they are able to profile
+    processes and workloads as well.
+  id: totrans-581
+  prefs: []
+  type: TYPE_NORMAL
+  zh: OProfile是一个统计分析工具，采用GNU GPL许可证发布。Yocto 1.7版本中包含的版本是一个系统范围的分析器，它使用传统的分析模式，通过内核模块采样硬件性能计数器数据，并通过用户空间守护进程将其写入文件。更新的Yocto版本使用性能事件子系统，我们在*使用内核的性能计数器*食谱中介绍过，因此它们可以分析进程和工作负载。
+- en: The version included in Yocto 1.7 consists of a kernel module, a user space
+    daemon to collect sample data, and several profiling tools to analyze captured
+    data.
+  id: totrans-582
+  prefs: []
+  type: TYPE_NORMAL
+  zh: Yocto 1.7中包含的版本由一个内核模块、一个用于收集样本数据的用户空间守护进程和几个用于分析捕获数据的分析工具组成。
+- en: This recipe will focus on the OProfile version included in the 1.7 Yocto release.
+  id: totrans-583
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 本食谱将重点介绍在1.7版本Yocto中包含的OProfile版本。
+- en: Getting ready
+  id: totrans-584
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+  zh: 准备工作
+- en: 'To include OProfile in your system, add the following to your `conf/local.conf`
+    file:'
+  id: totrans-585
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要将OProfile包含到您的系统中，请将以下内容添加到`conf/local.conf`文件中：
+- en: '[PRE128]'
+  id: totrans-586
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE128]'
+- en: 'OProfile is also part of the `tools-profile` image feature, so you can also
+    add it with:'
+  id: totrans-587
+  prefs: []
+  type: TYPE_NORMAL
+  zh: OProfile也是`tools-profile`镜像功能的一部分，因此您也可以通过以下方式添加它：
+- en: '[PRE129]'
+  id: totrans-588
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE129]'
+- en: OProfile is also included in the `-sdk` images.
+  id: totrans-589
+  prefs: []
+  type: TYPE_NORMAL
+  zh: OProfile也包含在`-sdk`镜像中。
+- en: 'OProfile does not need debugging symbols in applications unless annotated results
+    are needed. For callgraph analysis, the binaries must have stack frames information
+    so they should be build with debug optimization by setting the `DEBUG_BUILD` variable
+    in the `conf/local.conf` file:'
+  id: totrans-590
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 除非需要注释结果，否则OProfile不需要应用程序中的调试符号。对于调用图分析，二进制文件必须包含堆栈帧信息，因此应该通过在`conf/local.conf`文件中设置`DEBUG_BUILD`变量来使用调试优化构建：
+- en: '[PRE130]'
+  id: totrans-591
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE130]'
+- en: To build the kernel driver, configure the Linux kernel with profiling support,
+    `CONFIG_PROFILING`, and the `CONFIG_OPROFILE` configuration variable to build
+    the OProfile module.
+  id: totrans-592
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要构建内核驱动程序，请配置Linux内核以支持分析，设置`CONFIG_PROFILING`，并将`CONFIG_OPROFILE`配置变量设置为构建OProfile模块。
+- en: 'OProfile uses the hardware counters support in the SoC, but it can also work
+    on a timer-based mode. To work with the timer-based model, you need to pass the
+    `oprofile.timer=1` kernel argument to the Linux kernel, or load the OProfile module
+    with:'
+  id: totrans-593
+  prefs: []
+  type: TYPE_NORMAL
+  zh: OProfile使用SoC中的硬件计数器支持，但它也可以在基于定时器的模式下工作。要使用定时器模式，您需要将`oprofile.timer=1`内核参数传递给Linux内核，或者使用以下命令加载OProfile模块：
+- en: '[PRE131]'
+  id: totrans-594
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE131]'
+- en: Note
+  id: totrans-595
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+  zh: 注意
+- en: Because OProfile relies on the i.MX6 performance counters, we still need to
+    boot with `maxcpus=1` for it to work. This restricts the profiling in i.MX6 SoCs
+    to one core.
+  id: totrans-596
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 由于OProfile依赖于i.MX6性能计数器，我们仍然需要以`maxcpus=1`启动才能正常工作。这限制了i.MX6 SoC中的分析只能在一个核心上进行。
+- en: How to do it...
+  id: totrans-597
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+  zh: 如何操作...
+- en: 'To profile a single ping, start a profiling session as follows:'
+  id: totrans-598
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要分析单个ping，请按以下步骤启动分析会话：
+- en: '[PRE132]'
+  id: totrans-599
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE132]'
+- en: 'Then run the workload to profile, for example, a single ping:'
+  id: totrans-600
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 然后运行需要分析的工作负载，例如，一个简单的ping：
+- en: '[PRE133]'
+  id: totrans-601
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE133]'
+- en: 'And stop collecting data with:'
+  id: totrans-602
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 停止数据收集的命令如下：
+- en: '[PRE134]'
+  id: totrans-603
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE134]'
+- en: Tip
+  id: totrans-604
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+  zh: 提示
+- en: 'We will get a parsing error if the kernel image name contains special characters.
+    To avoid it, we can use a symbolic link as follows:'
+  id: totrans-605
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果内核镜像名称包含特殊字符，我们会遇到解析错误。为了避免这种情况，我们可以使用符号链接，如下所示：
+- en: '[PRE135]'
+  id: totrans-606
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE135]'
+- en: 'Also, if you see the following error:'
+  id: totrans-607
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 另外，如果您看到以下错误：
+- en: '[PRE136]'
+  id: totrans-608
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE136]'
+- en: 'You will need to change the reset count of the `CPU_CYCLES` event to that minimum,
+    with:'
+  id: totrans-609
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 您需要将`CPU_CYCLES`事件的重置计数更改为该最小值，命令如下：
+- en: '[PRE137]'
+  id: totrans-610
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE137]'
+- en: 'You can then view the collected data with:'
+  id: totrans-611
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 然后可以使用以下命令查看收集到的数据：
+- en: '[PRE138]'
+  id: totrans-612
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE138]'
+- en: 'And an excerpt for output with callgraph and symbols is as follows:'
+  id: totrans-613
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 以下是带有调用图和符号的输出摘录：
+- en: '[PRE139]'
+  id: totrans-614
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE139]'
+- en: How it works...
+  id: totrans-615
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+  zh: 它是如何工作的...
+- en: The OProfile daemon records data continuously, accumulating data from multiple
+    runs. Use the `--start` and `--stop` options to start and stop accumulating new
+    data. If you want to start collecting data from scratch, use the `--reset` option
+    first.
+  id: totrans-616
+  prefs: []
+  type: TYPE_NORMAL
+  zh: OProfile 守护进程会持续记录数据，累积来自多个运行的数据。使用`--start`和`--stop`选项来开始和停止新数据的累积。如果您希望从零开始收集数据，请首先使用`--reset`选项。
+- en: Before running a profiling session, you need to configure the OProfile daemon
+    to run with or without kernel profiling. Specifying the kernel profiling option
+    is the only compulsory configuration variable.
+  id: totrans-617
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在运行性能分析会话之前，您需要配置 OProfile 守护进程以启用或禁用内核分析。指定内核分析选项是唯一的强制配置变量。
+- en: In order to configure the OProfile daemon, stop it first (if running) with the
+    `--shutdown` option. The `--stop` option will only stop data collection, but will
+    not kill the daemon.
+  id: totrans-618
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 为了配置 OProfile 守护进程，首先停止它（如果正在运行），使用`--shutdown`选项。`--stop`选项只会停止数据收集，但不会终止守护进程。
+- en: 'To configure OProfile without kernel profiling you execute the following command:'
+  id: totrans-619
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要配置没有内核分析的 OProfile，您可以执行以下命令：
+- en: '[PRE140]'
+  id: totrans-620
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE140]'
+- en: 'And to configure the kernel profiling, we can run the following command:'
+  id: totrans-621
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要配置内核分析，您可以运行以下命令：
+- en: '[PRE141]'
+  id: totrans-622
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE141]'
+- en: 'Both of these will configure the daemon and load the OProfile kernel module,
+    if needed. Some common options are:'
+  id: totrans-623
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 这两者都将配置守护进程并加载 OProfile 内核模块（如果需要）。一些常用选项包括：
+- en: '`--separate=<type>`: This controls how the profiled data is separated into
+    different files, with type being:'
+  id: totrans-624
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`--separate=<type>`: 这控制如何将分析数据分隔成不同的文件，类型包括：'
+- en: '**none**: This does not separate profiles.'
+  id: totrans-625
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '**none**: 这不会分隔配置文件。'
+- en: '**library**: This separates shared libraries profiles per application. The
+    sample file name will include the name of library and the executable.'
+  id: totrans-626
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '**library**: 这将按应用程序分隔共享库配置文件。示例文件名将包括库的名称和可执行文件。'
+- en: '**kernel**: This adds kernel profiling.'
+  id: totrans-627
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '**kernel**: 这会添加内核分析。'
+- en: '**thread**: This adds per thread profiles.'
+  id: totrans-628
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '**thread**: 这会添加每个线程的分析配置。'
+- en: '**cpu**: This adds per CPU profiles.'
+  id: totrans-629
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '**cpu**: 这会添加每个 CPU 的分析配置。'
+- en: '**all**: This does all of the above.'
+  id: totrans-630
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '**all**: 这将执行上述所有操作。'
+- en: '`--callgrah=<depth>`: This logs called and calling functions as well as the
+    time spent in functions.'
+  id: totrans-631
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`--callgraph=<depth>`: 这将记录被调用函数和调用函数以及函数中的花费时间。'
+- en: Once the daemon is configured, you can start a profiling session.
+  id: totrans-632
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 一旦守护进程配置完成，您可以开始性能分析会话。
+- en: 'To check the current configuration, you execute:'
+  id: totrans-633
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要检查当前配置，您可以执行：
+- en: '[PRE142]'
+  id: totrans-634
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE142]'
+- en: The sampled data is stored in the `/var/lib/oprofile/samples/` directory.
+  id: totrans-635
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 采样的数据存储在 `/var/lib/oprofile/samples/` 目录中。
+- en: 'We can then analyze the collected data with:'
+  id: totrans-636
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 然后，我们可以使用以下命令分析收集到的数据：
+- en: '[PRE143]'
+  id: totrans-637
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE143]'
+- en: 'Some useful options include:'
+  id: totrans-638
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 一些有用的选项包括：
+- en: '`-c`: This shows callgraph information, if available.'
+  id: totrans-639
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`-c`: 如果可用，这将显示调用图信息。'
+- en: '`-g`: This shows the source file and line number for each symbol.'
+  id: totrans-640
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`-g`: 这将显示每个符号的源文件和行号。'
+- en: '`-f`: This shows full object paths.'
+  id: totrans-641
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`-f`: 这将显示完整的对象路径。'
+- en: '`-o`: This provides the output to the specified file instead of `stdout`.'
+  id: totrans-642
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`-o`: 这将把输出提供到指定文件，而不是 `stdout`。'
+- en: OProfile mounts a pseudo filesystem in `/dev/oprofile` which is used to report
+    and receive configuration from user space. It also contains a character device
+    node used to pass sampled data from the kernel module to the user space daemon.
+  id: totrans-643
+  prefs: []
+  type: TYPE_NORMAL
+  zh: OProfile 在 `/dev/oprofile` 挂载一个伪文件系统，用于报告和接收来自用户空间的配置。它还包含一个字符设备节点，用于将内核模块中的采样数据传递给用户空间守护进程。
+- en: There's more...
+  id: totrans-644
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+  zh: 还有更多内容...
+- en: Yocto includes a graphical user interface for OProfile that can be run in the
+    host. However, it is not part of Poky and needs to be downloaded and installed
+    separately.
+  id: totrans-645
+  prefs: []
+  type: TYPE_NORMAL
+  zh: Yocto 包括一个可以在主机上运行的 OProfile 图形用户界面。然而，它不是 Poky 的一部分，需要单独下载和安装。
+- en: Refer to the `oprofileui` repository at [https://git.yoctoproject.org/cgit/cgit.cgi/oprofileui/](https://git.yoctoproject.org/cgit/cgit.cgi/oprofileui/)
+    for a README with instructions, or to the *Yocto Project's Profiling and Tracing
+    Manual* at [http://www.yoctoproject.org/docs/1.7.1/profile-manual/profile-manual.html](http://www.yoctoproject.org/docs/1.7.1/profile-manual/profile-manual.html).
+  id: totrans-646
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 请参阅`oprofileui`库：[https://git.yoctoproject.org/cgit/cgit.cgi/oprofileui/](https://git.yoctoproject.org/cgit/cgit.cgi/oprofileui/)
+    以获取包含说明的 README，或者参阅*Yocto 项目的性能分析和跟踪手册*：[http://www.yoctoproject.org/docs/1.7.1/profile-manual/profile-manual.html](http://www.yoctoproject.org/docs/1.7.1/profile-manual/profile-manual.html)。
+- en: See also
+  id: totrans-647
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+  zh: 另请参见
+- en: The project's home page for more information about OProfile at [http://oprofile.sourceforge.net/news/](http://oprofile.sourceforge.net/news/)
+  id: totrans-648
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 该项目的主页，了解有关 OProfile 的更多信息：[http://oprofile.sourceforge.net/news/](http://oprofile.sourceforge.net/news/)
+- en: Using LTTng
+  id: totrans-649
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 使用 LTTng
+- en: LTTng is a set of dual licensed GPLv2 and LGPL tracing and profiling tools for
+    both applications and kernel. It produces binary trace files in the production
+    optimized **Compact Trace Format** (**CTF**), which can then be analyzed by tools,
+    such as **babeltrace**.
+  id: totrans-650
+  prefs: []
+  type: TYPE_NORMAL
+  zh: LTTng 是一组双许可（GPLv2 和 LGPL）的跟踪和性能分析工具，适用于应用程序和内核。它生成生产优化的**紧凑跟踪格式（CTF）**的二进制跟踪文件，可以通过诸如**babeltrace**等工具进行分析。
+- en: Getting ready
+  id: totrans-651
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+  zh: 准备工作
+- en: 'To include the different LTTng tools in your system, add the following to your
+    `conf/local.conf` file:'
+  id: totrans-652
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要在系统中包含不同的 LTTng 工具，请将以下内容添加到您的 `conf/local.conf` 文件中：
+- en: '[PRE144]'
+  id: totrans-653
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE144]'
+- en: 'They are also part of the `tools-profile` image feature, so you can also add
+    them with:'
+  id: totrans-654
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 它们还包含在 `tools-profile` 图像功能中，因此您也可以使用以下方法添加它们：
+- en: '[PRE145]'
+  id: totrans-655
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE145]'
+- en: These are also included in the `-sdk` images.
+  id: totrans-656
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 这些也包含在 `-sdk` 镜像中。
+- en: Tip
+  id: totrans-657
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+  zh: 提示
+- en: At the time of writing, Yocto 1.7 excludes `lttng-modules` from the `tools-profile`
+    feature and `sdk` images for ARM; so they have to be added manually.
+  id: totrans-658
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在撰写本文时，Yocto 1.7 将 `lttng-modules` 从 ARM 的 `tools-profile` 功能和 `sdk` 镜像中排除，因此必须手动添加。
+- en: The LTTng command-line tool is the main user interface to LTTng. It can be used
+    to trace both the Linux kernel—using the kernel tracing interfaces we have seen
+    in previous recipes—as well as instrumented user space applications.
+  id: totrans-659
+  prefs: []
+  type: TYPE_NORMAL
+  zh: LTTng 命令行工具是 LTTng 的主要用户界面。它可以用于跟踪 Linux 内核（使用我们在前面示例中看到的内核跟踪接口），以及带有仪表的用户空间应用程序。
+- en: How to do it...
+  id: totrans-660
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+  zh: 如何执行...
+- en: 'A kernel profiling session workflow is as follows:'
+  id: totrans-661
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 内核性能分析会话工作流程如下：
+- en: 'Create a profiling session with:'
+  id: totrans-662
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 使用以下命令创建性能分析会话：
+- en: '[PRE146]'
+  id: totrans-663
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE146]'
+- en: 'Enable the events you want to trace with:'
+  id: totrans-664
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 使用以下命令启用您要跟踪的事件：
+- en: '[PRE147]'
+  id: totrans-665
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE147]'
+- en: 'You can get a list of the available kernel events with:'
+  id: totrans-666
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 您可以使用以下命令获取可用的内核事件列表：
+- en: '[PRE148]'
+  id: totrans-667
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE148]'
+- en: This corresponds to the static tracepoint events available in the Linux kernel.
+  id: totrans-668
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 这对应于 Linux 内核中可用的静态跟踪点事件。
+- en: 'Now, you are ready to start sampling profiling data:'
+  id: totrans-669
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 现在，您已准备好开始采样性能数据：
+- en: '[PRE149]'
+  id: totrans-670
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE149]'
+- en: 'Run the workload you want to profile:'
+  id: totrans-671
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 运行要进行性能分析的工作负载：
+- en: '[PRE150]'
+  id: totrans-672
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE150]'
+- en: 'When the command finishes or is interrupted, stop the gathering of profiling
+    data:'
+  id: totrans-673
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 当命令执行完成或中断时，停止收集性能数据：
+- en: '[PRE151]'
+  id: totrans-674
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE151]'
+- en: Finally, destroy the profiling session using the following command. Note that
+    this keeps the tracing data and only destroys the session.
+  id: totrans-675
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 最后，使用以下命令销毁性能分析会话。请注意，这将保留跟踪数据，只销毁会话。
+- en: '[PRE152]'
+  id: totrans-676
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE152]'
+- en: 'To view the profiling data so that it is readable by humans, start `babeltrace`
+    with:'
+  id: totrans-677
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 要使跟踪数据可供人类阅读，请使用以下命令启动 `babeltrace`：
+- en: '[PRE153]'
+  id: totrans-678
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE153]'
+- en: The profiling data can also be copied to the host to be analyzed.
+  id: totrans-679
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 也可以将性能分析数据复制到主机以进行分析。
+- en: User space applications and libraries need to be instrumented so that they can
+    be profiled. This is done by linking them with the `liblttng-ust` library.
+  id: totrans-680
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 用户空间应用程序和库需要被仪表化，以便进行性能分析。这是通过将它们与 `liblttng-ust` 库进行链接来完成的。
+- en: 'Applications can then make use of the `tracef` function call, which has the
+    same format as `printf()`, to output traces. For example, to instrument the example
+    `helloworld.c` application we saw in previous chapters, modify the source in `meta-custom/recipes-example/helloworld/helloworld-1.0/helloworld.c`
+    as follows:'
+  id: totrans-681
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 应用程序可以利用 `tracef` 函数调用来输出跟踪信息，其格式与 `printf()` 相同。例如，要为我们在前几章中看到的示例 `helloworld.c`
+    应用程序进行仪表化，修改 `meta-custom/recipes-example/helloworld/helloworld-1.0/helloworld.c`
+    源码如下：
+- en: '[PRE154]'
+  id: totrans-682
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE154]'
+- en: 'Modify its Yocto recipe in `meta-custom/recipes-example/helloworld/helloworld_1.0.bb`
+    as follows:'
+  id: totrans-683
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在 `meta-custom/recipes-example/helloworld/helloworld_1.0.bb` 中修改其 Yocto 配方如下：
+- en: '[PRE155]'
+  id: totrans-684
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE155]'
+- en: 'Then build the package, copy it to the target, and start a profiling session
+    as follows:'
+  id: totrans-685
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 然后构建软件包，将其复制到目标，然后按以下方式开始性能分析会话：
+- en: 'Create a profiling session by executing the following command:'
+  id: totrans-686
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 通过执行以下命令创建性能分析会话：
+- en: '[PRE156]'
+  id: totrans-687
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE156]'
+- en: 'Enable the events you want to profile—in this case, all the user space events:'
+  id: totrans-688
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 启用您要进行性能分析的事件——在本例中，所有用户空间事件：
+- en: '[PRE157]'
+  id: totrans-689
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE157]'
+- en: 'Start to gather profiling data:'
+  id: totrans-690
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 开始收集性能数据：
+- en: '[PRE158]'
+  id: totrans-691
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE158]'
+- en: 'Run the workload—in this case, the instrumented hello world example program:'
+  id: totrans-692
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 运行工作负载——在本例中，是经过仪表化的 hello world 示例程序：
+- en: '[PRE159]'
+  id: totrans-693
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE159]'
+- en: 'Once it finishes, stop gathering data:'
+  id: totrans-694
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 一旦完成，停止收集数据：
+- en: '[PRE160]'
+  id: totrans-695
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE160]'
+- en: 'Without destroying the session, you can start `babeltrace` executing:'
+  id: totrans-696
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 在不销毁会话的情况下，您可以执行以下命令启动 `babeltrace`：
+- en: '[PRE161]'
+  id: totrans-697
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE161]'
+- en: 'Finally, you can destroy the profiling session:'
+  id: totrans-698
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 最后，可以销毁性能分析会话：
+- en: '[PRE162]'
+  id: totrans-699
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE162]'
+- en: How it works...
+  id: totrans-700
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+  zh: 工作原理...
+- en: Kernel tracing is done using the tracing functionalities available in the Linux
+    kernel, as we have seen in previous recipes. For the following examples to work,
+    the Linux kernel must be configured appropriately as seen in the corresponding
+    recipes earlier.
+  id: totrans-701
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 使用 Linux 内核中可用的跟踪功能进行内核跟踪，如我们在前面示例中所见。为了使以下示例生效，Linux 内核必须根据早期相应的示例进行适当配置。
+- en: 'LTTng provides a common user interface to control some of the kernel tracing
+    features we saw previously, such as the following:'
+  id: totrans-702
+  prefs: []
+  type: TYPE_NORMAL
+  zh: LTTng 提供了一个通用用户界面，用于控制我们之前看到的一些内核追踪功能，例如以下内容：
+- en: '**Static** **tracepoint events**:'
+  id: totrans-703
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '**静态** **追踪事件**：'
+- en: 'You can enable specific static tracepoint events with:'
+  id: totrans-704
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 你可以使用以下命令启用特定的静态追踪事件：
+- en: '[PRE163]'
+  id: totrans-705
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE163]'
+- en: 'You can enable all tracepoints with:'
+  id: totrans-706
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 你可以启用所有追踪点，方法如下：
+- en: '[PRE164]'
+  id: totrans-707
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE164]'
+- en: 'You can also enable all syscalls with:'
+  id: totrans-708
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 你也可以启用所有系统调用，方法如下：
+- en: '[PRE165]'
+  id: totrans-709
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE165]'
+- en: 'You can enable all tracepoints and syscalls with:'
+  id: totrans-710
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 你可以启用所有追踪点和系统调用，方法如下：
+- en: '[PRE166]'
+  id: totrans-711
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE166]'
+- en: '**Dynamic** **tracepoint events**:'
+  id: totrans-712
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '**动态** **追踪事件**：'
+- en: 'You can also add dynamic tracepoints with:'
+  id: totrans-713
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 你也可以添加动态追踪点，方法如下：
+- en: '[PRE167]'
+  id: totrans-714
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE167]'
+- en: 'You can also add them with:'
+  id: totrans-715
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 你也可以使用以下命令添加它们：
+- en: '[PRE168]'
+  id: totrans-716
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE168]'
+- en: '**Function** **tracing**:'
+  id: totrans-717
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '**函数** **追踪**：'
+- en: 'You can also use the function tracing kernel functionality with:'
+  id: totrans-718
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 你也可以使用内核的函数追踪功能，方法如下：
+- en: '[PRE169]'
+  id: totrans-719
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE169]'
+- en: '**Performance** **counter events:**'
+  id: totrans-720
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '**性能** **计数器事件**：'
+- en: 'And the hardware performance counters, for example for the CPU cycles, with
+    the following command:'
+  id: totrans-721
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 使用以下命令获取硬件性能计数器，例如 CPU 周期：
+- en: '[PRE170]'
+  id: totrans-722
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE170]'
+- en: Use the `add-context --help` option to list further context options and perf
+    counters.
+  id: totrans-723
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 使用 `add-context --help` 选项列出更多上下文选项和性能计数器。
+- en: Extending application profiling
+  id: totrans-724
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+  zh: 扩展应用程序性能分析
+- en: Further applications tracing flexibility can be achieved with the `tracepoint()`
+    call by writing a template file (`.tp`), and using the `lttng-gen-tp` script along
+    with the source file. This generates an object file that can then be linked to
+    your application.
+  id: totrans-725
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 通过编写模板文件（`.tp`）并使用 `lttng-gen-tp` 脚本与源文件一起，可以进一步提升应用程序追踪的灵活性。这将生成一个对象文件，随后可以将其链接到你的应用程序中。
+- en: 'At the time of writing, Yocto has no standard way to cross-instrument user
+    space applications, but it can be done natively using an `-sdk` image, or adding
+    the following image features to the `conf/local.conf` file:'
+  id: totrans-726
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在撰写本文时，Yocto 没有标准的方式对用户空间应用程序进行跨平台仪器化，但可以通过本地使用 `-sdk` 映像，或者向 `conf/local.conf`
+    文件添加以下映像功能来实现：
+- en: '[PRE171]'
+  id: totrans-727
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE171]'
+- en: 'For example, define a tracepoint `hw.tp` file as follows:'
+  id: totrans-728
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 例如，定义一个追踪点 `hw.tp` 文件，如下所示：
+- en: '[PRE172]'
+  id: totrans-729
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE172]'
+- en: 'Pass this through the `lttng-gen-tp` tool to obtain `hw.c`, `hw.h`, and `hw.o`
+    files:'
+  id: totrans-730
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 通过 `lttng-gen-tp` 工具传递该文件，获取 `hw.c`、`hw.h` 和 `hw.o` 文件：
+- en: '[PRE173]'
+  id: totrans-731
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE173]'
+- en: Tip
+  id: totrans-732
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+  zh: 提示
+- en: 'Note that the `lttng-gen-tp` tool is not installed with the `lttng-ust` package,
+    but with the `lttng-ust-bin` package. This has to be added to be the target image,
+    for example, by adding the following in your `conf/local.conf` file:'
+  id: totrans-733
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 请注意，`lttng-gen-tp` 工具并不包含在 `lttng-ust` 包中，而是包含在 `lttng-ust-bin` 包中。必须将其添加到目标映像中，例如，通过在
+    `conf/local.conf` 文件中添加以下内容：
+- en: '[PRE174]'
+  id: totrans-734
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE174]'
+- en: 'You can now add the `hw.h` header file to your helloworld application that
+    is in the `helloworld.c` file and use the `tracepoint()` call as follows:'
+  id: totrans-735
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 现在，你可以将 `hw.h` 头文件添加到 `helloworld.c` 文件中的 hello world 应用程序中，并按如下方式使用 `tracepoint()`
+    调用：
+- en: '[PRE175]'
+  id: totrans-736
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE175]'
+- en: 'Now link your application with the native `gcc` as follows:'
+  id: totrans-737
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 现在，按如下方式将应用程序与本地 `gcc` 链接：
+- en: '[PRE176]'
+  id: totrans-738
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE176]'
+- en: Tip
+  id: totrans-739
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+  zh: 提示
+- en: 'Note that in order to use `gcc` on the target, we need to build one of the
+    `-sdk` images, or add some extra features to our image, such as:'
+  id: totrans-740
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 请注意，为了在目标上使用 `gcc`，我们需要构建一个 `-sdk` 映像，或者向我们的映像添加一些额外的功能，例如：
+- en: '[PRE177]'
+  id: totrans-741
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE177]'
+- en: 'To profile your application, do the following:'
+  id: totrans-742
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要对你的应用程序进行性能分析，请执行以下操作：
+- en: 'Create a profiling session:'
+  id: totrans-743
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 创建一个性能分析会话：
+- en: '[PRE178]'
+  id: totrans-744
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE178]'
+- en: 'Enable the specific event you want to profile:'
+  id: totrans-745
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 启用你想要分析的特定事件：
+- en: '[PRE179]'
+  id: totrans-746
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE179]'
+- en: 'Start gathering profiling data:'
+  id: totrans-747
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 开始收集性能分析数据：
+- en: '[PRE180]'
+  id: totrans-748
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE180]'
+- en: 'Run the workload to profile—in this case the helloworld application:'
+  id: totrans-749
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 运行负载进行性能分析——在此案例中是 hello world 应用程序：
+- en: '[PRE181]'
+  id: totrans-750
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE181]'
+- en: 'Stop gathering data:'
+  id: totrans-751
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 停止收集数据：
+- en: '[PRE182]'
+  id: totrans-752
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE182]'
+- en: 'Now start `babeltrace` with:'
+  id: totrans-753
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 现在启动 `babeltrace`：
+- en: '[PRE183]'
+  id: totrans-754
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE183]'
+- en: 'Finally, destroy the profiling session:'
+  id: totrans-755
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 最后，销毁分析会话：
+- en: '[PRE184]'
+  id: totrans-756
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE184]'
+- en: There's more...
+  id: totrans-757
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+  zh: 还有更多...
+- en: You can also use the Trace Compass application or Eclipse plugin to analyze
+    the traces in the host by visiting [http://projects.eclipse.org/projects/tools.tracecompass/downloads](http://projects.eclipse.org/projects/tools.tracecompass/downloads).
+    A stable release was not yet available at the time of writing.
+  id: totrans-758
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 你还可以使用 Trace Compass 应用程序或 Eclipse 插件通过访问 [http://projects.eclipse.org/projects/tools.tracecompass/downloads](http://projects.eclipse.org/projects/tools.tracecompass/downloads)
+    来分析主机中的追踪。在撰写本文时，稳定版本尚未发布。
+- en: See also
+  id: totrans-759
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+  zh: 另见
+- en: Details on using LTTng at [http://lttng.org/docs/](http://lttng.org/docs/)
+  id: totrans-760
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 使用 LTTng 的详细信息请参考 [http://lttng.org/docs/](http://lttng.org/docs/)
+- en: Details about the instrumenting of C applications at [http://lttng.org/docs/#doc-c-application](http://lttng.org/docs/#doc-c-application)
+  id: totrans-761
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 有关 C 应用程序仪器化的详细信息，请参考 [http://lttng.org/docs/#doc-c-application](http://lttng.org/docs/#doc-c-application)
+- en: A `tracepoint()` example in the `lttng-ust` source at [http://git.lttng.org/?p=lttng-ust.git;a=tree;f=tests/hello;h=4ae310caf62a8321a253fa84a04982edab52829c;hb=HEAD](http://git.lttng.org/?p=lttng-ust.git;a=tree;f=tests/hello;h=4ae310caf62a8321a253fa84a04982edab52829c;hb=HEAD)
+  id: totrans-762
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在 `lttng-ust` 源代码中的 `tracepoint()` 示例：[http://git.lttng.org/?p=lttng-ust.git;a=tree;f=tests/hello;h=4ae310caf62a8321a253fa84a04982edab52829c;hb=HEAD](http://git.lttng.org/?p=lttng-ust.git;a=tree;f=tests/hello;h=4ae310caf62a8321a253fa84a04982edab52829c;hb=HEAD)
+- en: Using blktrace
+  id: totrans-763
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 使用 blktrace
+- en: There are a few tools available to perform block devices I/O monitoring and
+    profiling.
+  id: totrans-764
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 有一些工具可以用来执行块设备的 I/O 监控和分析。
+- en: Starting with `iotop` which we mentioned in the *Exploring Yocto's tracing and
+    profiling tools* recipe, which gives a general idea of the throughput on a system
+    and a particular process. Or `iostat`, which provides many more statistics regarding
+    CPU usage and device utilization, but does not provide per process details. And
+    finally `blktrace` that is a GPLv2 licensed tool which monitors specific block
+    devices I/O at a low level, and can also compute **I/O operations per second**
+    (**IOPS**).
+  id: totrans-765
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 从我们在 *探索 Yocto 的追踪与分析工具* 配方中提到的 `iotop` 开始，它能大致了解系统和特定进程的吞吐量。或者使用 `iostat`，它提供更多关于
+    CPU 使用率和设备利用率的统计信息，但不提供每个进程的细节。最后是 `blktrace`，一个 GPLv2 许可的工具，它在低级别监控特定块设备的 I/O，并且还能计算
+    **每秒 I/O 操作** (**IOPS**)。
+- en: This recipe will explain how to use `blktrace` to trace block devices and `blkparse`,
+    to convert the traces into human readable format.
+  id: totrans-766
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 本配方将解释如何使用 `blktrace` 来追踪块设备，并使用 `blkparse` 将追踪数据转换为人类可读的格式。
+- en: Getting ready
+  id: totrans-767
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+  zh: 准备工作
+- en: 'To use `blktrace` and `blkparse`, you can add them to the target image by adding
+    it specifically, as in:'
+  id: totrans-768
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要使用 `blktrace` 和 `blkparse`，你可以通过明确添加它们到目标镜像中，像这样：
+- en: '[PRE185]'
+  id: totrans-769
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE185]'
+- en: Alternately, you can also use the `tools-profile` image feature, or an `-sdk`
+    image.
+  id: totrans-770
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 另外，你也可以使用 `tools-profile` 镜像功能，或者一个 `-sdk` 镜像。
+- en: You will also need to configure the Linux kernel with `CONFIG_FTRACE` and `CONFIG_BLK_DEV_IO_TRACE`
+    to be able to trace block I/O actions.
+  id: totrans-771
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 你还需要配置 Linux 内核，启用 `CONFIG_FTRACE` 和 `CONFIG_BLK_DEV_IO_TRACE`，才能追踪块 I/O 操作。
+- en: When profiling a block device, it is important to minimize the effect of the
+    tracing on the results; for example, not storing the tracing data on the block
+    device being profiled.
+  id: totrans-772
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在分析块设备时，重要的是尽量减少追踪对结果的影响；例如，不在被分析的块设备上存储追踪数据。
+- en: 'There are several ways to achieve this:'
+  id: totrans-773
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 有几种方法可以实现这一点：
+- en: Running the trace from a different block device.
+  id: totrans-774
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 从不同的块设备运行追踪。
+- en: Running the trace from a RAM-based `tmpfs` device (such as `/var/volatile`).
+    Running from a memory-based device will limit the amount of tracing data that
+    can be stored though.
+  id: totrans-775
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 从基于 RAM 的 `tmpfs` 设备（如 `/var/volatile`）运行追踪。从内存设备上运行将限制可存储的追踪数据量。
+- en: Running the trace from a network-mounted filesystem.
+  id: totrans-776
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 从网络挂载的文件系统运行追踪。
+- en: Running the trace over the network.
+  id: totrans-777
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 通过网络运行追踪。
+- en: Also, the filesystem being used in the block device to profile is an important
+    factor, as filesystem features such as journalism will distort the I/O statistics.
+    Flash filesystems, even if they are presented to user space as block devices,
+    cannot be profiled with `blktrace`.
+  id: totrans-778
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 此外，用于分析的块设备的文件系统也是一个重要因素，因为文件系统的特性（如日志记录）会扭曲 I/O 统计数据。即使是以块设备形式呈现给用户空间的闪存文件系统，也无法使用
+    `blktrace` 进行分析。
+- en: How to do it...
+  id: totrans-779
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+  zh: 如何实现...
+- en: Let's imagine you want to profile the I/O for the microSD card device on the
+    Wandboard. By booting the system from the network, as seen in the *Configuring
+    network booting for a development setup* recipe from [Chapter 1](ch01.html "Chapter 1. The
+    Build System"), *The Build System*, you can avoid unnecessary access to the device
+    by the system.
+  id: totrans-780
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 假设你想要分析 Wandboard 上 microSD 卡设备的 I/O。通过从网络启动系统，如在[第1章](ch01.html "第1章 构建系统")《构建系统》中的
+    *为开发环境配置网络启动* 配方所示，你可以避免系统对设备的多余访问。
+- en: 'For this example, we will mount as an ext2 partition to avoid journalism, but
+    other tweaks may be needed for effective profiling of a specific workload:'
+  id: totrans-781
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于这个例子，我们将挂载为 ext2 分区，以避免日志记录，但可能还需要其他调整，以有效分析特定的工作负载：
+- en: '[PRE186]'
+  id: totrans-782
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE186]'
+- en: 'The workflow to profile a specific workload is as follows:'
+  id: totrans-783
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 分析特定工作负载的工作流程如下：
+- en: 'Start `blktrace` to gather tracing data on the `/dev/mmcblk0` device with:'
+  id: totrans-784
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 启动 `blktrace`，收集 `/dev/mmcblk0` 设备的追踪数据：
+- en: '[PRE187]'
+  id: totrans-785
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE187]'
+- en: 'Start the workload to profile, for example, the creation of a 10 KB file. Open
+    an SSH connection to the target and execute:'
+  id: totrans-786
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 启动需要分析的工作负载，例如创建一个 10 KB 的文件。打开 SSH 连接到目标并执行：
+- en: '[PRE188]'
+  id: totrans-787
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE188]'
+- en: 'Stop the profiling on the console with *Ctrl* + *C*. This will create a file
+    in the same directory called `mmcblk0.blktrace.0` . You will see the following
+    output:'
+  id: totrans-788
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 使用*Ctrl* + *C*停止控制台上的分析。这将在相同目录下创建一个名为`mmcblk0.blktrace.0`的文件。你将看到以下输出：
+- en: '[PRE189]'
+  id: totrans-789
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE189]'
+- en: 'Some useful options for `blktrace` are:'
+  id: totrans-790
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 一些有用的`blktrace`选项包括：
+- en: '`-w`: This is used to run only for the specified number of seconds'
+  id: totrans-791
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`-w`: 这用于只运行指定秒数'
+- en: '`-a`: This adds a mask to the current file, where the masks can be:'
+  id: totrans-792
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`-a`: 这会将一个掩码添加到当前文件中，掩码可以是：'
+- en: '`barrier`: This refers to the barrier attribute'
+  id: totrans-793
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`barrier`: 这是指障碍属性'
+- en: '`complete`: This refers to an operation completed by the driver'
+  id: totrans-794
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`complete`: 这是指由驱动程序完成的操作'
+- en: '`fs`: These are the FS requests'
+  id: totrans-795
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`fs`: 这些是文件系统请求'
+- en: '`issue`: This option refers to operations issued to the driver'
+  id: totrans-796
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`issue`: 这个选项指的是发出的操作'
+- en: '`pc`: This refers to packet command events'
+  id: totrans-797
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`pc`: 这是指数据包命令事件'
+- en: '`queue`: This option represents queue operations'
+  id: totrans-798
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`queue`: 这个选项代表队列操作'
+- en: '`read`: This refers to read traces'
+  id: totrans-799
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`read`: 这是指读取跟踪'
+- en: '`requeue`: This is used for requeue operations'
+  id: totrans-800
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`requeue`: 这是用于重新排队操作'
+- en: '`sync`: This represents synchronous attributes'
+  id: totrans-801
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`sync`: 这表示同步属性'
+- en: '`write`: This refers to write traces'
+  id: totrans-802
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`write`: 这是指写入跟踪'
+- en: How it works...
+  id: totrans-803
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+  zh: 它是如何工作的...
+- en: 'Once you have gathered the tracing data, you can process it with `blkparse`
+    as follows:'
+  id: totrans-804
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 一旦收集到跟踪数据，你可以使用`blkparse`进行处理，如下所示：
+- en: '[PRE190]'
+  id: totrans-805
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE190]'
+- en: 'This provides an `stdout` output for all the gathered data, and a final summary,
+    as follows:'
+  id: totrans-806
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 这将提供所有收集数据的`stdout`输出，以及最终的总结，如下所示：
+- en: '[PRE191]'
+  id: totrans-807
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE191]'
+- en: 'The output format from `blkparse` is:'
+  id: totrans-808
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`blkparse`的输出格式为：'
+- en: '[PRE192]'
+  id: totrans-809
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE192]'
+- en: 'This corresponds to:'
+  id: totrans-810
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 这对应于：
+- en: '[PRE193]'
+  id: totrans-811
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE193]'
+- en: 'The columns correspond to:'
+  id: totrans-812
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 各列对应于：
+- en: '`A`: I/O remapped to a different device'
+  id: totrans-813
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`A`: I/O 被重定向到不同设备'
+- en: '`B`: I/O bounced'
+  id: totrans-814
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`B`: I/O 被回跳'
+- en: '`C`: I/O completed'
+  id: totrans-815
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`C`: I/O 完成'
+- en: '`D`: I/O issued to driver'
+  id: totrans-816
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`D`: I/O 发往驱动程序'
+- en: '`F`: I/O front merged with request on queue'
+  id: totrans-817
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`F`: I/O 前端与队列中的请求合并'
+- en: '`G`: Get request'
+  id: totrans-818
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`G`: 获取请求'
+- en: '`I`: I/O inserted into request queue'
+  id: totrans-819
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`I`: I/O 插入到请求队列中'
+- en: '`M`: I/O back merged with request on queue'
+  id: totrans-820
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`M`: I/O 后端与队列中的请求合并'
+- en: '`P`: Plug request'
+  id: totrans-821
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`P`: 插入请求'
+- en: '`Q`: I/O handled by request queue code'
+  id: totrans-822
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`Q`: I/O 由请求队列代码处理'
+- en: '`S`: Sleep request'
+  id: totrans-823
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`S`: 睡眠请求'
+- en: '`T`: Unplug due to timeout'
+  id: totrans-824
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`T`: 超时导致的拔出'
+- en: '`U`: Unplug request'
+  id: totrans-825
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`U`: 拔出请求'
+- en: '`X`: Split'
+  id: totrans-826
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`X`: 分割'
+- en: 'The RWBS field corresponds to:'
+  id: totrans-827
+  prefs: []
+  type: TYPE_NORMAL
+  zh: RWBS字段对应于：
+- en: '`R`: Read'
+  id: totrans-828
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`R`: 读取'
+- en: '`W`: Write'
+  id: totrans-829
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`W`: 写入'
+- en: '`B`: Barrier'
+  id: totrans-830
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`B`: 障碍'
+- en: '`S`: Synchronous'
+  id: totrans-831
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`S`: 同步'
+- en: 'Another way of tracing non-disruptively is using live monitoring, that is,
+    piping the output of `blktrace` to `blkparse` directly without writing anything
+    to disk, as follows:'
+  id: totrans-832
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 另一种非破坏性跟踪方式是使用实时监控，即直接将`blktrace`的输出通过管道传递给`blkparse`，而不写入任何内容到磁盘，如下所示：
+- en: '[PRE194]'
+  id: totrans-833
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE194]'
+- en: 'This can also be done in just one line:'
+  id: totrans-834
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 这也可以仅用一行命令完成：
+- en: '[PRE195]'
+  id: totrans-835
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE195]'
+- en: There's more...
+  id: totrans-836
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+  zh: 还有更多...
+- en: The `blktrace` command can also send the tracing data over the network so that
+    it is stored on a different device.
+  id: totrans-837
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`blktrace`命令还可以通过网络发送跟踪数据，这样它就可以存储在不同的设备上。'
+- en: 'For this, start `blktrace` on the target system as follows:'
+  id: totrans-838
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 为此，按照以下方式在目标系统上启动`blktrace`：
+- en: '[PRE196]'
+  id: totrans-839
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE196]'
+- en: 'And on another device, run another instance as follows:'
+  id: totrans-840
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在另一台设备上，按照以下方式运行另一个实例：
+- en: '[PRE197]'
+  id: totrans-841
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE197]'
+- en: 'Back to the target, you can now execute the specific workload you want to trace:'
+  id: totrans-842
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 回到目标，现在你可以执行你想要跟踪的特定工作负载：
+- en: '[PRE198]'
+  id: totrans-843
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE198]'
+- en: Once it finishes, interrupt the remote `blktrace` with *Ctrl* + *C*. A summary
+    will be printed at both the target and the host.
+  id: totrans-844
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 完成后，使用*Ctrl* + *C*中断远程`blktrace`。总结将同时在目标和主机上打印。
+- en: You can now run `blkparse` to process the gathered data.
+  id: totrans-845
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 现在，你可以运行`blkparse`来处理收集到的数据。
