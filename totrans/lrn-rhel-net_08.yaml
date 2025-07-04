@@ -1,7 +1,9 @@
 - en: Chapter 8. Integrating RHEL 7 into Microsoft Active Directory Domains
+  id: totrans-0
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 第8章 将 RHEL 7 集成到 Microsoft Active Directory 域中
 - en: In the previous chapter, we looked at how to share resources to Microsoft's
     clients. Now, in the spirit of true symbiosis, we will see how RHEL can make use
     of Active Directory users and groups, implementing domains as identity stores.
@@ -9,56 +11,84 @@
     Directory credentials, they will have access to RHEL. Not only does this streamline
     access to a console, but it also simplifies access to any shared folder on the
     RHEL 7 Samba server.
+  id: totrans-1
   prefs: []
   type: TYPE_NORMAL
+  zh: 在上一章中，我们讨论了如何将资源共享给微软的客户端。现在，在真正的共生精神下，我们将看到 RHEL 如何利用 Active Directory 用户和组，将域作为身份存储。如果用户可以访问
+    RHEL 服务器的控制台，那么仅凭他们的 Active Directory 凭据，他们就可以访问 RHEL。这不仅简化了控制台的访问，还简化了访问 RHEL
+    7 Samba 服务器上任何共享文件夹的过程。
 - en: We will structure this chapter so that you are able to see the bells and whistles
     (the good stuff) that Active Directory integration can provide before we delve
     under the hood at what goes on to make these simple tools work.
+  id: totrans-2
   prefs: []
   type: TYPE_NORMAL
+  zh: 我们将按照这样的结构来安排这一章内容，让你在深入了解如何使这些简单工具正常工作之前，先看到 Active Directory 集成所能提供的各项功能和优势（好东西）。
 - en: 'In this chapter, we will cover the following topics:'
+  id: totrans-3
   prefs: []
   type: TYPE_NORMAL
+  zh: 在本章中，我们将讨论以下主题：
 - en: Overview of identity management
+  id: totrans-4
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 身份管理概述
 - en: Overview of the lab environment
+  id: totrans-5
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 实验环境概述
 - en: Preparing to join an Active Directory domain
+  id: totrans-6
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 准备加入 Active Directory 域
 - en: Using realm to manage domain enrolment
+  id: totrans-7
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 使用领域（realm）管理域的注册
 - en: Logging on to RHEL 7 using Active Directory credentials
+  id: totrans-8
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 使用 Active Directory 凭据登录 RHEL 7
 - en: User and group management with `adcli`
+  id: totrans-9
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 使用 `adcli` 进行用户和组管理
 - en: Delegating Active Directory accounts with `sudo`
+  id: totrans-10
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 使用 `sudo` 委派 Active Directory 账户
 - en: Leaving a domain
+  id: totrans-11
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 离开域
 - en: Understanding Active Directory as an identity provider for `sssd`
+  id: totrans-12
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 将 Active Directory 作为 `sssd` 的身份提供者
 - en: Overview of identity management
+  id: totrans-13
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 身份管理概述
 - en: To begin our banquet of delights, we will focus on the importance of identity
     management in an enterprise. Without using some form of identity store or vault
     to centralize user accounts, these accounts will need to be duplicated because
@@ -73,8 +103,10 @@
     good your system, some will slip through the net and a security issue will be
     created. Good identity management with one account per user will solve the administrative
     burden, and more importantly, the security weakness.
+  id: totrans-14
   prefs: []
   type: TYPE_NORMAL
+  zh: 为了开启我们的盛宴，我们将首先聚焦于身份管理在企业中的重要性。如果没有使用某种身份存储或保险库来集中管理用户账户，这些账户将需要被复制，因为它们需要被其他系统访问。正如你能想象的那样，随着大量用户账户的创建，每个系统上都会形成独立的账户孤岛，这些账户很容易失控。然而，我们不必太担心这些账户的创建和管理，除了这点外，它本身并不会构成安全问题。如果某个用户无法访问某个资源，他们很快就会通知你。账户孤岛的问题在于当用户离职时会发生什么；你是否认为每个离开组织的用户的账户都会被删除或（至少）禁用。无论系统多么完善，总会有一些账户未被处理，从而引发安全问题。良好的身份管理，确保每个用户只有一个账户，可以解决管理负担，更重要的是，解决安全漏洞。
 - en: Of course, lesser issues relate to the management of these accounts, such as
     password changes, and perhaps the need for name changes as time progresses. Ideally,
     each user in an organization will have just one identity, which is a single set
@@ -86,21 +118,32 @@
     but as the organization grows and the size of the identity vault grows, perhaps
     the need for a completely separate directory for users will be needed. The central
     user store can then synchronize changes to other connected systems.
+  id: totrans-15
   prefs: []
   type: TYPE_NORMAL
+  zh: 当然，较小的问题与这些账户的管理有关，例如密码更改，以及随着时间的推移，可能需要更改名称。理想情况下，组织中的每个用户应该只有一个身份，即他们用于访问任何具有权限的资源的唯一凭据集。这可以通过某种形式的中央目录服务来实现，作为身份库。这可能是
+    Active Directory，但也可以是其他形式的**LDAP**（**轻量级目录访问协议**）服务器。在小型到中型环境中，Active Directory
+    可能就足够了，但随着组织的发展，身份库的规模不断扩大，可能需要为用户创建一个完全独立的目录。中央用户存储可以同步更改到其他连接的系统。
 - en: Microsoft has its Identity Management suite to build around the Active Directory,
     and Red Hat has its identity management directory server. This chapter will focus
     and integrate RHEL 7 directly into a single Domain Active Directory environment.
+  id: totrans-16
   prefs: []
   type: TYPE_NORMAL
+  zh: 微软有其身份管理套件来围绕 Active Directory 构建，Red Hat 也有其身份管理目录服务器。本章将重点介绍并直接将 RHEL 7 集成到单一域
+    Active Directory 环境中。
 - en: An overview of the lab environment
+  id: totrans-17
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 实验环境概述
 - en: For demonstrations in this chapter, we will use two virtual machines running
     in an **Oracle VirtualBox** virtualization environment.
+  id: totrans-18
   prefs: []
   type: TYPE_NORMAL
+  zh: 本章的演示将使用两台虚拟机运行在**Oracle VirtualBox**虚拟化环境中。
 - en: We have a Microsoft Server 2008R2 Active Directory Domain Controller with the
     IP address `192.168.0.252` and the RHEL 7.1 host with the IP address `192.168.0.69`.
     This is the same setup that we have used in [Chapter 7](part0060.xhtml#aid-1P71O1
@@ -110,28 +153,43 @@
     "Chapter 7. Implementing Windows Shares with Samba 4"), *Implementing Windows
     Shares with Samba 4*, ensure that you have set up the RHEL server to use the Domain
     Controller for both the time and name resolution.
+  id: totrans-19
   prefs: []
   type: TYPE_NORMAL
+  zh: 我们有一台 Microsoft Server 2008R2 的 Active Directory 域控制器，IP 地址为 `192.168.0.252`，以及一台
+    IP 地址为 `192.168.0.69` 的 RHEL 7.1 主机。这与我们在[第 7 章](part0060.xhtml#aid-1P71O1 "第
+    7 章. 使用 Samba 4 实现 Windows 共享")，*使用 Samba 4 实现 Windows 共享*中使用的设置相同；我们已经将时间和 DNS
+    配置为相同方式。如果你没有完成[第 7 章](part0060.xhtml#aid-1P71O1 "第 7 章. 使用 Samba 4 实现 Windows
+    共享")，*使用 Samba 4 实现 Windows 共享*，请确保你已经将 RHEL 服务器配置为使用域控制器进行时间和名称解析。
 - en: Preparing to join an Active Directory domain
+  id: totrans-20
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 准备加入 Active Directory 域
 - en: From what we have seen in [Chapter 7](part0060.xhtml#aid-1P71O1 "Chapter 7. Implementing
     Windows Shares with Samba 4"), *Implementing Windows Shares with Samba 4*, using
     Samba to share files, we can understand that this is pretty impressive stuff.
     We always need to remind ourselves that this all comes without any price tag or
     the need of client access licenses.
+  id: totrans-21
   prefs: []
   type: TYPE_NORMAL
+  zh: 从我们在[第 7 章](part0060.xhtml#aid-1P71O1 "第 7 章. 使用 Samba 4 实现 Windows 共享")，*使用
+    Samba 4 实现 Windows 共享*中所见，使用 Samba 共享文件，我们可以理解这是非常了不起的技术。我们始终需要提醒自己，这一切都没有任何价格标签，也不需要客户端访问许可证。
 - en: Tip
+  id: totrans-22
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
+  zh: 提示
 - en: Samba file sharing is free, that is, *without cost* and free in *liberty*; you
     can use it as you wish. This is the fundamental premise of open source software
     and is at the heart of Linux.
+  id: totrans-23
   prefs: []
   type: TYPE_NORMAL
+  zh: Samba 文件共享是免费的，即*无成本*且自由的；你可以按照自己的意愿使用它。这是开源软件的基本前提，也是 Linux 的核心所在。
 - en: The big issue that may act as a potential deal breaker is the need to maintain
     user accounts on the RHEL server and the AD domain to which the workstation accessing
     the server belongs. If we implement more than one server, the problem is exacerbated
@@ -139,139 +197,209 @@
     The simple solution is to incorporate the RHEL server into the AD domain and use
     AD accounts for resource access. In this way, we can use a single sign-on to the
     Active Directory and gain access to shared resources on the RHEL Samba server.
+  id: totrans-24
   prefs: []
   type: TYPE_NORMAL
+  zh: 可能成为潜在障碍的一个大问题是需要在 RHEL 服务器和工作站所属的 AD 域中维护用户账户。如果我们实现多个服务器，这个问题会因为需要在每一台服务器及
+    AD 域上都有账户而更加复杂。简单的解决方案是将 RHEL 服务器并入 AD 域，并使用 AD 账户进行资源访问。这样，我们可以通过单一的登录方式访问 Active
+    Directory，并访问 RHEL Samba 服务器上的共享资源。
 - en: Tip
+  id: totrans-25
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
+  zh: 提示
 - en: If the Active Directory is not in place, the central account sharing can be
     established by installing the openLDAP server on RHEL. One RHEL server can then
     act as an identity vault, sharing accounts to LDAP clients on other servers.
+  id: totrans-26
   prefs: []
   type: TYPE_NORMAL
+  zh: 如果 Active Directory 未设置，可以通过在 RHEL 上安装 openLDAP 服务器来建立集中账户共享。这样，某一台 RHEL 服务器可以作为身份库，将账户共享给其他服务器上的
+    LDAP 客户端。
 - en: Irrespective of Samba file shares, your Active Directory users may need access
     to RHEL servers via SSH or some other mechanism. They will need accounts defined
     on each RHEL server for this. Joining an RHEL server to the AD domain enables
     the use of the user's AD account when logging in to any member server, which includes
     RHEL servers or desktops. Additionally, rights can be delegated to these accounts
     using the `/etc/sudoers` file and file permissions in the normal mechanism.
+  id: totrans-27
   prefs: []
   type: TYPE_NORMAL
+  zh: 无论是 Samba 文件共享，你的 Active Directory 用户可能还需要通过 SSH 或其他机制访问 RHEL 服务器。为此，他们需要在每一台
+    RHEL 服务器上定义账户。将 RHEL 服务器加入 AD 域后，可以在登录任何成员服务器时使用用户的 AD 账户，这些成员服务器包括 RHEL 服务器或桌面。此外，还可以通过
+    `/etc/sudoers` 文件和正常的文件权限机制将权限委派给这些账户。
 - en: 'Before we join the AD domain, we need to ensure that we have set up the time
     services and DNS, as detailed in [Chapter 7](part0060.xhtml#aid-1P71O1 "Chapter 7. Implementing
     Windows Shares with Samba 4"), *Implementing Windows Shares with Samba 4*. With
     these infrastructure services in place, we will need the following packages installed
     on the RHEL server:'
+  id: totrans-28
   prefs: []
   type: TYPE_NORMAL
+  zh: 在加入 AD 域之前，我们需要确保已设置时间服务和 DNS，具体步骤详见 [第 7 章](part0060.xhtml#aid-1P71O1 "第 7
+    章。实现 Windows 共享与 Samba 4")，*实现 Windows 共享与 Samba 4*。在这些基础设施服务就绪后，我们还需要在 RHEL 服务器上安装以下软件包：
 - en: '`realmd`: This manages enrolment and membership to the Active Directory domains'
+  id: totrans-29
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '`realmd`：用于管理加入和隶属 Active Directory 域'
 - en: '`samba`: This denotes the Samba services'
+  id: totrans-30
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '`samba`：表示 Samba 服务'
 - en: '`samba-common`: This denotes the shared tools for servers and clients'
+  id: totrans-31
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '`samba-common`：表示用于服务器和客户端的共享工具'
 - en: '`oddjob`: This is a D-bus service that runs the odd jobs for clients'
+  id: totrans-32
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '`oddjob`：这是一个运行客户端偶尔任务的 D-bus 服务'
 - en: '`oddjob-mkhomedir`: This is used with the odd job services to create home directories
     for AD accounts, if needed'
+  id: totrans-33
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '`oddjob-mkhomedir`：与 odd job 服务一起使用，为 AD 账户创建主目录（如果需要的话）'
 - en: '`sssd`: The System Security Services daemon can be used to divert client authentication
     as required'
+  id: totrans-34
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '`sssd`：系统安全服务守护进程，可根据需要转发客户端认证'
 - en: '`adcli`: These are the tools for joining and managing AD domains'
+  id: totrans-35
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '`adcli`：用于加入和管理 AD 域的工具'
 - en: 'The following command shows the installation of necessary packages:'
+  id: totrans-36
   prefs: []
   type: TYPE_NORMAL
+  zh: 以下命令显示了必要软件包的安装：
 - en: '[PRE0]'
+  id: totrans-37
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE0]'
 - en: Using realm to manage domain enrolment
+  id: totrans-38
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 使用 realm 来管理域的加入
 - en: 'With these packages installed, we can use the `realm` command to manage our
     enrolments. This command is part of the `realmd` package that we added. We can
     use the list subcommand to ensure that we are not currently part of a domain:'
+  id: totrans-39
   prefs: []
   type: TYPE_NORMAL
+  zh: 安装这些软件包后，我们可以使用 `realm` 命令来管理我们的加入。该命令是我们已安装的 `realmd` 包的一部分。我们可以使用 list 子命令确保我们当前没有加入任何域：
 - en: '[PRE1]'
+  id: totrans-40
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE1]'
 - en: 'The output should be blank. Now, we are ready to proceed with the next step:
     joining the domain. With a simple environment, you will know the domain that you
     want to join; at least we certainly hope that you do. In our case, we do know
     it and this is `example.com`. Using the discover subcommand, we can verify that
     we have all the required packages installed, as shown in the following command
     extract:'
+  id: totrans-41
   prefs: []
   type: TYPE_NORMAL
+  zh: 输出应该是空的。现在，我们可以继续进行下一步：加入域。在一个简单的环境中，你应该知道你要加入的域；至少我们希望你知道。在我们的案例中，我们确实知道它是
+    `example.com`。通过使用 discover 子命令，我们可以验证是否已安装所有必需的软件包，如下所示：
 - en: '[PRE2]'
+  id: totrans-42
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE2]'
 - en: 'The output from this command will list that this is an Active Directory domain
     and the required packages that we should have in place before joining the AD domain.
     The following screenshot illustrates this:'
+  id: totrans-43
   prefs: []
   type: TYPE_NORMAL
+  zh: 此命令的输出将显示这是一个 Active Directory 域，以及在加入 AD 域之前应该具备的所需包。以下截图展示了这一点：
 - en: '![Using realm to manage domain enrolment](img/image00284.jpeg)'
+  id: totrans-44
   prefs: []
   type: TYPE_IMG
+  zh: '![使用 realm 管理域注册](img/image00284.jpeg)'
 - en: Depending on your Active Directory functionality level, you may require either
     the `samba-windbind` or `sssd` packages. We are using Active Directory on 2008R2
     with the default level of Windows Server 2003 configured. At this stage, you should
     verify that you have all the required packages installed.
+  id: totrans-45
   prefs: []
   type: TYPE_NORMAL
+  zh: 根据你的 Active Directory 功能级别，可能需要安装 `samba-windbind` 或 `sssd` 包。我们在 2008R2 的 Active
+    Directory 上使用，默认配置为 Windows Server 2003 的级别。此时，你应该确认已安装所有必需的包。
 - en: Tip
+  id: totrans-46
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
+  zh: 提示
 - en: If we do not need to share resources we do not need the `samba` package; `samba`
     is only used to share, not to join domains.
+  id: totrans-47
   prefs: []
   type: TYPE_NORMAL
+  zh: 如果我们不需要共享资源，就不需要安装 `samba` 包；`samba` 仅用于共享，而不是用于加入域。
 - en: 'As this is a Kerberos domain type, the `join` subcommand will join the server
     to the domain as a member server and initialize the `/etc/krb5.keytab` Kerberos
     keytab file and the `/etc/krb5.conf` configuration file. There will be more detail
     on these files that act behind the scenes given at the end of the chapter. To
     join the AD domain, add the computer to the default folder in the AD domain using
     the following command:'
+  id: totrans-48
   prefs: []
   type: TYPE_NORMAL
+  zh: 由于这是一个 Kerberos 域类型，`join` 子命令将把服务器作为成员服务器加入域，并初始化 `/etc/krb5.keytab` Kerberos
+    密钥表文件和 `/etc/krb5.conf` 配置文件。有关这些文件的详细信息将在本章结束时提供。要加入 AD 域，使用以下命令将计算机添加到 AD 域中的默认文件夹：
 - en: '[PRE3]'
+  id: totrans-49
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE3]'
 - en: 'Should you want to add it to a designated Organizational Unit within the Active
     Directory, you will first need to create the OU, or at least ensure that it exists.
     With the OU being present, the command will be similar to the following, where
     we add to the Linux OU:'
+  id: totrans-50
   prefs: []
   type: TYPE_NORMAL
+  zh: 如果你想将其添加到 Active Directory 中的指定组织单位（OU），你首先需要创建该 OU，或者至少确保它已经存在。在 OU 存在的情况下，命令将类似于以下内容，其中我们将其添加到
+    Linux OU：
 - en: '[PRE4]'
+  id: totrans-51
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE4]'
 - en: 'This is the method we will use to add the RHEL server to a path:'
+  id: totrans-52
   prefs: []
   type: TYPE_NORMAL
+  zh: 这是我们将用来将 RHEL 服务器加入路径的方法：
 - en: '[PRE5]'
+  id: totrans-53
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE5]'
 - en: 'With either of these methods, you will be prompted for the domain administrator''s
     password or the password of a user with delegated rights to add computers to the
     AD domain and your `sudo` user''s password (if required). The command can take
@@ -281,60 +409,92 @@
     to the `realm discover example.com` command that we ran earlier; however, on closer
     examination, we will see that we are now a member server, as shown by `configured:
     kerberos-member` in the following command:'
+  id: totrans-54
   prefs: []
   type: TYPE_NORMAL
+  zh: '使用这两种方法中的任何一种，你将被提示输入域管理员密码或具有将计算机添加到 AD 域权限的用户密码，以及你的 `sudo` 用户密码（如果需要）。该命令可能需要几分钟才能生效，请耐心等待，直到返回命令行提示符。作为标准用户，你可以再次使用
+    `realm list` 命令列出已加入的域。我们应该注意到，第一次的输出可能看起来与我们之前运行的 `realm discover example.com`
+    命令类似；然而，经过仔细检查后，我们会发现我们现在是一个成员服务器，命令输出中会显示 `configured: kerberos-member`，如以下命令所示：'
 - en: '[PRE6]'
+  id: totrans-55
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE6]'
 - en: 'The output from the preceding command is shown in the following screenshot:'
+  id: totrans-56
   prefs: []
   type: TYPE_NORMAL
+  zh: 前面命令的输出如以下截图所示：
 - en: '![Using realm to manage domain enrolment](img/image00285.jpeg)'
+  id: totrans-57
   prefs: []
   type: TYPE_IMG
+  zh: '![使用 realm 管理域注册](img/image00285.jpeg)'
 - en: Logging on to RHEL 7 using Active Directory credentials
+  id: totrans-58
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 使用 Active Directory 凭证登录 RHEL 7
 - en: Welcome to the world of centralized accounts. I think you will have to concede
     that the process was very simple using RHEL 7 and vastly more simple than the
     previous releases of RHEL. We are now ready to make use of central user accounts
     from the Active Directory.
+  id: totrans-59
   prefs: []
   type: TYPE_NORMAL
+  zh: 欢迎来到集中式账户的世界。我想你会承认，使用 RHEL 7 这个过程非常简单，远比之前的 RHEL 版本要简单得多。我们现在可以开始使用来自 Active
+    Directory 的中央用户账户了。
 - en: 'To log on to the RHEL 7 server, we can use the Active Directory **UPN** (**User
     Principal Name**). This is in the format of `user@<Fully Qualified Domain Name>`.
     For example, if we have an account in the `example.com` domain named `jjones`,
     we can log on to the RHEL server using the following command:'
+  id: totrans-60
   prefs: []
   type: TYPE_NORMAL
+  zh: 要登录 RHEL 7 服务器，我们可以使用 Active Directory 的 **UPN**（**用户主体名称**）。格式为 `user@<完全限定域名>`。例如，如果我们在
+    `example.com` 域中有一个名为 `jjones` 的账户，我们可以使用以下命令登录 RHEL 服务器：
 - en: '[PRE7]'
+  id: totrans-61
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE7]'
 - en: 'The following screenshot shows this process as we use the `switch user` command
     to log on as the AD account for `jjones`. Note that as the home directory for
     `jjones` does not exist, `oddjob` kindly creates it for us, as shown in the following
     screenshot:'
+  id: totrans-62
   prefs: []
   type: TYPE_NORMAL
+  zh: 下图显示了当我们使用`switch user`命令以`jjones`的AD帐户登录时的过程。请注意，由于`jjones`的主目录不存在，`oddjob`会友好地为我们创建它，如下图所示：
 - en: '![Logging on to RHEL 7 using Active Directory credentials](img/image00286.jpeg)'
+  id: totrans-63
   prefs: []
   type: TYPE_IMG
+  zh: '![使用Active Directory凭据登录RHEL 7](img/image00286.jpeg)'
 - en: 'To connect remotely using SSH tools, such as PuTTY for Windows, we will use
     the following syntax implementing two `@` symbols; this may look a little weird,
     but is correct:'
+  id: totrans-64
   prefs: []
   type: TYPE_NORMAL
+  zh: 要使用SSH工具（例如Windows的PuTTY）远程连接，我们将使用以下语法，使用两个`@`符号；这看起来可能有点奇怪，但它是正确的：
 - en: '[PRE8]'
+  id: totrans-65
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE8]'
 - en: 'An SSH connection to RHEL from the Windows PuTTY client is shown in the following
     screenshot:'
+  id: totrans-66
   prefs: []
   type: TYPE_NORMAL
+  zh: 以下截图显示了从Windows的PuTTY客户端连接到RHEL的SSH连接：
 - en: '![Logging on to RHEL 7 using Active Directory credentials](img/image00287.jpeg)'
+  id: totrans-67
   prefs: []
   type: TYPE_IMG
+  zh: '![使用Active Directory凭据登录RHEL 7](img/image00287.jpeg)'
 - en: We have now seen that we can make use of Active Directory accounts on our Linux
     systems. With the Red Hat server as part of our domain, we can log on to Linux
     with a single set of credentials. When a user leaves an organization, there is
@@ -342,97 +502,143 @@
     on a single server, but this equally applies to all your RHEL 7 or CentOS 7 servers
     and desktops; this process is the same across the board, making us efficient and
     secure.
+  id: totrans-68
   prefs: []
   type: TYPE_NORMAL
+  zh: 我们现在已经看到，我们可以在Linux系统上使用Active Directory帐户。通过将Red Hat服务器作为我们域的一部分，我们可以使用一套凭据登录Linux。当用户离开组织时，现在只需要删除或禁用一个用户帐户。我们已经在单台服务器上看到了这一点，但这同样适用于所有的RHEL
+    7或CentOS 7服务器和桌面；这个过程在各个设备上都是一样的，使我们更高效、更安全。
 - en: User and group management with adcli
+  id: totrans-69
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 使用adcli进行用户和组管理
 - en: 'We are not just restricted to consuming these domain accounts; we also have
     a level of management of Active Directory from the command line of our Linux servers.
     With the correct privileges in Active Directory, we can:'
+  id: totrans-70
   prefs: []
   type: TYPE_NORMAL
+  zh: 我们不仅仅局限于使用这些域帐户；我们还可以通过Linux服务器的命令行管理Active Directory。在Active Directory中具有正确的权限后，我们可以：
 - en: Create users and groups
+  id: totrans-71
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 创建用户和组
 - en: Modify group memberships
+  id: totrans-72
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 修改组成员资格
 - en: Delete users and groups
+  id: totrans-73
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 删除用户和组
 - en: Although the tools are not as rich as you will find with the native OS, especially
     when using PowerShell, there is a need and advantage to some of the management
     provided by Linux devices.
+  id: totrans-74
   prefs: []
   type: TYPE_NORMAL
+  zh: 虽然这些工具的功能不如本地操作系统中的工具丰富，特别是在使用PowerShell时，但Linux设备提供的某些管理功能仍然有其需求和优势。
 - en: If you are a Linux administrator and work mainly on Linux, it does make sense
     for you to add Active Directory users to groups that you use for delegation on
     Linux. For example, you can maintain an Active Directory group called `LinuxAdmins`
     and delegate rights via the `/etc/sudoers` file to this group. It's quite correct
     that you maintain and control the AD group and not necessarily the `Domain Admins`
     group in the AD.
+  id: totrans-75
   prefs: []
   type: TYPE_NORMAL
+  zh: 如果你是Linux管理员并且主要在Linux上工作，那么将Active Directory用户添加到你用来在Linux上进行委派的组中是有意义的。例如，你可以维护一个名为`LinuxAdmins`的Active
+    Directory组，并通过`/etc/sudoers`文件将权限委派给该组。完全正确的是，你管理和控制AD组，而不一定是AD中的`Domain Admins`组。
 - en: Listing the Active Directory information
+  id: totrans-76
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 列出Active Directory信息
 - en: 'To begin with the `adcli` command, we will take a look at the `info` subcommand.
     This can display details on domains and the domain controllers that are discovered.
     We can run this command as a standard user, as shown in the following command:'
+  id: totrans-77
   prefs: []
   type: TYPE_NORMAL
+  zh: 首先，我们将使用`adcli`命令，来看一下`info`子命令。它可以显示已发现的域及域控制器的详细信息。我们可以作为标准用户运行此命令，如下所示：
 - en: '[PRE9]'
+  id: totrans-78
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE9]'
 - en: 'The output will show the Active Directory roles for the domain controller and
     details on the site, as shown in the following screenshot:'
+  id: totrans-79
   prefs: []
   type: TYPE_NORMAL
+  zh: 输出将显示域控制器的Active Directory角色以及站点的详细信息，如下图所示：
 - en: '![Listing the Active Directory information](img/image00288.jpeg)'
+  id: totrans-80
   prefs: []
   type: TYPE_IMG
+  zh: '![列出Active Directory信息](img/image00288.jpeg)'
 - en: In this way, we will be able to verify the connection and the domain controller
     that we are connected to.
+  id: totrans-81
   prefs: []
   type: TYPE_NORMAL
+  zh: 通过这种方式，我们将能够验证连接以及我们连接的域控制器。
 - en: Creating Active Directory users
+  id: totrans-82
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 创建Active Directory用户
 - en: 'This command is probably not one of the most useful tools given that we can
     create the user, but can''t enable the account or set the password for the new
     user. In this way, the command is less useful than some of the other tools with
     `adcli`. A sample command is as follows:'
+  id: totrans-83
   prefs: []
   type: TYPE_NORMAL
+  zh: 该命令可能不是最有用的工具，因为我们可以创建用户，但无法启用帐户或为新用户设置密码。因此，这个命令的使用价值不如`adcli`中的其他一些工具。示例命令如下：
 - en: '[PRE10]'
+  id: totrans-84
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE10]'
 - en: This command will try to log on to a domain as an administrator and will prompt
     for the password. To log on as a different user, you may make use of the `-U`
     or `--login-user` option.
+  id: totrans-85
   prefs: []
   type: TYPE_NORMAL
+  zh: 该命令将尝试以管理员身份登录到域，并会提示输入密码。若要以其他用户身份登录，您可以使用`-U`或`--login-user`选项。
 - en: For completeness, we cover the `create user` command, but in reality, the user
     will still need to be enabled and have the password set in the Active Directory.
+  id: totrans-86
   prefs: []
   type: TYPE_NORMAL
+  zh: 为了完整性，我们覆盖了`create user`命令，但实际上，用户仍然需要在Active Directory中启用并设置密码。
 - en: 'To delete the account we just created, we will use the following command:'
+  id: totrans-87
   prefs: []
   type: TYPE_NORMAL
+  zh: 要删除我们刚刚创建的帐户，我们将使用以下命令：
 - en: '[PRE11]'
+  id: totrans-88
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE11]'
 - en: Creating Active Directory groups
+  id: totrans-89
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 创建Active Directory组
 - en: In many respects, the `adcli` command is very useful to us as Linux administrators.
     So, as long as our domain accounts have rights to create and manage groups in
     the AD, it's correct that we should be the ones managing the group membership
@@ -440,175 +646,259 @@
     we do not need to concern ourselves with password management on the creation and
     membership of these groups. We will use the administrator account while accessing
     the domain as before, but we could use our own account if it had the privileges.
+  id: totrans-90
   prefs: []
   type: TYPE_NORMAL
+  zh: 在许多方面，`adcli`命令对我们作为Linux管理员非常有用。因此，只要我们的域帐户具有在AD中创建和管理组的权限，我们就应该管理影响Linux访问的组成员身份。假设用户帐户已经创建，我们无需关注这些组的密码管理、创建和成员身份。我们将像以前一样使用管理员帐户访问域，但如果我们的帐户具有相应权限，也可以使用我们自己的帐户。
 - en: 'To create the Linux users group in the Linux OU where we have placed the server,
     we will use the following command:'
+  id: totrans-91
   prefs: []
   type: TYPE_NORMAL
+  zh: 要在我们放置服务器的Linux组织单位（OU）中创建Linux用户组，我们将使用以下命令：
 - en: '[PRE12]'
+  id: totrans-92
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE12]'
 - en: 'We can verify that this has worked as expected by navigating to the **OU**
     (**Organizational Unit**) within the Active Directory users and computers on the
     domain controller. In the following screenshot, we can see that we have the server
     group and the new group:'
+  id: totrans-93
   prefs: []
   type: TYPE_NORMAL
+  zh: 我们可以通过导航到域控制器上的Active Directory用户和计算机中的**OU**（**组织单位**）来验证这一点。在以下截图中，我们可以看到我们有服务器组和新组：
 - en: '![Creating Active Directory groups](img/image00289.jpeg)'
+  id: totrans-94
   prefs: []
   type: TYPE_IMG
+  zh: '![创建Active Directory组](img/image00289.jpeg)'
 - en: 'We will keep the created group as it is, because we will add users to it; the
     process of deleting a group is similar to the process of deleting a user, as shown
     in the following command:'
+  id: totrans-95
   prefs: []
   type: TYPE_NORMAL
+  zh: 我们将保留创建的组，因为我们将向其中添加用户；删除组的过程类似于删除用户的过程，如下命令所示：
 - en: '[PRE13]'
+  id: totrans-96
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE13]'
 - en: 'Should we need help on any command, we can issue syntax help with commands
     similar to the following command:'
+  id: totrans-97
   prefs: []
   type: TYPE_NORMAL
+  zh: 如果我们需要任何命令的帮助，可以使用类似以下命令的语法帮助：
 - en: '[PRE14]'
+  id: totrans-98
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE14]'
 - en: Just use the correct subcommand that you need help with.
+  id: totrans-99
   prefs: []
   type: TYPE_NORMAL
+  zh: 只需使用您需要帮助的正确子命令。
 - en: Managing the Active Directory group membership
+  id: totrans-100
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 管理Active Directory组成员身份
 - en: 'Now that we have the Linux users group, we can manage the membership of this
     group. Within the AD domain, we have the `jjones` user that we can add to this
     group. The following command shows how this is done using our domain:'
+  id: totrans-101
   prefs: []
   type: TYPE_NORMAL
+  zh: 现在我们有了Linux用户组，我们可以管理该组的成员身份。在AD域中，我们有`jjones`用户，可以将其添加到此组中。以下命令展示了如何在我们的域中执行此操作：
 - en: '[PRE15]'
+  id: totrans-102
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE15]'
 - en: Tip
+  id: totrans-103
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
+  zh: 提示
 - en: Other than when you create a group or user in a given context, we can refer
     to the object by the `SAMAccountName` attribute alone (the user or group name).
     This is a unique identifier in a domain. In the preceding example, we can simply
     refer to the group as `Linux Users` and the user as `jjones`. Quotes are required
     to protect the space used in the group name.
+  id: totrans-104
   prefs: []
   type: TYPE_NORMAL
+  zh: 除非在特定上下文中创建组或用户，否则我们可以仅通过`SAMAccountName`属性（即用户或组名称）来引用该对象。这是域中的唯一标识符。在前面的示例中，我们可以简单地将该组称为`Linux
+    Users`，将用户称为`jjones`。如果组名中有空格，则需要使用引号保护。
 - en: Delegating Active Directory accounts with sudo
+  id: totrans-105
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 委派Active Directory帐户使用sudo
 - en: Being able to manage the Active Directory group membership is fundamental to
     our management of Linux. We can assign the ownership of files and directories
     to these groups and (more importantly) the delegate rights on the system using
     the `/etc/sudoers` file.
+  id: totrans-106
   prefs: []
   type: TYPE_NORMAL
+  zh: 能够管理Active Directory组成员身份是我们管理Linux的基础。我们可以将文件和目录的所有权分配给这些组，并（更重要的是）通过`/etc/sudoers`文件委派系统上的权限。
 - en: 'Let''s see how this delegation works. We will create a new group in the Active
     Directory and add an administrator to this group. As a simple setup, we are limited
     to users that we have created, as shown in the following commands:'
+  id: totrans-107
   prefs: []
   type: TYPE_NORMAL
+  zh: 让我们看看这种委派是如何工作的。我们将在Active Directory中创建一个新组，并将管理员添加到该组中。作为一个简单的设置，我们仅限于已创建的用户，如以下命令所示：
 - en: '[PRE16]'
+  id: totrans-108
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE16]'
 - en: 'We now have two groups that we may want to use for delegation: `Linux Users`
     and `Linux Admins`. To delegate with the `sudoers` system, we run the `visudo`
     command as a root user or with `sudo`. This file can be used as delegation, which
     allows selected commands to be run as root by selected users. These commands have
     to be prefaced with the `sudo` command. You can think of `sudo` as a similar command
     to `runas` in a Windows system:'
+  id: totrans-109
   prefs: []
   type: TYPE_NORMAL
+  zh: 现在我们有两个组，可能用于委派：`Linux Users`和`Linux Admins`。为了使用`sudoers`系统进行委派，我们以root用户身份或使用`sudo`运行`visudo`命令。此文件可以用作委派，使选定的用户能够以root身份运行某些命令。这些命令必须以`sudo`命令开头。你可以将`sudo`视为类似于Windows系统中的`runas`命令：
 - en: '[PRE17]'
+  id: totrans-110
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE17]'
 - en: This will open the `/etc/sudoers` file for editing purposes. We can use `G`
     to move towards the end of the file and then `o` to insert a new line.
+  id: totrans-111
   prefs: []
   type: TYPE_NORMAL
+  zh: 这将打开`/etc/sudoers`文件进行编辑。我们可以使用`G`移动到文件末尾，然后按`o`插入新行。
 - en: 'We will add these two lines of code to the `/etc/sudoers` file:'
+  id: totrans-112
   prefs: []
   type: TYPE_NORMAL
+  zh: 我们将向`/etc/sudoers`文件中添加这两行代码：
 - en: '[PRE18]'
+  id: totrans-113
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE18]'
 - en: Tip
+  id: totrans-114
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
+  zh: 提示
 - en: Note the use of `\` to protect the space here. This is required because the
     `sudoers` file does not like the use of quotes.
+  id: totrans-115
   prefs: []
   type: TYPE_NORMAL
+  zh: 请注意这里使用`\`来保护空格。这是必需的，因为`sudoers`文件不允许使用引号。
 - en: The Linux admins group is allowed to run all commands on the system as root
     using `sudo`. The Linux users group can run the `mount` and `umount` commands
     only to mount and unmount the `cdrom` device.
+  id: totrans-116
   prefs: []
   type: TYPE_NORMAL
+  zh: Linux管理员组被允许使用`sudo`以root身份运行系统上的所有命令。Linux用户组只能运行`mount`和`umount`命令，来挂载和卸载`cdrom`设备。
 - en: With all the changes made in `vi`, we can use the `ESC` key to exit and `:x`
     to save and exit the insert mode.
+  id: totrans-117
   prefs: []
   type: TYPE_NORMAL
+  zh: 在`vi`中完成所有更改后，我们可以按`ESC`键退出，再按`:x`保存并退出插入模式。
 - en: 'The following screenshot from the example system shows the changes as they
     should appear:'
+  id: totrans-118
   prefs: []
   type: TYPE_NORMAL
+  zh: 以下是示例系统的截图，显示了应有的更改：
 - en: '![Delegating Active Directory accounts with sudo](img/image00290.jpeg)'
+  id: totrans-119
   prefs: []
   type: TYPE_IMG
+  zh: '![使用sudo委派Active Directory账户](img/image00290.jpeg)'
 - en: When we log on as `jjones`, We will now find that we have the membership of
     the `Linux Users` group and `Linux Admins` for the `Administrator`. Additionally,
     both users will belong to the `Domain Users` group.
+  id: totrans-120
   prefs: []
   type: TYPE_NORMAL
+  zh: 当我们以`jjones`身份登录时，我们现在会发现我们属于`Linux Users`组和`Administrator`的`Linux Admins`组。此外，两个用户都将属于`Domain
+    Users`组。
 - en: 'We can run the following command as a user of either group:'
+  id: totrans-121
   prefs: []
   type: TYPE_NORMAL
+  zh: 我们可以作为任一组的用户运行以下命令：
 - en: '[PRE19]'
+  id: totrans-122
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE19]'
 - en: The preceding command will display the group names that the user belongs to.
     The domain administrator account will have several group memberships, but it will
     importantly include the `Linux Admins` group. This will allow users to run all
     commands prefixed with `sudo` so that they can run as root, as we have seen with
     the `andrew` account that had similar rights delegated.
+  id: totrans-123
   prefs: []
   type: TYPE_NORMAL
+  zh: 上面的命令将显示用户所属的组名。域管理员账户将有多个组成员身份，但最重要的是会包括`Linux Admins`组。这将允许用户以root身份运行所有以`sudo`开头的命令，就像我们看到的具有类似权限委派的`andrew`账户。
 - en: 'The following screenshot shows the output of the `id` command when it is run
     as the administrator:'
+  id: totrans-124
   prefs: []
   type: TYPE_NORMAL
+  zh: 以下截图显示了以管理员身份运行`id`命令时的输出：
 - en: '![Delegating Active Directory accounts with sudo](img/image00291.jpeg)'
+  id: totrans-125
   prefs: []
   type: TYPE_IMG
+  zh: '![使用sudo委派Active Directory账户](img/image00291.jpeg)'
 - en: 'We can also assign the filesystem ownership to users and groups from the directories.
     While we are still logged in to the RHEL 7.1 system as the domain administrator
     account, we will prove that the `sudo` entry is correct by changing the group
     ownership of a directory; this is something normally reserved for root:'
+  id: totrans-126
   prefs: []
   type: TYPE_NORMAL
+  zh: 我们还可以将文件系统的所有权分配给用户和组。从目录中，我们可以进行这一操作。当前我们仍然以域管理员账户登录到RHEL 7.1系统，我们将通过更改目录的组所有权来验证`sudo`条目的正确性；这通常是root用户的特权操作：
 - en: '[PRE20]'
+  id: totrans-127
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE20]'
 - en: 'In the preceding example, we changed the group ownership of the `/data` directory
     to the `Linux Users` group; subsequently, we displayed the ownership of the directory
     as well. For additional clarity, we have included a screenshot to demonstrate
     this process:'
+  id: totrans-128
   prefs: []
   type: TYPE_NORMAL
+  zh: 在前面的示例中，我们将`/data`目录的组所有权更改为`Linux Users`组；随后，我们还展示了该目录的所有权。为了更加清晰，我们提供了一张截图来演示这一过程：
 - en: '![Delegating Active Directory accounts with sudo](img/image00292.jpeg)'
+  id: totrans-129
   prefs: []
   type: TYPE_IMG
+  zh: '![使用sudo委托Active Directory帐户](img/image00292.jpeg)'
 - en: Leaving a domain
+  id: totrans-130
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 离开一个域
 - en: 'Until now, we have been able to demonstrate true interoperability with the
     Active Directory through the use of delegated permissions using `sudo` and ownership
     of files and directories with filesystems. This is outstanding and nothing less
@@ -617,34 +907,49 @@
     from a domain. Often, this is the case where it is removed from one domain before
     being added to another. Should this be required, the realm command makes the process
     easy, reversing the operation to the `join` subcommand as follows:'
+  id: totrans-131
   prefs: []
   type: TYPE_NORMAL
+  zh: 到目前为止，我们已经能够通过使用`sudo`的委托权限以及文件和目录的所有权和文件系统，展示与Active Directory的真正互操作性。这非常出色，完全符合企业级Linux系统的预期；然而，尽管这一点非常突出，但仍然会有需要将Linux服务器从域中移除的情况。通常，这发生在服务器从一个域中移除后，再加入另一个域。若需要这样操作，`realm`命令使得这一过程变得简单，可以通过将操作反向到`join`子命令来实现，示例如下：
 - en: '[PRE21]'
+  id: totrans-132
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE21]'
 - en: 'The additional option: `--remove` will ensure that the computer account is
     also deleted from the domain; otherwise, it should be deleted separately. For
     the moment, we will leave the computer in the domain.'
+  id: totrans-133
   prefs: []
   type: TYPE_NORMAL
+  zh: 额外选项：`--remove`将确保计算机帐户也从域中删除；否则，它需要单独删除。暂时，我们将计算机保留在域中。
 - en: Understanding Active Directory as an identity provider for sssd
+  id: totrans-134
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 理解Active Directory作为sssd的身份提供者
 - en: In many ways, something this simple is very welcome on Linux; however, the simplicity
     is in masking the complex series of events and procedures that occur behind the
     scenes. It's now time to delve into what makes `sssd` work.
+  id: totrans-135
   prefs: []
   type: TYPE_NORMAL
+  zh: 在许多方面，Linux上能实现如此简单的功能是非常受欢迎的；然而，这种简单性掩盖了幕后的复杂事件和过程。现在是时候深入了解`sssd`是如何工作的了。
 - en: 'We first need to remind ourselves of all the configurations that we added in
     the only manual part of the process, that is, setting up the infrastructure services
     of time and DNS required for integration into the Active Directory. The following
     diagram shows the relationship between the RHEL server and Active Directory:'
+  id: totrans-136
   prefs: []
   type: TYPE_NORMAL
+  zh: 我们首先需要提醒自己回顾在过程中唯一的手动操作部分——即设置集成到Active Directory所需的时间和DNS基础设施服务。下图展示了RHEL服务器与Active
+    Directory之间的关系：
 - en: '![Understanding Active Directory as an identity provider for sssd](img/image00293.jpeg)'
+  id: totrans-137
   prefs: []
   type: TYPE_IMG
+  zh: '![理解Active Directory作为sssd的身份提供者](img/image00293.jpeg)'
 - en: When we interrogated the Active Directory domain with `realm`, we could see
     from the resulting information that we required the `sssd` package among others.
     The System Security Services Daemon (`sssd`) provides a set of daemons to manage
@@ -654,252 +959,372 @@
     a modular backend system to connect to multiple different account sources and
     the D-bus interface as well. With this in mind, we should understand that both
     NSS and PAM modules have been added and configured for us on the system.
+  id: totrans-138
   prefs: []
   type: TYPE_NORMAL
+  zh: 当我们使用`realm`命令查询Active Directory域时，从结果信息中可以看到，我们需要安装`sssd`包等其他组件。系统安全服务守护进程（`sssd`）提供了一组守护进程，用于管理对远程目录和身份验证机制的访问，在我们的案例中，指的是Active
+    Directory。`sssd`服务为我们的系统提供**NSS**（**名称服务切换**）和**PAM**（**可插拔认证机制**）接口，以及一个模块化的后端系统，用于连接多个不同的帐户来源和D-bus接口。考虑到这一点，我们应该理解系统上已经为我们添加并配置了NSS和PAM模块。
 - en: Identifying accounts on the remote Active Directory is performed over LDAP and
     authentication is done via Kerberos to the AD domain. The LDAP account search
     is referenced and calls for the `/usr/lib64/libnss_sss.so.2` NSS module and the
     `/etc/nsswitch.conf` file. Authentication will be referenced using `/lib64/security/pam_nss.so`.
+  id: totrans-139
   prefs: []
   type: TYPE_NORMAL
+  zh: 在远程Active Directory上识别帐户是通过LDAP进行的，身份验证是通过Kerberos完成的，连接到AD域。LDAP帐户查找参考并调用`/usr/lib64/libnss_sss.so.2`
+    NSS模块和`/etc/nsswitch.conf`文件。身份验证将通过`/lib64/security/pam_nss.so`进行引用。
 - en: 'We can expand the relationship diagram to include `sssd` as follows:'
+  id: totrans-140
   prefs: []
   type: TYPE_NORMAL
+  zh: 我们可以扩展关系图，加入`sssd`，如下所示：
 - en: '![Understanding Active Directory as an identity provider for sssd](img/image00294.jpeg)'
+  id: totrans-141
   prefs: []
   type: TYPE_IMG
+  zh: '![理解Active Directory作为sssd的身份提供者](img/image00294.jpeg)'
 - en: Configuring NSS
+  id: totrans-142
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 配置NSS
 - en: The **Name Service Switch** (**NSS**) configuration file, `/etc/nsswitch.conf`,
     is used by various NSS libraries; one of the NSS libraries is `/usr/lib64/libnss_sss.so.2`.
     The NSS configuration file determines the sources from which you can obtain the
     name service information and its order from a range of categories. Each category
     of information is identified by a resource database name; this can be `hosts`
     for name resolution and `passwd` for a database to locate user accounts.
+  id: totrans-143
   prefs: []
   type: TYPE_NORMAL
+  zh: '**名称服务切换**（**NSS**）配置文件 `/etc/nsswitch.conf`，被各种NSS库使用；其中一个NSS库是 `/usr/lib64/libnss_sss.so.2`。NSS配置文件确定您可以从中获取名称服务信息的源和其顺序，范围包括各种类别。每个信息类别由资源数据库名称标识；这可以是用于名称解析的`hosts`和用于查找用户账户的`passwd`。'
 - en: 'In my opinion, the simplest approach is to use the `hosts` database to explain
     how these forces work. The entry in the `/etc/nsswitch.conf` for hosts is as follows:'
+  id: totrans-144
   prefs: []
   type: TYPE_NORMAL
+  zh: 在我看来，最简单的方法是使用 `hosts` 数据库来解释这些功能是如何工作的。在 `/etc/nsswitch.conf` 中 `hosts` 的条目如下所示：
 - en: '[PRE22]'
+  id: totrans-145
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE22]'
 - en: With the settings in effect, the preceding name resolution is achieved by first
     resolving names from the `/etc/hosts` local file and then via DNS resolver libraries.
     If you reversed these entries, the DNS will be checked before the local file.
+  id: totrans-146
   prefs: []
   type: TYPE_NORMAL
+  zh: 通过生效的设置，首先通过解析`/etc/hosts`本地文件来实现前述的名称解析，然后通过DNS解析库。如果颠倒这些条目，DNS将在本地文件之前检查。
 - en: 'If we check for `sss` within a file, we can see all the databases that rely
     on a particular library. The `grep` command can be used to isolate these entries,
     as shown in the following command:'
+  id: totrans-147
   prefs: []
   type: TYPE_NORMAL
+  zh: 如果我们在文件中检查`sss`，我们可以看到所有依赖特定库的数据库。`grep`命令可用于隔离这些条目，如以下命令所示：
 - en: '[PRE23]'
+  id: totrans-148
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE23]'
 - en: 'The result of the query should look similar to the following screenshot:'
+  id: totrans-149
   prefs: []
   type: TYPE_NORMAL
+  zh: 查询的结果应该类似于以下的屏幕截图：
 - en: '![Configuring NSS](img/image00295.jpeg)'
+  id: totrans-150
   prefs: []
   type: TYPE_IMG
+  zh: '![配置NSS](img/image00295.jpeg)'
 - en: These are default settings, but we are not forced to accept them; we can implement
     changes if required. However, this order is probably the best as it allows local
     accounts to be resolved before searching for a domain (not that domain accounts
     will clash because they are specified with the full UPN of the user.
+  id: totrans-151
   prefs: []
   type: TYPE_NORMAL
+  zh: 这些是默认设置，但我们不必接受它们；如果需要，我们可以实施更改。但是，这个顺序可能是最好的，因为它允许在搜索域之前解析本地账户（并非域账户将冲突，因为它们是使用用户的完整UPN指定的）。
 - en: 'The database names are explained here:'
+  id: totrans-152
   prefs: []
   type: TYPE_NORMAL
+  zh: 这里解释了数据库名称：
 - en: '`passwd`: This specifies the user accounts'
+  id: totrans-153
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '`passwd`: 这指定了用户账户。'
 - en: '`shadow`: This denotes the password information'
+  id: totrans-154
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '`shadow`: 这表示密码信息。'
 - en: '`group`: This specifies the group accounts'
+  id: totrans-155
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '`group`: 这指定了组账户。'
 - en: '`services`: This denotes the service name resolution'
+  id: totrans-156
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '`services`: 这表示服务名称解析。'
 - en: '`netgroup`: This specifies the groups of hosts that can be used in access control
     rules'
+  id: totrans-157
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '`netgroup`: 这指定了可以在访问控制规则中使用的主机组。'
 - en: '`automount`: This denotes the directories to be auto-mounted by `autofs`'
+  id: totrans-158
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '`automount`: 这指定了由 `autofs` 自动挂载的目录。'
 - en: 'In many setups, it''s easy to disable the bottom three elements: `services`,
     `netgroup`, and `automount`. This will help tune the directory access, for example,
     if you leave the default settings when you run tools, such as `netstat`, to query
     which ports are open on the server, you will also run an LDAP query in the AD
     to resolve port addresses to service names with the service database entry in
     the `/etc/nsswitch.conf`.'
+  id: totrans-159
   prefs: []
   type: TYPE_NORMAL
+  zh: 在许多设置中，禁用底部三个元素 `services`、`netgroup` 和 `automount` 很容易。例如，如果在运行工具（如`netstat`）时保留默认设置，可以帮助调整目录访问，它将在
+    `/etc/nsswitch.conf` 的服务数据库条目中运行LDAP查询以解析端口地址到服务名称。
 - en: 'The entry for the services will read similar to the following command to prevent
     LDAP lookups:'
+  id: totrans-160
   prefs: []
   type: TYPE_NORMAL
+  zh: 防止LDAP查询的服务条目将类似于以下命令：
 - en: '[PRE24]'
+  id: totrans-161
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE24]'
 - en: Configuring PAM
+  id: totrans-162
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 配置PAM
 - en: We can often leave **Pluggable Authentication Modules** (**PAM**) as they are,
     but we will look at their configuration here.
+  id: totrans-163
   prefs: []
   type: TYPE_NORMAL
+  zh: 我们通常可以将**可插入认证模块**（**PAM**）保留为原样，但是我们将在这里查看它们的配置。
 - en: The services that can use PAM are configured with the associated PAM modules
     that they should use within a file in the `/etc/pam.d` directory. The can be in
     individual files, such as `/etc/pam.d/login`, or through command files that are
     referenced by many services (such as `/etc/pam.d/system-auth-ac`).
+  id: totrans-164
   prefs: []
   type: TYPE_NORMAL
+  zh: 可以使用PAM的服务通过`/etc/pam.d`目录中的相关PAM模块进行配置。它们可以是单独的文件，比如`/etc/pam.d/login`，也可以通过被多个服务引用的命令文件（如`/etc/pam.d/system-auth-ac`）。
 - en: 'We can display the configuration that `sssd` uses with PAM using `grep` again
     to filter `sss` from the `/etc/pam.d/system-auth-ac` file. The output is shown
     in the following screenshot:'
+  id: totrans-165
   prefs: []
   type: TYPE_NORMAL
+  zh: 我们可以使用`grep`再次从`/etc/pam.d/system-auth-ac`文件中筛选`sss`，以显示`sssd`与PAM一起使用的配置。输出如下截图所示：
 - en: '![Configuring PAM](img/image00296.jpeg)'
+  id: totrans-166
   prefs: []
   type: TYPE_IMG
+  zh: '![配置PAM](img/image00296.jpeg)'
 - en: 'We can see that the authentication module is used for all possible triggers:'
+  id: totrans-167
   prefs: []
   type: TYPE_NORMAL
+  zh: 我们可以看到认证模块在所有可能的触发条件下都会被使用：
 - en: '`auth`: This is used during authentication'
+  id: totrans-168
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '`auth`：在认证过程中使用'
 - en: '`account`: This is used for account restrictions'
+  id: totrans-169
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '`account`：用于账户限制'
 - en: '`password`: This is used for password change events'
+  id: totrans-170
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '`password`：用于密码更改事件'
 - en: '`session`: This is used during a logged in session'
+  id: totrans-171
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '`session`：在登录会话期间使用'
 - en: 'Let''s see some arguments (such as `use_first_pass`) that are used with the
     authentication module. Some of the possible arguments are stated as follows:'
+  id: totrans-172
   prefs: []
   type: TYPE_NORMAL
+  zh: 让我们看看一些与认证模块一起使用的参数（例如`use_first_pass`）。一些可能的参数如下：
 - en: '`forward_pass`: The entered password can be used for other modules'
+  id: totrans-173
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '`forward_pass`：输入的密码可以用于其他模块'
 - en: '`use_first_pass`: Does not prompt for a password, but uses a previously entered
     password'
+  id: totrans-174
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '`use_first_pass`：不会提示输入密码，而是使用先前输入的密码。'
 - en: '`use_authtok`: When changing a password, the previously entered password can
     be used to authenticate the password change'
+  id: totrans-175
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '`use_authtok`：更改密码时，可以使用先前输入的密码来认证密码更改。'
 - en: '`retry=N`: If this is set, the user can be prompted more than once for the
     password if they enter the wrong password'
+  id: totrans-176
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '`retry=N`：如果设置了此项，当用户输入错误的密码时，可以提示用户多次输入密码。'
 - en: Configuring Kerberos
+  id: totrans-177
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 配置Kerberos
 - en: 'When you join a domain using realm, the `/etc/krb5.conf` keytab file is created
     to authenticate the RHEL system to the domain alongside the `/etc/krb5.conf` file.
     Having tidied the file, after removing comments for our domain, the file looks
     similar to the following screenshot:'
+  id: totrans-178
   prefs: []
   type: TYPE_NORMAL
+  zh: 当你使用realm加入域时，会创建`/etc/krb5.conf`密钥表文件来将RHEL系统认证到域，同时也会创建`/etc/krb5.conf`文件。清理文件后，移除我们域的注释，文件看起来类似于以下截图：
 - en: '![Configuring Kerberos](img/image00297.jpeg)'
+  id: totrans-179
   prefs: []
   type: TYPE_IMG
+  zh: '![配置Kerberos](img/image00297.jpeg)'
 - en: 'We can see that the `/etc/krb5.conf` file has four sections:'
+  id: totrans-180
   prefs: []
   type: TYPE_NORMAL
+  zh: 我们可以看到`/etc/krb5.conf`文件有四个部分：
 - en: '`logging`'
+  id: totrans-181
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '`logging`'
 - en: '`libdefaults`'
+  id: totrans-182
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '`libdefaults`'
 - en: '`realms`'
+  id: totrans-183
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '`realms`'
 - en: '`domain_realm`'
+  id: totrans-184
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '`domain_realm`'
 - en: 'As the demonstration lab is very small with just a single domain controller,
     there is no need to make changes. If you have a larger setup, you may want to
     add some more details to the realm. You can point to the local domain controllers
     holding the correct roles; otherwise, just let the DNS service records resolve
     these records as follows:'
+  id: totrans-185
   prefs: []
   type: TYPE_NORMAL
+  zh: 由于演示实验室非常小，只有一个域控制器，因此无需进行更改。如果你有更大的设置，可能需要在realm中添加更多的详细信息。你可以指定持有正确角色的本地域控制器；否则，只需让DNS服务记录按以下方式解析这些记录：
 - en: '[PRE25]'
+  id: totrans-186
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE25]'
 - en: Configuring SSSD
+  id: totrans-187
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 配置SSSD
 - en: 'The configuration for `sssd` can be found in the `/etc/sssd/sssd.conf` file.
     We have seen that this works for us by default, but there is room for customization,
     as shown in the following screenshot:'
+  id: totrans-188
   prefs: []
   type: TYPE_NORMAL
+  zh: '`sssd`的配置可以在`/etc/sssd/sssd.conf`文件中找到。我们已经看到这默认情况下对我们有效，但也有自定义的空间，如下截图所示：'
 - en: '![Configuring SSSD](img/image00298.jpeg)'
+  id: totrans-189
   prefs: []
   type: TYPE_IMG
+  zh: '![配置SSSD](img/image00298.jpeg)'
 - en: A simple change here will be to change the home directory location of the AD
     users. By default, this is `/home/example.com/username`. If you have added the
     Unix extensions to the Active Directory, then we will set `ldap_id_mapping` to
     `false` and the UID and GID will be set in the Active Directory.
+  id: totrans-190
   prefs: []
   type: TYPE_NORMAL
+  zh: 这里的一个简单修改是更改AD用户的主目录位置。默认情况下，这是`/home/example.com/username`。如果你已将Unix扩展添加到Active
+    Directory中，则我们将设置`ldap_id_mapping`为`false`，UID和GID将在Active Directory中设置。
 - en: Summary
+  id: totrans-191
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 总结
 - en: In this chapter, we looked at how to use the Active Directory as an identity
     store, utilizing users and groups on Linux. The ease of setting this up makes
     this a very usable and much-needed solution within corporations throughout the
     world.
+  id: totrans-192
   prefs: []
   type: TYPE_NORMAL
+  zh: 在本章中，我们研究了如何使用Active Directory作为身份存储，利用Linux上的用户和组。设置的简便性使其成为全球企业中非常实用且迫切需要的解决方案。
 - en: There is a little bit of ground work required before setting up the time and
     DNS. Once this is set, then configuring `sssd` to use Active Directory as an identity
     source with the command realm is really a doddle.
+  id: totrans-193
   prefs: []
   type: TYPE_NORMAL
+  zh: 在设置时间和DNS之前需要做一些基础工作。一旦完成此设置，使用realm命令配置`sssd`以将Active Directory作为身份源就非常简单。
 - en: With the RHEL system in the AD domain, we can manage this domain to a degree
     with `adcli` and give users' access to the Linux command line through a console
     or via SSH.
+  id: totrans-194
   prefs: []
   type: TYPE_NORMAL
+  zh: 在AD域中的RHEL系统，我们可以通过`adcli`在一定程度上管理此域，并通过控制台或SSH为用户提供访问Linux命令行的权限。
 - en: Next up, we will be staying a little with file sharing, but this time, we will
     use the Apache HTTPD web server.
+  id: totrans-195
   prefs: []
   type: TYPE_NORMAL
+  zh: 接下来，我们将继续探讨文件共享，但这次我们将使用Apache HTTPD web服务器。

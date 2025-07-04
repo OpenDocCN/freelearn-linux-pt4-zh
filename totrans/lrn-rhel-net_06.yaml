@@ -3,6 +3,7 @@
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 第6章 NFS文件共享
 - en: 'File sharing with **Network File System** (**NFS**) is the traditional way
     on Unix and Linux for remote hosts to be able to mount filesystems over a network
     and interact with them as if they were mounted locally. Although RHEL 7 supports
@@ -15,51 +16,62 @@
   id: totrans-1
   prefs: []
   type: TYPE_NORMAL
+  zh: 使用**网络文件系统**（**NFS**）共享文件是Unix和Linux上远程主机能够通过网络挂载文件系统并像本地挂载一样与之交互的传统方式。虽然RHEL
+    7支持NFSv3和NFSv4，但不再支持NFSv2。RHEL 7客户端默认使用NFSv4，如果无法建立连接，则会回退到NFSv3。使用NFSv4简化了在防火墙后定位服务的过程，仅需要TCP端口`2049`供客户端访问；然而，我们将演示NFSv4和v3的防火墙配置。本章将涉及以下内容：
 - en: Overview of NFS
   id: totrans-2
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: NFS概述
 - en: Overview of the lab environment
   id: totrans-3
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 实验环境概述
 - en: The NFS server configuration
   id: totrans-4
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: NFS服务器配置
 - en: Using `exportfs`
   id: totrans-5
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 使用`exportfs`
 - en: Hosting NFSv4 behind a firewall
   id: totrans-6
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 在防火墙后托管NFSv4
 - en: Hosting NFSv3 behind a firewall
   id: totrans-7
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 在防火墙后托管NFSv3
 - en: The NFS client configuration
   id: totrans-8
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: NFS客户端配置
 - en: Auto-mounting NFS with `autofs`
   id: totrans-9
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 使用`autofs`自动挂载NFS
 - en: An overview of NFS
   id: totrans-10
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: NFS概述
 - en: We have been used to NFSv4 being included with Red Hat Enterprise Linux 6\.
     RHEL 7 includes additional support for `pNFS` (Parallel NFS) with NFSv4.1\. `pNFS`,
     providing security and performance enhancements, which allow more efficient connections
@@ -67,11 +79,13 @@
   id: totrans-11
   prefs: []
   type: TYPE_NORMAL
+  zh: 我们已经习惯了NFSv4在Red Hat Enterprise Linux 6中默认包含。RHEL 7新增了对`pNFS`（并行NFS）版本4.1的支持。`pNFS`提供了安全性和性能增强，使得在防火墙和**网络地址转换**（**NAT**）路由器后更加高效地连接客户端。
 - en: Support for NFSv2 is no longer available, which is no great loss, as it did
     not support file sizes above 2 GB and was not as robust as version 3 and 4.
   id: totrans-12
   prefs: []
   type: TYPE_NORMAL
+  zh: 不再支持NFSv2，这并不是什么大损失，因为它不支持超过2GB的文件大小，并且没有版本3和4那样健壮。
 - en: 'Using NFSv4, mounting and locking protocols are incorporated in a *batteries
     included* philosophy. This allows the use of just the one TCP port: `2049`. However,
     with NFSv3, we have to use `rpcbind` and set static ports for additional services
@@ -80,6 +94,7 @@
   id: totrans-13
   prefs: []
   type: TYPE_NORMAL
+  zh: 使用NFSv4时，挂载和锁定协议都采用了*一切打包*的理念。这使得仅使用一个TCP端口`2049`就足够。然而，使用NFSv3时，我们必须使用`rpcbind`并为额外的服务设置静态端口，以便配置防火墙。这简化了防火墙配置，稍后您将看到，配置只需要访问TCP端口`2049`。
 - en: 'Both the server and client tools are installed together from the `nfs-utils`
     package. This package includes tools for both the NFSv4 and V3 protocols. It also
     includes other useful tools such as `nfsiostat` that can be used to monitor NFS
@@ -89,6 +104,7 @@
   id: totrans-14
   prefs: []
   type: TYPE_NORMAL
+  zh: 服务器和客户端工具都来自`nfs-utils`包进行安装。此包包含NFSv4和v3协议的工具，还包括其他有用的工具，例如`nfsiostat`，可以用于监控NFS服务器上共享文件的使用情况。要列出已安装包的内容，可以使用`rpm`命令，以下命令行可以作为普通用户运行：
 - en: '[PRE0]'
   id: totrans-15
   prefs: []
@@ -99,6 +115,7 @@
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 实验环境概述
 - en: For demonstrations is this chapter, we will use two virtual machines running
     in an **Oracle VirtualBox** virtualization environment. VirtualBox can be downloaded
     from [https://www.virtualbox.org/](https://www.virtualbox.org/) free of charge
@@ -106,6 +123,8 @@
   id: totrans-17
   prefs: []
   type: TYPE_NORMAL
+  zh: 本章演示中，我们将使用在**Oracle VirtualBox**虚拟化环境中运行的两台虚拟机。VirtualBox可以从[https://www.virtualbox.org/](https://www.virtualbox.org/)免费下载，并且支持Windows、Mac
+    OS X、Linux和Solaris主机。
 - en: The NFS Server will be configured on the RHEL 7.1 host with the IP address of
     `192.168.10.10` and the hostname of `nfshost`. The NFS client will be configured
     on the RHEL 7.1 host with the IP address of `192.168.10.11` and the hostname of
@@ -113,11 +132,14 @@
   id: totrans-18
   prefs: []
   type: TYPE_NORMAL
+  zh: NFS服务器将在IP地址为`192.168.10.10`、主机名为`nfshost`的RHEL 7.1主机上配置。NFS客户端将在IP地址为`192.168.10.11`、主机名为`nfsclient`的RHEL
+    7.1主机上配置。
 - en: 'Both machines were installed with a minimal configuration; we have installed
     the `nfs-utils` package on both hosts, as shown in the following code:'
   id: totrans-19
   prefs: []
   type: TYPE_NORMAL
+  zh: 两台机器都以最小配置安装；我们在两台主机上都安装了`nfs-utils`包，如下所示：
 - en: '[PRE1]'
   id: totrans-20
   prefs: []
@@ -1177,14 +1199,17 @@
   id: totrans-185
   prefs: []
   type: TYPE_NORMAL
+  zh: '`showmount`的处理过程如下图所示，首先是请求`rpc.mountd`端口：'
 - en: '![Diagnosing NFSv3 issues](img/image00266.jpeg)'
   id: totrans-186
   prefs: []
   type: TYPE_IMG
+  zh: '![诊断NFSv3问题](img/image00266.jpeg)'
 - en: 'We can start by allowing the `rpcbind` traffic from the firewall to the `nfshost`:'
   id: totrans-187
   prefs: []
   type: TYPE_NORMAL
+  zh: 我们可以从允许防火墙到`nfshost`的`rpcbind`流量开始：
 - en: '[PRE36]'
   id: totrans-188
   prefs: []
@@ -1195,11 +1220,13 @@
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
+  zh: 提示
 - en: Don't forget to reload the firewall once you have added the port. It's all too
     easy to forget to complete this.
   id: totrans-190
   prefs: []
   type: TYPE_NORMAL
+  zh: 别忘了在添加端口后重新加载防火墙。完成这个步骤是很容易被忽略的。
 - en: 'Now that we can connect to the `rpcbind portmapper` service running on the
     UDP port `111`, we should go a little further. Remember that we are really trying
     to debug the process and learn some useful `tcpdump` analysis tricks. We can repeat
@@ -1211,10 +1238,12 @@
   id: totrans-191
   prefs: []
   type: TYPE_NORMAL
+  zh: 现在我们可以连接到运行在UDP端口`111`上的`rpcbind portmapper`服务，接下来我们应该继续操作。记住，我们实际上是想调试这个过程，并学习一些有用的`tcpdump`分析技巧。我们可以重复前面的操作，一边在控制台上运行`tcpdump`，另一边在控制台上运行`showmount`（这两个控制台都运行在`nfsclient`上）。`showmount`命令报告的错误现在应该略有不同。为了说明这一点，以下截图显示了当前的错误，其中UDP端口`111`是开放的：
 - en: '![Diagnosing NFSv3 issues](img/image00267.jpeg)'
   id: totrans-192
   prefs: []
   type: TYPE_IMG
+  zh: '![诊断NFSv3问题](img/image00267.jpeg)'
 - en: So, the error is slightly different now, we now no longer have the error number;
     however, we can see from the `tcpdump` output that we received the reply from
     the `nfshost`. Subsequently, we then try to make a TCP connection back to the
@@ -1222,12 +1251,14 @@
   id: totrans-193
   prefs: []
   type: TYPE_NORMAL
+  zh: 现在，错误略有不同，我们不再看到错误代码；但是，我们可以从`tcpdump`的输出中看到已经收到了来自`nfshost`的回复。随后，我们尝试重新连接到`20048`端口上的主机。
 - en: 'To identify the purpose of this port, we can again use `netstat`, but this
     time, we will replace `-u` with `-t` because we want to show the TCP ports. As
     we only need to see listening ports, we can replace `-a` with `-l`:'
   id: totrans-194
   prefs: []
   type: TYPE_NORMAL
+  zh: 要识别此端口的用途，我们可以再次使用`netstat`，但这次我们将`-u`替换为`-t`，因为我们想要显示TCP端口。由于我们只需要查看监听端口，可以将`-a`替换为`-l`：
 - en: '[PRE37]'
   id: totrans-195
   prefs: []
@@ -1238,27 +1269,32 @@
   id: totrans-196
   prefs: []
   type: TYPE_NORMAL
+  zh: 我们应该会看到我们尝试连接的端口是由`rpc.mountd`打开的。当然，这个端口不能通过防火墙访问。
 - en: Tip
   id: totrans-197
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
+  zh: 提示
 - en: The port that `rpc.mountd` listens on may well be different to the port used
     on your system, so adjust the exercises to work with your `rpc.mountd` port and
     the port that is being used by your client.
   id: totrans-198
   prefs: []
   type: TYPE_NORMAL
+  zh: '`rpc.mountd`监听的端口可能与您的系统上使用的端口不同，因此需要调整练习以适应您系统上的`rpc.mountd`端口以及客户端正在使用的端口。'
 - en: 'The output from `tcpdump` is shown in the following screenshot. We can identify
     it as TCP traffic by additional properties, such as the sequence (`seq`) and window
     size (`win`), which we have highlighted in the following screenshot:'
   id: totrans-199
   prefs: []
   type: TYPE_NORMAL
+  zh: 从`tcpdump`获取的输出如下所示。我们可以通过附加的属性（如序列号`seq`和窗口大小`win`）将其识别为TCP流量，这些属性在下图中已被突出显示：
 - en: '![Diagnosing NFSv3 issues](img/image00268.jpeg)'
   id: totrans-200
   prefs: []
   type: TYPE_IMG
+  zh: '![诊断NFSv3问题](img/image00268.jpeg)'
 - en: 'So now we can see that we also require the TCP port `20048` to be opened through
     the firewall on the NFS server; remember that the port may not be the same on
     your `nfshost`; we can remedy this very quickly using `firewall-cmd` from `nfshos`t
@@ -1266,6 +1302,7 @@
   id: totrans-201
   prefs: []
   type: TYPE_NORMAL
+  zh: 现在我们可以看到，我们还需要打开NFS服务器上的TCP端口`20048`，通过防火墙进行通信；记住，该端口在你的`nfshost`上可能不同；我们可以通过在`nfshost`上使用`firewall-cmd`快速解决这个问题，操作如下：
 - en: '[PRE38]'
   id: totrans-202
   prefs: []
@@ -1276,15 +1313,18 @@
   id: totrans-203
   prefs: []
   type: TYPE_NORMAL
+  zh: 现在，我们可以回到`nfsclient`，因为`showmount`命令应该已经能够正常工作，如下图所示：
 - en: '![Diagnosing NFSv3 issues](img/image00269.jpeg)'
   id: totrans-204
   prefs: []
   type: TYPE_IMG
+  zh: '![诊断NFSv3问题](img/image00269.jpeg)'
 - en: Using static ports for NFSv3
   id: totrans-205
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 使用静态端口进行NFSv3
 - en: The `portmapper` service is required for services that operate on non-static
     ports, which include the `rpc.mountd` and other NFSv3-based services. While configuring
     NFSv4 is simple because we only require access to the TCP port `2049` as the only
@@ -1298,11 +1338,16 @@
   id: totrans-206
   prefs: []
   type: TYPE_NORMAL
+  zh: '`portmapper` 服务是必需的，它用于在非静态端口上操作的服务，包括 `rpc.mountd` 和其他基于 NFSv3 的服务。虽然配置 NFSv4
+    很简单，因为我们只需要将 TCP 端口 `2049` 作为防火墙的唯一要求来访问，但使用 v3 时，我们仍然需要访问更多的端口，而这些端口大多数是非静态的。不过，通过
+    `/etc/sysconfig/nfs` 文件可以提供帮助，在该文件中我们可以添加条目来为这些服务启用静态端口。RHEL 6 的配置与此不同。搜索引擎常常因提供过时文档而让你失望，其中包括
+    RHEL 7 的文档，它并未更新。在这里，我们展示了你在 `/etc/sysconfig/nfs` 文件中设置静态端口所需的正确设置。'
 - en: 'When you work on `nfshost` as root and use a text editor of your choice, you
     will need to edit the following lines:'
   id: totrans-207
   prefs: []
   type: TYPE_NORMAL
+  zh: 当你以 root 用户在 `nfshost` 上工作并使用你选择的文本编辑器时，你需要编辑以下行：
 - en: '[PRE39]'
   id: totrans-208
   prefs: []
@@ -1315,12 +1360,15 @@
   id: totrans-209
   prefs: []
   type: TYPE_NORMAL
+  zh: 使用的端口是名义上的，你应选择在系统中未使用的端口。你可以看到一些服务使用 `-p` 选项来指定端口。`rpc.lockd` 工具有一个实际的端口配置。这是
+    RHEL 6 配置所有端口的方式，但在 RHEL 7 中已发生变化。
 - en: 'We will need to restart our services, and we can restart them individually
     or revisit the `for` loop that we used earlier. The edited loop is shown in the
     following code:'
   id: totrans-210
   prefs: []
   type: TYPE_NORMAL
+  zh: 我们需要重新启动服务，可以单独重启它们，或者重新访问我们之前使用的 `for` 循环。编辑后的循环如下所示：
 - en: '[PRE40]'
   id: totrans-211
   prefs: []
@@ -1335,6 +1383,9 @@
   id: totrans-212
   prefs: []
   type: TYPE_NORMAL
+  zh: 我们现在已经配置了 `nfshost`，使其使用这些通常会因动态端口而导致问题的 NFS 服务的静态端口。我们仍然需要在防火墙规则中配置 UDP 端口
+    `111` 以允许访问 `portmapper`，但我们现在知道将为其他服务返回的端口，并且这些端口可以添加到配置中。使用我们配置的端口的最终 NFSv3
+    防火墙配置如下所示：
 - en: '[PRE41]'
   id: totrans-213
   prefs: []
@@ -1346,17 +1397,20 @@
   id: totrans-214
   prefs: []
   type: TYPE_NORMAL
+  zh: 如果我们想要完全测试 NFSv4 配置，你需要从现有的导出定义中移除 `crossmnt` 和 `fsid` 选项，因为这些是 v4 选项。
 - en: Configuring the NFS client
   id: totrans-215
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 配置 NFS 客户端
 - en: 'When mounting filesystems from a client, the default protocol implemented is
     NFSv4 on RHEL 7\. We can explicitly set the protocol to v3 or v4, using the `-t`
     option to the mount command:'
   id: totrans-216
   prefs: []
   type: TYPE_NORMAL
+  zh: 在从客户端挂载文件系统时，默认实现的协议是 NFSv4 在 RHEL 7 中。我们可以使用 `-t` 选项将协议显式设置为 v3 或 v4，如下所示：
 - en: '[PRE42]'
   id: totrans-217
   prefs: []
@@ -1367,35 +1421,42 @@
   id: totrans-218
   prefs: []
   type: TYPE_NORMAL
+  zh: 在下面的截图中，你可以看到我们能够从 `nfsclient` 使用 NFSv4 或 NFSv3 进行连接：
 - en: '![Configuring the NFS client](img/image00270.jpeg)'
   id: totrans-219
   prefs: []
   type: TYPE_IMG
+  zh: '![配置 NFS 客户端](img/image00270.jpeg)'
 - en: 'Other mount options can be applied with the `-o` option to the mount command.
     You may consider the following command options:'
   id: totrans-220
   prefs: []
   type: TYPE_NORMAL
+  zh: 其他挂载选项可以通过 `-o` 选项应用于 mount 命令。你可以考虑以下命令选项：
 - en: '`bg`: This backgrounds the mount process'
   id: totrans-221
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '`bg`：将挂载过程放到后台'
 - en: '`rsize=xxxx`: This specifies the maximum read size request in bytes'
   id: totrans-222
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '`rsize=xxxx`：指定最大读取请求大小（以字节为单位）'
 - en: '`wsize=xxxx`: This specifies the maximum write buffer size in bytes'
   id: totrans-223
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '`wsize=xxxx`：指定最大写入缓冲区大小（以字节为单位）'
 - en: 'For more NFSv3 and NFSv4 mount options, these can be read in detail from the
     appropriate man page, as shown in the following command line:'
   id: totrans-224
   prefs: []
   type: TYPE_NORMAL
+  zh: 要了解更多 NFSv3 和 NFSv4 的挂载选项，可以通过适当的手册页详细阅读，命令行如下所示：
 - en: '[PRE43]'
   id: totrans-225
   prefs: []
@@ -1406,6 +1467,7 @@
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 自动挂载 NFS 使用 autofs
 - en: 'There is a client-side service called `autofs` that acts as an auto-mount service
     for both local and remote filesystems. This works with a kernel module and the
     user space service; as you enter a directory, the mount is created automatically.
@@ -1415,6 +1477,7 @@
   id: totrans-227
   prefs: []
   type: TYPE_NORMAL
+  zh: 有一个名为`autofs`的客户端服务，它充当本地和远程文件系统的自动挂载服务。它与内核模块和用户空间服务一起工作；当您进入某个目录时，挂载会自动创建。如果需要进行NFS挂载，还需要安装`autofs`软件包以及`nfs-utils`软件包。自动挂载功能不仅适用于NFS，还可以与其他远程文件系统一起工作。要安装`autofs`，请使用以下命令：
 - en: '[PRE44]'
   id: totrans-228
   prefs: []
@@ -1432,6 +1495,7 @@
   id: totrans-229
   prefs: []
   type: TYPE_NORMAL
+  zh: 安装完成后，默认行为是使用`/net`目录点来指向网络主机。然后，我们可以访问任何有权限访问的主机上的共享或导出目录，并在`/net`目录后输入与服务器名称或IP地址匹配的目录。我们只需要创建顶级目录，无需创建子目录。我们只需将目录更改为`/net/192.168.10.10`，该目录将自动创建。列出该目录的内容时，将列出`nfshost`上的导出根目录。这听起来可能过于完美，但让我们实际演示一下。首先，我们将创建目录，然后启动服务并启用它，如下命令所示：
 - en: '[PRE45]'
   id: totrans-230
   prefs: []
@@ -1449,15 +1513,18 @@
   id: totrans-231
   prefs: []
   type: TYPE_NORMAL
+  zh: 配置完成后，我们可以简单地列出`/net/192.168.10.10`目录的内容。我们应该会看到导出配置的顶级目录。对于我们来说，当前是`/var`目录，导出目录是`/var/export`。如果我们有更多导出的顶级目录，它们也会显示出来。`/net/192.168.10.10`目录会自动创建，且`autofs`的默认超时是300秒（即5分钟）。在5分钟不活动后，已挂载的文件系统将自动卸载，目录将消失，直到再次需要时才会出现。这是一个典型的安全值；不过，可以配置特定的超时设置。稍后我们将看到如何操作。
 - en: 'The following screenshot shows the four commands executed in order and the
     listing of the the temporary automount directory:'
   id: totrans-232
   prefs: []
   type: TYPE_NORMAL
+  zh: 以下截图显示了按顺序执行的四个命令以及临时自动挂载目录的列出内容：
 - en: '![Auto-mounting NFS with autofs](img/image00271.jpeg)'
   id: totrans-233
   prefs: []
   type: TYPE_IMG
+  zh: '![使用autofs自动挂载NFS](img/image00271.jpeg)'
 - en: Auto-mounting directories on the client as they are required reduces the overhead
     on both the client and server, which is a really effective way of generating mounts.
     To define our own mounts points, we can edit the `/etc/auto.master` configuration
@@ -1465,10 +1532,12 @@
   id: totrans-234
   prefs: []
   type: TYPE_NORMAL
+  zh: 根据需要在客户端自动挂载目录，减少了客户端和服务器的负担，这是一种非常有效的挂载方式。要定义我们自己的挂载点，我们可以编辑`/etc/auto.master`配置文件。我们将像之前一样添加一个顶级目录。
 - en: 'In `/etc/auto.master` file, we will add the following command:'
   id: totrans-235
   prefs: []
   type: TYPE_NORMAL
+  zh: 在`/etc/auto.master`文件中，我们将添加以下命令：
 - en: '[PRE46]'
   id: totrans-236
   prefs: []
@@ -1481,6 +1550,7 @@
   id: totrans-237
   prefs: []
   type: TYPE_NORMAL
+  zh: '`auto.master`文件中的此设置告诉`autofs`服务，当进入`/corp`目录时，可以从`/etc/auto.corp`文件读取配置。此外，我们还将默认超时设置增加到10分钟，用于此自动挂载。我们将需要按以下方式创建顶级目录：'
 - en: '[PRE47]'
   id: totrans-238
   prefs: []
@@ -1491,6 +1561,7 @@
   id: totrans-239
   prefs: []
   type: TYPE_NORMAL
+  zh: 对于该目录的配置文件，在我们的案例中应如下所示：
 - en: '[PRE48]'
   id: totrans-240
   prefs: []
@@ -1502,6 +1573,7 @@
   id: totrans-241
   prefs: []
   type: TYPE_NORMAL
+  zh: 通过这个条目，我们将能够看到服务器导出的内容，并进入`/corp/redhat`目录。我们不会创建`redhat`子目录。在测试之前，你需要重启`autofs`服务：
 - en: '[PRE49]'
   id: totrans-242
   prefs: []
@@ -1512,30 +1584,36 @@
   id: totrans-243
   prefs: []
   type: TYPE_NORMAL
+  zh: 现在，我们可以访问`/corp`目录，它会是空的。以下是截图展示：
 - en: '![Auto-mounting NFS with autofs](img/image00272.jpeg)'
   id: totrans-244
   prefs: []
   type: TYPE_IMG
+  zh: '![自动挂载NFS与autofs](img/image00272.jpeg)'
 - en: 'If we now access the `redhat` directory, this does not show yet; we will be
     able to list the contents of the server''s export. This is shown in the following
     screenshot:'
   id: totrans-245
   prefs: []
   type: TYPE_NORMAL
+  zh: 如果我们现在访问`redhat`目录，它还没有显示出来；但我们将能够列出服务器导出的内容。以下是截图展示：
 - en: '![Auto-mounting NFS with autofs](img/image00273.jpeg)'
   id: totrans-246
   prefs: []
   type: TYPE_IMG
+  zh: '![自动挂载NFS与autofs](img/image00273.jpeg)'
 - en: I have been using this for years; it's still one of the most magical experiences
     on Linux.
   id: totrans-247
   prefs: []
   type: TYPE_NORMAL
+  zh: 我已经使用这个好几年了；它仍然是Linux上最神奇的体验之一。
 - en: Summary
   id: totrans-248
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 总结
 - en: I hope that you have found this chapter both intense and useful. There has been
     a lot of content to cover that has been made complicated by the need to cover
     both NFSv4 and NFSv3\. Similar to most technologies, legacy clients need to be
@@ -1544,6 +1622,7 @@
   id: totrans-249
   prefs: []
   type: TYPE_NORMAL
+  zh: 我希望你能觉得这一章既紧凑又实用。内容比较多，而且由于需要同时讲解NFSv4和NFSv3，内容变得有些复杂。像大多数技术一样，遗留客户端在一段时间内仍然需要得到支持。这也给我们带来了一个巨大优势，那就是可以通过`tcpdump`有效诊断防火墙问题。
 - en: 'The main point with NFS and firewalling is to use NFSv4 wherever possible because
     we then only need to open the one static port: the TCP port `2049`. For NFSv3,
     we need to assign static ports and often need to open both UDP and TCP ports to
@@ -1551,14 +1630,17 @@
   id: totrans-250
   prefs: []
   type: TYPE_NORMAL
+  zh: 使用NFS和防火墙的关键是尽可能使用NFSv4，因为这样我们只需要打开一个静态端口：TCP端口`2049`。而对于NFSv3，我们需要分配静态端口，并且通常需要为每个协议同时打开UDP和TCP端口，具体取决于连接的客户端。
 - en: Finishing the chapter on `autofs` is a real high note because this is so simple
     and effective to use, auto-creating directories and mounting them as required.
     What more could we wish for!
   id: totrans-251
   prefs: []
   type: TYPE_NORMAL
+  zh: 完成`autofs`这一章是一个真正的高光时刻，因为它非常简单且有效，能够根据需要自动创建目录并挂载它们。还有什么可以更好的呢！
 - en: In the next chapter, we will stay with file sharing, but investigate sharing
     to Windows systems using Samba 4.
   id: totrans-252
   prefs: []
   type: TYPE_NORMAL
+  zh: 在下一章，我们将继续探讨文件共享，但会研究如何使用Samba 4将共享内容提供给Windows系统。
