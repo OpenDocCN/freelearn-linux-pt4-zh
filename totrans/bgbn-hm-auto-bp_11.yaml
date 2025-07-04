@@ -1,7 +1,9 @@
 - en: Chapter 11. A Wireless Home Controller with Z-Wave
+  id: totrans-0
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 第11章 Z-Wave无线家居控制器
 - en: 'In this project, we''ll see how to implement a little wireless home controller
     by using a Z-Wave controller connected with our BeagleBone Black and two Z-Wave
     devices: a wall plug and a multisensor device. With the former, we''ll be able
@@ -9,23 +11,31 @@
     time, measure its power consumption. With the latter, we''ll be able to measure
     several environment variables like temperature, humidity, and luminance (and have
     a motion detector capability too).'
+  id: totrans-1
   prefs: []
   type: TYPE_NORMAL
+  zh: 在这个项目中，我们将展示如何通过使用Z-Wave控制器（连接到我们的BeagleBone Black）和两个Z-Wave设备：一个壁式插座和一个多功能传感器设备，来实现一个小型的无线家居控制器。借助前者，我们可以开启或关闭连接到它的每个家电，同时测量其电力消耗；借助后者，我们可以测量多个环境变量，如温度、湿度和光照强度（并且还具备运动探测功能）。
 - en: The Z-Wave communication protocol allows us to manage several home automation
     sensors and actuators wirelessly, so we don't need to modify our pre-existing
     plant. Also, we can easily add a power consumption measuring system or several
     environment sensors with a minor impact on the actual home layout.
+  id: totrans-2
   prefs: []
   type: TYPE_NORMAL
+  zh: Z-Wave通信协议使我们能够无线管理多个家居自动化传感器和执行器，因此我们无需修改现有的布置。此外，我们还可以轻松添加一个电力消耗测量系统或多个环境传感器，对现有家居布局的影响很小。
 - en: As a last step, to keep the code simple, but in order to allow the user to easily
     manage the system, we'll write a simple web interface written in Python to easily
     manage the prototype.
+  id: totrans-3
   prefs: []
   type: TYPE_NORMAL
+  zh: 最后一步，为了保持代码的简洁性，并让用户能够轻松管理系统，我们将编写一个简单的Python Web界面，便于管理原型。
 - en: The basics of functioning
+  id: totrans-4
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 功能基础
 - en: This time, the project is a bit more complex than before, but all the complexity
     is not in the hardware (the connections are very simple, just plug in a USB dongle
     and the trick is done!,) but in the software! In fact, the management software
@@ -35,8 +45,10 @@
     the Z-Wave for the home automation projects!), I'm just going to present the very
     basics of the Z-Wave protocol, showing a minimal application that you can expand
     on your own.
+  id: totrans-5
   prefs: []
   type: TYPE_NORMAL
+  zh: 这次项目比之前更为复杂，但所有的复杂性并不在硬件方面（连接非常简单，只需插入USB加密狗，操作就完成了！），而是在软件方面！实际上，设置和控制这些设备的管理软件需要一些技能。此外，由于Z-Wave世界非常庞大，而且本书的篇幅有限（我想我可以要求我的编辑专门写一本书来讲解如何使用Z-Wave进行家居自动化项目！），所以我这里只会介绍Z-Wave协议的基本知识，展示一个最小化的应用，您可以在此基础上扩展。
 - en: 'As stated before, we''re going to use a Z-Wave controller connected to the
     BeagleBone Black''s USB host port to manage two Z-Wave devices: one used to measure
     some environment data, and one to turn on and off a connected device. So, what
@@ -46,207 +58,318 @@
     to write should have a part to manage the Z-Wave messages and a part to interact
     with the user. Regarding this last part, I decided to use a web interface written
     in Python with a little code in HTML and JavaScript.'
+  id: totrans-6
   prefs: []
   type: TYPE_NORMAL
+  zh: 如前所述，我们将使用一个Z-Wave控制器连接到BeagleBone Black的USB主机端口来管理两个Z-Wave设备：一个用于测量环境数据，另一个用于开关连接的设备。因此，我们需要编写一些软件，能够通过控制器发送和接收这些设备之间的消息，以便在BeagleBone
+    Black和这两个从设备之间交换数据和命令。我们将编写的代码应该包括一个用于管理Z-Wave消息的部分和一个与用户互动的部分。至于后者，我决定使用Python编写一个Web界面，并辅以少量的HTML和JavaScript代码。
 - en: Setting up the hardware
+  id: totrans-7
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 设置硬件
 - en: The Z-Wave technology, which is oriented to the residential control and automation
     market, is designed to be suitable for battery-operated devices. In fact, one
     of its main goals is to minimize the power consumption. Despite this fact, it
     provides reliable and low-latency transmission of small data packets at data rates
     of up to 100 kbps, and a simple yet reliable method to wirelessly manage sensors
     and control lights and appliances in a house.
+  id: totrans-8
   prefs: []
   type: TYPE_NORMAL
+  zh: Z-Wave技术面向住宅控制和自动化市场，设计上适合电池供电的设备。实际上，其主要目标之一就是尽量减少功耗。尽管如此，它依然能够提供可靠且低延迟的小数据包传输，数据传输速率最高可达100
+    kbps，并且提供一种简单而可靠的方法来无线管理传感器，控制家庭中的灯光和电器。
 - en: Note
+  id: totrans-9
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
+  zh: 注意事项
 - en: For more information on Z-Wave, a good starting point is at [https://en.wikipedia.org/wiki/Z-Wave](https://en.wikipedia.org/wiki/Z-Wave).
+  id: totrans-10
   prefs: []
   type: TYPE_NORMAL
+  zh: 要了解更多关于Z-Wave的信息，一个好的起点是[https://en.wikipedia.org/wiki/Z-Wave](https://en.wikipedia.org/wiki/Z-Wave)。
 - en: In our project, we're going to use a Z-Wave controller on a USB dongle, one
     slave device powered by the same plug where it's connected to, and one multisensor
     device that can be powered by batteries or via an external USB connection.
+  id: totrans-11
   prefs: []
   type: TYPE_NORMAL
+  zh: 在我们的项目中，我们将使用一个USB加密狗上的Z-Wave控制器，一个由它连接的插座供电的从设备，以及一个可以由电池或通过外部USB连接供电的多传感器设备。
 - en: Setting up the Z-Wave controller
+  id: totrans-12
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 设置Z-Wave控制器
 - en: 'The Z-Wave controller I used in this prototype is shown in the following image:'
+  id: totrans-13
   prefs: []
   type: TYPE_NORMAL
+  zh: 我在这个原型中使用的Z-Wave控制器如下图所示：
 - en: '![Setting up the Z-Wave controller](img/B00255_11_01.jpg)'
+  id: totrans-14
   prefs: []
   type: TYPE_IMG
+  zh: '![设置Z-Wave控制器](img/B00255_11_01.jpg)'
 - en: Note
+  id: totrans-15
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
+  zh: 注意
 - en: 'The device can be purchased at the following link (or by surfing the Internet):
     [http://www.cosino.io/product/usb-z-wave-controller](http://www.cosino.io/product/usb-z-wave-controller).'
+  id: totrans-16
   prefs: []
   type: TYPE_NORMAL
+  zh: 该设备可以通过以下链接（或在互联网上搜索）购买：[http://www.cosino.io/product/usb-z-wave-controller](http://www.cosino.io/product/usb-z-wave-controller)。
 - en: 'A reference design is available here:'
+  id: totrans-17
   prefs: []
   type: TYPE_NORMAL
+  zh: 参考设计可以在这里找到：
 - en: '[http://z-wave.sigmadesigns.com/docs/brochures/UZB_br.pdf](http://z-wave.sigmadesigns.com/docs/brochures/UZB_br.pdf).'
+  id: totrans-18
   prefs: []
   type: TYPE_NORMAL
+  zh: '[http://z-wave.sigmadesigns.com/docs/brochures/UZB_br.pdf](http://z-wave.sigmadesigns.com/docs/brochures/UZB_br.pdf)。'
 - en: 'Once connected with the BeagleBone Black''s USB host port by using the `lsusb`
     command, we should get the following output:'
+  id: totrans-19
   prefs: []
   type: TYPE_NORMAL
+  zh: 一旦通过`lsusb`命令连接到BeagleBone Black的USB主机端口，我们应该得到如下输出：
 - en: '[PRE0]'
+  id: totrans-20
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE0]'
 - en: 'Also we should see the following kernel activity:'
+  id: totrans-21
   prefs: []
   type: TYPE_NORMAL
+  zh: 我们还应该看到以下内核活动：
 - en: '[PRE1]'
+  id: totrans-22
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE1]'
 - en: Looking at the last but fourth line, we can discover that the Z-Wave controller
     has been connected to the `/dev/ttyACM0` device file. So, the device is correctly
     connected. But to really test it, we need to install a proper management software.
     To do so, we can use an open source implementation of the Z-Wave protocol named
     **Open Z-Wave**, where we can find a lot of suitable software to test a Z-Wave
     network.
+  id: totrans-23
   prefs: []
   type: TYPE_NORMAL
+  zh: 查看倒数第四行，我们可以发现Z-Wave控制器已经连接到`/dev/ttyACM0`设备文件。因此，设备已正确连接。但要真正测试它，我们需要安装合适的管理软件。为此，我们可以使用名为**Open
+    Z-Wave**的Z-Wave协议的开源实现，在那里我们可以找到很多适合测试Z-Wave网络的软件。
 - en: Note
+  id: totrans-24
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
+  zh: 注意
 - en: The home page of the Open Z-Wave project is at [http://www.openzwave.com](http://www.openzwave.com).
+  id: totrans-25
   prefs: []
   type: TYPE_NORMAL
+  zh: Open Z-Wave项目的主页在[http://www.openzwave.com](http://www.openzwave.com)。
 - en: 'With the following command, we can download the code we need into our prototype:'
+  id: totrans-26
   prefs: []
   type: TYPE_NORMAL
+  zh: 使用以下命令，我们可以将所需的代码下载到我们的原型中：
 - en: '[PRE2]'
+  id: totrans-27
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE2]'
 - en: 'Then, we need some extra packages to compile the needed tools. So, let''s install
     them with the following command:'
+  id: totrans-28
   prefs: []
   type: TYPE_NORMAL
+  zh: 然后，我们需要一些额外的软件包来编译所需的工具。因此，接下来我们用以下命令安装它们：
 - en: '[PRE3]'
+  id: totrans-29
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE3]'
 - en: 'Now, just enter into the `openzwave` directory, and simply use the `make` command
     as follows:'
+  id: totrans-30
   prefs: []
   type: TYPE_NORMAL
+  zh: 现在，只需进入`openzwave`目录，然后使用`make`命令如下所示：
 - en: '[PRE4]'
+  id: totrans-31
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE4]'
 - en: Tip
+  id: totrans-32
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
+  zh: 提示
 - en: The compilation is quite slow, so be patient.
+  id: totrans-33
   prefs: []
   type: TYPE_NORMAL
+  zh: 编译过程比较慢，所以请耐心等待。
 - en: 'When finished, we need to download another repository into the current directory
     with the following command:'
+  id: totrans-34
   prefs: []
   type: TYPE_NORMAL
+  zh: 完成后，我们需要使用以下命令将另一个仓库下载到当前目录：
 - en: '[PRE5]'
+  id: totrans-35
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE5]'
 - en: 'Then, after the download, we have to install an extra package to proceed with
     the compilation. So, let''s use the `aptitude` command again, as follows:'
+  id: totrans-36
   prefs: []
   type: TYPE_NORMAL
+  zh: 然后，在下载之后，我们需要安装一个额外的软件包来继续进行编译。因此，接下来我们再次使用`aptitude`命令，如下所示：
 - en: '[PRE6]'
+  id: totrans-37
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE6]'
 - en: 'Now, as the last step, enter into the `openzwave-control-panel` directory and
     rerun the `make` command with the following command lines:'
+  id: totrans-38
   prefs: []
   type: TYPE_NORMAL
+  zh: 现在，作为最后一步，进入`openzwave-control-panel`目录，并使用以下命令行重新运行`make`命令：
 - en: '[PRE7]'
+  id: totrans-39
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE7]'
 - en: 'When the compilation is finished, the `ozwcp` program should be available.
     So, let''s execute it by using the following command lines:'
+  id: totrans-40
   prefs: []
   type: TYPE_NORMAL
+  zh: 当编译完成后，`ozwcp`程序应该就可以使用了。接下来，让我们通过以下命令行执行它：
 - en: '[PRE8]'
+  id: totrans-41
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE8]'
 - en: Tip
+  id: totrans-42
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
+  zh: 提示
 - en: Note that the `ln` command is just used once to create a proper link with the
     Open Z-Wave configuration directory `config`, which is located in the upper directory.
+  id: totrans-43
   prefs: []
   type: TYPE_NORMAL
+  zh: 请注意，`ln`命令只需要使用一次，用来与Open Z-Wave配置目录`config`创建一个正确的链接，该目录位于上级目录。
 - en: 'If you get the following error while executing the program, it means that most
     probably your web server is holding port `8080`, so you have to disable it:'
+  id: totrans-44
   prefs: []
   type: TYPE_NORMAL
+  zh: 如果在执行程序时遇到以下错误，意味着很可能是你的Web服务器占用了`8080`端口，所以你需要禁用它：
 - en: '[PRE9]'
+  id: totrans-45
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE9]'
 - en: 'Now, we should point the web browser on our host PC to the address `http://192.168.7.2:8080/`
     to get what is shown in the following screenshot:'
+  id: totrans-46
   prefs: []
   type: TYPE_NORMAL
+  zh: 现在，我们应该将主机PC上的网页浏览器指向地址`http://192.168.7.2:8080/`，以查看下图所示的内容：
 - en: '![Setting up the Z-Wave controller](img/B00255_11_02.jpg)'
+  id: totrans-47
   prefs: []
   type: TYPE_IMG
+  zh: '![设置Z-Wave控制器](img/B00255_11_02.jpg)'
 - en: 'Okay, now we have to enter the `/dev/ttyACM0` path name into the **Device name**
     field, and then press the **Initialize** button to start the communication. If
     everything works well, you should see that a new device is listed in the **Devices**
     tab, as shown in the following screenshot:'
+  id: totrans-48
   prefs: []
   type: TYPE_NORMAL
+  zh: 好的，现在我们需要在**设备名称**字段中输入`/dev/ttyACM0`路径名，然后按下**初始化**按钮以启动通信。如果一切正常，您应该看到在**设备**标签中列出了一个新设备，如下图所示：
 - en: '![Setting up the Z-Wave controller](img/B00255_11_03.jpg)'
+  id: totrans-49
   prefs: []
   type: TYPE_IMG
+  zh: '![设置Z-Wave控制器](img/B00255_11_03.jpg)'
 - en: Now, the controller is up and running, so, we can continue installing the Z-Wave
     slaves.
+  id: totrans-50
   prefs: []
   type: TYPE_NORMAL
+  zh: 现在，控制器已经启动并运行，因此我们可以继续安装Z-Wave从设备。
 - en: Setting up the Z-Wave wall plug
+  id: totrans-51
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 设置Z-Wave墙插
 - en: 'The first Z-Wave slave is the wall plug shown in the following image:'
+  id: totrans-52
   prefs: []
   type: TYPE_NORMAL
+  zh: 第一个Z-Wave从设备是下图所示的墙插：
 - en: '![Setting up the Z-Wave wall plug](img/B00255_11_04.jpg)'
+  id: totrans-53
   prefs: []
   type: TYPE_IMG
+  zh: '![设置Z-Wave墙插](img/B00255_11_04.jpg)'
 - en: Note
+  id: totrans-54
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
+  zh: 注意
 - en: 'The device can be purchased at the following link (or by surfing the Internet):
     [http://www.cosino.io/product/z-wave-wall-plug](http://www.cosino.io/product/z-wave-wall-plug).'
+  id: totrans-55
   prefs: []
   type: TYPE_NORMAL
+  zh: 该设备可以通过以下链接（或通过浏览互联网）购买：[http://www.cosino.io/product/z-wave-wall-plug](http://www.cosino.io/product/z-wave-wall-plug)。
 - en: 'A reference manual is available here:'
+  id: totrans-56
   prefs: []
   type: TYPE_NORMAL
+  zh: 可以在此处找到参考手册：
 - en: '[http://www.fibaro.com/manuals/en/FGWPx-101/FGWPx-101-EN-A-v1.00.pdf](http://www.fibaro.com/manuals/en/FGWPx-101/FGWPx-101-EN-A-v1.00.pdf).'
+  id: totrans-57
   prefs: []
   type: TYPE_NORMAL
+  zh: '[http://www.fibaro.com/manuals/en/FGWPx-101/FGWPx-101-EN-A-v1.00.pdf](http://www.fibaro.com/manuals/en/FGWPx-101/FGWPx-101-EN-A-v1.00.pdf)。'
 - en: 'The device is wireless and, once connected with a powered plug, it''s self-powered;
     so, we don''t need special connections to set it up. However, we need some home
     appliance connected to it, as shown in the following image, for the power consumption
     measurements:'
+  id: totrans-58
   prefs: []
   type: TYPE_NORMAL
+  zh: 该设备是无线的，一旦与通电的插座连接，它会自供电；因此，我们不需要特别的连接来设置它。然而，我们需要将一些家用电器连接到它，如下图所示，以便进行功率消耗测量：
 - en: '![Setting up the Z-Wave wall plug](img/B00255_11_05.jpg)'
+  id: totrans-59
   prefs: []
   type: TYPE_IMG
+  zh: '![设置Z-Wave墙插](img/B00255_11_05.jpg)'
 - en: 'Now, to test this device and its communication with the controller, we can
     use the `ozwcp` program again. Just click on the **Select an operation** menu
     entry in the **Controller** tab and select the **Add Device** entry and then press
@@ -254,61 +377,91 @@
     user action** message. So, let''s power up the device by putting it into a wall
     plug and then strike the button on the device in order to start the pairing procedure
     (just as a Bluetooth device does).'
+  id: totrans-60
   prefs: []
   type: TYPE_NORMAL
+  zh: 现在，为了测试该设备及其与控制器的通信，我们可以再次使用`ozwcp`程序。只需点击**控制器**标签中的**选择操作**菜单项，选择**添加设备**条目，然后按下**开始**按钮。在左侧，您应该看到**添加设备：等待用户操作**的消息。因此，我们可以通过将设备插入墙插并按下设备上的按钮来启动配对程序（就像蓝牙设备一样）。
 - en: Tip
+  id: totrans-61
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
+  zh: 提示
 - en: Note that newer version of this device doesn't require you to press the button
     to start the pairing procedure—it just starts automatically after the first plug.
+  id: totrans-62
   prefs: []
   type: TYPE_NORMAL
+  zh: 请注意，较新版本的该设备不需要按下按钮来启动配对程序——它会在插入第一个插座后自动启动。
 - en: 'If everything works well, a new device should appear in the **Devices** tab
     as follows:'
+  id: totrans-63
   prefs: []
   type: TYPE_NORMAL
+  zh: 如果一切正常，新的设备应出现在**设备**标签中，如下所示：
 - en: '![Setting up the Z-Wave wall plug](img/B00255_11_06.jpg)'
+  id: totrans-64
   prefs: []
   type: TYPE_IMG
+  zh: '![设置Z-Wave墙插](img/B00255_11_06.jpg)'
 - en: 'Now, we can change some of the device''s settings by selecting the new device
     and then clicking on the **Configuration** option under the **Devices** listing
     tab. A panel setting similar to the following screenshot should appear:'
+  id: totrans-65
   prefs: []
   type: TYPE_NORMAL
+  zh: 现在，我们可以通过选择新设备，然后点击**设备**列表标签下的**配置**选项来更改设备的某些设置。应该会出现类似下图的面板设置：
 - en: '![Setting up the Z-Wave wall plug](img/B00255_11_07.jpg)'
+  id: totrans-66
   prefs: []
   type: TYPE_IMG
+  zh: '![设置Z-Wave墙插](img/B00255_11_07.jpg)'
 - en: Now, we can change the **Standard power load reporting** entry by writing the
     new value in the related field and then pressing the **Submit** button. In this
     manner, we can define a lower value by how much power load must change (in percentage)
     to be reported to the main controller (I used the value `5`).
+  id: totrans-67
   prefs: []
   type: TYPE_NORMAL
+  zh: 现在，我们可以通过在相关字段中输入新值，然后按下**提交**按钮来更改**标准功率负载报告**条目。通过这种方式，我们可以定义一个较低的值，表示必须更改多少功率负载（以百分比计），才能报告给主控制器（我使用的值是`5`）。
 - en: Setting up the Z-Wave multisensor
+  id: totrans-68
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 设置Z-Wave多传感器
 - en: 'The second Z-Wave slave is the multisensor shown in the following image:'
+  id: totrans-69
   prefs: []
   type: TYPE_NORMAL
+  zh: 第二个Z-Wave从设备是下图所示的多传感器：
 - en: '![Setting up the Z-Wave multisensor](img/B00255_11_08.jpg)'
+  id: totrans-70
   prefs: []
   type: TYPE_IMG
+  zh: '![设置Z-Wave多传感器](img/B00255_11_08.jpg)'
 - en: Note
+  id: totrans-71
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
+  zh: 注意
 - en: 'The device can be purchased at the following link (or by surfing the Internet):
     [http://www.cosino.io/product/z-wave-multi-sensor](http://www.cosino.io/product/z-wave-multi-sensor).'
+  id: totrans-72
   prefs: []
   type: TYPE_NORMAL
+  zh: 该设备可以通过以下链接购买（或通过上网搜索）：[http://www.cosino.io/product/z-wave-multi-sensor](http://www.cosino.io/product/z-wave-multi-sensor)。
 - en: 'A reference manual is available here:'
+  id: totrans-73
   prefs: []
   type: TYPE_NORMAL
+  zh: 参考手册可以在这里找到：
 - en: '[http://aeotec.com/z-wave-sensor/47-multisensor-manual.html](http://aeotec.com/z-wave-sensor/47-multisensor-manual.html).'
+  id: totrans-74
   prefs: []
   type: TYPE_NORMAL
+  zh: '[http://aeotec.com/z-wave-sensor/47-multisensor-manual.html](http://aeotec.com/z-wave-sensor/47-multisensor-manual.html)。'
 - en: To power the device, we can use 4 batteries or a USB cable connected as in the
     following image. Then, to test the device and its communication with the controller,
     we can use the `ozwcp` program again. So, just click on the **Select an operation**
@@ -316,491 +469,749 @@
     press the **Go** button in order to repeat a pairing procedure again (the pairing
     button is the black button near the sensitivity regulator under the battery pack
     cover pack cover. In the image below it is located in the top-right corner).
+  id: totrans-75
   prefs: []
   type: TYPE_NORMAL
+  zh: 要为设备供电，我们可以使用 4 节电池或如下面图示那样连接 USB 电缆。然后，为了测试设备及其与控制器的通信，我们可以再次使用`ozwcp`程序。所以，只需点击**控制器**选项卡中的**选择操作**菜单项，然后选择**添加设备**条目。接着，按下**开始**按钮，以便再次执行配对过程（配对按钮是位于电池盖下方灵敏度调节器旁的黑色按钮，在下图中位于右上角）。
 - en: '![Setting up the Z-Wave multisensor](img/B00255_11_09.jpg)'
+  id: totrans-76
   prefs: []
   type: TYPE_IMG
+  zh: '![设置 Z-Wave 多传感器](img/B00255_11_09.jpg)'
 - en: 'Again, if everything works well, a new device should appear in the **Devices**
     tab as follows:'
+  id: totrans-77
   prefs: []
   type: TYPE_NORMAL
+  zh: 如果一切正常，一个新设备应该出现在**设备**选项卡中，如下所示：
 - en: '![Setting up the Z-Wave multisensor](img/B00255_11_10.jpg)'
+  id: totrans-78
   prefs: []
   type: TYPE_IMG
+  zh: '![设置 Z-Wave 多传感器](img/B00255_11_10.jpg)'
 - en: Now, as before, we can change the default settings. In particular, we can set
     up the environment report's frequencies and the report's content by changing the
     **Group 1 Reports** entry to `224` and the **Group 2 Reports** entry to `1`, then
     **Group 1 Interval** to `10` and **Group 2 Interval** to `60`.
+  id: totrans-79
   prefs: []
   type: TYPE_NORMAL
+  zh: 现在，和之前一样，我们可以更改默认设置。特别是，我们可以通过将**组 1 报告**条目设置为`224`，将**组 2 报告**条目设置为`1`，然后将**组
+    1 间隔**设置为`10`，将**组 2 间隔**设置为`60`，来设置环境报告的频率和内容。
 - en: 'These special settings will instruct the multisensor to enable bits 7 (luminosity),
     6 (humidity), and 5 (temperature) into group 1, and bit 0 (battery level) into
     group 2, and to repeat them every 10 seconds for group 1 and every 60 seconds
     for group 2 (see the following screenshot):'
+  id: totrans-80
   prefs: []
   type: TYPE_NORMAL
+  zh: 这些特殊设置将指示多传感器启用第 7 位（亮度）、第 6 位（湿度）和第 5 位（温度）到组 1，以及第 0 位（电池电量）到组 2，并每 10 秒重复组
+    1，每 60 秒重复组 2（见下图）：
 - en: '![Setting up the Z-Wave multisensor](img/B00255_11_11.jpg)'
+  id: totrans-81
   prefs: []
   type: TYPE_IMG
+  zh: '![设置 Z-Wave 多传感器](img/B00255_11_11.jpg)'
 - en: Ok, now all the devices are ready to operate! So, we can stop the `ozwcp` program
     by pressing the *CTRL* + *C* key sequence and go forward to the next sections.
+  id: totrans-82
   prefs: []
   type: TYPE_NORMAL
+  zh: 好的，现在所有设备都准备好操作了！我们可以通过按下*CTRL* + *C* 键序列来停止`ozwcp`程序，并继续下一部分。
 - en: The final picture
+  id: totrans-83
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 最终图片
 - en: The following is the image that shows the prototype I realized to implement
     this project and to test the software.
+  id: totrans-84
   prefs: []
   type: TYPE_NORMAL
+  zh: 以下是显示我为实现此项目并测试软件而实现的原型的图片。
 - en: Nothing special to say here; just the BeagleBone Black with the Z-Wave controller
     USB dongle and the two Z-Wave devices described before.
+  id: totrans-85
   prefs: []
   type: TYPE_NORMAL
+  zh: 这里没什么特别要说的；只需要 BeagleBone Black 配合 Z-Wave 控制器 USB 加密狗以及之前描述的两台 Z-Wave 设备。
 - en: '![The final picture](img/B00255_11_12.jpg)'
+  id: totrans-86
   prefs: []
   type: TYPE_IMG
+  zh: '![最终图片](img/B00255_11_12.jpg)'
 - en: Setting up the software
+  id: totrans-87
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 设置软件
 - en: As already stated, the more complex part of this prototype is the software.
     We need to install several software packages into our BeagleBone Black, and the
     software we have to write by ourselves needs some skills. However, don't worry,
     I'm going to explain all needed steps one at a time!
+  id: totrans-88
   prefs: []
   type: TYPE_NORMAL
+  zh: 如前所述，原型的复杂部分在于软件。我们需要将多个软件包安装到 BeagleBone Black 中，而且我们需要自己编写的软件也需要一些技能。不过，别担心，我将逐步解释所有需要的步骤！
 - en: Setting up the Python bindings
+  id: totrans-89
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 设置 Python 绑定
 - en: 'Installing the **Python** bindings is quite complex since the software package
     named `python-openzwave` still seems in hard development, and it depends on tons
     of **Python** packages! However, I did it by getting a specific version of the
     project with the following command line:'
+  id: totrans-90
   prefs: []
   type: TYPE_NORMAL
+  zh: 安装**Python**绑定相当复杂，因为名为`python-openzwave`的软件包似乎仍在开发中，并且它依赖于大量的**Python**包！不过，我通过以下命令行获取了项目的特定版本，成功完成了安装：
 - en: '[PRE10]'
+  id: totrans-91
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE10]'
 - en: Note
+  id: totrans-92
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
+  zh: 注意
 - en: Other versions of the `python-openzwave` package are available at [http://bibi21000.no-ip.biz/python-openzwave/](http://bibi21000.no-ip.biz/python-openzwave/).
+  id: totrans-93
   prefs: []
   type: TYPE_NORMAL
+  zh: '`python-openzwave`包的其他版本可以在[http://bibi21000.no-ip.biz/python-openzwave/](http://bibi21000.no-ip.biz/python-openzwave/)获取。'
 - en: 'Now, to explore the archive file, we can use the following command:'
+  id: totrans-94
   prefs: []
   type: TYPE_NORMAL
+  zh: 现在，要探索归档文件，我们可以使用以下命令：
 - en: '[PRE11]'
+  id: totrans-95
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE11]'
 - en: 'A new directory, `python-openzwave-0.3.0b5`, is now created; however, to successfully
     compile the code, we need to install some Python packages by using the following
     command line several times:'
+  id: totrans-96
   prefs: []
   type: TYPE_NORMAL
+  zh: 创建了一个新目录`python-openzwave-0.3.0b5`；但是，要成功编译代码，我们需要多次使用以下命令行安装一些Python包：
 - en: '[PRE12]'
+  id: totrans-97
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE12]'
 - en: 'Here, with **<package>**, I used the following names: `Louie`, `urwid`, `Flask-SocketIO`,
     `versiontools`, `gevent-socketio`, `WebOb`, `Flask-Themes`, and `Flask-Babel`.'
+  id: totrans-98
   prefs: []
   type: TYPE_NORMAL
+  zh: 在这里，使用**<package>**时，我使用了以下名称：`Louie`、`urwid`、`Flask-SocketIO`、`versiontools`、`gevent-socketio`、`WebOb`、`Flask-Themes`和`Flask-Babel`。
 - en: Tip
+  id: totrans-99
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
+  zh: 提示
 - en: In reality, the `pip install` command accepts more packages at once separated
     by spaces, so you can use a single command to install all the needed packages
     at once.
+  id: totrans-100
   prefs: []
   type: TYPE_NORMAL
+  zh: 实际上，`pip install`命令可以一次接受多个由空格分隔的包，因此你可以使用单个命令一次性安装所有需要的包。
 - en: 'Note also that to install the `urwid` package, I needed to use a different
     command to update the already installed package. The command is as follows:'
+  id: totrans-101
   prefs: []
   type: TYPE_NORMAL
+  zh: 还要注意，要安装`urwid`包，我需要使用不同的命令来更新已经安装的包。该命令如下：
 - en: '[PRE13]'
+  id: totrans-102
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE13]'
 - en: 'Meanwhile, to install the `Flask-WTF` package at version 0.9.5, the command
     I used is as follows:'
+  id: totrans-103
   prefs: []
   type: TYPE_NORMAL
+  zh: 同时，为了安装版本为0.9.5的`Flask-WTF`包，我使用的命令如下：
 - en: '[PRE14]'
+  id: totrans-104
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE14]'
 - en: 'However, on my system I cannot successfully execute it, so I used a *dirty-trick*
     by applying the following patch to the `setup-web.py` file in the `python-openzwave-0.3.0b5`
     directory:'
+  id: totrans-105
   prefs: []
   type: TYPE_NORMAL
+  zh: 然而，在我的系统上，我无法成功执行它，因此我通过对`python-openzwave-0.3.0b5`目录中的`setup-web.py`文件应用以下补丁，使用了一种*脏技巧*：
 - en: '[PRE15]'
+  id: totrans-106
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE15]'
 - en: Luckily, the code works correctly, even when using a newer version than 0.9.5!
+  id: totrans-107
   prefs: []
   type: TYPE_NORMAL
+  zh: 幸运的是，即使使用比0.9.5更新的版本，代码也能正常工作！
 - en: 'After all dependencies have been installed, just move to the `python-openzwave-0.3.0b5`
     directory and use the `make` command to do the job, as follows:'
+  id: totrans-108
   prefs: []
   type: TYPE_NORMAL
+  zh: 安装所有依赖项后，只需转到`python-openzwave-0.3.0b5`目录并使用`make`命令完成任务，如下所示：
 - en: '[PRE16]'
+  id: totrans-109
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE16]'
 - en: Tip
+  id: totrans-110
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
+  zh: 提示
 - en: Again, the compilation is quite slow, so be patient!
+  id: totrans-111
   prefs: []
   type: TYPE_NORMAL
+  zh: 编译过程非常缓慢，请耐心等待！
 - en: 'When finished, we have to install the new code by using the following command
     line:'
+  id: totrans-112
   prefs: []
   type: TYPE_NORMAL
+  zh: 完成后，我们必须使用以下命令行安装新代码：
 - en: '[PRE17]'
+  id: totrans-113
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE17]'
 - en: 'We did it! To test our new code, we can now use the provided examples by going
     into the `examples` directory, and then executing the following command lines:'
+  id: totrans-114
   prefs: []
   type: TYPE_NORMAL
+  zh: 我们做到了！为了测试我们新编写的代码，我们现在可以通过进入`examples`目录并执行以下命令行来使用提供的示例：
 - en: '[PRE18]'
+  id: totrans-115
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE18]'
 - en: Tip
+  id: totrans-116
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
+  zh: 提示
 - en: Note that, for better readability in the output lines of the `test_lib.py` command,
     all timing references have been removed.
+  id: totrans-117
   prefs: []
   type: TYPE_NORMAL
+  zh: 请注意，为了更好地呈现`test_lib.py`命令的输出行，所有时间参考已被删除。
 - en: 'Also, for all the next Python codes, you can safely ignore all the warning
     messages in the following form:'
+  id: totrans-118
   prefs: []
   type: TYPE_NORMAL
+  zh: 此外，对于所有后续的Python代码，你可以安全地忽略以下形式的所有警告消息：
 - en: '[PRE19]'
+  id: totrans-119
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE19]'
 - en: The output of the preceding command is really long and, due to lack of space,
     I cannot report it here completely, so I'm going to report only the relevant parts.
+  id: totrans-120
   prefs: []
   type: TYPE_NORMAL
+  zh: 上面命令的输出非常长，由于空间有限，我无法完全报告，因此我将只报告相关部分。
 - en: 'In the first lines, we get some basic information messages, as follows:'
+  id: totrans-121
   prefs: []
   type: TYPE_NORMAL
+  zh: 在前几行，我们得到了如下的基本信息消息：
 - en: '[PRE20]'
+  id: totrans-122
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE20]'
 - en: 'Here, there is some information regarding the software release and the device
     we''re getting access to (that is `/dev/ttyACM0`). Then, there is a list of the
     queued commands to be executed, as follows:'
+  id: totrans-123
   prefs: []
   type: TYPE_NORMAL
+  zh: 这里有一些关于软件版本和我们正在访问的设备（即`/dev/ttyACM0`）的信息。然后，列出了待执行的命令队列，如下所示：
 - en: '[PRE21]'
+  id: totrans-124
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE21]'
 - en: 'Here, are some first answers:'
+  id: totrans-125
   prefs: []
   type: TYPE_NORMAL
+  zh: 这里是一些初步的回答：
 - en: '[PRE22]'
+  id: totrans-126
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE22]'
 - en: 'Then, a lot of messages regarding the probing of all available **Z-Wave** nodes
     follow:'
+  id: totrans-127
   prefs: []
   type: TYPE_NORMAL
+  zh: 接下来，关于探测所有可用**Z-Wave**节点的许多消息紧随其后：
 - en: '[PRE23]'
+  id: totrans-128
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE23]'
 - en: 'Then, the system starts adding the new discovered nodes. The reader is first,
     as follows:'
+  id: totrans-129
   prefs: []
   type: TYPE_NORMAL
+  zh: 然后，系统开始添加新发现的节点。第一个是读卡器，如下所示：
 - en: '[PRE24]'
+  id: totrans-130
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE24]'
 - en: 'Then, there is the wall plug, as follows:'
+  id: totrans-131
   prefs: []
   type: TYPE_NORMAL
+  zh: 然后是墙壁插座，如下所示：
 - en: '[PRE25]'
+  id: totrans-132
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE25]'
 - en: 'And, in the end, there is the multisensor, as follows:'
+  id: totrans-133
   prefs: []
   type: TYPE_NORMAL
+  zh: 最终，出现了多传感器，如下所示：
 - en: '[PRE26]'
+  id: totrans-134
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE26]'
 - en: 'After the probing stage, the system asks for device information, and a lot
     of it is returned! You can see current values, labels, units of measurement, read-only
     statuses, and so on:'
+  id: totrans-135
   prefs: []
   type: TYPE_NORMAL
+  zh: 在探测阶段之后，系统会请求设备信息，并返回大量信息！你可以看到当前的值、标签、计量单位、只读状态等：
 - en: '[PRE27]'
+  id: totrans-136
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE27]'
 - en: 'As you can see in these examples, the protocol is really powerful and quite
     complex too! So, to have a better model of our new Z-Wave network, we can use
     another tool, as follows:'
+  id: totrans-137
   prefs: []
   type: TYPE_NORMAL
+  zh: 正如你在这些示例中看到的，协议确实非常强大，而且也相当复杂！因此，为了更好地建立我们新的 Z-Wave 网络模型，我们可以使用另一个工具，如下所示：
 - en: '[PRE28]'
+  id: totrans-138
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE28]'
 - en: 'Again, we get tons of messages, but this time, near the end, we can read the
     following output:'
+  id: totrans-139
   prefs: []
   type: TYPE_NORMAL
+  zh: 再次出现大量消息，不过这次，在接近结束时，我们可以看到以下输出：
 - en: '[PRE29]'
+  id: totrans-140
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE29]'
 - en: In this output, it's easier to find all the relative information about our slaves;
     that is, the wall plug at node 9 (that can work as a normal switch and can return
     some energy consumption information) and the multisensor at node 10 (that can
     return the temperature, humidity, and environment luminance and motion activity).
+  id: totrans-141
   prefs: []
   type: TYPE_NORMAL
+  zh: 在这个输出中，更容易找到关于我们从设备的所有相关信息；也就是，第 9 节的墙插（可以作为普通开关工作，并且能返回一些能耗信息），以及第 10 节的多传感器（能够返回温度、湿度、环境亮度和运动活动信息）。
 - en: Ok, the Python support is now fully functional! So, let's go to the next section
     to see how to write the code for our Z-Wave prototype!
+  id: totrans-142
   prefs: []
   type: TYPE_NORMAL
+  zh: 好的，Python 支持现在已经完全正常了！接下来，让我们进入下一节，看看如何为我们的 Z-Wave 原型编写代码！
 - en: The Z-Wave manager
+  id: totrans-143
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: Z-Wave 管理器
 - en: After installing the Python binding to manage Z-Wave devices, we have to write
     our own code to implement the prototype's software.
+  id: totrans-144
   prefs: []
   type: TYPE_NORMAL
+  zh: 安装了管理 Z-Wave 设备的 Python 绑定后，我们需要编写自己的代码来实现原型的软件。
 - en: As already stated, we need to implement a controller that can record the incoming
     messages from the sensors, can send some commands to the actuators, and, at the
     same time, can interact with the user. While the former part is Z-Wave-related,
     the latter can be implemented by using a web interface created in Python plus
     some extra HTML/JavaScript and CSS files.
+  id: totrans-145
   prefs: []
   type: TYPE_NORMAL
+  zh: 如前所述，我们需要实现一个控制器，它能够记录来自传感器的传入消息，可以向执行器发送命令，同时还能够与用户进行交互。前者是 Z-Wave 相关的，后者则可以通过使用
+    Python 创建的 web 界面，并结合一些额外的 HTML/JavaScript 和 CSS 文件来实现。
 - en: Let's now take a look at the Python code. The whole code is quite long, so I'm
     going to show the relevant parts only, but you can get the complete code in the
     `chapter_11/zwmanager.py` file in the book's example code repository.
+  id: totrans-146
   prefs: []
   type: TYPE_NORMAL
+  zh: 现在，让我们来看看 Python 代码。整段代码相当长，所以我只会展示相关部分，但你可以在本书示例代码仓库中的 `chapter_11/zwmanager.py`
+    文件中找到完整代码。
 - en: 'At the very beginning, we have to declare the code to import:'
+  id: totrans-147
   prefs: []
   type: TYPE_NORMAL
+  zh: 一开始，我们需要声明导入的代码：
 - en: '[PRE30]'
+  id: totrans-148
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE30]'
 - en: As you can see, we need several inclusions from the `openzwave` package, while
     `BaseHTTPServer`, `json`, and `cgi` are used to manage the web interface.
+  id: totrans-149
   prefs: []
   type: TYPE_NORMAL
+  zh: 正如你所见，我们需要从 `openzwave` 包中包含多个模块，而 `BaseHTTPServer`、`json` 和 `cgi` 则用于管理 Web
+    界面。
 - en: 'Then, some default settings follow:'
+  id: totrans-150
   prefs: []
   type: TYPE_NORMAL
+  zh: 接下来是一些默认设置：
 - en: '[PRE31]'
+  id: totrans-151
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE31]'
 - en: Here, the most important thing is the `values` variable, where we're going to
     store all devices' statuses.
+  id: totrans-152
   prefs: []
   type: TYPE_NORMAL
+  zh: 在这里，最重要的是 `values` 变量，我们将在其中存储所有设备的状态。
 - en: 'Then, the Z-Wave-related functions are defined, as follows:'
+  id: totrans-153
   prefs: []
   type: TYPE_NORMAL
+  zh: 然后，定义了与 Z-Wave 相关的函数，如下所示：
 - en: '[PRE32]'
+  id: totrans-154
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE32]'
 - en: The relevant functions are the `louie_network_ready()` function, which installs
     a new dispatcher when the Z-Wave network is ready, and the `louie_value()` function,
     which reads all device notifications and stores them in the `values` variable.
+  id: totrans-155
   prefs: []
   type: TYPE_NORMAL
+  zh: 相关函数包括 `louie_network_ready()` 函数，它在 Z-Wave 网络准备好时安装一个新的分发器，以及 `louie_value()`
+    函数，它读取所有设备的通知并将其存储在 `values` 变量中。
 - en: Tip
+  id: totrans-156
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
+  zh: 提示
 - en: Note that this code is very far from perfect since we suppose that only one
     multisensor device and one wall plug are present at a time! If you wish to manage
     more devices, you have to completely review these functions.
+  id: totrans-157
   prefs: []
   type: TYPE_NORMAL
+  zh: 请注意，这段代码远未完美，因为我们假设一次只会有一个多传感器设备和一个墙插存在！如果你想管理更多设备，你需要完全重写这些函数。
 - en: 'Then, the HTTP-related functions follow:'
+  id: totrans-158
   prefs: []
   type: TYPE_NORMAL
+  zh: 接下来是与 HTTP 相关的函数：
 - en: '[PRE33]'
+  id: totrans-159
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE33]'
 - en: The preceding code implements a web server where we just need to manage the
     `GET` and `POST` HTTP requests to do the job. The `GET` requests are managed by
     the `do_GET()` method that simply tries to serve a normal file to the client apart
     from when the special path `/get` is used in the URL. In this special case, the
     server returns the content of the `values` variable in a JSON format.
+  id: totrans-160
   prefs: []
   type: TYPE_NORMAL
+  zh: 上述代码实现了一个 Web 服务器，我们只需要管理 `GET` 和 `POST` HTTP 请求来完成任务。`GET` 请求由 `do_GET()` 方法处理，该方法简单地尝试将正常的文件提供给客户端，除了当
+    URL 中使用特殊路径 `/get` 时，在这种特殊情况下，服务器会以 JSON 格式返回 `values` 变量的内容。
 - en: As an opposite function, when the `POST` request is received, it is passed to
     the `do_PUT()` method that, in turn, returns an error code if the special path
     `/set` is not used; if so, the system parses the data posted by client and then
     switches the wall plug status.
+  id: totrans-161
   prefs: []
   type: TYPE_NORMAL
+  zh: 作为相反的功能，当接收到`POST`请求时，它将传递给`do_PUT()`方法，该方法反过来将在未使用特殊路径`/set`时返回错误代码；如果使用，系统将解析客户端发布的数据，然后根据用户请求切换壁式插座状态。
 - en: Tip
+  id: totrans-162
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
+  zh: 提示
 - en: Note that we suppose again that only one wall plug is present! So, you have
     to rewrite the code if you wish to manage more than one wall plug device.
+  id: totrans-163
   prefs: []
   type: TYPE_NORMAL
+  zh: 请注意，我们再次假设只有一个壁式插座存在！因此，如果您希望管理多个壁式插座设备，您必须重新编写代码。
 - en: 'Now, we have to show how the system is set up. After some sanity checks to
     the command line, we start setting up the Z-Wave network:'
+  id: totrans-164
   prefs: []
   type: TYPE_NORMAL
+  zh: 现在，我们必须展示系统如何设置。在对命令行进行一些健全性检查后，我们开始设置Z-Wave网络：
 - en: '[PRE34]'
+  id: totrans-165
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE34]'
 - en: The `ZwaveOption()` function is used to set up the network's options, and then
     the `ZwaveNetwork()` function actually does the job according to the selected
     options. Then, we set up the callbacks to be called each time a Z-Wave signal
     arrives, and we have to manage it by using the `dispatcher.connect()` method.
+  id: totrans-166
   prefs: []
   type: TYPE_NORMAL
+  zh: '`ZwaveOption()`函数用于设置网络的选项，然后`ZwaveNetwork()`函数根据所选的选项实际执行工作。然后，我们设置回调函数，每当收到Z-Wave信号时调用它们，并且必须使用`dispatcher.connect()`方法来管理它。'
 - en: 'Ok, everything is in place now and we have just to wait for the Z-Wave driver
     to start. When done, we print some network information. Now, the next step is
     to wait for the network to be up and running, so we can pass to detect the wall
     plug device and store its relevant node''s information with the following code:'
+  id: totrans-167
   prefs: []
   type: TYPE_NORMAL
+  zh: 好的，现在一切就绪，我们只需等待Z-Wave驱动程序启动。完成后，我们打印一些网络信息。现在，下一步是等待网络正常运行，以便我们可以转到检测壁式插座设备并使用以下代码存储其相关节点信息：
 - en: '[PRE35]'
+  id: totrans-168
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE35]'
 - en: The `get_switches()` method is used to get all the nodes that can act as a switch,
     so we use it to detect our wall plug and then to store its information into the
     `sw_node` and `sw_val` variables in order to be used later in the `do_POST()`
     method to turn on/off the switch based on the user request.
+  id: totrans-169
   prefs: []
   type: TYPE_NORMAL
+  zh: '`get_switches()`方法用于获取所有可以作为开关的节点，因此我们使用它来检测我们的壁式插座，然后将其信息存储到`sw_node`和`sw_val`变量中，以便稍后在`do_POST()`方法中根据用户请求打开/关闭开关。'
 - en: Tip
+  id: totrans-170
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
+  zh: 提示
 - en: Here, it is really clear that the code is written for only one wall plug at
     a time in the network!
+  id: totrans-171
   prefs: []
   type: TYPE_NORMAL
+  zh: 在这里，很明显代码是为网络中一次只有一个壁式插座编写的！
 - en: 'Now, we only have to define the web server to finish the job, and we can do
     it with the following code:'
+  id: totrans-172
   prefs: []
   type: TYPE_NORMAL
+  zh: 现在，我们只需定义Web服务器即可完成工作，我们可以使用以下代码来实现：
 - en: '[PRE36]'
+  id: totrans-173
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE36]'
 - en: The main function is the `HTTPServer()` function that starts the internal web
     server listening at the `8080` port.
+  id: totrans-174
   prefs: []
   type: TYPE_NORMAL
+  zh: 主要函数是启动监听`8080`端口的内部Web服务器的`HTTPServer()`函数。
 - en: Now, to complete the software presentation, I need to show how the `house.html`
     file works. This is the file that is served by the web server each time a new
     client gets connected to it.
+  id: totrans-175
   prefs: []
   type: TYPE_NORMAL
+  zh: 现在，为了完成软件演示，我需要展示`house.html`文件的工作原理。这是每次新客户端连接到服务器时提供的文件。
 - en: Note
+  id: totrans-176
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
+  zh: 注意
 - en: Again, as before, I'm going to show the relevant parts only, but you can get
     the complete code in the `chapter_11/house.html` file in the book's example code
     repository.
+  id: totrans-177
   prefs: []
   type: TYPE_NORMAL
+  zh: 同样，与以前一样，我只打算显示相关部分，但您可以在书中示例代码库中的`chapter_11/house.html`文件中获取完整的代码。
 - en: 'In the head part, I define the CSS file name and the JavaScript code to use:'
+  id: totrans-178
   prefs: []
   type: TYPE_NORMAL
+  zh: 在头部部分，我定义了CSS文件名和要使用的JavaScript代码：
 - en: '[PRE37]'
+  id: totrans-179
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE37]'
 - en: In this code, we used the same technique used in [Chapter 7](ch07.html "Chapter 7. Facebook
     Plant Monitor"), *Facebook Plant Monitor*, where I installed a polling function
     that executes several `GET` requests on the server, one per second, to update
     the displayed data returned in the `JSON` format. Also, each time a button is
     pressed, we do a `POST` request to the server, passing the button ID to it to
     manage.
+  id: totrans-180
   prefs: []
   type: TYPE_NORMAL
+  zh: 在这段代码中，我们采用了与[第7章](ch07.html "第7章. Facebook植物监控")中*Facebook植物监控*相同的技术，其中我安装了一个轮询函数，每秒执行一次`GET`请求到服务器，以更新以`JSON`格式返回的显示数据。此外，每当按下按钮时，我们都会向服务器发送一个`POST`请求，将按钮ID传递给服务器进行管理。
 - en: 'In the body part of the `house.html` file, we define the table to show our
     data in a nice manner:'
+  id: totrans-181
   prefs: []
   type: TYPE_NORMAL
+  zh: 在`house.html`文件的主体部分，我们定义了表格以便美观地显示我们的数据：
 - en: '[PRE38]'
+  id: totrans-182
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE38]'
 - en: Regarding the CSS file, there is nothing important to say (it's just a CSS file!),
     while the `jquery-1.9.1.js` file is the one already used in the *The final test*,
     section in [Chapter 7](ch07.html "Chapter 7. Facebook Plant Monitor"), *Facebook
     Plant Monitor*; so, just refer to that section in order to know how to get and
     install it.
+  id: totrans-183
   prefs: []
   type: TYPE_NORMAL
+  zh: 关于CSS文件，没有什么重要的要说的（它只是一个CSS文件！），而`jquery-1.9.1.js`文件是已经在*最终测试*部分中使用的文件，如[第7章](ch07.html
+    "第7章 Facebook植物监控")中的*Facebook植物监控*所示；因此，只需参考该部分即可了解如何获取和安装它。
 - en: The final test
+  id: totrans-184
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 最终测试
 - en: 'Now, to test the prototype, I connected the wall plug with my printer (the
     power load) and powered the multi-sensor with a USB port of my PC (just to avoid
     using the batteries). Then, I started the `zwmanager.py` program as follows:'
+  id: totrans-185
   prefs: []
   type: TYPE_NORMAL
+  zh: 现在，为了测试原型，我将墙插连接到我的打印机（负载电源），并用PC的USB端口为多传感器供电（仅为避免使用电池）。然后，我按照以下方式启动了`zwmanager.py`程序：
 - en: '[PRE39]'
+  id: totrans-186
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE39]'
 - en: 'Next, I connected my browser to the `192.168.7.2:8080` URL, but before doing
     it, I waited for a while, looking at some messages from the sensors:'
+  id: totrans-187
   prefs: []
   type: TYPE_NORMAL
+  zh: 接下来，我将浏览器连接到`192.168.7.2:8080`网址，但在此之前，我稍等了一会儿，查看了一些来自传感器的消息：
 - en: '[PRE40]'
+  id: totrans-188
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE40]'
 - en: 'Then, when I started the browser, I got the following messages:'
+  id: totrans-189
   prefs: []
   type: TYPE_NORMAL
+  zh: 然后，当我启动浏览器时，收到了以下消息：
 - en: '[PRE41]'
+  id: totrans-190
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE41]'
 - en: 'As expected, the main HTML file, the CSS file, and the JavaScript file are
     served to the client that showed me something, as shown in the following screenshot:'
+  id: totrans-191
   prefs: []
   type: TYPE_NORMAL
+  zh: 正如预期的那样，主要的HTML文件、CSS文件和JavaScript文件被提供给客户端，客户端展示了如下内容，如下图所示：
 - en: '![The final test](img/B00255_11_13.jpg)'
+  id: totrans-192
   prefs: []
   type: TYPE_IMG
+  zh: '![最终测试](img/B00255_11_13.jpg)'
 - en: 'Now, I can try turning on the printer connected to the wall plug by pressing
     the **switch** button. I got the following messages from the `zwmanager.py` program:'
+  id: totrans-193
   prefs: []
   type: TYPE_NORMAL
+  zh: 现在，我可以通过按下**开关**按钮来尝试开启连接到墙插的打印机。我从`zwmanager.py`程序中收到了以下消息：
 - en: '[PRE42]'
+  id: totrans-194
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE42]'
 - en: 'Meanwhile, the web panel changed as follows:'
+  id: totrans-195
   prefs: []
   type: TYPE_NORMAL
+  zh: 与此同时，网页面板发生了如下变化：
 - en: '![The final test](img/B00255_11_14.jpg)'
+  id: totrans-196
   prefs: []
   type: TYPE_IMG
+  zh: '![最终测试](img/B00255_11_14.jpg)'
 - en: Summary
+  id: totrans-197
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 总结
 - en: In this chapter, we discovered how to implement a basic home management system
     with a web interface that controls two Z-Wave devices to monitor some environment
     data and control a wall plug.
+  id: totrans-198
   prefs: []
   type: TYPE_NORMAL
+  zh: 在本章中，我们发现了如何实现一个基本的家居管理系统，该系统具有一个Web界面，可以控制两个Z-Wave设备，用来监控一些环境数据并控制墙插。
 - en: The presented code, even if a bit complex, can be easily extended to support
     more Z-Wave devices to manage a really complex network.
+  id: totrans-199
   prefs: []
   type: TYPE_NORMAL
+  zh: 尽管所展示的代码有点复杂，但它可以很容易地扩展以支持更多的Z-Wave设备，从而管理一个真正复杂的网络。
