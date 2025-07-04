@@ -1,85 +1,118 @@
 - en: Chapter 2. Mesos Internals
+  id: totrans-0
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 第2章. Mesos 内部机制
 - en: 'This chapter provides a comprehensive overview of Mesos'' features and walks
     the reader through several important topics regarding high availability, fault
     tolerance, scaling, and efficiency. Mentioned here are the topics we will cover
     in this chapter:'
+  id: totrans-1
   prefs: []
   type: TYPE_NORMAL
+  zh: 本章提供了 Mesos 特性概述，并引导读者了解有关高可用性、容错性、扩展性和效率等多个重要主题。本章将涵盖以下主题：
 - en: '**Scaling and efficiency**'
+  id: totrans-2
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '**扩展性和效率**'
 - en: Resource allocation (the dominant resource fairness algorithm)
+  id: totrans-3
   prefs:
   - PREF_IND
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 资源分配（主导资源公平算法）
 - en: Reservation (static and dynamic)
+  id: totrans-4
   prefs:
   - PREF_IND
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 预留（静态和动态）
 - en: Oversubscription
+  id: totrans-5
   prefs:
   - PREF_IND
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 超额订阅
 - en: Extendibility
+  id: totrans-6
   prefs:
   - PREF_IND
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 可扩展性
 - en: '**High availability and fault tolerance**'
+  id: totrans-7
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '**高可用性和容错性**'
 - en: Slave recovery
+  id: totrans-8
   prefs:
   - PREF_IND
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 从属恢复
 - en: Reconciliation
+  id: totrans-9
   prefs:
   - PREF_IND
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 对账
 - en: Persistent volumes
+  id: totrans-10
   prefs:
   - PREF_IND
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 持久化卷
 - en: Scaling and efficiency
+  id: totrans-11
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 扩展性与效率
 - en: Mesos aims to provide a highly scalable and efficient mechanism to enable various
     frameworks to share cluster resources effectively. Distributed applications are
     varied, can have different priorities in different contexts, and are continuously
     evolving, a fact that led Mesos' design philosophy towards providing for customizable
     resource allocation policies that users can define and set as per their requirements.
+  id: totrans-12
   prefs: []
   type: TYPE_NORMAL
+  zh: Mesos 旨在提供一种高度可扩展且高效的机制，使各种框架能够有效共享集群资源。分布式应用种类繁多，可能在不同上下文中有不同的优先级，并且不断发展，这一事实促使
+    Mesos 的设计理念朝着提供可定制的资源分配策略发展，用户可以根据自己的需求定义和设置这些策略。
 - en: Resource allocation
+  id: totrans-13
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 资源分配
 - en: The Mesos resource allocation module contains the policy that the Mesos master
     uses to determine the type and quantity of resource offers that need to be made
     to each framework. Organizations can customize it to implement their own allocation
     policy, for example, fair sharing, priority, and so on, which allow for fine-grained
     resource sharing. Custom allocation modules can be developed to address specific
     needs.
+  id: totrans-14
   prefs: []
   type: TYPE_NORMAL
+  zh: Mesos 资源分配模块包含 Mesos 主节点用来确定每个框架所需资源数量和类型的策略。组织可以根据自己的需求定制该策略，例如公平共享、优先级等，从而实现精细化的资源共享。可以开发自定义的分配模块，以满足特定需求。
 - en: The resource allocation module is responsible for making sure that the resources
     are shared in a fair manner among competing frameworks. The choice of algorithm
     used to determine whether the sharing policy has a great bearing on the efficiency
     of a cluster manager.
+  id: totrans-15
   prefs: []
   type: TYPE_NORMAL
+  zh: 资源分配模块负责确保资源在竞争框架之间公平地共享。选择用来确定共享策略的算法对于集群管理器的效率有着重要影响。
 - en: One of the most popular allocation algorithms, max-min fairness, works well
     in a homogenous environment; this is the one where resource requirements are fairly
     proportional between different competing users, such as the Hadoop cluster. However,
@@ -89,19 +122,29 @@
     that require four CPUs and 2 GB RAM each? As can be seen, user A's tasks are RAM-heavy,
     while user B's tasks are CPU-heavy. How, then, should a set of combined RAM +
     CPU resources be distributed between the two users?
+  id: totrans-16
   prefs: []
   type: TYPE_NORMAL
+  zh: 最大最小公平性（max-min fairness）是最受欢迎的分配算法之一，在同质环境中表现良好；这是指不同竞争用户之间的资源需求在较大程度上是成比例的，比如
+    Hadoop 集群。然而，在异构资源需求的框架之间调度资源则构成了更为复杂的挑战。如果用户 A 运行的任务每个需要两个 CPU 和 8 GB RAM，而用户
+    B 运行的任务每个需要四个 CPU 和 2 GB RAM，该采用什么样的公平分配策略？显然，用户 A 的任务内存需求较大，而用户 B 的任务 CPU 需求较大。那么，如何在这两者之间分配一组组合的
+    RAM + CPU 资源呢？
 - en: The latter scenario is a common one faced by Mesos, designed as it is to manage
     resources primarily in a heterogeneous environment. To address this, Mesos has
     the **Dominant Resource Fairness algorithm** (**DRF**) as its default resource
     allocation policy, which is far more suitable for heterogeneous environments.
     The algorithm is described in detail in the following sections.
+  id: totrans-17
   prefs: []
   type: TYPE_NORMAL
+  zh: 后者场景是 Mesos 经常遇到的常见问题，因为 Mesos 主要设计用于管理异构环境中的资源。为了解决这个问题，Mesos 采用了 **Dominant
+    Resource Fairness 算法** (**DRF**) 作为其默认资源分配策略，这对于异构环境更为合适。该算法在以下章节中有详细描述。
 - en: The Dominant Resource Fairness algorithm (DRF)
+  id: totrans-18
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 主导资源公平算法（DRF）
 - en: Job scheduling in datacenters is not limited to only CPUs but extends to other
     resources, such as the memory and disk, as well. In a scenario where resource
     demands are varied, some tasks are CPU-intensive, while some are memory- or disk-intensive;
@@ -110,43 +153,57 @@
     environment a fair share of the resources most required by it. In simple terms,
     DRF is an adaptation of the **max-min fairness algorithm** to fairly share heterogeneous
     resources among users.
+  id: totrans-19
   prefs: []
   type: TYPE_NORMAL
+  zh: 数据中心中的作业调度不仅限于CPU，还扩展到其他资源，如内存和磁盘。在资源需求变化的场景中，有些任务是CPU密集型的，而有些任务是内存或磁盘密集型的；这正是最小-最大公平算法不足之处。这里需要一个资源调度机制，能够为异构环境中的每个用户提供其最需要的公平资源。简单来说，DRF是**最大-最小公平算法**的一个变体，用于在用户之间公平地分配异构资源。
 - en: Let's consider the following example to understand how the algorithm works.
+  id: totrans-20
   prefs: []
   type: TYPE_NORMAL
+  zh: 让我们考虑以下示例，来理解算法是如何工作的。
 - en: We will assume that the resources are given in multiples of demand vectors and
     are divisible.
+  id: totrans-21
   prefs: []
   type: TYPE_NORMAL
+  zh: 我们假设资源是按照需求向量的倍数提供的，并且是可分割的。
 - en: 'Consider a case where the total resources available are eight CPUs and 10 GB
     memory. User 1 runs tasks that require one CPU and 3 GB memory, and user 2 runs
     tasks that require three CPUs and 1 GB memory. Before we proceed to analyze how
     the DRF algorithm will allocate tasks, let''s understand the concepts of the dominant
     resource and share:'
+  id: totrans-22
   prefs: []
   type: TYPE_NORMAL
+  zh: 假设可用的总资源是八个CPU和10 GB内存。用户1运行的任务需要一个CPU和3 GB内存，用户2运行的任务需要三个CPU和1 GB内存。在我们继续分析DRF算法如何分配任务之前，先来理解主导资源和份额的概念：
 - en: '**Dominant resource**: This refers to the resource (CPU or memory) that is
     most required by the user. In this case, user 1 runs tasks that have higher memory
     requirements (3 GB per task), so the dominant resource for user 1 is memory. On
     the other hand, user 2 runs computation-heavy tasks (three CPUs per task) and
     hence has CPU as its dominant resource.'
+  id: totrans-23
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '**主导资源**：指的是用户最需要的资源（CPU或内存）。在此案例中，用户1运行对内存有较高需求的任务（每个任务3 GB内存），因此用户1的主导资源是内存。另一方面，用户2运行计算密集型任务（每个任务使用三个CPU），因此其主导资源是CPU。'
 - en: '**Dominant share**: This refers to the fraction of the dominant resource that
     the user is allocated. Referring to our example, user 1''s dominant share is 30%
     (3/10), while user 2''s dominant share is 37.5% (3/8).'
+  id: totrans-24
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '**主导份额**：指的是用户被分配的主导资源的比例。以我们的例子为例，用户1的主导份额是30%（3/10），而用户2的主导份额是37.5%（3/8）。'
 - en: The DRF allocation module tracks the dominant share of each user and makes a
     note of the resources allocated to each user. DRF begins allocation by offering
     resources (CPU or memory) to the user with the lowest dominant share among all
     the competing users. The user then has the option to accept the offer if it meets
     its requirement.
+  id: totrans-25
   prefs: []
   type: TYPE_NORMAL
+  zh: DRF分配模块跟踪每个用户的主导份额，并记录分配给每个用户的资源。DRF从向所有竞争用户中主导份额最低的用户提供资源（CPU或内存）开始分配。然后，用户可以选择接受该提议，前提是它满足其需求。
 - en: Now, let us look at each step taken by the DRF algorithm to allocate resources
     for users 1 and 2\. For simplicity's sake, we will overlook the resources that
     get released back into the pool after the completion of small tasks and assume
@@ -155,197 +212,282 @@
     of the total CPU and three-tenths of the total memory, making **memory** user
     1's dominant resource. Every user 2 task would consume three-eighths of the total
     CPU and one-tenth of the total memory, making **CPU** user 2's dominant share.
+  id: totrans-26
   prefs: []
   type: TYPE_NORMAL
+  zh: 现在，让我们来看一下DRF算法为用户1和用户2分配资源的每个步骤。为了简单起见，我们将忽略在小任务完成后释放回资源池的资源，并假设每次资源提供都被接受，且用户运行的是资源需求无限的任务。每个用户1的任务将消耗总CPU的八分之一和总内存的三分之一，从而使**内存**成为用户1的主导资源。每个用户2的任务将消耗总CPU的三分之一和总内存的十分之一，从而使**CPU**成为用户2的主导资源。
 - en: '![The Dominant Resource Fairness algorithm (DRF)](img/B05186_02_01.jpg)'
+  id: totrans-27
   prefs: []
   type: TYPE_IMG
+  zh: '![主导资源公平算法 (DRF)](img/B05186_02_01.jpg)'
 - en: 'Each row provides the following information:'
+  id: totrans-28
   prefs: []
   type: TYPE_NORMAL
+  zh: 每一行提供以下信息：
 - en: '**User Selected**: The user that has been offered resources by the algorithm'
+  id: totrans-29
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '**用户选择**：由算法提供资源的用户。'
 - en: '**Resource share**: A fraction of the total available resources for each resource
     type that is allocated to a user in the offer round.'
+  id: totrans-30
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '**资源份额**：在分配轮次中，分配给用户的每种资源类型的总可用资源的比例。'
 - en: '**Dominant share**: The resource share of the dominant resource'
+  id: totrans-31
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '**主导份额**：主导资源的资源份额'
 - en: '**Dominant share percentage:** The dominant share expressed as a percentage
     (%)'
+  id: totrans-32
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '**主导份额百分比**：主导份额以百分比（%）表示'
 - en: '**CPU Total Allocation**: The sum of CPU resources allocated to all users in
     the current offer round'
+  id: totrans-33
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '**CPU 总分配**：在当前资源分配轮次中，分配给所有用户的 CPU 资源总和'
 - en: '**Memory Total Allocation**: The sum of memory resources allocated to all users
     in the current offer round'
+  id: totrans-34
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '**内存总分配**：在当前资源分配轮次中，分配给所有用户的内存资源总和'
 - en: Note
+  id: totrans-35
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
+  zh: 注意
 - en: 'Note: The lowest dominant share in each row is highlighted in yellow.'
+  id: totrans-36
   prefs: []
   type: TYPE_NORMAL
+  zh: 注意：每一行中最低的主导份额用黄色突出显示。
 - en: 'To begin with, both users have a dominant share of 0% (as no resource is allocated
     as yet). We will assume that DRF chooses user 1 to offer resources to first, although
     had we assumed user 2, the final outcome would have been the same. Here are the
     steps it will follow:'
+  id: totrans-37
   prefs: []
   type: TYPE_NORMAL
+  zh: 首先，两个用户的主导份额都是 0%（因为还没有分配任何资源）。我们假设 DRF 选择用户 1 来首先提供资源，尽管如果我们假设选择用户 2，最终结果也会相同。以下是它将遵循的步骤：
 - en: User 1 will receive the required set of resources to run a task. The dominant
     share for its dominant resource (memory) will get increased to 30%.
+  id: totrans-38
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 用户 1 将获得运行任务所需的资源集。其主导资源（内存）的主导份额将增加到 30%。
 - en: User 2's dominant share being 0%, it will receive resources in the next round.
     The dominant share for its dominant resource (CPU) will get increased to 37.5%.
+  id: totrans-39
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 用户 2 的主导份额为 0%，因此它将在下一轮获得资源。其主导资源（CPU）的主导份额将增加到 37.5%。
 - en: As User 1 now has the lower dominant share (30%), it will receive the next set
     of resources. Its dominant share rises to 60%.
+  id: totrans-40
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 由于用户 1 现在的主导份额较低（30%），它将获得下一组资源。其主导份额上升至 60%。
 - en: User 2 that has the lower dominant share (37.5%) will now be offered resources.
+  id: totrans-41
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 现在，主导份额较低（37.5%）的用户 2 将获得资源。
 - en: The process will continue until there are no more resources to allocate to run
     the user tasks. In this case, after step 4, the CPU resources will get saturated
     (highlighted in red).
+  id: totrans-42
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 该过程将继续，直到没有更多的资源可分配以运行用户任务为止。在这种情况下，步骤 4 之后，CPU 资源将达到饱和（以红色突出显示）。
 - en: The process will continue if any resources are freed or the resource requirement
     changes.
+  id: totrans-43
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 如果有任何资源被释放或资源需求发生变化，过程将继续。
 - en: 'Primarily, DRF aims to maximize the minimum dominant share across all users.
     As in this example, DRF worked with the users to allocate the following:'
+  id: totrans-44
   prefs: []
   type: TYPE_NORMAL
+  zh: 首要目标，DRF 是旨在最大化所有用户之间的最低主导份额。正如在这个例子中，DRF 与用户一起工作以分配以下资源：
 - en: Two tasks to user 1 with a total allocation of two CPUs, 6 GB memory, and a
     dominant share % of 60 (Memory).
+  id: totrans-45
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 为用户 1 分配两个任务，总分配为两个 CPU，6 GB 内存，主导份额为 60%（内存）。
 - en: Two tasks to user 2 with a total allocation of six CPUs, 2 GB memory, and a
     dominant share % of 75 (CPU).
+  id: totrans-46
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 为用户 2 分配两个任务，总分配为六个 CPU，2 GB 内存，主导份额为 75%（CPU）。
 - en: 'This can be diagrammatically depicted as follows:'
+  id: totrans-47
   prefs: []
   type: TYPE_NORMAL
+  zh: 这可以通过以下图示表示：
 - en: '![The Dominant Resource Fairness algorithm (DRF)](img/B05186_02_02.jpg)'
+  id: totrans-48
   prefs: []
   type: TYPE_IMG
+  zh: '![主导资源公平算法 (DRF)](img/B05186_02_02.jpg)'
 - en: Weighted DRF
+  id: totrans-49
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 加权 DRF
 - en: We have so far assumed that users have an equal probability of being offered
     resources. There could also be a modification created in the algorithm, where
     one user or a set of users is favored over others in terms of resource allocation.
     This is referred to as Weighted DRF, wherein resources are not shared equally
     among users. Sharing can be weighted on a per-user and per-resource-level basis,
     the former being more popular.
+  id: totrans-50
   prefs: []
   type: TYPE_NORMAL
+  zh: 目前我们假设用户有相等的机会获得资源。算法中也可能进行修改，使得某个用户或一组用户在资源分配上优先于其他用户。这被称为加权 DRF，其中资源不会在用户之间平等共享。共享可以按每个用户和每个资源的权重进行，前者更为常见。
 - en: Let's consider a per-user weighted computation of the previous example. For
     every user *i* and resource *j*, the weights are stated as w[1,j] 3 and w[2,j]
     = 1\. This implies that user 1 will have three times the proportion of all the
     resources compared to user 2 in the system. If both the weights have the value
     1, then allocation would be carried out in accordance with the normal DRF algorithm
     (as described before).
+  id: totrans-51
   prefs: []
   type: TYPE_NORMAL
+  zh: 让我们考虑之前示例的每个用户加权计算。对于每个用户 *i* 和每个资源 *j*，权重表示为 w[1,j] = 3 和 w[2,j] = 1。这意味着用户
+    1 相比用户 2 在系统中将占有三倍的资源份额。如果两个权重值均为 1，则按照正常的 DRF 算法进行分配（如前所述）。
 - en: Now, let's look at each step taken by the DRF algorithm to allocate resources
     for users 1 and 2.
+  id: totrans-52
   prefs: []
   type: TYPE_NORMAL
+  zh: 现在，我们来看 DRF 算法为用户 1 和用户 2 分配资源的每个步骤。
 - en: '![Weighted DRF](img/B05186_02_03.jpg)'
+  id: totrans-53
   prefs: []
   type: TYPE_IMG
+  zh: '![加权 DRF](img/B05186_02_03.jpg)'
 - en: 'To begin with, both the users have a dominant share of 0% (as no resource is
     allocated as yet). We will assume that Weighted DRF chooses user 1 to offer resources
     to first, although had we assumed User 2, the final outcome would have been the
     same. Here are the steps that it will follow:'
+  id: totrans-54
   prefs: []
   type: TYPE_NORMAL
+  zh: 一开始，两个用户的主导份额都是0%（因为尚未分配资源）。我们假设加权DRF首先选择给用户1分配资源，虽然如果我们假设是用户2，最终结果也是一样的。以下是它将遵循的步骤：
 - en: User 1 will receive the required set of resources to run a task. The dominant
     share for its dominant resource (memory) gets increased to 10% (30% divided by
     3).
+  id: totrans-55
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 用户1将收到运行任务所需的资源集。其主导资源（内存）的主导份额将增加至10%（30%除以3）。
 - en: User 2's dominant share being 0%, it will receive resources in the next round.
     The dominant share for its dominant resource (CPU) will get increased to 37.5%.
+  id: totrans-56
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 用户2的主导份额为0%，它将在下一轮接收资源。其主导资源（CPU）的主导份额将增加至37.5%。
 - en: As user 1 now has the lower dominant share (10%), it will receive the next set
     of resources. Its dominant share will rise to 20% (60% divided by 3).
+  id: totrans-57
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 由于用户1现在拥有较低的主导份额（10%），它将接收下一批资源。其主导份额将上升到20%（60%除以3）。
 - en: User 1 still has the lower dominant share (20%) and is now offered resources
     again to make it 30% (90% divided by 3).
+  id: totrans-58
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 用户1仍然拥有较低的主导份额（20%），现在再次分配资源，将其提升至30%（90%除以3）。
 - en: The process will continues till there are no more resources to allocate to run
     the user tasks. In this case, after step 4, the memory resources will get saturated
     (highlighted in red).
+  id: totrans-59
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 进程将继续，直到没有更多的资源可以分配给用户任务。在这种情况下，第四步后，内存资源将达到饱和（红色高亮显示）。
 - en: The process will continue if any resources are freed or the resource requirement
     changes.
+  id: totrans-60
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 如果有资源被释放或资源需求发生变化，进程将继续。
 - en: 'Weighted DRF aims to prioritize resource sharing based on the weight assigned
     to every user. In this example, Weighted DRF worked with the users to allocate
     the following:'
+  id: totrans-61
   prefs: []
   type: TYPE_NORMAL
+  zh: 加权DRF旨在根据每个用户分配的权重优先进行资源共享。在本例中，加权DRF与用户一起工作，分配了以下资源：
 - en: Three tasks to user 1 with a total allocation of three CPUs and 9 GB memory
+  id: totrans-62
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 三个任务分配给用户1，总共分配了三个CPU和9GB内存。
 - en: Only one task to user 2 with a total allocation of three CPUs and 1 GB memory
+  id: totrans-63
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 仅有一个任务分配给用户2，总共分配了三个CPU和1GB内存。
 - en: 'This can be diagrammatically depicted as follows:'
+  id: totrans-64
   prefs: []
   type: TYPE_NORMAL
+  zh: 这可以通过图示方式表示如下：
 - en: '![Weighted DRF](img/B05186_02_04.jpg)'
+  id: totrans-65
   prefs: []
   type: TYPE_IMG
+  zh: '![加权DRF](img/B05186_02_04.jpg)'
 - en: In addition to this, it is possible to create custom modules that cater to an
     organization or need specific resource allocation. This will be covered later
     in the same chapter.
+  id: totrans-66
   prefs: []
   type: TYPE_NORMAL
+  zh: 除此之外，还可以创建定制模块，以满足某个组织或特定资源分配的需求。这个部分将在同一章节后续进行讲解。
 - en: 'Let''s now look at some of the important properties that DRF follows/satisfies:'
+  id: totrans-67
   prefs: []
   type: TYPE_NORMAL
+  zh: 现在让我们看看DRF遵循/满足的一些重要属性：
 - en: '**Progressive Filling**: Allocation by progressive filling in DRF increases
     the dominant shares of all users at the same speed, while other resource allocations
     of users increase proportionally based on the demand. This continues up to a point
@@ -353,33 +495,41 @@
     that require the saturated resource are halted, and these users are eliminated.
     Progressive filling for other users proceeds in a recursive fashion and ends when
     there is no user left whose dominant share can be increased.'
+  id: totrans-68
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: '**渐进填充**：在DRF中，通过渐进填充分配的资源会以相同的速度增加所有用户的主导份额，而其他用户的资源分配会根据需求按比例增加。这一过程会持续到至少有一个资源被饱和为止，此时需要饱和资源的用户的分配将被停止，这些用户会被淘汰。其他用户的渐进填充将以递归方式继续，直到没有用户的主导份额可以再增加为止。'
 - en: '**Share Guarantee**: The DRF algorithm allocates resources to users via "progressive
     filling", which ensures that every user''s dominant share allocation increases
     at the same rate and continues until one resource gets saturated and the resource
     allocation is frozen. This indirectly ensures that all users are treated equally
     and are guaranteed 1/n of at least one resource.'
+  id: totrans-69
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: '**份额保障**：DRF算法通过“渐进填充”向用户分配资源，确保每个用户的主导份额分配以相同的速度增加，并持续到一个资源被饱和并且资源分配被冻结为止。这间接保证了所有用户都被平等对待，并且至少能保证每个用户1/n的某项资源。'
 - en: '**Strategy-proofness**: This property of DRF ensures that users at any given
     point of time cannot benefit from increased allocation by falsifying their resource
     demands. In case a user does try to *game* the system by demanding extra resources,
     the DRF algorithm is such that the allocation of resources may happen in a manner
     that is deterrent to this user.'
+  id: totrans-70
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: '**策略无关性**：DRF的这个特性确保了任何时刻，用户都无法通过伪造资源需求来从增加的资源分配中获益。如果用户确实尝试通过要求额外资源来*欺骗*系统，DRF算法会以一种方式分配资源，使得这种行为对用户产生威慑作用。'
 - en: '**Pareto efficiency**: This property of DRF implies that increasing the dominant
     share of a given user will proportionally decrease the dominant share of other
     users for this particular resource. Courtesy of the progressive filling algorithm,
     it is but natural that allocation of more resources to one specific user will
     hurt others.'
+  id: totrans-71
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: '**帕累托效率**：DRF的这个特性意味着增加某个用户的主导份额会相应地减少其他用户对该特定资源的主导份额。得益于逐步填充算法，给一个特定用户分配更多资源会对其他用户造成影响，这一点是自然而然的。'
 - en: '**Envy-freeness**: DRF is envy-free because there is no need for any user to
     prefer or envy the resource allocation of another. Envy comes into the picture
     only when, for instance, user 1 envies user 2, whose dominant share for a particular
@@ -387,45 +537,64 @@
     progressive filling, dominant shares of both users 1 and 2 will be the same by
     the time the resource in question is saturated. This *envy* is neither beneficial
     nor required.'
+  id: totrans-72
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: '**无嫉妒性**：DRF是无嫉妒的，因为没有用户会偏好或嫉妒其他用户的资源分配。只有当例如用户1嫉妒用户2，后者在某个特定资源上的主导份额更高时，才会产生嫉妒的情况。然而，考虑到资源分配是通过逐步填充进行的，到资源饱和时，用户1和用户2的主导份额将是相同的。这种*嫉妒*既没有好处，也不是必需的。'
 - en: Configuring resource offers on Mesos
+  id: totrans-73
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 配置Mesos上的资源提供
 - en: A common problem encountered is that sometimes, frameworks do not accept any
     resource offers due to improper resource configuration settings on the slaves.
     For example, the Elasticsearch framework requires ports `9200` and `9300`, but
     the default port range configuration in the Mesos slaves is `31000` to `32000`.
+  id: totrans-74
   prefs: []
   type: TYPE_NORMAL
+  zh: 常见的问题是，有时由于slave上资源配置设置不当，框架不会接受任何资源提供。例如，Elasticsearch框架需要端口`9200`和`9300`，但Mesos
+    slave的默认端口范围配置为`31000`到`32000`。
 - en: 'The slaves must be configured correctly so that the right resource offers are
     made to frameworks that can then accept them. This can be done as follows:'
+  id: totrans-75
   prefs: []
   type: TYPE_NORMAL
+  zh: slave必须正确配置，以便将正确的资源提供给框架，框架随后可以接受这些资源。可以按以下方式完成：
 - en: 'In the `mesos-slave` command, add the necessary resource parameters Here''s
     an example:'
+  id: totrans-76
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 在`mesos-slave`命令中，添加必要的资源参数。以下是一个示例：
 - en: '[PRE0]'
+  id: totrans-77
   prefs:
   - PREF_IND
   type: TYPE_PRE
+  zh: '[PRE0]'
 - en: 'Create a *file* under`/etc/mesos-slave` called `resources` whose content is
     the necessary resource string. Run the following command:'
+  id: totrans-78
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 在`/etc/mesos-slave`目录下创建一个名为`resources`的*文件*，其内容是必要的资源字符串。运行以下命令：
 - en: '[PRE1]'
+  id: totrans-79
   prefs:
   - PREF_IND
   type: TYPE_PRE
+  zh: '[PRE1]'
 - en: Reservation
+  id: totrans-80
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 预留
 - en: Mesos also provides the ability to reserve resources on specified slaves. This
     is particularly useful in ensuring that important services get guaranteed resource
     offers from a particular slave (for example, a database may need resource offers
@@ -433,30 +602,42 @@
     of a reservation mechanism, there is the possibility that an important service
     or job may need to wait for a long time before it gets a resource offer satisfying
     its filter criteria, which would have a detrimental impact on performance.
+  id: totrans-81
   prefs: []
   type: TYPE_NORMAL
+  zh: Mesos还提供在指定的slave上预留资源的功能。这在确保重要服务从特定slave获取保证资源提供时特别有用（例如，数据库可能只需要从包含必要数据的特定slave获取资源提供）。如果没有预留机制，可能会出现重要服务或任务需要等待很长时间才能获得符合其过滤标准的资源提供，从而对性能产生不利影响。
 - en: On the other hand, misusing the reservation feature can lead to the same kind
     of problems, such as the resource underutilization that Mesos sought to resolve
     in the first place. Thus, it is necessary to use this judiciously. The Mesos access
     control mechanism makes sure that the framework requesting a reservation of resources
     has the appropriate authorization to do so.
+  id: totrans-82
   prefs: []
   type: TYPE_NORMAL
+  zh: 另一方面，错误使用预留功能可能会导致相同类型的问题，例如Mesos最初旨在解决的资源利用率不足问题。因此，必须谨慎使用此功能。Mesos访问控制机制确保请求预留资源的框架拥有适当的授权。
 - en: 'Mesos provides two methods of resource reservations:'
+  id: totrans-83
   prefs: []
   type: TYPE_NORMAL
+  zh: Mesos提供两种资源预留方法：
 - en: Static reservation
+  id: totrans-84
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 静态预留
 - en: Dynamic reservation
+  id: totrans-85
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 动态预留
 - en: Static reservation
+  id: totrans-86
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 静态预留
 - en: In this type of reservation, specified resources can be reserved on specific
     slave nodes for a particular framework or group of frameworks. In order to reserve
     resources for a framework, it must be assigned to a role. Multiple frameworks
@@ -464,244 +645,370 @@
     a particular role (say, role X) are entitled to get offers for the resources reserved
     for role X. Roles need to be defined first, then frameworks need to be assigned
     to the required roles, and finally, resource policies must be set for these roles.
+  id: totrans-87
   prefs: []
   type: TYPE_NORMAL
+  zh: 在这种类型的预留中，可以为特定框架或框架组在特定的从节点上保留指定的资源。为了为一个框架保留资源，必须将其分配给一个角色。如果需要，可以将多个框架分配给同一个角色。只有分配给特定角色（例如，角色X）的框架才有权获得为角色X预留的资源的资源提供。首先需要定义角色，然后将框架分配给所需的角色，最后为这些角色设置资源策略。
 - en: Role definition
+  id: totrans-88
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
+  zh: 角色定义
 - en: 'Roles can be defined by starting the master with the following flag:'
+  id: totrans-89
   prefs: []
   type: TYPE_NORMAL
+  zh: 可以通过使用以下标志启动主节点来定义角色：
 - en: '[PRE2]'
+  id: totrans-90
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE2]'
 - en: 'For example, if we want to define a role called `hdfs`, then we can start the
     master using the following:'
+  id: totrans-91
   prefs: []
   type: TYPE_NORMAL
+  zh: 例如，如果我们想定义一个名为`hdfs`的角色，那么我们可以使用以下命令启动主节点：
 - en: '[PRE3]'
+  id: totrans-92
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE3]'
 - en: 'Alternatively, you can do this by running the following:'
+  id: totrans-93
   prefs: []
   type: TYPE_NORMAL
+  zh: 另外，你也可以通过执行以下命令来做到这一点：
 - en: '[PRE4]'
+  id: totrans-94
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE4]'
 - en: 'Now, the master needs to be restarted by running the following:'
+  id: totrans-95
   prefs: []
   type: TYPE_NORMAL
+  zh: 现在，需要通过执行以下命令重启主节点：
 - en: '[PRE5]'
+  id: totrans-96
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE5]'
 - en: Framework assignment
+  id: totrans-97
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
+  zh: 框架分配
 - en: Now, we need to map the frameworks to specific roles. The method to do this
     varies by the framework. Some, such as Marathon, can be configured using the `–mesos_role`
     flag. In the case of HDFS, this can be done by changing `mesos.hdfs.role` in `mesos-site.xml`
     to the value of `hdfs` defined before.
+  id: totrans-98
   prefs: []
   type: TYPE_NORMAL
+  zh: 现在，我们需要将框架映射到特定的角色。执行此操作的方法因框架而异。例如，像Marathon这样的框架可以通过`–mesos_role`标志进行配置。在HDFS的情况下，可以通过将`mesos-site.xml`中的`mesos.hdfs.role`更改为之前定义的`hdfs`值来实现。
 - en: '[PRE6]'
+  id: totrans-99
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE6]'
 - en: Custom roles for frameworks can be specified by setting the `role` option within
     `FrameworkInfo` to the desired value (the default is `*`).
+  id: totrans-100
   prefs: []
   type: TYPE_NORMAL
+  zh: 可以通过在`FrameworkInfo`中设置`role`选项为所需的值来为框架指定自定义角色（默认值是`*`）。
 - en: Role resource policy setting
+  id: totrans-101
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 角色资源策略设置
 - en: Resources on each slave can be reserved for a particular role by leveraging
     the slave's `–resources` flag. Slave-level resource policy setting has its drawbacks
     as the management overhead can quickly become daunting as the cluster size and
     number of frameworks being run increases.
+  id: totrans-102
   prefs: []
   type: TYPE_NORMAL
+  zh: 可以通过利用从节点的`–resources`标志为特定角色保留每个从节点上的资源。由于随着集群规模和运行的框架数量的增加，管理开销会迅速变得令人难以承受，从节点级别的资源策略设置有其缺点。
 - en: 'If we have eight cores and 24 GB (the number is specified in MBs in Mesos)
     RAM available on a particular slave and seek to reserve 2 cores and 6 GB RAM for
     the `hdfs` role, then we can make the following changes on the slave:'
+  id: totrans-103
   prefs: []
   type: TYPE_NORMAL
+  zh: 如果我们在特定从节点上有八个核心和24 GB（在Mesos中以MB为单位指定）RAM可用，并希望为`hdfs`角色保留2个核心和6 GB RAM，那么我们可以在从节点上进行以下更改：
 - en: '[PRE7]'
+  id: totrans-104
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE7]'
 - en: 'Once this is done, `mesos-slave` with these changed settings can be stopped
     by executing the following:'
+  id: totrans-105
   prefs: []
   type: TYPE_NORMAL
+  zh: 完成此操作后，可以通过执行以下命令停止具有这些更改设置的`mesos-slave`：
 - en: '[PRE8]'
+  id: totrans-106
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE8]'
 - en: 'The older state on these slaves can be removed by the following command. Any
     running tasks can be manually terminated as the task states will also get removed:'
+  id: totrans-107
   prefs: []
   type: TYPE_NORMAL
+  zh: 可以通过以下命令移除这些从节点上的旧状态。任何正在运行的任务可以手动终止，因为任务状态也将被移除：
 - en: '[PRE9]'
+  id: totrans-108
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE9]'
 - en: 'Now, the slave can be restarted with the following command:'
+  id: totrans-109
   prefs: []
   type: TYPE_NORMAL
+  zh: 现在，可以通过以下命令重启从节点：
 - en: '[PRE10]'
+  id: totrans-110
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE10]'
 - en: Dynamic reservation
+  id: totrans-111
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 动态预留
 - en: The main drawback of static reservation is that the reserved resources cannot
     be used by other roles during downtime, nor can they be unreserved and made available
     as part of the wider pool. This leads to poor resource utilization. In order to
     overcome this challenge, support for dynamic reservation was added in version
     0.23.0, which allows users to reserve and unreserve resources more dynamically
     as per workload requirements.
+  id: totrans-112
   prefs: []
   type: TYPE_NORMAL
+  zh: 静态资源预留的主要缺点是，在停机期间，预留的资源不能被其他角色使用，也不能取消预留并作为更广泛资源池的一部分进行使用。这导致了资源利用率低下。为了解决这个问题，在0.23.0版本中加入了动态资源预留支持，这使得用户能够根据工作负载要求更动态地预留和取消预留资源。
 - en: 'For a resource offer, frameworks can send back the following two messages (through
     the `acceptOffers` API) as a response:'
+  id: totrans-113
   prefs: []
   type: TYPE_NORMAL
+  zh: 对于资源提供，框架可以通过`acceptOffers` API发送以下两条消息作为响应：
 - en: '`Offer::Operation::Reserve`'
+  id: totrans-114
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '`Offer::Operation::Reserve`'
 - en: '`Offer::Operation::Unreserve`'
+  id: totrans-115
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '`Offer::Operation::Unreserve`'
 - en: These are described in detail in the following sections. Note that the framework's
     principal is required for authorization, which will be discussed in more detail
     in [Chapter 6](ch06.html "Chapter 6. Mesos Frameworks"), *Mesos Frameworks*.
+  id: totrans-116
   prefs: []
   type: TYPE_NORMAL
+  zh: 这些将在以下章节中详细描述。请注意，框架的主体用于授权，具体内容将在[第六章](ch06.html "第6章：Mesos 框架")中详细讨论，*Mesos
+    框架*。
 - en: Offer::Operation::Reserve
+  id: totrans-117
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
+  zh: Offer::Operation::Reserve
 - en: 'Each framework can reserve resources as part of the offer cycle. As an example,
     let''s say that a resource offer with eight cores and 12 GB RAM unreserved is
     received by a framework. Take a look at the following code:'
+  id: totrans-118
   prefs: []
   type: TYPE_NORMAL
+  zh: 每个框架可以作为报价周期的一部分预留资源。例如，假设一个资源报价中包含八个核心和12 GB的RAM，且这些资源未被预留，框架收到了这个报价。请查看以下代码：
 - en: '[PRE11]'
+  id: totrans-119
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE11]'
 - en: 'We can reserve four cores and 6 GB RAM for the framework by specifying the
     quantity of each resource type that needs to be reserved and the framework''s
     role and principal in the following message:'
+  id: totrans-120
   prefs: []
   type: TYPE_NORMAL
+  zh: 我们可以通过在以下消息中指定需要预留的每种资源类型的数量以及框架的角色和主体，来为框架预留四个核心和6 GB的RAM：
 - en: '[PRE12]'
+  id: totrans-121
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE12]'
 - en: 'The next resource offer will include the preceding reserved resources, as follows:'
+  id: totrans-122
   prefs: []
   type: TYPE_NORMAL
+  zh: 下一次资源报价将包括前述的预留资源，如下所示：
 - en: '[PRE13]'
+  id: totrans-123
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE13]'
 - en: Offer::Operation::Unreserve
+  id: totrans-124
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
+  zh: Offer::Operation::Unreserve
 - en: Each framework can also unreserve resources as part of the offer cycle. In the
     previous example, we reserved four cores and 6 GB RAM for the framework/role that
     will continue to be offered until specifically unreserved. The way to unreserve
     this is explained here.
+  id: totrans-125
   prefs: []
   type: TYPE_NORMAL
+  zh: 每个框架还可以作为报价周期的一部分取消预留资源。在之前的示例中，我们为框架/角色预留了四个核心和6 GB的RAM，直到明确取消预留之前，这些资源会一直提供。这里解释了取消预留的方法。
 - en: 'First, we will receive the reserved resource offer, as follows:'
+  id: totrans-126
   prefs: []
   type: TYPE_NORMAL
+  zh: 首先，我们将收到预留资源的报价，如下所示：
 - en: '[PRE14]'
+  id: totrans-127
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE14]'
 - en: 'We can now unreserve four cores and 6 GB RAM for the framework by specifying
     the quantity of each resource type that needs to be unreserved and the framework''s
     role and principal in the following message:'
+  id: totrans-128
   prefs: []
   type: TYPE_NORMAL
+  zh: 我们现在可以通过在以下消息中指定需要取消预留的每种资源类型的数量以及框架的角色和主体，来为框架取消预留四个核心和6 GB的RAM：
 - en: '[PRE15]'
+  id: totrans-129
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE15]'
 - en: In subsequent resource offers, these unreserved resources will become part of
     the wider unreserved pool and start being offered to other frameworks.
+  id: totrans-130
   prefs: []
   type: TYPE_NORMAL
+  zh: 在随后的资源报价中，这些取消预留的资源将成为更广泛的未预留资源池的一部分，并开始被提供给其他框架。
 - en: The `/reserve` and `/unreserve` HTTP endpoints were also introduced in v0.25.0
     and can be used for dynamic reservation management from the master.
+  id: totrans-131
   prefs: []
   type: TYPE_NORMAL
+  zh: '`/reserve` 和 `/unreserve` HTTP 端点也在 v0.25.0 中引入，可以用于从主节点进行动态资源预留管理。'
 - en: /reserve
+  id: totrans-132
   prefs:
   - PREF_H4
   type: TYPE_NORMAL
+  zh: /reserve
 - en: 'Let''s say that we are interested in reserving four cores and 6 GB RAM for
     a role on a slave whose ID is `<slave_id>`. An `HTTP POST` request can be sent
     to the `/reserve` HTTP endpoint, as follows:'
+  id: totrans-133
   prefs: []
   type: TYPE_NORMAL
+  zh: 假设我们有兴趣为位于从节点 `<slave_id>` 上的某个角色预留四个核心和6 GB的RAM。可以向 `/reserve` HTTP 端点发送 `HTTP
+    POST` 请求，如下所示：
 - en: '[PRE16]'
+  id: totrans-134
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE16]'
 - en: 'The response can be one of the following:'
+  id: totrans-135
   prefs: []
   type: TYPE_NORMAL
+  zh: 响应可以是以下之一：
 - en: '`200 OK`: Success'
+  id: totrans-136
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '`200 OK`：成功'
 - en: '`400 BadRequest`: Invalid arguments (for example, missing parameters)'
+  id: totrans-137
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '`400 BadRequest`：无效的参数（例如，缺少参数）'
 - en: '`401 Unauthorized`: Unauthorized request'
+  id: totrans-138
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '`401 Unauthorized`：未经授权的请求'
 - en: '`409 Conflict`: Insufficient resources to satisfy the reserve operation'
+  id: totrans-139
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '`409 Conflict`：资源不足，无法满足预留操作'
 - en: /unreserve
+  id: totrans-140
   prefs:
   - PREF_H4
   type: TYPE_NORMAL
+  zh: /unreserve
 - en: 'Now, if we are interested in unreserving the resources that were reserved before,
     an `HTTP POST` request can be sent to the `/unreserve` HTTP endpoint, as follows:'
+  id: totrans-141
   prefs: []
   type: TYPE_NORMAL
+  zh: 现在，如果我们有兴趣取消之前预留的资源，可以向 `/unreserve` HTTP 端点发送 `HTTP POST` 请求，如下所示：
 - en: '[PRE17]'
+  id: totrans-142
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE17]'
 - en: 'The response can be one of the following:'
+  id: totrans-143
   prefs: []
   type: TYPE_NORMAL
+  zh: 响应可以是以下之一：
 - en: '`200 OK`: Success'
+  id: totrans-144
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '`200 OK`：成功'
 - en: '`400 BadRequest`: Invalid arguments (for example, missing parameters)'
+  id: totrans-145
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '`400 BadRequest`：无效的参数（例如，缺少参数）'
 - en: '`401 Unauthorized`: Unauthorized request'
+  id: totrans-146
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '`401 Unauthorized`：未经授权的请求'
 - en: '`409 Conflict`: Insufficient resources to satisfy unreserve operation'
+  id: totrans-147
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '`409 Conflict`：资源不足，无法满足取消预留操作'
 - en: Oversubscription
+  id: totrans-148
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 资源过度分配
 - en: Frameworks are generally provided with enough buffer resources by users to be
     able to handle unexpected workload surges. This leads to an overall underutilization
     of the entire cluster because a sizeable chunk of resources are lying idle. Add
@@ -709,176 +1016,260 @@
     concept of oversubscription, introduced in v0.23.0, seeks to address this problem
     by executing low priority tasks, such as background processes or ad hoc noncritical
     analytics, on these idle resources.
+  id: totrans-149
   prefs: []
   type: TYPE_NORMAL
+  zh: 通常，用户会为框架提供足够的缓冲资源，以应对突发的工作负载激增。这导致整个集群的资源总体利用率较低，因为相当一部分资源处于空闲状态。将这种情况加到多个框架中，就会导致显著的资源浪费。v0.23.0
+    引入的超额订阅概念旨在通过在这些空闲资源上执行低优先级任务（例如后台进程或临时的非关键分析）来解决这个问题。
 - en: 'To enable this, two additional components are introduced:'
+  id: totrans-150
   prefs: []
   type: TYPE_NORMAL
+  zh: 为了启用此功能，引入了两个额外的组件：
 - en: '**Resource estimator**: This is used to determine the number of idle resources
     that can be used by best-effort processes'
+  id: totrans-151
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: '**资源估算器**：用于确定可供最佳努力进程使用的空闲资源数量。'
 - en: '**Quality of Service (QoS) controller**: This is used to terminate these best-effort
     tasks in case a workload surge or performance degradation in the original tasks
     is observed'
+  id: totrans-152
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: '**服务质量（QoS）控制器**：用于在观察到工作负载激增或原始任务性能下降时终止这些最佳努力任务。'
 - en: While the basic default estimators and controllers are provided, Mesos provides
     users with the ability to create their own custom ones.
+  id: totrans-153
   prefs: []
   type: TYPE_NORMAL
+  zh: 虽然提供了基本的默认估算器和控制器，但 Mesos 允许用户创建自定义的估算器和控制器。
 - en: 'In addition, the existing resource allocator, resource monitor, and Mesos slave
     are also extended with new flags and options. The following diagram illustrates
     how the oversubscription concept works (source: [http://mesos.apache.org/documentation/latest/oversubscription/](http://mesos.apache.org/documentation/latest/oversubscription/)):'
+  id: totrans-154
   prefs: []
   type: TYPE_NORMAL
+  zh: 此外，现有的资源分配器、资源监控器和 Mesos 工作节点也通过新标志和选项进行了扩展。下图说明了超额订阅概念的工作原理（来源：[http://mesos.apache.org/documentation/latest/oversubscription/](http://mesos.apache.org/documentation/latest/oversubscription/)）：
 - en: '![Oversubscription](img/B05186_02_05.jpg)'
+  id: totrans-155
   prefs: []
   type: TYPE_IMG
+  zh: '![超额订阅](img/B05186_02_05.jpg)'
 - en: Revocable resource offers
+  id: totrans-156
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
+  zh: 可撤销资源报价
 - en: 'The following steps are followed:'
+  id: totrans-157
   prefs: []
   type: TYPE_NORMAL
+  zh: 以下步骤按顺序执行：
 - en: The primary step involves collecting the usage statistics and estimating the
     number of resources that are oversubscribed and available for use by low-priority
     jobs. The resource monitor sends these statistics by passing `ResourceStatistics`
     messages to something known as the resource estimator.
+  id: totrans-158
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 主要步骤包括收集使用统计数据并估算超额订阅的资源数量，这些资源可供低优先级任务使用。资源监控器通过传递 `ResourceStatistics` 消息将这些统计数据发送给被称为资源估算器的模块。
 - en: The estimator identifies the quantity of resources that are oversubscribed by
     leveraging algorithms that calculate these buffer amounts. Mesos provides the
     ability to develop custom resource estimators based on user-specified logic.
+  id: totrans-159
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 估算器通过利用计算缓冲区量的算法来识别资源的超额订阅情况。Mesos 提供了基于用户指定逻辑开发自定义资源估算器的能力。
 - en: Each slave polls the resource estimator to get the most recent estimates.
+  id: totrans-160
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 每个工作节点都会轮询资源估算器以获取最新的估算数据。
 - en: The slave, then, periodically (whenever the estimate values change) transmits
     this information to the allocator module in the master.
+  id: totrans-161
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 然后，工作节点会定期（每当估算值发生变化时）将此信息传输给主节点的分配器模块。
 - en: The allocator marks these oversubscribed resources as "revocable" resources
     and monitors these separately.
+  id: totrans-162
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 分配器将这些超额订阅的资源标记为“可撤销”资源，并单独监控这些资源。
 - en: Frameworks that register with the `REVOCABLE_RESOURCES` set in the `FrameworkInfo`
     method receive offers of these revocable resources and can schedule tasks on them
     using the `launchTasks()` API. Note that these cannot be dynamically reserved.
+  id: totrans-163
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 在 `FrameworkInfo` 方法中注册了 `REVOCABLE_RESOURCES` 的框架会接收到这些可撤销资源的报价，并可以使用 `launchTasks()`
+    API 在这些资源上调度任务。请注意，这些资源不能动态保留。
 - en: Registering with the revocable resources capability
+  id: totrans-164
   prefs:
   - PREF_H4
   type: TYPE_NORMAL
+  zh: 注册可撤销资源能力
 - en: 'Run the following code:'
+  id: totrans-165
   prefs: []
   type: TYPE_NORMAL
+  zh: 运行以下代码：
 - en: '[PRE18]'
+  id: totrans-166
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE18]'
 - en: An example offer with a mix of revocable and standard resources
+  id: totrans-167
   prefs:
   - PREF_H4
   type: TYPE_NORMAL
+  zh: 一个包含可撤销和标准资源的示例报价
 - en: 'Take a look at the following code:'
+  id: totrans-168
   prefs: []
   type: TYPE_NORMAL
+  zh: 请看下面的代码：
 - en: '[PRE19]'
+  id: totrans-169
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE19]'
 - en: The task is launched on the slave when the `runTask` request is received by
     it. A container with even a single revocable resource can be terminated by the
     QoS controller as it is considered a revocable container.
+  id: totrans-170
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 当收到 `runTask` 请求时，任务将在工作节点上启动。即使是包含单个可撤销资源的容器也可以被 QoS 控制器终止，因为它被视为可撤销容器。
 - en: The original task is also monitored continuously, and the revocable resources
     are returned to it if any performance deterioration or workload spike is observed.
     This is known as interference detection.
+  id: totrans-171
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 原始任务也会持续监控，如果观察到性能下降或工作负载激增，任何可撤销的资源将被归还给它。这被称为干扰检测。
 - en: Currently, the Mesos resource estimator is pretty basic with two default estimators
     called the **fixed** and **noop** resource estimators. In the first one, a fixed
     set of resources can be tagged as oversubscribed, while the latter provides a
     null estimate upon being polled by the slave, effectively saying that no resources
     are available for oversubscription.
+  id: totrans-172
   prefs: []
   type: TYPE_NORMAL
+  zh: 目前，Mesos资源估算器相当基础，提供两种默认估算器，分别是**固定**和**noop**资源估算器。在第一个估算器中，一组固定资源可以标记为过度订阅，而后者在slave节点被查询时提供空估算值，实际上意味着没有可用资源用于过度订阅。
 - en: Active work is being done on introducing sophisticated and dynamic oversubscribed
     resource estimation models (a module called **Project Serenity** by Mesosphere
     and Intel, for instance) to maximize resource utilization while ensuring no impact
     on Quality of Service at the same time.
+  id: totrans-173
   prefs: []
   type: TYPE_NORMAL
+  zh: 正在积极研究引入复杂和动态的过度订阅资源估算模型（例如Mesosphere和Intel的一个模块，称为**Project Serenity**），旨在最大化资源利用率，同时确保不会影响服务质量。
 - en: Resource estimator
+  id: totrans-174
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
+  zh: 资源估算器
 - en: 'Run the following code:'
+  id: totrans-175
   prefs: []
   type: TYPE_NORMAL
+  zh: 运行以下代码：
 - en: '[PRE20]'
+  id: totrans-176
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE20]'
 - en: The QoS controller
+  id: totrans-177
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
+  zh: QoS控制器
 - en: 'Execute the following code:'
+  id: totrans-178
   prefs: []
   type: TYPE_NORMAL
+  zh: 执行以下代码：
 - en: '[PRE21]'
+  id: totrans-179
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE21]'
 - en: Configuring oversubscription
+  id: totrans-180
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
+  zh: 配置过度订阅
 - en: 'The slave now has four new oversubscription-related flags available, as shown
     in the following table:'
+  id: totrans-181
   prefs: []
   type: TYPE_NORMAL
+  zh: 现在，slave节点有四个新的与过度订阅相关的标志可用，如下表所示：
 - en: '| Flag | Explanation |'
+  id: totrans-182
   prefs: []
   type: TYPE_TB
+  zh: '| 标志 | 说明 |'
 - en: '| --- | --- |'
+  id: totrans-183
   prefs: []
   type: TYPE_TB
+  zh: '| --- | --- |'
 - en: '| `--oversubscribed_resources_interval=VALUE` | The slave periodically transmits
     oversubscribed resource estimates to the master. The interval of these updates
     can be specified via this flag (default: 15 seconds) |'
+  id: totrans-184
   prefs: []
   type: TYPE_TB
+  zh: '| `--oversubscribed_resources_interval=VALUE` | slave节点定期将过度订阅的资源估算值发送给master。可以通过此标志指定这些更新的间隔（默认：15秒）
+    |'
 - en: '| `--qos_controller=VALUE` | This is the QoS controller name that needs to
     be used |'
+  id: totrans-185
   prefs: []
   type: TYPE_TB
+  zh: '| `--qos_controller=VALUE` | 这是需要使用的QoS控制器名称 |'
 - en: '| `--qos_correction_interval_min=VALUE` | The slave polls and carries out QoS
     corrections, which are performed by the slave from the controller-based on the
     performance degradation/deterioration levels of the original tasks. This flag
     controls the interval of these corrections (default: 0 ns) |'
+  id: totrans-186
   prefs: []
   type: TYPE_TB
+  zh: '| `--qos_correction_interval_min=VALUE` | slave节点会轮询并执行QoS修正，由slave从控制器根据原始任务的性能下降/恶化水平执行。这一标志控制这些修正的间隔（默认：0纳秒）
+    |'
 - en: '| `--resource_estimator=VALUE` | This is the resource estimator name that needs
     to be used for the determination of oversubscribed resources |'
+  id: totrans-187
   prefs: []
   type: TYPE_TB
+  zh: '| `--resource_estimator=VALUE` | 这是用于确定过度订阅资源的资源估算器名称 |'
 - en: Extendibility
+  id: totrans-188
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 可扩展性
 - en: Different organizations have different requirements. Also, within the same organization,
     different users run clusters in different ways with different scale and latency
     requirements. Users need to deal with application-specific behavior, ensuring
@@ -888,27 +1279,39 @@
     It required a feature that could keep the Mesos core small and lightweight while
     making it powerful enough to allow as much customization/extendibility as required
     at the same time.
+  id: totrans-189
   prefs: []
   type: TYPE_NORMAL
+  zh: 不同的组织有不同的需求。此外，在同一个组织内部，不同的用户以不同的方式运行集群，具有不同的规模和延迟要求。用户需要处理特定应用程序的行为，确保符合行业特定的安全合规性等等。这一切意味着，如果Mesos要实现作为整个数据中心操作系统服务于所有组织的目标，它需要具备极强的可定制性和可扩展性。它需要一个功能，能够保持Mesos核心小巧而轻量，同时又足够强大，以允许根据需要进行尽可能多的定制/扩展。
 - en: 'A number of software systems, such as browsers, support libraries to:'
+  id: totrans-190
   prefs: []
   type: TYPE_NORMAL
+  zh: 许多软件系统，如浏览器，支持库以：
 - en: Extend feature support
+  id: totrans-191
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 扩展功能支持
 - en: Abstract complexity
+  id: totrans-192
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 抽象复杂性
 - en: Make development configuration-driven
+  id: totrans-193
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 使开发配置驱动
 - en: Mesos modules
+  id: totrans-194
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: Mesos模块
 - en: Mesos modules, introduced in v0.21.0, build on this concept to allow users to
     extend the functionality of Mesos through libraries that can be created as well
     as shared without continuous recompilation. A module in the context of Mesos is
@@ -920,24 +1323,34 @@
     customized functionalities can be implemented. Different subsystems, such as load
     balancers, isolation mechanisms, and service discovery mechanisms can also be
     configured in a modular way.
+  id: totrans-195
   prefs: []
   type: TYPE_NORMAL
+  zh: Mesos模块在v0.21.0中引入，基于这一概念，允许用户通过库扩展Mesos的功能，这些库可以创建并共享，而无需不断重新编译。在Mesos的上下文中，模块是一个完整的组件，任何用户都可以添加或替换。所有外部依赖项都被视为单独的库，可以按需加载。现在，所有用户都可以在Mesos之上开发他们的实验功能，而无需了解所有详细的内部工作或影响其他用户。可以实现自定义分配逻辑、自定义超额资源估算算法等各种用例特定的定制功能。不同的子系统，如负载均衡器、隔离机制和服务发现机制，也可以以模块化的方式配置。
 - en: Module invocation
+  id: totrans-196
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 模块调用
 - en: The `--modules` cli flag is available for the master and slave to provide a
     module list that needs to be made available.
+  id: totrans-197
   prefs: []
   type: TYPE_NORMAL
+  zh: '`--modules` CLI标志可用于主从节点，提供需要使用的模块列表。'
 - en: The module list can be provided through a file with a JSON-formatted string
     using `--modules=filepath`. The `filepath` can be of the `/path/to/file` or `file:///path/to/file`
     type.
+  id: totrans-198
   prefs: []
   type: TYPE_NORMAL
+  zh: 模块列表可以通过带有 JSON 格式字符串的文件来提供，使用`--modules=filepath`。`filepath`可以是`/path/to/file`或`file:///path/to/file`类型。
 - en: To provide a module list inline, use `--modules="{...}"`.
+  id: totrans-199
   prefs: []
   type: TYPE_NORMAL
+  zh: 若要内联提供模块列表，请使用`--modules="{...}"`。
 - en: There are two parameters, `name` and `file`; one of these must be provided for
     every library. The `file` parameter can be an absolute path (for example, `/User/mesos/lib/example.so`),
     a filename (for example, `example.so`) or a relative path (for example, `lib/example.so`).
@@ -946,100 +1359,145 @@
     OS automatically (for example, `example` gets expanded to `example.so` on Linux
     and `example.dylib` on OS X). If both the parameters are provided, then the `name`
     parameter is ignored.
+  id: totrans-200
   prefs: []
   type: TYPE_NORMAL
+  zh: 有两个参数，`name`和`file`；每个库必须提供其中之一。`file`参数可以是绝对路径（例如，`/User/mesos/lib/example.so`）、文件名（例如，`example.so`）或相对路径（例如，`lib/example.so`）。`name`参数是库的名称（例如，`example`）。如果提供了该参数，Mesos会自动将其扩展为适合当前操作系统的库名称（例如，Linux上将`example`扩展为`example.so`，在OS
+    X上扩展为`example.dylib`）。如果同时提供了两个参数，则忽略`name`参数。
 - en: 'An example JSON string is given below:'
+  id: totrans-201
   prefs: []
   type: TYPE_NORMAL
+  zh: 下面给出了一个 JSON 字符串示例：
 - en: 'Load a library `example.so` with two modules `org_apache_mesos_X` and `org_apache_mesos_Y`
     as follows:'
+  id: totrans-202
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 通过以下方式加载库`example.so`，包括两个模块`org_apache_mesos_X`和`org_apache_mesos_Y`：
 - en: '[PRE22]'
+  id: totrans-203
   prefs:
   - PREF_IND
   type: TYPE_PRE
+  zh: '[PRE22]'
 - en: 'From the library example, load the `org_apache_mesos_X` module and pass argument
     A with value B (load the other module `org_apache_mesos_Y` without any parameters)
     via the following code:'
+  id: totrans-204
   prefs:
   - PREF_IND
   type: TYPE_NORMAL
+  zh: 从库示例中，加载`org_apache_mesos_X`模块并传递参数A，值为B（加载另一个模块`org_apache_mesos_Y`，没有任何参数）通过以下代码：
 - en: '[PRE23]'
+  id: totrans-205
   prefs:
   - PREF_IND
   type: TYPE_PRE
+  zh: '[PRE23]'
 - en: 'To specify modules inline, use the following code:'
+  id: totrans-206
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 要内联指定模块，请使用以下代码：
 - en: '[PRE24]'
+  id: totrans-207
   prefs:
   - PREF_IND
   type: TYPE_PRE
+  zh: '[PRE24]'
 - en: 'An example `Hello World` module implementation is provided here: [http://mesos.apache.org/documentation/latest/modules/](http://mesos.apache.org/documentation/latest/modules/).'
+  id: totrans-208
   prefs: []
   type: TYPE_NORMAL
+  zh: 这里提供了一个`Hello World`模块实现示例：[http://mesos.apache.org/documentation/latest/modules/](http://mesos.apache.org/documentation/latest/modules/)。
 - en: Building a module
+  id: totrans-209
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
+  zh: 构建模块
 - en: 'The following command assumes that Mesos is installed in the standard location—that
     is, the Mesos dynamic library and header files are available:'
+  id: totrans-210
   prefs: []
   type: TYPE_NORMAL
+  zh: 以下命令假设Mesos已安装在标准位置——即，Mesos动态库和头文件是可用的：
 - en: '[PRE25]'
+  id: totrans-211
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE25]'
 - en: Hooks
+  id: totrans-212
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 钩子
 - en: Mesos provides another way to extend its capabilities that doesn't involve having
     to create an entire component from the ground up through something called **hooks**.
     Hooks do not interfere with processing of a request; instead, they allow users
     to add features as part of Mesos' life cycle. Some hooks can change the contents
     of an object while it is in motion. These are called **decorators**.
+  id: totrans-213
   prefs: []
   type: TYPE_NORMAL
+  zh: Mesos提供了另一种扩展其功能的方式，这种方式无需从零开始创建整个组件，称为**钩子**。钩子不会干扰请求的处理；相反，它们允许用户在Mesos生命周期中添加功能。一些钩子可以在对象移动过程中更改其内容，这些被称为**装饰器**。
 - en: The currently supported modules
+  id: totrans-214
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 当前支持的模块
 - en: 'The following are the currently supported modules on Mesos:'
+  id: totrans-215
   prefs: []
   type: TYPE_NORMAL
+  zh: 以下是目前在 Mesos 上支持的模块：
 - en: '**Allocator**: This is described in more detail in the subsequent section.'
+  id: totrans-216
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '**分配器**：在后续章节中将对此进行更详细的描述。'
 - en: '**Authenticator**: This module allows users to create and integrate new custom
     authentication methods.'
+  id: totrans-217
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '**认证器**：该模块允许用户创建和集成新的自定义认证方法。'
 - en: '**Isolator**: Through this interface, users can develop bespoke isolators that
     address a variety of use cases, such as networking (for example, Project Calico).'
+  id: totrans-218
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '**隔离器**：通过此接口，用户可以开发定制的隔离器，解决各种用例问题，例如网络隔离（例如，Project Calico）。'
 - en: '**QoS controller**: Using this, a sophisticated logic for revoking best effort
     tasks launched on oversubscribed resources can be implemented.'
+  id: totrans-219
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '**QoS 控制器**：通过此模块，可以实现用于撤销在超额订阅资源上启动的最佳努力任务的复杂逻辑。'
 - en: '**Resource estimator**: This allows third party developers to experiment with
     their own revocable resource estimation algorithms for maximizing cluster utilization.
     Efforts such as Project Serenity are leveraging this module to try and come up
     with a production quality dynamic resource estimation logic.'
+  id: totrans-220
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '**资源估算器**：该模块允许第三方开发者尝试自己的可撤销资源估算算法，以最大化集群利用率。像 Project Serenity 这样的努力正在利用此模块，尝试提出一个生产级的动态资源估算逻辑。'
 - en: The allocator module
+  id: totrans-221
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
+  zh: 分配器模块
 - en: The Mesos resource allocation module contains the policy that the Mesos master
     uses to determine the type and quantity of resource offers that need to be made
     to each framework. Organizations can customize it to implement their own allocation
@@ -1047,216 +1505,320 @@
     resource sharing. Custom allocation modules can be developed to address specific
     needs. An example is the oversubscription module, which allows revocable resources
     to be offered, something not supported by the default DRF allocator.
+  id: totrans-222
   prefs: []
   type: TYPE_NORMAL
+  zh: Mesos 资源分配模块包含 Mesos 主节点用来确定需要向每个框架提供哪种类型和数量的资源报价的策略。组织可以定制此模块以实现自己的分配策略——例如，公平共享、优先级等——从而实现精细化的资源共享。可以开发自定义分配模块来应对特定的需求。例如，超额订阅模块允许提供可撤销资源，这是默认的
+    DRF 分配器不支持的功能。
 - en: 'The following steps are required to load a custom allocation module in the
     master:'
+  id: totrans-223
   prefs: []
   type: TYPE_NORMAL
+  zh: 以下步骤是将自定义分配模块加载到主节点所需的：
 - en: List it in the `--modules` configuration
+  id: totrans-224
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 在 `--modules` 配置中列出它
 - en: Select it using the `--allocator` flag
+  id: totrans-225
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 使用 `--allocator` 标志选择它
 - en: 'For example, to run the master with a custom allocator called `ExternalAllocatorModule`,
     the following command needs to be run:'
+  id: totrans-226
   prefs: []
   type: TYPE_NORMAL
+  zh: 例如，要运行一个名为 `ExternalAllocatorModule` 的自定义分配器，可以运行以下命令：
 - en: '[PRE26]'
+  id: totrans-227
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE26]'
 - en: Now, we shall take a look at how to implement a custom allocator and package
     it as a module to load into the master as shown previously.
+  id: totrans-228
   prefs: []
   type: TYPE_NORMAL
+  zh: 现在，我们将看看如何实现一个自定义分配器，并将其打包为模块，以便像之前所示那样加载到主节点中。
 - en: Implementing a custom allocator module
+  id: totrans-229
   prefs:
   - PREF_H4
   type: TYPE_NORMAL
+  zh: 实现自定义分配器模块
 - en: 'Allocator modules are implemented in C++ and need to implement the interface
     defined in `mesos/master/allocator.hpp` (the methods are listed in the following
     table). They can also be developed using other languages via a C++ proxy that
     redirects calls to the implementation defined in this other language:'
+  id: totrans-230
   prefs: []
   type: TYPE_NORMAL
+  zh: 分配器模块是用 C++ 实现的，需要实现 `mesos/master/allocator.hpp` 中定义的接口（方法列在下面的表格中）。它们也可以通过
+    C++ 代理开发，代理将调用重定向到由其他语言实现的逻辑：
 - en: '| Method | Description |'
+  id: totrans-231
   prefs: []
   type: TYPE_TB
+  zh: '| 方法 | 描述 |'
 - en: '| --- | --- |'
+  id: totrans-232
   prefs: []
   type: TYPE_TB
+  zh: '| --- | --- |'
 - en: '| `initialize(flags, offerCallback, roles)` | Allocator initialization |'
+  id: totrans-233
   prefs: []
   type: TYPE_TB
+  zh: '| `initialize(flags, offerCallback, roles)` | 分配器初始化 |'
 - en: '| `addFramework(frameworkId, frameworkInfo, usedResources)``removeFramework(frameworkId,
     frameworkInfo, usedResources)` | Framework addition/removal |'
+  id: totrans-234
   prefs: []
   type: TYPE_TB
+  zh: '| `addFramework(frameworkId, frameworkInfo, usedResources)``removeFramework(frameworkId,
+    frameworkInfo, usedResources)` | 框架添加/移除 |'
 - en: '| `activateFramework(frameworkId)``deactivateFramework(frameworkId)` | Framework
     activation/deactivation |'
+  id: totrans-235
   prefs: []
   type: TYPE_TB
+  zh: '| `activateFramework(frameworkId)``deactivateFramework(frameworkId)` | 框架启用/停用
+    |'
 - en: '| `addSlave(slaveId, slaveInfo, totalResources, usedResources)``removeSlave(slaveId,
     slaveInfo, totalResources, usedResources)` | Slave addition/removal |'
+  id: totrans-236
   prefs: []
   type: TYPE_TB
+  zh: '| `addSlave(slaveId, slaveInfo, totalResources, usedResources)``removeSlave(slaveId,
+    slaveInfo, totalResources, usedResources)` | 从属机添加/移除 |'
 - en: '| `activateSlave(slaveId)``deactivateSlave(slaveId)` | Slave activation/deactivation
     |'
+  id: totrans-237
   prefs: []
   type: TYPE_TB
+  zh: '| `activateSlave(slaveId)``deactivateSlave(slaveId)` | 从属机启用/停用 |'
 - en: '| `requestResources(frameworkId, requests)` | Resource request callback |'
+  id: totrans-238
   prefs: []
   type: TYPE_TB
+  zh: '| `requestResources(frameworkId, requests)` | 资源请求回调 |'
 - en: '| `updateAllocation(frameworkId, slaveId, operations)` | Resource allocation
     update |'
+  id: totrans-239
   prefs: []
   type: TYPE_TB
+  zh: '| `updateAllocation(frameworkId, slaveId, operations)` | 资源分配更新 |'
 - en: '| `recoverResources(frameworkId, slaveId, resources, filters)` | Resource recovery
     callback |'
+  id: totrans-240
   prefs: []
   type: TYPE_TB
+  zh: '| `recoverResources(frameworkId, slaveId, resources, filters)` | 资源回收回调 |'
 - en: '| `reviveOffers(frameworkId)` | Offer revival callback |'
+  id: totrans-241
   prefs: []
   type: TYPE_TB
+  zh: '| `reviveOffers(frameworkId)` | 提供复活回调 |'
 - en: '| `updateWhitelist(whitelist)` | Slave whitelist updating |'
+  id: totrans-242
   prefs: []
   type: TYPE_TB
+  zh: '| `updateWhitelist(whitelist)` | 更新从节点白名单 |'
 - en: 'The default hierarchical DRF allocator has a nonblocking actor-based implementation.
     This can be utilized in the custom allocator by extending the `MesosAllocatorProcess`
     class defined in `src/master/allocator/mesos/allocator.hpp`. Using the *Sorter*
     abstraction, the default allocator can be extended, preventing the need to build
     a new one from the ground up. The sorter API is defined in `src/master/allocator/sorter/sorter.hpp`,
     and some of its methods are listed in the following table:'
+  id: totrans-243
   prefs: []
   type: TYPE_NORMAL
+  zh: 默认的分层DRF分配器采用非阻塞的基于演员的实现。通过扩展`src/master/allocator/mesos/allocator.hpp`中定义的`MesosAllocatorProcess`类，可以在自定义分配器中利用此实现。通过使用*排序器*抽象，默认分配器可以进行扩展，从而避免了从头构建一个新的分配器。排序器API定义在`src/master/allocator/sorter/sorter.hpp`中，以下表列出了其中的一些方法：
 - en: '| Method | Description |'
+  id: totrans-244
   prefs: []
   type: TYPE_TB
+  zh: '| 方法 | 描述 |'
 - en: '| --- | --- |'
+  id: totrans-245
   prefs: []
   type: TYPE_TB
+  zh: '| --- | --- |'
 - en: '| `void add(client, weight=1)``void remove(client)` | This adds/removes client
     from the allocation process |'
+  id: totrans-246
   prefs: []
   type: TYPE_TB
+  zh: '| `void add(client, weight=1)``void remove(client)` | 该方法用于将客户端添加/移除分配过程 |'
 - en: '| `void deactivate(client)``void activate(client)` | This activates/deactivates
     the client |'
+  id: totrans-247
   prefs: []
   type: TYPE_TB
+  zh: '| `void deactivate(client)``void activate(client)` | 这用于激活/停用客户端 |'
 - en: '| `void add(slaveId, resources)``void remove(slaveId, resources)``void update(slaveId,
     resources)` | This adds/removes/updates the resource quantities to be allocated
     |'
+  id: totrans-248
   prefs: []
   type: TYPE_TB
+  zh: '| `void add(slaveId, resources)``void remove(slaveId, resources)``void update(slaveId,
+    resources)` | 该方法用于添加/移除/更新分配的资源数量 |'
 - en: '| `List<string> sort()` | This returns the list of clients sorted based on
     a specified policy stating how they should receive resources |'
+  id: totrans-249
   prefs: []
   type: TYPE_TB
+  zh: '| `List<string> sort()` | 该方法返回一个按指定策略排序的客户端列表，指明如何分配资源 |'
 - en: '| `void allocated(client, slaveId, resources)``void update(client, slaveId,
     oldResources, newResources)``void unallocated(client, slaveId, resources)` | This
     decides the allocation/updating/deallocation of resources to the specified client
     |'
+  id: totrans-250
   prefs: []
   type: TYPE_TB
+  zh: '| `void allocated(client, slaveId, resources)``void update(client, slaveId,
+    oldResources, newResources)``void unallocated(client, slaveId, resources)` | 该方法决定将资源分配/更新/取消分配给指定客户端
+    |'
 - en: '| `Map<SlaveId, Resources> allocation(client)` | This returns the allocated
     resource to the specified client |'
+  id: totrans-251
   prefs: []
   type: TYPE_TB
+  zh: '| `Map<SlaveId, Resources> allocation(client)` | 该方法返回分配给指定客户端的资源 |'
 - en: '| `bool contains(client)` | This is true if a sorter contains a specified client
     and is false otherwise |'
+  id: totrans-252
   prefs: []
   type: TYPE_TB
+  zh: '| `bool contains(client)` | 如果排序器包含指定的客户端，则返回true，否则返回false |'
 - en: '| `int count()` | This returns the client count |'
+  id: totrans-253
   prefs: []
   type: TYPE_TB
+  zh: '| `int count()` | 该方法返回客户端数量 |'
 - en: Once developed, the customized allocator needs to be set up as the allocator
     to be used for resource allocation instead of the default one. This involves wrapping
     the custom allocator in an allocator module and then loading it in the master.
+  id: totrans-254
   prefs: []
   type: TYPE_NORMAL
+  zh: 一旦开发完成，自定义分配器需要设置为资源分配时使用的分配器，而不是默认的分配器。这涉及将自定义分配器封装在一个分配器模块中，并将其加载到主节点中。
 - en: 'The process to wrap a custom allocator (as implemented in `external_allocator.hpp`)
     into a module called `ExternalAllocatorModule` is described in detail here: [http://mesos.apache.org/documentation/latest/allocation-module/](http://mesos.apache.org/documentation/latest/allocation-module/).'
+  id: totrans-255
   prefs: []
   type: TYPE_NORMAL
+  zh: 将自定义分配器（如在`external_allocator.hpp`中实现）封装为一个名为`ExternalAllocatorModule`的模块的过程在此处详细描述：[http://mesos.apache.org/documentation/latest/allocation-module/](http://mesos.apache.org/documentation/latest/allocation-module/)。
 - en: High availability and fault tolerance
+  id: totrans-256
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 高可用性与容错性
 - en: High availability, in simple terms, means achieving very close to 100% system
     uptime by ensuring that there is no single point of failure. This is typically
     done by incorporating redundancy mechanisms, such as backup processes taking over
     instantly from the failed ones and so on.
+  id: totrans-257
   prefs: []
   type: TYPE_NORMAL
+  zh: 高可用性，简单来说，就是通过确保没有单点故障来实现接近100%的系统正常运行时间。这通常是通过引入冗余机制来实现的，例如备用进程可以在失败后立即接管等。
 - en: Mastering high availability
+  id: totrans-258
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 精通高可用性
 - en: In Mesos, this is achieved using Apache ZooKeeper, a centralized coordination
     service. Multiple masters are set up (one active leader and other backups), with
     ZooKeeper coordinating the leader election and handling lead master detection
     by other Mesos components such as slaves and frameworks.
+  id: totrans-259
   prefs: []
   type: TYPE_NORMAL
+  zh: 在Mesos中，这是通过使用Apache ZooKeeper（一种集中式协调服务）来实现的。设置多个主节点（一个活跃的领导者和其他备份节点），ZooKeeper负责协调领导者选举，并通过其他Mesos组件，如从节点和框架，来处理主节点的检测。
 - en: A minimum of three master nodes are required to maintain a quorum for a high
     availability setting. The recommendation for production systems is however, at
     least five. The leader election process is described in detail at [http://zookeeper.apache.org/doc/trunk/recipes.html#sc_leaderElection](http://zookeeper.apache.org/doc/trunk/recipes.html#sc_leaderElection).
+  id: totrans-260
   prefs: []
   type: TYPE_NORMAL
+  zh: 为了维持高可用性设置，至少需要三个主节点以保证法定人数。然而，对于生产系统，建议至少使用五个主节点。领导者选举过程的详细描述请参见[http://zookeeper.apache.org/doc/trunk/recipes.html#sc_leaderElection](http://zookeeper.apache.org/doc/trunk/recipes.html#sc_leaderElection)。
 - en: The state of a failed master can be recreated on whichever master gets elected
     next by leveraging the information stored with the slaves and framework schedulers.
     Upon the election of the new master, other components are apprised of this development
     by ZooKeeper, allowing them to now register with this new master and pass along
     status update messages to it. Based on this data, the newly elected master is
     able to regenerate the state of the failed master.
+  id: totrans-261
   prefs: []
   type: TYPE_NORMAL
+  zh: 失败的主节点状态可以通过利用存储在从节点和框架调度器中的信息，在下一个被选举的主节点上重建。在新主节点选举后，其他组件会通过 ZooKeeper 被通知此变动，使它们能够注册到新主节点并向其传递状态更新信息。根据这些数据，新的主节点能够重建失败的主节点状态。
 - en: Framework scheduler fault tolerance
+  id: totrans-262
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 框架调度器容错
 - en: This is achieved through the registration of multiple schedulers of each framework
     with the current leading master. In the event of a scheduler failure, the secondary
     scheduler is asked by the master to take charge. However, the state-sharing implementation
     between multiple schedulers of each framework needs to be handled by the respective
     frameworks themselves.
+  id: totrans-263
   prefs: []
   type: TYPE_NORMAL
+  zh: 这是通过将每个框架的多个调度器注册到当前主节点来实现的。如果调度器发生故障，主节点会要求次级调度器接管。然而，每个框架的多个调度器之间的状态共享实现需要由各自的框架来处理。
 - en: Slave fault tolerance
+  id: totrans-264
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 从节点容错
 - en: Mesos has a slave recovery mechanism for fault tolerance, which is discussed
     at length in the subsequent section. The master monitors the status of all the
     slaves. The master removes a particular slave node and tries to terminate it if
     it doesn't respond to the heartbeats sent by it despite several communication
     attempts.
+  id: totrans-265
   prefs: []
   type: TYPE_NORMAL
+  zh: Mesos 提供了一种从节点恢复机制用于容错，这将在后续章节中详细讨论。主节点会监控所有从节点的状态。如果某个从节点没有响应主节点发送的心跳，即使经过多次通信尝试，主节点也会移除该从节点并尝试终止它。
 - en: Executor/task
+  id: totrans-266
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 执行器/任务
 - en: In case of task or executor failures, the master notifies the corresponding
     framework scheduler that launched the task. Based on the policies specified in
     the scheduler's logic, it will handle the execution of the failed task, generally
     by launching it on new slave nodes that match the resource requirement criteria.
+  id: totrans-267
   prefs: []
   type: TYPE_NORMAL
+  zh: 在任务或执行器失败的情况下，主节点会通知启动该任务的相应框架调度器。根据调度器逻辑中指定的策略，调度器将处理失败任务的执行，通常通过在满足资源要求的新的从节点上重新启动该任务。
 - en: Slave recovery
+  id: totrans-268
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 从节点恢复
 - en: Slave recovery is a fault tolerance mechanism introduced in v0.14.0 through
     which tasks can continue to run even if a slave process goes down and also enable
     slave process to reestablish a connection with the tasks that are running on this
     slave upon restart. The slave process may go down and need to be restarted during
     either planned upgrades or following unexpected crashes.
+  id: totrans-269
   prefs: []
   type: TYPE_NORMAL
+  zh: 从 v0.14.0 版本开始引入了“从节点恢复”容错机制，通过该机制，即使从节点进程宕机，任务也能继续运行，并且在从节点重新启动后，可以重新与正在运行的任务建立连接。无论是计划中的升级还是突发的崩溃，都可能导致从节点进程宕机并需要重启。
 - en: To achieve this, the slaves save information about the tasks being currently
     executed to the local disk (also known as **checkpointing**). The data that they
     write out includes task, executor, and status information. To enable this feature,
@@ -1267,145 +1829,202 @@
     and executors wait for it to restart and reconnect. As checkpointing involves
     multiple writes to the local disk, the need for high availability needs to be
     weighed against the latency overheads caused by these frequent writes.
+  id: totrans-270
   prefs: []
   type: TYPE_NORMAL
+  zh: 为了实现这一点，从节点将当前正在执行的任务信息保存到本地磁盘（也称为**检查点**）。它们写入的数据包括任务、执行器和状态信息。要启用此功能，从节点及其所在的框架需要进行适当配置。如果启用检查点功能，那么从节点在故障事件发生后重新启动并能够从最近的检查点恢复数据，重新与执行器建立连接，并继续执行任务。当从节点宕机时，主节点和执行器会等待它重新启动并重新连接。由于检查点涉及多次写入本地磁盘，需要在高可用性和这些频繁写入带来的延迟开销之间做出权衡。
 - en: In addition, improvements have also been made to the executor driver, making
     it more robust and tolerant of failure events. For instance, the driver caches
     updates passed to it by the executor during the time a slave is down and resends
     them to the slave once it reestablishes connection with the executor. This ensures
     that the executors can continue running the tasks and transmitting messages while
     not being concerned about the slave process.
+  id: totrans-271
   prefs: []
   type: TYPE_NORMAL
+  zh: 此外，执行器驱动程序也进行了改进，使其在面临故障事件时更加健壮和容错。例如，在从节点宕机期间，驱动程序会缓存执行器传递给它的更新，并在从节点重新与执行器建立连接后重新发送这些更新。这确保了执行器能够继续运行任务并传输消息，同时不必担心从节点进程。
 - en: Checkpointing also improves reliability by ensuring that messages regarding
     task updates are passed on to the frameworks even if failures occur. For instance,
     if a slave and master failed at the same time, frameworks would not receive the
     required `TASK_LOST` status update message. Through checkpointing, a slave can
     now recover information about the tasks from the last checkpointed state and can
     send the required messages to the framework upon reconnection.
+  id: totrans-272
   prefs: []
   type: TYPE_NORMAL
+  zh: 检查点机制通过确保任务更新消息能够传递给框架，即使发生故障，也能提高系统的可靠性。例如，如果一个从节点和主节点同时发生故障，框架将无法收到所需的`TASK_LOST`状态更新消息。通过检查点机制，从节点现在可以从最后的检查点状态恢复任务信息，并在重新连接后向框架发送所需的消息。
 - en: Slave recoverability is important for various reasons, such as ensuring that
     stateful processes or long-running tasks can restart from the last recorded state,
     performing seamless cluster upgrades, and reducing maintenance and management
     overheads.
+  id: totrans-273
   prefs: []
   type: TYPE_NORMAL
+  zh: 从节点的可恢复性非常重要，原因包括确保有状态进程或长期运行的任务能够从最后记录的状态重新启动，进行无缝的集群升级，以及减少维护和管理的开销。
 - en: Enabling slave checkpointing
+  id: totrans-274
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
+  zh: 启用从节点检查点功能
 - en: Slave checkpointing can be enabled in the following way.
+  id: totrans-275
   prefs: []
   type: TYPE_NORMAL
+  zh: 可以通过以下方式启用从节点检查点功能。
 - en: Note
+  id: totrans-276
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
+  zh: 注意
 - en: Note that slave checkpointing for all slaves is enabled by default since v0.22.0.
+  id: totrans-277
   prefs: []
   type: TYPE_NORMAL
+  zh: 注意，自v0.22.0版本起，所有从节点的检查点功能默认启用。
 - en: 'The relevant flags are as follows:'
+  id: totrans-278
   prefs: []
   type: TYPE_NORMAL
+  zh: 相关的标志如下：
 - en: '`checkpoint`: This allows users to specify whether a slave needs to checkpoint
     information to enable recovery [The default is `true`].'
+  id: totrans-279
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '`checkpoint`：此选项允许用户指定从节点是否需要执行检查点以支持恢复[默认值为`true`]。'
 - en: A restarted slave can recover updates and reestablish connection with (`--recover`=`reconnect`)
     or terminate (`--recover`=`cleanup`) executors.
+  id: totrans-280
   prefs:
   - PREF_IND
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 重启后的从节点可以恢复更新并重新建立与执行器的连接（`--recover`=`reconnect`）或终止连接（`--recover`=`cleanup`）。
 - en: Note
+  id: totrans-281
   prefs:
   - PREF_IND
   - PREF_H3
   type: TYPE_NORMAL
+  zh: 注意
 - en: Note that this flag will be removed starting v0.22.0 and enabled for all slaves.
+  id: totrans-282
   prefs:
   - PREF_IND
   type: TYPE_NORMAL
+  zh: 注意，从v0.22.0版本开始，该标志将被移除，并默认启用所有从节点的检查点功能。
 - en: '`strict`: This determines whether recovery should be carried out in strict
     mode or not [the default is `true`].'
+  id: totrans-283
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '`strict`：此选项决定是否在严格模式下执行恢复[默认值为`true`]。'
 - en: If `strict`=`true`, then all the errors related to recovery are treated as fatal.
+  id: totrans-284
   prefs:
   - PREF_IND
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 如果`strict`=`true`，则所有与恢复相关的错误都将被视为致命错误。
 - en: If `strict`=`false`, then the state is recovered on a best-effort basis in case
     of any errors related to recovery, such as data corruption and so on.
+  id: totrans-285
   prefs:
   - PREF_IND
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 如果`strict`=`false`，则在恢复过程中出现任何错误（如数据损坏等）时，状态恢复会尽力进行。
 - en: '`recover`: This determines whether a slave should reconnect with or terminate
     old executors [the default is `reconnect`].'
+  id: totrans-286
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '`recover`：这决定了从节点是否应重新连接旧的执行器或终止它们[默认值为`reconnect`]。'
 - en: If `recover`=`reconnect`, the slave can reestablish connection with the live
     executors.
+  id: totrans-287
   prefs:
   - PREF_IND
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 如果`recover`=`reconnect`，从节点可以重新建立与活动执行器的连接。
 - en: If `recover`=`cleanup`, the slave terminates the old executors. This option
     is typically used when performing incompatible upgrades.
+  id: totrans-288
   prefs:
   - PREF_IND
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 如果`recover`=`cleanup`，从节点将终止旧的执行器。此选项通常用于进行不兼容的升级。
 - en: Note
+  id: totrans-289
   prefs:
   - PREF_IND
   - PREF_H3
   type: TYPE_NORMAL
+  zh: 注意
 - en: Note that no recovery is performed if no checkpointed information is present.
     Upon restart, the slave gets registered as a new slave with the master.
+  id: totrans-290
   prefs:
   - PREF_IND
   type: TYPE_NORMAL
+  zh: 请注意，如果没有检查点信息，则不会执行恢复操作。重启时，从节点会作为新节点注册到主节点。
 - en: '`recovery_timeout`: This is the time within which the slave must recover [the
     default is `15 mins`].'
+  id: totrans-291
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '`recovery_timeout`：这是从节点必须在其中恢复的时间[默认为`15 分钟`]。'
 - en: If the slave doesn't recover within the `recovery_timeout` value specified,
     the master shuts the slave, which leads to all executors getting terminated as
     well.
+  id: totrans-292
   prefs:
   - PREF_IND
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 如果从节点在指定的`recovery_timeout`时间内未能恢复，主节点将关闭该从节点，从而导致所有执行器也被终止。
 - en: Note
+  id: totrans-293
   prefs:
   - PREF_IND
   - PREF_H3
   type: TYPE_NORMAL
+  zh: 注意
 - en: Note that this is only applicable and available when `--checkpoint` is enabled.
+  id: totrans-294
   prefs:
   - PREF_IND
   type: TYPE_NORMAL
+  zh: 请注意，只有在启用`--checkpoint`时，这种机制才适用和可用。
 - en: Enabling framework checkpointing
+  id: totrans-295
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
+  zh: 启用框架检查点
 - en: Frameworks can enable checkpointing by setting the value of the optional checkpointing
     field included in `FrameworkInfo` to true (`FrameworkInfo.checkpoint`=`True`)
     before registration. If this option is enabled, then only offers from checkpointed
     slaves will be received by such frameworks.
+  id: totrans-296
   prefs: []
   type: TYPE_NORMAL
+  zh: 框架可以通过在注册前将`FrameworkInfo`中包含的可选检查点字段的值设置为 true（`FrameworkInfo.checkpoint`=`True`）来启用检查点。如果启用了此选项，则只有来自检查点从节点的
+    offers 才会被该框架接收。
 - en: Reconciliation
+  id: totrans-297
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 对账
 - en: Mesos implements an actor-style message passing programming model to enable
     nonblocking communication between different Mesos components and leverages protocol
     buffers for the same. For example, a scheduler needs to tell the executor to utilize
@@ -1414,15 +2033,19 @@
     buffers provide the required flexible message delivery mechanism to enable this
     communication by allowing developers to define custom formats and protocols, which
     can be used across different languages.
+  id: totrans-298
   prefs: []
   type: TYPE_NORMAL
+  zh: Mesos 实现了一个基于演员模型的消息传递编程模型，以便在不同的 Mesos 组件之间实现非阻塞通信，并利用协议缓冲区来完成这一点。例如，调度器需要告诉执行器使用一定数量的资源，执行器需要向调度器提供有关正在执行任务的状态更新，等等。协议缓冲区提供了灵活的消息传递机制，使得通过定义自定义格式和协议，开发人员可以在不同语言间进行通信。
 - en: An at-most-once message delivery model is employed for this purpose except for
     certain messages, such as status updates, a lot of which follow the at-least-once
     delivery model by making use of acknowledgements. In case of failures, there is
     a high chance that messages between the master and slaves can get lost leading
     to state inconsistencies.
+  id: totrans-299
   prefs: []
   type: TYPE_NORMAL
+  zh: 为此目的，采用了最多一次的消息传递模型，但某些消息（例如状态更新）会采用至少一次的消息传递模型，通过使用确认机制来保证。在发生故障时，主节点和从节点之间的消息可能会丢失，从而导致状态不一致。
 - en: For instance, there are multiple scenarios in which a task can be lost whenever
     a framework issues a request to launch tasks. The master can fail after the request
     is sent by the framework but before it receives it, or it can fail after a message
@@ -1433,61 +2056,89 @@
     to make sure that the frameworks are aware of the failure events that might occur
     and when these get resolved. Moreover, it must ensure that the states of all components
     are in sync with each other once recovery occurs and maintain consistency.
+  id: totrans-300
   prefs: []
   type: TYPE_NORMAL
+  zh: 例如，在多个场景中，当框架发出启动任务的请求时，任务可能会丢失。主节点在框架发送请求后但在接收请求之前可能会失败，或者它可能在接收到消息后但在将其发送给从节点之前失败。框架可能在表达启动任务的愿望后，但在发送所需消息之前失败，依此类推。为了应对这些情况带来的不一致性，Mesos
+    需要与框架之间进行对账机制。Mesos 必须确保框架意识到可能发生的失败事件，并了解这些事件何时得到解决。此外，恢复发生后，Mesos 还必须确保所有组件的状态彼此同步并保持一致性。
 - en: Task reconciliation
+  id: totrans-301
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 任务对账
 - en: 'A framework needs to explicitly reconcile tasks after a failure as the scheduler
     doesn''t maintain task-related information. There are two kinds of reconciliations
     available in Mesos:'
+  id: totrans-302
   prefs: []
   type: TYPE_NORMAL
+  zh: 框架需要在任务失败后显式地进行对账，因为调度器不会维护与任务相关的信息。Mesos 中提供了两种对账方式：
 - en: The first is "Explicit" reconciliation, in which the scheduler sends details
     of the tasks for which it wants to know the state and the master sends back the
     state of each of these tasks
+  id: totrans-303
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 第一个是“显式”对账，其中调度器发送它希望了解状态的任务的详细信息，主节点返回这些任务的状态。
 - en: The second is "Implicit" reconciliation, in which the scheduler doesn't specify
     the tasks and just sends an empty list to the master for which the master returns
     the state of all the known tasks
+  id: totrans-304
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 第二个是“隐式”对账，其中调度器不指定任务，而是向主节点发送一个空列表，主节点返回所有已知任务的状态。
 - en: 'The way to implement this is as follows:'
+  id: totrans-305
   prefs: []
   type: TYPE_NORMAL
+  zh: 实现此功能的方法如下：
 - en: '[PRE27]'
+  id: totrans-306
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE27]'
 - en: The master inspects only the compulsory `TaskID` field and an optional `SlaveID`
     field.
+  id: totrans-307
   prefs: []
   type: TYPE_NORMAL
+  zh: 主节点仅检查必需的 `TaskID` 字段和可选的 `SlaveID` 字段。
 - en: Offer reconciliation
+  id: totrans-308
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 资源提供对账
 - en: Offers get automatically reconciled. They do not stay beyond the master's life
     and are no longer valid if a failure occurs. They are reissued every time the
     framework gets reregistered.
+  id: totrans-309
   prefs: []
   type: TYPE_NORMAL
+  zh: 资源提供会自动进行对账。它们不会超出主节点的生命周期，如果发生故障，则不再有效。每次框架重新注册时，资源提供会被重新发放。
 - en: For more information on reconciliation, refer to [http://mesos.apache.org/documentation/latest/reconciliation/](http://mesos.apache.org/documentation/latest/reconciliation/).
+  id: totrans-310
   prefs: []
   type: TYPE_NORMAL
+  zh: 有关对账的更多信息，请参见 [http://mesos.apache.org/documentation/latest/reconciliation/](http://mesos.apache.org/documentation/latest/reconciliation/)。
 - en: Persistent Volumes
+  id: totrans-311
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 持久化卷
 - en: Since v0.23.0, Mesos has introduced experimental support for a new feature called
     **Persistent Volumes**. One of the key challenges that Mesos faces is providing
     a reliable mechanism for stateful services such as databases to store data within
     Mesos instead of having to rely on external filesystems for the same.
+  id: totrans-312
   prefs: []
   type: TYPE_NORMAL
+  zh: 从 v0.23.0 版本开始，Mesos 引入了对一种名为 **持久化卷** 的新特性的实验性支持。Mesos 面临的一个关键挑战是为有状态服务（如数据库）提供一个可靠的机制，使其能够在
+    Mesos 内存储数据，而不是依赖外部文件系统。
 - en: For instance, if a database job is being run, then it is essential for the task
     to be scheduled on slave nodes that contain the data that it requires. Earlier,
     there was no way to guarantee that the task would get resource offers only from
@@ -1496,134 +2147,194 @@
     filesystem. These methods involved either network latency or resource underutilization
     (as the specific data-bearing nodes needed to be statically partitioned and made
     available only to the frameworks requiring that data) issues.
+  id: totrans-313
   prefs: []
   type: TYPE_NORMAL
+  zh: 例如，如果正在运行一个数据库任务，那么必须将该任务调度到包含其所需数据的从节点上。之前，没有办法保证任务只会从包含所需数据的从节点上获得资源提供。解决此问题的常用方法是使用本地文件系统或外部分布式文件系统。这些方法涉及网络延迟或资源利用率低的问题（因为包含特定数据的节点需要被静态划分并只对需要该数据的框架可用）。
 - en: 'The two new features that address this problem are:'
+  id: totrans-314
   prefs: []
   type: TYPE_NORMAL
+  zh: 解决此问题的两个新特性是：
 - en: '**Dynamic reservations**: In addition to the features discussed in the *Reservation*
     section earlier in this chapter, another advantage of dynamic reservations is
     the ability of a framework to reserve a persistent store, ensuring that it will
     always be offered back to it when another task needs to be launched.'
+  id: totrans-315
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '**动态预留**：除了本章“预留”部分讨论的特性外，动态预留的另一个优点是框架可以预留一个持久化存储，确保当另一个任务需要启动时，它将始终被重新提供给该框架。'
 - en: '**Persistent volumes**: Mesos now gives the ability to create a persistent
     volume from disk resources. A volume can be created when a new task is being launched,
     which resides outside the sandbox of the task. This will remain persisted even
     after the completion of the task and will be offered to the same framework again
     so that it can launch another task on the same disk resources.'
+  id: totrans-316
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '**持久化卷**：Mesos 现在提供了从磁盘资源创建持久化卷的能力。当启动新任务时，可以创建一个卷，它位于任务的沙盒之外。即使任务完成后，这个卷也会保持持久化，并将再次提供给相同的框架，以便其可以在相同的磁盘资源上启动另一个任务。'
 - en: Note that persistent volumes can only be generated from statically or dynamically
     reserved disk resources. If a persistent volume is created from dynamically reserved
     disk resources, then it cannot be unreserved without the destruction of the volume.
     This provides a security mechanism to prevent sensitive data from being accidentally
     exposed to other frameworks. Garbage collection mechanisms to delete residual
     data are in the works.
+  id: totrans-317
   prefs: []
   type: TYPE_NORMAL
+  zh: 请注意，持久化卷只能从静态或动态预留的磁盘资源中生成。如果持久化卷是从动态预留的磁盘资源中创建的，则在不销毁卷的情况下无法取消预留。这提供了一种安全机制，防止敏感数据意外暴露给其他框架。垃圾回收机制用于删除残留数据，正在开发中。
 - en: 'The interface for the creation of persistent volumes is described here:'
+  id: totrans-318
   prefs: []
   type: TYPE_NORMAL
+  zh: 持久化卷创建接口描述如下：
 - en: 'Frameworks can send two messages through the `acceptOffers` API as offer responses:
     `Offer::Operation::Create` and `Offer::Operation::Destroy`'
+  id: totrans-319
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 框架可以通过`acceptOffers` API发送两条消息作为提供响应：`Offer::Operation::Create`和`Offer::Operation::Destroy`
 - en: The master can manage persistent volumes via the `/create` and `/destroy HTTP`
     endpoints, which are currently in the alpha stage.
+  id: totrans-320
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 主控可以通过`/create`和`/destroy HTTP`端点管理持久化卷，这些端点目前处于Alpha阶段。
 - en: Note that the framework's principal is required for authorization, which shall
     be discussed in more detail in [Chapter 6](ch06.html "Chapter 6. Mesos Frameworks"),
     *Mesos Frameworks*
+  id: totrans-321
   prefs: []
   type: TYPE_NORMAL
+  zh: 请注意，框架的主体需要进行授权，具体内容将在[第六章](ch06.html "第六章。Mesos框架")中进一步讨论，*Mesos框架*。
 - en: Offer::Operation::Create
+  id: totrans-322
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: Offer::Operation::Create
 - en: 'Volumes can be created by frameworks as part of the regular offer cycle. For
     instance, let''s say a resource offer of a 6-GB dynamically reserved disk is received
     as follows:'
+  id: totrans-323
   prefs: []
   type: TYPE_NORMAL
+  zh: 卷可以作为常规提供周期的一部分由框架创建。例如，假设接收到如下的6GB动态预留磁盘资源提供：
 - en: '[PRE28]'
+  id: totrans-324
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE28]'
 - en: 'A persistent volume can now be created from these disk resources by sending
     the following message. In it, the following need to be specified:'
+  id: totrans-325
   prefs: []
   type: TYPE_NORMAL
+  zh: 现在可以通过发送以下消息从这些磁盘资源中创建持久化卷。在消息中，需要指定以下内容：
 - en: A unique role-specific persistent volume ID
+  id: totrans-326
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 一个唯一的角色特定持久化卷ID
 - en: A relative path within a container where the volume needs to be stored
+  id: totrans-327
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 容器内需要存储卷的相对路径
 - en: Volume permissions
+  id: totrans-328
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 卷权限
 - en: 'A persistent volume can now be created from these disk resources by sending
     the following message:'
+  id: totrans-329
   prefs: []
   type: TYPE_NORMAL
+  zh: 现在可以通过发送以下消息从这些磁盘资源中创建持久化卷：
 - en: '[PRE29]'
+  id: totrans-330
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE29]'
 - en: 'The next resource offer will include the persistent volume created before:'
+  id: totrans-331
   prefs: []
   type: TYPE_NORMAL
+  zh: 下一个资源提供将包含之前创建的持久化卷：
 - en: '[PRE30]'
+  id: totrans-332
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE30]'
 - en: Offer::Operation::Destroy
+  id: totrans-333
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: Offer::Operation::Destroy
 - en: 'Currently, persistent volumes need to be explicitly deleted. This can be done
     in the following way as part of the regular offer cycle. First, the resource offer
     with the persisted volume will be received. Taking the preceding example, this
     will be:'
+  id: totrans-334
   prefs: []
   type: TYPE_NORMAL
+  zh: 当前，持久化卷需要显式删除。这可以作为常规提供周期的一部分完成。首先，系统将接收到包含持久化卷的资源提供。以之前的示例为例，资源提供将是：
 - en: '[PRE31]'
+  id: totrans-335
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE31]'
 - en: 'Next, the persisted volume is destroyed through the `Offer::Operation::Destroy`
     message, as follows:'
+  id: totrans-336
   prefs: []
   type: TYPE_NORMAL
+  zh: 接下来，持久化卷通过`Offer::Operation::Destroy`消息被销毁，具体如下：
 - en: '[PRE32]'
+  id: totrans-337
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE32]'
 - en: 'Note that deleting the persisted volume does not result in the disk resources
     being unreserved. As such, the following resource offers will still contain them:'
+  id: totrans-338
   prefs: []
   type: TYPE_NORMAL
+  zh: 请注意，删除持久化卷不会导致磁盘资源被取消预留。因此，以下的资源提供仍会包含它们：
 - en: '[PRE33]'
+  id: totrans-339
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE33]'
 - en: Summary
+  id: totrans-340
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 概述
 - en: In this chapter, we dived deep into some of the most important features of Mesos
     that make it efficient, scalable, and fault tolerant. Advanced topics such as
     Mesos' resource allocation options and production-grade fault tolerance capabilities
     were explained in detail. With this strong background, the reader will be guided
     through the more practical aspects of Mesos installation, administration, and
     framework setup in the subsequent chapters.
+  id: totrans-341
   prefs: []
   type: TYPE_NORMAL
+  zh: 在本章中，我们深入探讨了Mesos的一些最重要特性，这些特性使它高效、可扩展并具有容错能力。我们详细解释了Mesos的资源分配选项和生产级容错能力等高级话题。通过这一强大的背景，读者将在接下来的章节中了解Mesos的安装、管理和框架设置等更实际的方面。
 - en: In the next chapter, we will discuss how to set up a multi-node Mesos cluster
     both on a public cloud service as well as on a private datacenter with a discussion
     on the common issues faced and how to debug and troubleshoot them.
+  id: totrans-342
   prefs: []
   type: TYPE_NORMAL
+  zh: 在下一章中，我们将讨论如何在公共云服务和私有数据中心中设置一个多节点的Mesos集群，并讨论常见问题及其调试和故障排除方法。
