@@ -1,36 +1,50 @@
 - en: Chapter 10. A Lights Manager with a TV Remote Controller
+  id: totrans-0
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 第10章：使用电视遥控器的灯光管理器
 - en: In this project, we will manage the lights of our home by using a normal TV
     remote controller.
+  id: totrans-1
   prefs: []
   type: TYPE_NORMAL
+  zh: 在这个项目中，我们将通过使用普通的电视遥控器来管理我们家的灯光。
 - en: In reality, we can use any remote controller we have, but the idea is to add
     remote controlling via the infrared mechanism to any device in our home. In fact,
     in this chapter I'm going to show how to manage a simple on/off device; but this
     concept can be easily extended to any other device we can connect to our BeagleBone
     Black!
+  id: totrans-2
   prefs: []
   type: TYPE_NORMAL
+  zh: 实际上，我们可以使用任何我们拥有的遥控器，但这个想法是通过红外机制将远程控制功能添加到我们家中的任何设备上。实际上，在本章中，我将展示如何管理一个简单的开关设备；但这个概念可以很容易地扩展到我们可以连接到
+    BeagleBone Black 的任何其他设备！
 - en: We'll see how to capture the infrared messages that a remote controller sends
     to our BeagleBone Black by using a suitable circuitry, and then, we'll use a dedicated
     kernel driver in order to manage such messages and convert them into well-defined
     commands for our userspace programs.
+  id: totrans-3
   prefs: []
   type: TYPE_NORMAL
+  zh: 我们将看到如何通过使用合适的电路来捕捉遥控器发送到我们的 BeagleBone Black 的红外消息，然后，我们将使用专用的内核驱动程序来管理这些消息，并将它们转换为我们用户空间程序的明确命令。
 - en: The basics of functioning
+  id: totrans-4
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 工作原理基础
 - en: The functioning of the prototype we're going to realize is quite simple. We
     need an electronic circuit that can detect the infrared light emitted by the remote
     controller and then generate some impulses that are caught by a special software
     that can detect and store them into a configuration file in order to be used at
     later time. Then, by using a special daemon, we can convert a button pressed on
     the remote controller into a suitable command for our BeagleBone Black.
+  id: totrans-5
   prefs: []
   type: TYPE_NORMAL
+  zh: 我们将要实现的原型的功能非常简单。我们需要一个电子电路，能够检测遥控器发出的红外光，然后生成一些脉冲，这些脉冲会被一个特殊的软件捕捉并存储在配置文件中，以便稍后使用。然后，通过使用一个特殊的守护进程，我们可以将遥控器上的按键按下转换为适合我们
+    BeagleBone Black 的命令。
 - en: In this scenario, the hardware we have to realize is very simple. We just need
     a small circuitry with an infrared-capable photo diode (infrared receiver). On
     the other hand, the software part is a bit more complicated due to the fact that
@@ -38,121 +52,167 @@
     and then a user-level program to record it, a program to recognize which button
     has been pressed, and a last program to convert such pressures into on and off
     commands (or whatever we wish to control).
+  id: totrans-6
   prefs: []
   type: TYPE_NORMAL
+  zh: 在这种情况下，我们需要实现的硬件非常简单。我们只需要一个带红外功能的光电二极管（红外接收器）的简单电路。另一方面，软件部分稍微复杂一些，因为我们首先需要一个内核驱动程序来可靠地检测来自遥控器的消息，然后是一个用户级程序来记录这些消息，一个程序来识别按下的是哪个按钮，最后一个程序将这些按键转换为开关命令（或者我们希望控制的其他命令）。
 - en: Due to lack of space, I'm going to manage the relays array used in [Chapter
     3](ch03.html "Chapter 3. Aquarium Monitor"), *Aquarium Monitor*, leaving it to
     you to connect whatever you want.
+  id: totrans-7
   prefs: []
   type: TYPE_NORMAL
+  zh: 由于空间限制，我将使用[第3章](ch03.html "第3章：水族馆监控")中使用的继电器阵列，*水族馆监控*，并留给你连接你需要的设备。
 - en: Note
+  id: totrans-8
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
+  zh: 注意
 - en: Warning—remember that, even if the relays array used is suitable for controlling
     high voltages, *for safety reasons, you should not connect any device with voltages
     higher then 12V if you don't know what you are doing!*
+  id: totrans-9
   prefs: []
   type: TYPE_NORMAL
+  zh: 警告——请记住，即使使用的继电器阵列适合控制高电压，*出于安全原因，如果你不知道自己在做什么，请不要连接任何电压高于 12V 的设备！*
 - en: Setting up the hardware
+  id: totrans-10
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 设置硬件
 - en: As stated before, the hardware setting is quite simple. The relays array has
     already been set up in a previous chapter, while the infrared receiver circuitry
     is really tricky. So, let's go ahead!
+  id: totrans-11
   prefs: []
   type: TYPE_NORMAL
+  zh: 如前所述，硬件设置非常简单。继电器阵列已经在前一章中设置好了，而红外接收器电路则非常复杂。所以，让我们继续吧！
 - en: Setting up the infrared detector
+  id: totrans-12
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 设置红外探测器
 - en: The infrared detector (or receiver) I used in this prototype is shown in the
     following image (actually, the receiver is the device with the red dot; the other
     one is just a transmitter that we're not using here).
+  id: totrans-13
   prefs: []
   type: TYPE_NORMAL
+  zh: 我在这个原型中使用的红外探测器（或接收器）如下图所示（实际上，接收器是带有红点的设备；另一个是我们在这里不使用的发射器）。
 - en: '![Setting up the infrared detector](img/B00255_10_01.jpg)'
+  id: totrans-14
   prefs: []
   type: TYPE_IMG
+  zh: '![设置红外探测器](img/B00255_10_01.jpg)'
 - en: Note
+  id: totrans-15
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
+  zh: 注意
 - en: 'The devices can be purchased at the following link (or by surfing the Internet):
     [http://www.cosino.io/product/infrared-emitter-detector](http://www.cosino.io/product/infrared-emitter-detector).'
+  id: totrans-16
   prefs: []
   type: TYPE_NORMAL
+  zh: 这些设备可以通过以下链接购买（或通过上网搜索）：[http://www.cosino.io/product/infrared-emitter-detector](http://www.cosino.io/product/infrared-emitter-detector)。
 - en: The datasheet is available at [https://www.sparkfun.com/datasheets/Components/LTR-301.pdf](https://www.sparkfun.com/datasheets/Components/LTR-301.pdf).
+  id: totrans-17
   prefs: []
   type: TYPE_NORMAL
 - en: Tip
+  id: totrans-18
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
 - en: Note that the image shows the topmost part only of the infrared devices. In
     reality, they look similar to a normal diode.
+  id: totrans-19
   prefs: []
   type: TYPE_NORMAL
 - en: 'The circuit to manage it is shown in the following diagram:'
+  id: totrans-20
   prefs: []
   type: TYPE_NORMAL
 - en: '![Setting up the infrared detector](img/B00255_10_02.jpg)'
+  id: totrans-21
   prefs: []
   type: TYPE_IMG
 - en: 'The **infrared receiver** (**IR**) is the diode with the red dot in the preceding
     diagram and **R** is a 6.8KΩ resistor. The following table shows the connections
     with the BeagleBone Black:'
+  id: totrans-22
   prefs: []
   type: TYPE_NORMAL
 - en: '| Pin | IR receiver label |'
+  id: totrans-23
   prefs: []
   type: TYPE_TB
 - en: '| --- | --- |'
+  id: totrans-24
   prefs: []
   type: TYPE_TB
 - en: '| P9.3 - Vcc | 3.3V |'
+  id: totrans-25
   prefs: []
   type: TYPE_TB
 - en: '| P9.12 - GPIO60 | GPIO @R |'
+  id: totrans-26
   prefs: []
   type: TYPE_TB
 - en: '| P9.1 - GND | GND |'
+  id: totrans-27
   prefs: []
   type: TYPE_TB
 - en: 'To test the functionality, we can set the GPIO 60 pin as an input pin by using
     the following command:'
+  id: totrans-28
   prefs: []
   type: TYPE_NORMAL
 - en: '[PRE0]'
+  id: totrans-29
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE0]'
 - en: Tip
+  id: totrans-30
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
 - en: Remember that you must not have any driver loaded into the system that uses
     that pin, otherwise you'll get an error message!
+  id: totrans-31
   prefs: []
   type: TYPE_NORMAL
 - en: 'Then, we can use the following script to continuously read the GPIO status,
     and then print on the terminal when it goes to value `0`:'
+  id: totrans-32
   prefs: []
   type: TYPE_NORMAL
 - en: '[PRE1]'
+  id: totrans-33
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE1]'
 - en: 'When you point your remote controller to the infrared receiver and press a
     button you, should get an output as follows:'
+  id: totrans-34
   prefs: []
   type: TYPE_NORMAL
 - en: '[PRE2]'
+  id: totrans-35
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE2]'
 - en: To stop the script, just hit the *CTRL* + *C* key sequence.
+  id: totrans-36
   prefs: []
   type: TYPE_NORMAL
 - en: Setting up the relays array
+  id: totrans-37
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
@@ -160,119 +220,160 @@
     in [Chapter 3](ch03.html "Chapter 3. Aquarium Monitor"), *Aquarium Monitor*, so
     you can refer there for further information about it, while here I'm going to
     show the connections needed for this prototype only.
+  id: totrans-38
   prefs: []
   type: TYPE_NORMAL
 - en: '![Setting up the relays array](img/B00255_10_03.jpg)'
+  id: totrans-39
   prefs: []
   type: TYPE_IMG
 - en: Note
+  id: totrans-40
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
 - en: 'The device can be purchased at the following link (or by surfing the Internet):
     [http://www.cosino.io/product/5v-relays-array](http://www.cosino.io/product/5v-relays-array).'
+  id: totrans-41
   prefs: []
   type: TYPE_NORMAL
 - en: 'The BeagleBone Black''s GPIOs and the pins of the relays array board I used
     with these devices are shown in the following table:'
+  id: totrans-42
   prefs: []
   type: TYPE_NORMAL
 - en: '| Pins | Relays array pin |'
+  id: totrans-43
   prefs: []
   type: TYPE_TB
 - en: '| --- | --- |'
+  id: totrans-44
   prefs: []
   type: TYPE_TB
 - en: '| P8.10 - GPIO68 | IN1 |'
+  id: totrans-45
   prefs: []
   type: TYPE_TB
 - en: '| P8.9 - GPIO69 | IN2 |'
+  id: totrans-46
   prefs: []
   type: TYPE_TB
 - en: '| P8.12 - GPIO44 | IN3 |'
+  id: totrans-47
   prefs: []
   type: TYPE_TB
 - en: '| P8.11 GPIO45 | IN4 |'
+  id: totrans-48
   prefs: []
   type: TYPE_TB
 - en: '| P9.1 - GND | GND |'
+  id: totrans-49
   prefs: []
   type: TYPE_TB
 - en: '| P9.6 - 5V | Vcc |'
+  id: totrans-50
   prefs: []
   type: TYPE_TB
 - en: 'To test the functionality of each GPIO line, we can use, as an example, the
     following command to enable one of them:'
+  id: totrans-51
   prefs: []
   type: TYPE_NORMAL
 - en: '[PRE3]'
+  id: totrans-52
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE3]'
 - en: Tip
+  id: totrans-53
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
 - en: Note that the off state of the relay is `1`, while the on state is `0`.
+  id: totrans-54
   prefs: []
   type: TYPE_NORMAL
 - en: 'Then, we can turn the relay on and off by just writing `0` and `1` in the `/sys/class/gpio/gpio68/value`
     file, as follows:'
+  id: totrans-55
   prefs: []
   type: TYPE_NORMAL
 - en: '[PRE4]'
+  id: totrans-56
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE4]'
 - en: The final picture
+  id: totrans-57
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
 - en: The following image shows the prototype I realized to implement this project
     and to test the software. You should notice the infrared receiver on the bottom-right
     corner.
+  id: totrans-58
   prefs: []
   type: TYPE_NORMAL
 - en: '![The final picture](img/B00255_10_04.jpg)'
+  id: totrans-59
   prefs: []
   type: TYPE_IMG
 - en: Note that, to use the relays array that needs the 5V power supply voltage, you
     must use an external power supply to power the BeagleBone Black.
+  id: totrans-60
   prefs: []
   type: TYPE_NORMAL
 - en: Setting up the software
+  id: totrans-61
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
 - en: Now, it's time to set up the software to manage our infrared detector, and to
     do it, we're going to use the **LIRC** (**Linux Infrared Remote Control**) subsystem,
     which is a special code that has been developed for this purpose.
+  id: totrans-62
   prefs: []
   type: TYPE_NORMAL
+  zh: 现在，是时候设置软件来管理我们的红外探测器了。为此，我们将使用**LIRC**（**Linux 红外遥控**）子系统，这是为此目的开发的一个特殊代码。
 - en: Note
+  id: totrans-63
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
+  zh: 注意
 - en: For further information on the LIRC subsystem, you can take a look at [http://www.lirc.org/](http://www.lirc.org/).
+  id: totrans-64
   prefs: []
   type: TYPE_NORMAL
+  zh: 若要进一步了解 LIRC 子系统，您可以查看[http://www.lirc.org/](http://www.lirc.org/)。
 - en: We'll need a kernel driver to convert the pulse generated by the infrared detector
     into well-defined messages, and then to send them, through a LIRC device, to the
     userspace programs. At userspace level, we're going to use a special tool from
     the LIRC project in order to convert the infrared messages into input events,
     that is, the messages that a normal keyboard sends to the kernel.
+  id: totrans-65
   prefs: []
   type: TYPE_NORMAL
+  zh: 我们将需要一个内核驱动程序，将红外探测器生成的脉冲转换为定义良好的消息，然后通过 LIRC 设备将它们发送到用户空间程序。在用户空间级别，我们将使用 LIRC
+    项目的一个特殊工具，将红外消息转换为输入事件，即普通键盘发送到内核的消息。
 - en: Note
+  id: totrans-66
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
+  zh: 注意
 - en: For further information on the Linux input subsystem, you can take a look at
     [https://www.kernel.org/doc/Documentation/input/input.txt](https://www.kernel.org/doc/Documentation/input/input.txt).
+  id: totrans-67
   prefs: []
   type: TYPE_NORMAL
+  zh: 若要进一步了解 Linux 输入子系统，您可以查看[https://www.kernel.org/doc/Documentation/input/input.txt](https://www.kernel.org/doc/Documentation/input/input.txt)。
 - en: Setting up the kernel driver
+  id: totrans-68
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 设置内核驱动程序
 - en: To set up the kernel driver to manage our infrared receiver, we can use a procedure
     similar to the one used in [Chapter 4](ch04.html "Chapter 4. Google Docs Weather
     Station"), *Google Docs Weather Station*. Once the sources from the GitHub repository
@@ -282,350 +383,536 @@
     in the `chapter_10/0001-Add-support-for-Homebrew-GPIO-Port-Receiver-Transmit.patch`
     file in the book's example code repository in order to add the infrared receiver
     support.
+  id: totrans-69
   prefs: []
   type: TYPE_NORMAL
+  zh: 为了设置内核驱动程序以管理我们的红外接收器，我们可以使用类似于[第4章](ch04.html "第4章 Google Docs 气象站")中所使用的程序，*Google
+    Docs 气象站*。一旦从 GitHub 仓库下载了源代码，我们需要按照[第4章](ch04.html "第4章 Google Docs 气象站")，*Google
+    Docs 气象站*中的程序，直到需要应用我们特殊补丁的步骤。事实上，在这种情况下，我们必须应用位于书籍示例代码仓库中的`chapter_10/0001-Add-support-for-Homebrew-GPIO-Port-Receiver-Transmit.patch`文件中的补丁，以便添加对红外接收器的支持。
 - en: 'The command is as follows:'
+  id: totrans-70
   prefs: []
   type: TYPE_NORMAL
+  zh: 命令如下：
 - en: '[PRE5]'
+  id: totrans-71
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE5]'
 - en: Tip
+  id: totrans-72
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
+  zh: 提示
 - en: Note that the `--whitespace=nowarn` command-line option is needed just in case
     your `git` system is configured to automatically fix up the whitespace errors,
     which is wrong in this case.
+  id: totrans-73
   prefs: []
   type: TYPE_NORMAL
+  zh: 请注意，`--whitespace=nowarn`命令行选项是必需的，以防您的`git`系统被配置为自动修复空格错误，但在此情况下这是错误的。
 - en: 'If everything works well, the `git log` command should display the following:'
+  id: totrans-74
   prefs: []
   type: TYPE_NORMAL
+  zh: 如果一切顺利，`git log` 命令应该显示以下内容：
 - en: '[PRE6]'
+  id: totrans-75
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE6]'
 - en: Before starting the kernel compilation, let me spend a few words regarding this
     patch. It simply adds a new driver into the `KERNEL/drivers/staging/media/lirc`
     directory of the Linux sources, so, after applying the patch, if we take a look
     at the new file `lirc_gpio.c`, we can discover how it works.
+  id: totrans-76
   prefs: []
   type: TYPE_NORMAL
+  zh: 在开始内核编译之前，先让我简要说明一下这个补丁。它仅仅是将一个新驱动程序添加到 Linux 源代码中的`KERNEL/drivers/staging/media/lirc`目录下。所以，应用补丁后，如果我们查看新文件`lirc_gpio.c`，就能发现它是如何工作的。
 - en: Tip
+  id: totrans-77
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
+  zh: 提示
 - en: The following is a brief explanation of the driver code. If you don't care about
     it, and just wish to use the driver *as-is*, you can safely skip this part until
     the kernel compilation commands.
+  id: totrans-78
   prefs: []
   type: TYPE_NORMAL
+  zh: 以下是对驱动代码的简要说明。如果您不关心这些内容，并且只希望直接使用驱动程序*原样*，您可以安全地跳过这一部分，直到内核编译命令部分。
 - en: 'At the beginning, we have the kernel module parameters as follows:'
+  id: totrans-79
   prefs: []
   type: TYPE_NORMAL
+  zh: 一开始，我们有如下内核模块参数：
 - en: '[PRE7]'
+  id: totrans-80
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE7]'
 - en: 'We''re going to use the `gpio_in` parameter in order to specify the input pin
     which the infrared receiver is connected to. Then, some local functions follow
     (which I don''t report here), and then we find the file''s operations definitions:'
+  id: totrans-81
   prefs: []
   type: TYPE_NORMAL
+  zh: 我们将使用`gpio_in`参数来指定红外接收器连接的输入引脚。接下来，跟随一些本地函数（此处不予列出），然后我们会看到文件操作定义：
 - en: '[PRE8]'
+  id: totrans-82
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE8]'
 - en: Each function is related to a well-defined system call that we can use on the
     new LIRC device.
+  id: totrans-83
   prefs: []
   type: TYPE_NORMAL
+  zh: 每个函数都与一个明确定义的系统调用相关，我们可以在新的 LIRC 设备上使用它。
 - en: 'At the very bottom of the file, there is the `lirc_gpio_init_module()` function,
     which is responsible for setting up the new device. As a first step, this function
     tries to request all needed GPIO lines:'
+  id: totrans-84
   prefs: []
   type: TYPE_NORMAL
+  zh: 在文件的最底部，有一个 `lirc_gpio_init_module()` 函数，它负责设置新设备。作为第一步，这个函数尝试请求所有所需的 GPIO 引脚：
 - en: '[PRE9]'
+  id: totrans-85
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE9]'
 - en: After requesting the `gpio_in` pin, the function sets it up as an input pin
     and then checks if such a GPIO line is interrupt-capable; otherwise, the driver
     can't work properly. If so, the function requests the IRQ line, and then it proceeds
     with the `gpio_out` pin (note that it's not mandatory).
+  id: totrans-86
   prefs: []
   type: TYPE_NORMAL
+  zh: 在请求 `gpio_in` 引脚后，函数将其设置为输入引脚，然后检查该 GPIO 引脚是否支持中断；否则，驱动程序将无法正常工作。如果支持，函数请求 IRQ
+    引脚，然后继续处理 `gpio_out` 引脚（注意这不是强制性的）。
 - en: 'Then, the driver sets the sense mode by using a little auto-detect procedure
     (if not directly specified by the user at loading time), as shown in the following
     code snippet:'
+  id: totrans-87
   prefs: []
   type: TYPE_NORMAL
+  zh: 然后，驱动程序通过一个小的自动检测程序设置传感模式（如果用户在加载时没有直接指定），如下所示代码片段：
 - en: '[PRE10]'
+  id: totrans-88
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE10]'
 - en: 'Then, we can finally set up the LIRC driver by calling first the `lirc_buffer_init()`
     function, to properly allocate a memory buffer for the messages management, and
     then by calling the `lirc_register_driver()`, to register the driver into the
     system, as shown in the following code snippet:'
+  id: totrans-89
   prefs: []
   type: TYPE_NORMAL
+  zh: 然后，我们可以通过首先调用 `lirc_buffer_init()` 函数来正确分配一个内存缓冲区用于消息管理，接着调用 `lirc_register_driver()`，将驱动程序注册到系统中，如下所示代码片段：
 - en: '[PRE11]'
+  id: totrans-90
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE11]'
 - en: 'Ok, now we can start to compile the kernel with the following command:'
+  id: totrans-91
   prefs: []
   type: TYPE_NORMAL
+  zh: 好的，现在我们可以使用以下命令开始编译内核：
 - en: '[PRE12]'
+  id: totrans-92
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE12]'
 - en: Tip
+  id: totrans-93
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
+  zh: 提示
 - en: This step, and the subsequent one, are time consuming and require patience,
     so you should take a cup of your preferred tea or coffee, and just wait.
+  id: totrans-94
   prefs: []
   type: TYPE_NORMAL
+  zh: 这一步，以及接下来的步骤，都比较耗时且需要耐心，所以你可以喝杯你喜欢的茶或咖啡，耐心等待。
 - en: After some time, the procedure will present the standard kernel configuration
     panel, and now we should verify that the needed drivers are enabled. You should
     navigate in the menu to **Device Drivers** | **Staging drivers** | **Media staging
     drivers** | **Linux Infrared Remote Control IR receiver/transmitter drivers**,
     where the **Homebrew GPIO Port Receiver/Transmitter** entry should be selected
     as module (**<M>**).
+  id: totrans-95
   prefs: []
   type: TYPE_NORMAL
+  zh: 一段时间后，程序将显示标准的内核配置面板，现在我们应该验证所需的驱动程序是否已启用。你应该在菜单中导航至 **设备驱动程序** | **暂存驱动程序**
+    | **媒体暂存驱动程序** | **Linux 红外遥控接收器/发射器驱动程序**，其中 **Homebrew GPIO 端口接收器/发射器** 条目应选择为模块（**<M>**）。
 - en: 'Then, exit the configuration menu and the kernel compilation should start.
     Then, when it ends, the new kernel image will be ready, and the following message
     should appear:'
+  id: totrans-96
   prefs: []
   type: TYPE_NORMAL
+  zh: 然后，退出配置菜单，内核编译应该开始。接着，当编译完成时，新的内核镜像将准备就绪，并且应该显示如下消息：
 - en: '[PRE13]'
+  id: totrans-97
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE13]'
 - en: 'Now, we can install it on the microSD, using the following installation tool:'
+  id: totrans-98
   prefs: []
   type: TYPE_NORMAL
+  zh: 现在，我们可以使用以下安装工具将其安装到 microSD 上：
 - en: '[PRE14]'
+  id: totrans-99
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE14]'
 - en: 'If everything works well, after the usual login, we can verify that the new
     kernel is really running using the following command:'
+  id: totrans-100
   prefs: []
   type: TYPE_NORMAL
+  zh: 如果一切正常，经过常规登录后，我们可以使用以下命令验证新内核是否真的在运行：
 - en: '[PRE15]'
+  id: totrans-101
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE15]'
 - en: Tip
+  id: totrans-102
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
+  zh: 提示
 - en: Note that the kernel version on your system may be more recent than mine.
+  id: totrans-103
   prefs: []
   type: TYPE_NORMAL
+  zh: 请注意，你系统上的内核版本可能比我的更新。
 - en: 'Okay, the new kernel is ready! Now, we can load the LIRC driver by using the
     following command:'
+  id: totrans-104
   prefs: []
   type: TYPE_NORMAL
+  zh: 好的，新内核已经准备好了！现在，我们可以通过以下命令加载 LIRC 驱动程序：
 - en: '[PRE16]'
+  id: totrans-105
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE16]'
 - en: Tip
+  id: totrans-106
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
+  zh: 提示
 - en: 'Note that the GPIO 60 must not be in use, or you may get an error like the
     following:'
+  id: totrans-107
   prefs: []
   type: TYPE_NORMAL
+  zh: 请注意，GPIO 60 必须没有被使用，否则你可能会遇到如下错误：
 - en: '[PRE17]'
+  id: totrans-108
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE17]'
 - en: 'The kernel messages should look like the following:'
+  id: totrans-109
   prefs: []
   type: TYPE_NORMAL
+  zh: 内核消息应类似如下：
 - en: '[PRE18]'
+  id: totrans-110
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE18]'
 - en: 'Also, a new entry should now be ready under the `/dev` directory:'
+  id: totrans-111
   prefs: []
   type: TYPE_NORMAL
+  zh: 此外，现在应该在 `/dev` 目录下准备好一个新条目：
 - en: '[PRE19]'
+  id: totrans-112
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE19]'
 - en: The LIRC tools
+  id: totrans-113
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: LIRC 工具
 - en: 'Now that the kernel module is set up and running, we need some userspace tools
     to manage it. So, let''s install the `lirc` package with the usual `aptitude`
     command:'
+  id: totrans-114
   prefs: []
   type: TYPE_NORMAL
+  zh: 现在内核模块已设置并运行，我们需要一些用户空间工具来管理它。所以，让我们通过常规的 `aptitude` 命令安装 `lirc` 包：
 - en: '[PRE20]'
+  id: totrans-115
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE20]'
 - en: 'As stated by the preceding line, to enable the `lircd` daemon (that is, the
     tools we need), we have to replace the configuration file `/etc/lirc/lircd.conf`;
     however, we''re not going to use the daemon this way. In reality, we can test
     that the driver is really working as expected by executing the following command:'
+  id: totrans-116
   prefs: []
   type: TYPE_NORMAL
+  zh: 如前述所示，为了启用 `lircd` 守护进程（即我们需要的工具），我们必须替换配置文件 `/etc/lirc/lircd.conf`；然而，我们并不打算以这种方式使用守护进程。实际上，我们可以通过执行以下命令来测试驱动程序是否按预期工作：
 - en: '[PRE21]'
+  id: totrans-117
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE21]'
 - en: 'Nothing should happen until you point your remote controller at the infrared
     receiver and press a button. In this case, you should see some output, as follows:'
+  id: totrans-118
   prefs: []
   type: TYPE_NORMAL
+  zh: 直到你将遥控器对准红外接收器并按下一个按钮，什么都不会发生。在这种情况下，你应该看到一些输出，如下所示：
 - en: '[PRE22]'
+  id: totrans-119
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE22]'
 - en: Okay! The `/dev/lirc0` device is functioning, and the driver correctly detects
     the messages from the remote controller! Now, we have to create a custom configuration
     file in order to associate an input event to each of the remote controller's buttons.
+  id: totrans-120
   prefs: []
   type: TYPE_NORMAL
+  zh: 好的！`/dev/lirc0`设备正在正常工作，驱动程序正确地检测到来自遥控器的消息！现在，我们必须创建一个自定义配置文件，将每个遥控器按钮与输入事件关联起来。
 - en: Tip
+  id: totrans-121
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
+  zh: 提示
 - en: Again, due to lack of space, I'm going to configure just a few buttons in the
     following example; but you can add whatever you want.
+  id: totrans-122
   prefs: []
   type: TYPE_NORMAL
+  zh: 由于空间不足，我将在以下示例中仅配置几个按钮；但你可以根据需要添加任何按钮。
 - en: 'The command to use is `irrecord`, as follows:'
+  id: totrans-123
   prefs: []
   type: TYPE_NORMAL
+  zh: 使用的命令是`irrecord`，如下所示：
 - en: '[PRE23]'
+  id: totrans-124
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE23]'
 - en: '`myremote.conf` is the file where we wish to save our configuration. The program
     then will show an output as follows:'
+  id: totrans-125
   prefs: []
   type: TYPE_NORMAL
+  zh: '`myremote.conf`是我们希望保存配置的文件。程序随后将显示如下输出：'
 - en: '[PRE24]'
+  id: totrans-126
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE24]'
 - en: 'Okay, let''s press the *return*/*Enter* key, and the program will continue
     showing the following message:'
+  id: totrans-127
   prefs: []
   type: TYPE_NORMAL
+  zh: 好的，按下*return*/*Enter*键，程序将继续显示以下消息：
 - en: '[PRE25]'
+  id: totrans-128
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE25]'
 - en: Ok, now it's really important to carefully follow the preceding instructions.
     So, let's start pressing different buttons and hold them for approximately one
     second in such a way as to generate at least one dot, but in no case more than
     ten dots, of output for each press!
+  id: totrans-129
   prefs: []
   type: TYPE_NORMAL
+  zh: 好的，现在非常重要的是仔细遵循前面的指示。因此，开始按下不同的按钮并保持大约一秒钟，以便为每次按下生成至少一个点，但每次按下的输出点数不能超过十个！
 - en: 'So, the program will start printing the dots until it reaches the end of the
     terminal as follows:'
+  id: totrans-130
   prefs: []
   type: TYPE_NORMAL
+  zh: 所以，程序将开始打印点，直到它到达终端的末尾，如下所示：
 - en: '[PRE26]'
+  id: totrans-131
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE26]'
 - en: 'When the first line is finished, the program will display the following message,
     and new dots will appear, but, this time, just one per pressed button!:'
+  id: totrans-132
   prefs: []
   type: TYPE_NORMAL
+  zh: 当第一行完成时，程序会显示以下消息，并且会出现新的点，但这次每按一个按钮只会出现一个点！：
 - en: '[PRE27]'
+  id: totrans-133
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE27]'
 - en: 'Now, the first detection stage is finished, and we can start the real detection
     one button at a time. Now, the system will ask for a button name or the *Enter*
     key to finish:'
+  id: totrans-134
   prefs: []
   type: TYPE_NORMAL
+  zh: 现在，第一阶段的检测已经完成，我们可以开始真正的检测，每次按一个按钮。系统会提示输入按钮名称或按*Enter*键完成：
 - en: '[PRE28]'
+  id: totrans-135
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE28]'
 - en: 'Now, I enter the name of button **0** by inserting the `KEY_0` string, as follows.
     Then, the system will ask you to hold down the button **0** until it has got it:'
+  id: totrans-136
   prefs: []
   type: TYPE_NORMAL
+  zh: 现在，我通过插入`KEY_0`字符串来输入按钮**0**的名称，如下所示。然后，系统会提示你按住按钮**0**，直到它识别到：
 - en: '[PRE29]'
+  id: totrans-137
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE29]'
 - en: Tip
+  id: totrans-138
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
+  zh: 提示
 - en: 'The valid button names can be listed by using the `irrecord` command, as follows:'
+  id: totrans-139
   prefs: []
   type: TYPE_NORMAL
+  zh: 有效的按钮名称可以通过使用`irrecord`命令列出，如下所示：
 - en: '[PRE30]'
+  id: totrans-140
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE30]'
 - en: 'Then, the procedure restarts for the next buttons as follows:'
+  id: totrans-141
   prefs: []
   type: TYPE_NORMAL
+  zh: 然后，程序将为下一个按钮重新开始如下过程：
 - en: '[PRE31]'
+  id: totrans-142
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE31]'
 - en: 'At this point, I simply enter no names and just press *Enter* to exit, and
     then I get the prompt again:'
+  id: totrans-143
   prefs: []
   type: TYPE_NORMAL
+  zh: 此时，我什么也不输入，只需按*Enter*键退出，然后会再次显示提示符：
 - en: '[PRE32]'
+  id: totrans-144
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE32]'
 - en: 'Now, a new file called `myremote.conf` should be ready. The following is a
     snippet of my file:'
+  id: totrans-145
   prefs: []
   type: TYPE_NORMAL
+  zh: 现在，一个名为`myremote.conf`的新文件应该已经准备好了。以下是我的文件片段：
 - en: '[PRE33]'
+  id: totrans-146
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE33]'
 - en: 'Now, we are ready to test our job. We have to verify if all buttons have been
     correctly recognized. To do it, we have to execute the `lircd` daemon from the
     command line as follows:'
+  id: totrans-147
   prefs: []
   type: TYPE_NORMAL
+  zh: 现在，我们准备好测试我们的工作了。我们需要验证是否所有按钮都已正确识别。为此，我们必须从命令行执行`lircd`守护进程，命令如下：
 - en: '[PRE34]'
+  id: totrans-148
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE34]'
 - en: 'The last argument `--uinput` is used to instruct the `lircd` daemon to convert
     the button presses into input events as they came from a normal keyboard, so,
     we can test them with the `evtest` command. It must be executed into another terminal
     due to the fact that the previous command must run with `evtest` at the same time!
     The command is as follows:'
+  id: totrans-149
   prefs: []
   type: TYPE_NORMAL
+  zh: 最后一个参数`--uinput`用于指示`lircd`守护进程将按钮按压转换为输入事件，就像它们来自普通键盘一样，因此我们可以使用`evtest`命令来测试它们。由于前一个命令必须与`evtest`同时运行，因此该命令必须在另一个终端中执行！命令如下：
 - en: '[PRE35]'
+  id: totrans-150
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE35]'
 - en: 'Now, we have to select the (only) available input device with the `0` number,
     and the program will continue showing the following output:'
+  id: totrans-151
   prefs: []
   type: TYPE_NORMAL
+  zh: 现在，我们必须选择（唯一的）可用输入设备，使用`0`号，程序将继续显示以下输出：
 - en: '[PRE36]'
+  id: totrans-152
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE36]'
 - en: 'Then, when I press a button on my remote controller, I get the following output:'
+  id: totrans-153
   prefs: []
   type: TYPE_NORMAL
+  zh: 然后，当我按下遥控器上的按钮时，我会看到以下输出：
 - en: '[PRE37]'
+  id: totrans-154
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE37]'
 - en: Tip
+  id: totrans-155
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
+  zh: 提示
 - en: 'The `evtest` program can be installed by using the following command:'
+  id: totrans-156
   prefs: []
   type: TYPE_NORMAL
+  zh: '`evtest`程序可以使用以下命令安装：'
 - en: '[PRE38]'
+  id: totrans-157
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE38]'
 - en: 'Note that the **0** button on the remote controller corresponds to the `KEY_0`
     input event that has the `11` code, while the **1**, **2**, and **3** buttons
     correspond to the `KEY_1`, `KEY_2`, and `KEY_3` input events that have the `2`,
     `3`, and `4` codes. So, we can map such events with the corresponding GPIO line
     by using a look-up table as follows (Python syntax):'
+  id: totrans-158
   prefs: []
   type: TYPE_NORMAL
+  zh: 请注意，遥控器上的**0**按钮对应于`KEY_0`输入事件，该事件的代码为`11`，而**1**、**2**和**3**按钮分别对应`KEY_1`、`KEY_2`和`KEY_3`输入事件，它们的代码分别是`2`、`3`和`4`。因此，我们可以通过使用如下查找表将这些事件映射到相应的GPIO线路（Python语法）：
 - en: '[PRE39]'
+  id: totrans-159
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE39]'
 - en: The `-1` value means *no GPIO*. So, when we press the **0** button, we receive
     the `KEY_0` input event that has the `11` code, and at the 11th position of the
     array (starting the count from **0**), we have the `68` value, so, the `GPIO68`
@@ -633,43 +920,65 @@
     the **1**, **2**, and **3** buttons that correspond to the `KEY_1` (code 2), `KEY_2`
     (code 3), and `KEY_3` (code 4) input events, are connected to `GPIO 69` (array
     index 2), `GPIO 44` (array index 3), and `GPIO 45` (array index 4) respectively.
+  id: totrans-160
   prefs: []
   type: TYPE_NORMAL
+  zh: '`-1`值表示*无GPIO*。因此，当我们按下**0**按钮时，我们会收到`KEY_0`输入事件，该事件的代码为`11`，在数组的第11个位置（从**0**开始计数）我们有`68`值，所以`GPIO68`与遥控器上的**0**按钮连接。以类似的方式，**1**、**2**和**3**按钮分别对应`KEY_1`（代码为2）、`KEY_2`（代码为3）和`KEY_3`（代码为4）输入事件，它们分别连接到`GPIO
+    69`（数组索引2）、`GPIO 44`（数组索引3）和`GPIO 45`（数组索引4）。'
 - en: The input events manager
+  id: totrans-161
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 输入事件管理器
 - en: 'Now, we have to add the last element only; that is, the software that takes
     the input events and turns the corresponding relay on and off. To do it in a *dirty
     and quick* way, we can use the Python language with the `evdev` library that can
     be easily installed on our BeagleBone Black with the following command:'
+  id: totrans-162
   prefs: []
   type: TYPE_NORMAL
+  zh: 现在，我们只需要添加最后一个元素，即：处理输入事件并打开或关闭相应继电器的软件。为了以一种*快速且简单*的方式做到这一点，我们可以使用Python语言和`evdev`库，该库可以通过以下命令轻松安装到我们的BeagleBone
+    Black上：
 - en: '[PRE40]'
+  id: totrans-163
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE40]'
 - en: Note
+  id: totrans-164
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
+  zh: 注意
 - en: The curious reader can get more information about this library at [https://python-evdev.readthedocs.org/en/latest/](https://python-evdev.readthedocs.org/en/latest/).
+  id: totrans-165
   prefs: []
   type: TYPE_NORMAL
+  zh: 好奇的读者可以在[https://python-evdev.readthedocs.org/en/latest/](https://python-evdev.readthedocs.org/en/latest/)获取更多关于此库的信息。
 - en: 'After the library has been installed, we can consider a possible implementation
     of our input events manager, as shown in the following code snippet:'
+  id: totrans-166
   prefs: []
   type: TYPE_NORMAL
+  zh: 在安装了该库后，我们可以考虑我们输入事件管理器的一个可能实现，如下所示的代码片段：
 - en: '[PRE41]'
+  id: totrans-167
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE41]'
 - en: Note
+  id: totrans-168
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
+  zh: 注意
 - en: The complete code is stored in the `chapter_10/read_events.py` file in the book's
     example code repository.
+  id: totrans-169
   prefs: []
   type: TYPE_NORMAL
+  zh: 完整的代码存储在本书示例代码库中的`chapter_10/read_events.py`文件中。
 - en: The code is quite self explanatory, but let me explain some points. First of
     all, note that the `GPIO` array is the one defined in the previous section, and
     then the `gpio_get()` and `gpio_set()` methods are used to get and set a GPIO
@@ -677,98 +986,146 @@
     the input device supplied by the user by using the `InputDevice()` method and
     then enters into the big loop, where it waits for a key press, and then it switches
     the status of the corresponding GPIO (if any).
+  id: totrans-170
   prefs: []
   type: TYPE_NORMAL
+  zh: 代码本身很容易理解，但让我解释一些要点。首先，请注意`GPIO`数组是在前一节中定义的，然后`gpio_get()`和`gpio_set()`方法用于获取和设置GPIO状态。程序在对命令行进行简单检查后，开始通过`InputDevice()`方法打开用户提供的输入设备，然后进入大循环，在此循环中等待按键按下，之后它会切换相应GPIO的状态（如果有的话）。
 - en: 'The following is a sample usage:'
+  id: totrans-171
   prefs: []
   type: TYPE_NORMAL
+  zh: 以下是一个示例用法：
 - en: '[PRE42]'
+  id: totrans-172
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE42]'
 - en: Now, before continuing, let me suggest to you an interesting feature in using
     Linux's input layer.
+  id: totrans-173
   prefs: []
   type: TYPE_NORMAL
+  zh: 现在，在继续之前，我想向您推荐使用Linux输入层的一个有趣功能。
 - en: 'Even if it may seem a bit complicated using the input layer instead of directly
     accessing the `lircd` daemon, this approach has the big advantage that we can
     test our relays manager with any input device! In fact, if you try to connect
     a normal keyboard to the BeagleBone Black''s USB port, you''ll get a new input
     device as follows:'
+  id: totrans-174
   prefs: []
   type: TYPE_NORMAL
+  zh: 尽管使用输入层而不是直接访问`lircd`守护进程可能看起来有点复杂，但这种方法有一个巨大优势，那就是我们可以使用任何输入设备来测试我们的继电器管理器！事实上，如果你尝试将普通键盘连接到BeagleBone
+    Black的USB端口，你将获得如下所示的新输入设备：
 - en: '[PRE43]'
+  id: totrans-175
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE43]'
 - en: 'Now, selecting the new input device `/dev/input/event1`, we can generate the
     same input events as before by simply pressing the **0**, **1**, **2**, and **3**
     keys:'
+  id: totrans-176
   prefs: []
   type: TYPE_NORMAL
+  zh: 现在，选择新的输入设备`/dev/input/event1`，我们只需按下**0**、**1**、**2**和**3**键，就可以生成与之前相同的输入事件：
 - en: '[PRE44]'
+  id: totrans-177
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE44]'
 - en: Tip
+  id: totrans-178
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
+  zh: 提示
 - en: Note that, even if not shown here due to lack of space, the keyboard generates
     more input events than the usual `EV_KEY` ones. But we can easily skip them just
     by selecting the right input event type.
+  id: totrans-179
   prefs: []
   type: TYPE_NORMAL
+  zh: 请注意，尽管由于空间限制这里未显示，但键盘会生成比通常的`EV_KEY`事件更多的输入事件。不过，我们可以通过选择正确的输入事件类型轻松跳过它们。
 - en: 'In this situation, if we execute our program as in the following command line,
     we can manage the relays as we did with the remote controller:'
+  id: totrans-180
   prefs: []
   type: TYPE_NORMAL
+  zh: 在这种情况下，如果我们按以下命令行执行程序，我们就可以像使用遥控器一样管理继电器：
 - en: '[PRE45]'
+  id: totrans-181
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE45]'
 - en: The final test
+  id: totrans-182
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 最终测试
 - en: 'As in the previous chapters, we have to first execute the `chapter_10/SYSINIT.sh`
     file in the book''s example code repository as usual to set up all GPIOs lines
     and to load the kernel module:'
+  id: totrans-183
   prefs: []
   type: TYPE_NORMAL
+  zh: 和前几章一样，我们首先需要执行本书示例代码库中的`chapter_10/SYSINIT.sh`文件，以便设置所有GPIO线路并加载内核模块：
 - en: '[PRE46]'
+  id: totrans-184
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE46]'
 - en: 'Then, we must execute the `lircd` daemon by using the command line without
     the `--nodaemon` option argument:'
+  id: totrans-185
   prefs: []
   type: TYPE_NORMAL
+  zh: 然后，我们必须执行`lircd`守护进程，通过命令行并且不带`--nodaemon`选项参数：
 - en: '[PRE47]'
+  id: totrans-186
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE47]'
 - en: 'Then, we can execute the preceding `read_events.py` program to manage the relays:'
+  id: totrans-187
   prefs: []
   type: TYPE_NORMAL
+  zh: 然后，我们可以执行前面的`read_events.py`程序来管理继电器：
 - en: '[PRE48]'
+  id: totrans-188
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE48]'
 - en: Now the trick is done. We simply have to direct the remote controller to the
     infrared detector and press the **0**, **1**, **2**, or **3** button. When we
     press the button, the switch turns on, while when we press the button again, the
     switch also turns off changing the status of the connected relay, and, as a last
     step, the device connected to it.
+  id: totrans-189
   prefs: []
   type: TYPE_NORMAL
+  zh: 现在，技巧已经完成。我们只需要将遥控器对准红外探测器，按下**0**、**1**、**2**或**3**按钮。当我们按下按钮时，开关会打开；而当我们再次按下按钮时，开关会关闭，从而改变连接的继电器的状态，最后，改变连接到继电器的设备状态。
 - en: Summary
+  id: totrans-190
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 总结
 - en: In this chapter, we took a look at a kernel driver to manage an infrared device.
     Then, we saw how to use the userspace tools from the LIRC project to receive the
     messages from the remote controller, and then to turn them into specific Linux
     input events. This allowed us to manage some devices connected with our BeagleBone
     Black.
+  id: totrans-191
   prefs: []
   type: TYPE_NORMAL
+  zh: 本章中，我们查看了一个内核驱动程序来管理红外设备。接着，我们学习了如何使用LIRC项目的用户空间工具接收遥控器发送的消息，并将其转化为特定的Linux输入事件。这使我们能够管理连接到BeagleBone
+    Black的设备。
 - en: In the next chapter, we'll discover how to manage a wireless device to manage
     a wall plug and to monitor the power consumption of the device connected to it
     by using a common communication system for the home automation, that is, the **Z-Wave**
     protocol.
+  id: totrans-192
   prefs: []
   type: TYPE_NORMAL
+  zh: 在下一章中，我们将探讨如何管理无线设备来控制墙插，并通过一种常见的家居自动化通信系统——**Z-Wave**协议，来监控连接到该插座的设备的电力消耗。
