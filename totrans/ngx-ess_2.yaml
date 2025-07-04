@@ -1102,6 +1102,8 @@
   id: totrans-173
   prefs: []
   type: TYPE_NORMAL
+  zh: 在这种情况下，事件发生在文件描述符上的时间，以及文件描述符能被服务的时间（即延迟）取决于完成整个事件处理周期的速度。因此，为了实现更高的延迟，合理的做法是让工作进程之间在
+    CPU 资源的竞争上受一些惩罚，转而支持每个进程更多的连接，因为这将减少工作进程之间的上下文切换次数。
 - en: 'Therefore, *on the systems that are CPU-bound*, it makes sense to allocate
     as many worker processes as there are CPU cores in the system. For example, consider
     this output of the `top` command (this output can be obtained by pressing *1*
@@ -1109,6 +1111,8 @@
   id: totrans-174
   prefs: []
   type: TYPE_NORMAL
+  zh: 因此，*在 CPU 受限的系统上*，为每个 CPU 核心分配相同数量的工作进程是有意义的。例如，考虑以下 `top` 命令的输出（可以通过在 `top`
+    启动后按 *1* 键来获取此输出）：
 - en: '[PRE29]'
   id: totrans-175
   prefs: []
@@ -1121,6 +1125,8 @@
   id: totrans-176
   prefs: []
   type: TYPE_NORMAL
+  zh: 该系统具有八个独立的 CPU 核心。因此，在该系统上，最大数量的工作进程为八个，且这些工作进程不会与 CPU 核心发生竞争。要配置 Nginx 启动指定数量的工作进程，可以在主配置文件中使用
+    `worker_processes` 指令：
 - en: '[PRE30]'
   id: totrans-177
   prefs: []
@@ -1131,22 +1137,26 @@
   id: totrans-178
   prefs: []
   type: TYPE_NORMAL
+  zh: 上述命令将指示 Nginx 启动八个工作进程以处理传入的连接。
 - en: Note
   id: totrans-179
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
+  zh: 注意
 - en: If the number of worker processes is set to a number lower than the number of
     CPU cores, Nginx will not be able to take advantage of all parallelism available
     in your system.
   id: totrans-180
   prefs: []
   type: TYPE_NORMAL
+  zh: 如果工作进程的数量设置低于 CPU 核心的数量，Nginx 将无法充分利用系统中所有可用的并行处理能力。
 - en: 'To extend the maximum number of connections that can be processed by a worker
     process, use the `worker_connections` directive:'
   id: totrans-181
   prefs: []
   type: TYPE_NORMAL
+  zh: 要扩展工作进程可以处理的最大连接数，请使用 `worker_connections` 指令：
 - en: '[PRE31]'
   id: totrans-182
   prefs: []
@@ -1158,6 +1168,7 @@
   id: totrans-183
   prefs: []
   type: TYPE_NORMAL
+  zh: 上述命令将把可分配的最大连接数扩展到 10,000。这包括传入连接（来自客户端的连接）和传出连接（连接到代理服务器和其他外部资源）。
 - en: '*On disk I/O-bound systems*, in the absence of the AIO facility, additional
     latency might be introduced into the event cycle due to blocking disk I/O operations.
     While a worker process is waiting for a blocking disk I/O operation to complete
@@ -1168,6 +1179,8 @@
   id: totrans-184
   prefs: []
   type: TYPE_NORMAL
+  zh: '*在磁盘 I/O 受限的系统上*，如果没有 AIO 功能，可能会因阻塞的磁盘 I/O 操作而引入额外的延迟。当前一个工作进程在某个文件描述符上等待阻塞的磁盘
+    I/O 操作完成时，其他文件描述符无法被服务。然而，其他进程仍然可以使用可用的 CPU 资源。因此，在 I/O 通道数目已满的情况下，增加工作进程可能不会提高性能。'
 - en: On systems with mixed resource demands, a worker process allocation strategy
     other than the previously mentioned two might be needed to achieve better performance.
     Try varying the numbers of workers in order to obtain the configuration that works
@@ -1175,22 +1188,27 @@
   id: totrans-185
   prefs: []
   type: TYPE_NORMAL
+  zh: 在资源需求混合的系统上，可能需要采用不同于前述两种的工作进程分配策略，以实现更好的性能。尝试调整工作进程的数量，以获得最佳的配置。这可以是一个工作进程到数百个工作进程不等。
 - en: Setting up Nginx to serve static data
   id: totrans-186
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 设置 Nginx 以提供静态数据
 - en: Now that you are more proficient in installing, configuring, and managing Nginx,
     we can proceed with some practical questions. Let's see how we can set up Nginx
     to serve static data such as images, CSS, or JavaScript files.
   id: totrans-187
   prefs: []
   type: TYPE_NORMAL
+  zh: 现在你已经更熟练地掌握了安装、配置和管理 Nginx，我们可以继续进行一些实际问题的探讨。让我们看看如何设置 Nginx 来提供静态数据，如图像、CSS
+    或 JavaScript 文件。
 - en: 'First, we will take the sample configuration from the previous chapter and
     make it support multiple virtual hosts using wild card inclusion:'
   id: totrans-188
   prefs: []
   type: TYPE_NORMAL
+  zh: 首先，我们将使用上一章节中的示例配置，并使其支持通过通配符包含多个虚拟主机：
 - en: '[PRE32]'
   id: totrans-189
   prefs: []
@@ -1201,11 +1219,13 @@
   id: totrans-190
   prefs: []
   type: TYPE_NORMAL
+  zh: 我们已将Nginx配置为利用八个处理器核心，并包括位于`/etc/nginx/site-enabled`目录中的所有配置文件。
 - en: 'Next, we will configure a virtual host `static.example.com` for serving static
     data. The following content goes into the file `/etc/nginx/site-enabled/static.example.com.conf`:'
   id: totrans-191
   prefs: []
   type: TYPE_NORMAL
+  zh: 接下来，我们将配置一个虚拟主机`static.example.com`用于服务静态数据。以下内容需要放入文件`/etc/nginx/site-enabled/static.example.com.conf`：
 - en: '[PRE33]'
   id: totrans-192
   prefs: []
@@ -1220,6 +1240,9 @@
   id: totrans-193
   prefs: []
   type: TYPE_NORMAL
+  zh: 该文件配置了虚拟主机`static.example.com`。虚拟主机根目录位置设置为`/usr/local/www/static.example.com`。为了提高静态文件的获取效率，我们建议Nginx使用sendfile()系统调用（`sendfile
+    on`），并将最大sendfile块大小设置为1 MB。同时，我们启用“TCP_NOPUSH”选项，以提高在使用sendfile()时的TCP段利用率（`tcp_nopush
+    on`）。
 - en: The `gzip_static on` directive instructs Nginx to check for gzipped copies of
     static files, such as `main.js.gz` for `main.js` and `styles.css.gz` for `styles.css`.
     If they are found, Nginx will indicate the presence of the `.gzip` content encoding,
@@ -1227,31 +1250,37 @@
   id: totrans-194
   prefs: []
   type: TYPE_NORMAL
+  zh: '`gzip_static on`指令告诉Nginx检查静态文件的gzip压缩版本，比如`main.js.gz`对应`main.js`，`styles.css.gz`对应`styles.css`。如果找到了这些文件，Nginx会指示存在`.gzip`内容编码，并使用压缩文件的内容，而不是原始文件。'
 - en: This configuration is suitable for virtual hosts that serve small-to-medium
     size static files.
   id: totrans-195
   prefs: []
   type: TYPE_NORMAL
+  zh: 这个配置适用于提供中小型静态文件的虚拟主机。
 - en: Installing SSL certificates
   id: totrans-196
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 安装SSL证书
 - en: Today, more than 60 percent of the HTTP traffic on the Internet is protected
     by SSL. In the presence of sophisticated attacks such as cache poisoning and DNS
     hijacking, SSL is mandatory if your web content has any value.
   id: totrans-197
   prefs: []
   type: TYPE_NORMAL
+  zh: 今天，超过60%的互联网HTTP流量都通过SSL保护。在面对复杂的攻击（如缓存投毒和DNS劫持）时，如果您的网站内容具有任何价值，SSL是必需的。
 - en: Nginx has high-class SSL support and makes it easy for you to configure. Let's
     walk over the installation procedure of an SSL virtual host.
   id: totrans-198
   prefs: []
   type: TYPE_NORMAL
+  zh: Nginx具有高级SSL支持，且使配置变得简单。让我们一起走过SSL虚拟主机的安装过程。
 - en: 'Before we start, make sure the `openssl` package is installed on your system:'
   id: totrans-199
   prefs: []
   type: TYPE_NORMAL
+  zh: 在我们开始之前，确保您的系统已安装`openssl`包：
 - en: '[PRE34]'
   id: totrans-200
   prefs: []
@@ -1262,11 +1291,13 @@
   id: totrans-201
   prefs: []
   type: TYPE_NORMAL
+  zh: 这将确保您拥有必要的工具，来完成SSL证书的颁发流程。
 - en: Creating a Certificate Signing Request
   id: totrans-202
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 创建证书签名请求
 - en: You need an SSL certificate in order to set up an SSL virtual host. In order
     to obtain a real certificate, you need to contact a certification authority to
     issue an SSL certificate. A certification authority will usually charge you a
@@ -1274,6 +1305,7 @@
   id: totrans-203
   prefs: []
   type: TYPE_NORMAL
+  zh: 您需要一个SSL证书来设置SSL虚拟主机。为了获得真实的证书，您需要联系认证机构申请SSL证书。认证机构通常会收取相关费用。
 - en: To issue an SSL certificate, a certification authority needs a **Certificate
     Signing Request** (**CSR**) from you. A CSR is a message created by you and sent
     to a certification authority containing your identification data, such as distinguished
@@ -1281,10 +1313,12 @@
   id: totrans-204
   prefs: []
   type: TYPE_NORMAL
+  zh: 要颁发SSL证书，认证机构需要您提供**证书签名请求**（**CSR**）。CSR是您创建并发送给认证机构的消息，包含您的身份信息，如区分名、地址和公钥。
 - en: 'To generate a CSR, run the following command:'
   id: totrans-205
   prefs: []
   type: TYPE_NORMAL
+  zh: 要生成CSR，请运行以下命令：
 - en: '[PRE35]'
   id: totrans-206
   prefs: []
@@ -1296,28 +1330,33 @@
   id: totrans-207
   prefs: []
   type: TYPE_NORMAL
+  zh: 这将开始生成两个文件的过程：一个用于解密SSL证书的私钥（`your_domain_name.key`），以及一个用于申请新SSL证书的证书签名请求（`your_domain_name.csr`）。
 - en: 'This command will ask you for your identification data:'
   id: totrans-208
   prefs: []
   type: TYPE_NORMAL
+  zh: 此命令将要求您提供身份信息：
 - en: '**Country name** (**C**): This is a two-letter country code, for example, NL
     or US.'
   id: totrans-209
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '**国家名称**（**C**）：这是一个两字母的国家代码，例如，NL或US。'
 - en: '**State or province** (**S**): This is the full name of the state you or your
     company is in, for example, Noord-Holland.'
   id: totrans-210
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '**州或省份**（**S**）：这是您或您公司所在州的完整名称，例如，北荷兰。'
 - en: '**Locality or city** (**L**): This is the city or town you or your company
     is in, for example, Amsterdam.'
   id: totrans-211
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '**地区或城市**（**L**）：这是您或您公司所在的城市或城镇，例如，阿姆斯特丹。'
 - en: '**Organization** (**O**): If your company or department has *&*, *@*, or any
     other symbol using the *Shift* key in its name, you must spell out the symbol
     or omit it to enroll. For example, XY & Z Corporation would be XYZ Corporation
@@ -1326,17 +1365,21 @@
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '**组织**（**O**）：如果您的公司或部门名称中有 *&*、*@* 或其他需要按 *Shift* 键输入的符号，您必须将该符号拼写出来或省略才能完成注册。例如，XY
+    & Z Corporation 应为 XYZ Corporation 或 XY and Z Corporation。'
 - en: '**Organizational Unit** (**OU**): This field is the name of the department
     or organization unit making the request.'
   id: totrans-213
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '**组织单位**（**OU**）：此字段是发起请求的部门或组织单位的名称。'
 - en: '**Common name** (**CN**): This is the full name of the host you are protecting.'
   id: totrans-214
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '**通用名称**（**CN**）：这是您要保护的主机的完整名称。'
 - en: The last field is of particular importance here. It must match the full name
     of the host you are protecting. For instance, if you registered a domain `example.com`
     and users will connect to `www.example.com`, you must enter `www.example.com`
@@ -1345,28 +1388,34 @@
   id: totrans-215
   prefs: []
   type: TYPE_NORMAL
+  zh: 最后一项字段尤为重要。它必须与您要保护的主机的完整名称匹配。例如，如果您注册了域名 `example.com` 并且用户将连接到 `www.example.com`，则必须在通用名称字段中输入
+    `www.example.com`。如果您输入的是 `example.com`，那么该证书将无法在 `www.example.com` 上使用。
 - en: Note
   id: totrans-216
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
+  zh: 注意
 - en: Do not fill in optional attributes such as e-mail address, challenge password,
     or the optional company name when generating the CSR. They do not add much value,
     but just expose more personal data.
   id: totrans-217
   prefs: []
   type: TYPE_NORMAL
+  zh: 在生成 CSR 时，请勿填写诸如电子邮件地址、挑战密码或可选的公司名称等可选属性。这些内容没有太大价值，反而会暴露更多个人数据。
 - en: Your CSR is ready now. After you save your private key to some secure place,
     you can proceed with contacting a certification authority and enrolling for an
     SSL certificate. Present your CSR once requested.
   id: totrans-218
   prefs: []
   type: TYPE_NORMAL
+  zh: 您的 CSR 现在已准备好。将您的私钥保存在某个安全位置后，您可以继续联系认证机构并申请 SSL 证书。根据要求提交您的 CSR。
 - en: Installing an issued SSL certificate
   id: totrans-219
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 安装已签发的 SSL 证书
 - en: Once your certificate is issued, you can proceed with setting up your SSL server.
     Save your certificate under a descriptive name such as `your_domain_name.crt`.
     Move it to a secure directory that only Nginx and superuser have access to. We
@@ -1374,10 +1423,13 @@
   id: totrans-220
   prefs: []
   type: TYPE_NORMAL
+  zh: 一旦您的证书签发完成，您可以继续设置您的 SSL 服务器。将证书保存为具有描述性的名称，例如 `your_domain_name.crt`。将其移动到一个只有
+    Nginx 和超级用户能够访问的安全目录。为简便起见，我们将使用 `/etc/ssl` 作为此类目录的示例。
 - en: 'Now, you can start adding configuration for your secure virtual host:'
   id: totrans-221
   prefs: []
   type: TYPE_NORMAL
+  zh: 现在，您可以开始为您的安全虚拟主机添加配置：
 - en: '[PRE36]'
   id: totrans-222
   prefs: []
@@ -1388,10 +1440,12 @@
   id: totrans-223
   prefs: []
   type: TYPE_NORMAL
+  zh: '`server_name` 指令中的域名必须与您的证书签名请求中的通用名称字段的值匹配。'
 - en: 'After the configuration is saved, restart Nginx using the following command:'
   id: totrans-224
   prefs: []
   type: TYPE_NORMAL
+  zh: 配置保存后，请使用以下命令重启 Nginx：
 - en: '[PRE37]'
   id: totrans-225
   prefs: []
@@ -1402,17 +1456,21 @@
   id: totrans-226
   prefs: []
   type: TYPE_NORMAL
+  zh: 现在，导航到 `https://your.domain.com`，以建立与您服务器的安全连接。
 - en: Permanently redirecting from a nonsecure virtual host
   id: totrans-227
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 永久重定向非安全虚拟主机
 - en: The preceding configuration handles only requests issued to the HTTPS service
     (port `443`) of your server. Most of the time, you will be running the plain HTTP
     service (port `80`) next to the secure one.
   id: totrans-228
   prefs: []
   type: TYPE_NORMAL
+  zh: 上述配置仅处理发往您服务器 HTTPS 服务（端口 `443`）的请求。大多数情况下，您会同时运行普通 HTTP 服务（端口 `80`）和安全的 HTTPS
+    服务。
 - en: For a number of reasons, it's unwise to have different configurations for the
     plain HTTP and HTTPS services for the same host name. If certain resources are
     available over plain HTTP but not over SSL or the other way around, this might
@@ -1421,6 +1479,8 @@
   id: totrans-229
   prefs: []
   type: TYPE_NORMAL
+  zh: 出于多个原因，不建议对同一主机名的普通 HTTP 和 HTTPS 服务设置不同的配置。如果某些资源仅通过普通 HTTP 提供而不通过 SSL，或反之，这可能会导致坏链接，因为如果指向某个资源的
+    URL 是以不区分协议的方式处理的，可能会产生问题。
 - en: Likewise, if certain resources are made available over both plain HTTP and SSL
     by mistake, then it is a security error because the resource can be obtained and
     interacted with in a nonsecure way by simply changing the `https://` scheme to
@@ -1428,11 +1488,13 @@
   id: totrans-230
   prefs: []
   type: TYPE_NORMAL
+  zh: 同样，如果某些资源意外地通过普通 HTTP 和 SSL 同时提供，那么这就是一个安全错误，因为只需将 `https://` 协议更改为 `http://`，就可以通过不安全的方式访问和操作该资源。
 - en: 'To avoid these problems and to simplify your configuration, you can set up
     a simple permanent redirect from the non-SSL virtual host to the SSL virtual host:'
   id: totrans-231
   prefs: []
   type: TYPE_NORMAL
+  zh: 为避免这些问题并简化配置，您可以设置一个简单的永久重定向，将非 SSL 虚拟主机的请求重定向到 SSL 虚拟主机：
 - en: '[PRE38]'
   id: totrans-232
   prefs: []
@@ -1443,27 +1505,32 @@
   id: totrans-233
   prefs: []
   type: TYPE_NORMAL
+  zh: 这确保所有通过普通 HTTP 访问你网站上的任何资源的请求都会被重定向到 SSL 虚拟主机上的相同资源。
 - en: Managing temporary files
   id: totrans-234
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 管理临时文件
 - en: 'Managing temporary files is usually not a big deal, but you must be aware of
     it. Nginx uses temporary files to store transient data such as the following:'
   id: totrans-235
   prefs: []
   type: TYPE_NORMAL
+  zh: 管理临时文件通常不是一件大事，但你必须对此有所了解。Nginx 使用临时文件来存储以下临时数据：
 - en: Large request bodies received from users
   id: totrans-236
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 从用户接收的大请求体
 - en: Large response bodies received from proxied servers or via FastCGI, SCGI, or
     UWCGI protocols.
   id: totrans-237
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 从代理服务器或通过 FastCGI、SCGI 或 UWCGI 协议接收的大响应体。
 - en: 'In the *Installing Nginx* section of [Chapter 1](ch01.html "Chapter 1. Getting
     Started with Nginx"), *Getting Started with Nginx*, you saw the default location
     of temporary folders for these files. The following table lists the configuration
@@ -1471,43 +1538,53 @@
   id: totrans-238
   prefs: []
   type: TYPE_NORMAL
+  zh: 在 [第1章](ch01.html "第1章：开始使用 Nginx") *安装 Nginx* 部分中，你看到了这些文件的默认临时文件夹位置。下表列出了为各种
+    Nginx 核心模块指定临时文件夹的配置指令：
 - en: '| Directive | Purpose |'
   id: totrans-239
   prefs: []
   type: TYPE_TB
+  zh: '| 指令 | 目的 |'
 - en: '| --- | --- |'
   id: totrans-240
   prefs: []
   type: TYPE_TB
+  zh: '| --- | --- |'
 - en: '| `client_body_temp_path` | Specifies temporary path for client request body
     data |'
   id: totrans-241
   prefs: []
   type: TYPE_TB
+  zh: '| `client_body_temp_path` | 为客户端请求体数据指定临时路径 |'
 - en: '| `proxy_temp_path` | Specifies temporary path for responses from proxied servers
     |'
   id: totrans-242
   prefs: []
   type: TYPE_TB
+  zh: '| `proxy_temp_path` | 为代理服务器响应指定临时路径 |'
 - en: '| `fastcgi_temp_path` | Specifies temporary path for responses from FastCGI
     servers |'
   id: totrans-243
   prefs: []
   type: TYPE_TB
+  zh: '| `fastcgi_temp_path` | 为 FastCGI 服务器响应指定临时路径 |'
 - en: '| `scgi_temp_path` | Specifies temporary path for responses from SCGI servers
     |'
   id: totrans-244
   prefs: []
   type: TYPE_TB
+  zh: '| `scgi_temp_path` | 为 SCGI 服务器响应指定临时路径 |'
 - en: '| `uwsgi_temp_path` | Specifies temporary path for responses from UWCGI servers
     |'
   id: totrans-245
   prefs: []
   type: TYPE_TB
+  zh: '| `uwsgi_temp_path` | 为 UWCGI 服务器响应指定临时路径 |'
 - en: The arguments of the preceding directives are as follows
   id: totrans-246
   prefs: []
   type: TYPE_NORMAL
+  zh: 前述指令的参数如下：
 - en: '[PRE39]'
   id: totrans-247
   prefs: []
@@ -1519,6 +1596,7 @@
   id: totrans-248
   prefs: []
   type: TYPE_NORMAL
+  zh: 在前面的代码中，`<path>` 指定包含临时文件的目录路径，而级别则指定每个哈希目录级别中的字符数。
 - en: What is a hashed directory? In UNIX, a directory in the file system is essentially
     a file that simply contains a list of entries of that directory. So, imagine one
     of your temporary directories contains 100,000 entries. Each search in this directory
@@ -1528,12 +1606,15 @@
   id: totrans-249
   prefs: []
   type: TYPE_NORMAL
+  zh: 什么是哈希目录？在 UNIX 中，文件系统中的目录本质上是一个文件，里面仅包含该目录的条目列表。所以，假设你的临时目录包含了 100,000 个条目。每次在该目录中的搜索都会扫描这
+    100,000 个条目，这效率很低。为了避免这种情况，你可以将临时目录拆分为若干个子目录，每个子目录包含一个有限数量的临时文件。
 - en: 'By specifying levels, you instruct Nginx to split your temporary directory
     into a set of subdirectories, each having a specified number of characters in
     its name, for example, a directive:'
   id: totrans-250
   prefs: []
   type: TYPE_NORMAL
+  zh: 通过指定级别，你可以指示 Nginx 将临时目录拆分为一组子目录，每个子目录的名称具有指定的字符数，例如，指令：
 - en: '[PRE40]'
   id: totrans-251
   prefs: []
@@ -1544,16 +1625,21 @@
   id: totrans-252
   prefs: []
   type: TYPE_NORMAL
+  zh: 前面的代码行指示 Nginx 将名为 `3924510929` 的临时文件存储在路径 `/var/lib/nginx/proxy/29/3924510929`
+    下。
 - en: Likewise, the directive `proxy_temp_path /var/lib/nginx/proxy 1 2` instructs
     Nginx to store a temporary file named `1673539942` under the path `/var/lib/nginx/proxy/2/94/1673539942`.
   id: totrans-253
   prefs: []
   type: TYPE_NORMAL
+  zh: 同样，指令 `proxy_temp_path /var/lib/nginx/proxy 1 2` 指示 Nginx 将名为 `1673539942` 的临时文件存储在路径
+    `/var/lib/nginx/proxy/2/94/1673539942` 下。
 - en: As you can see, the characters that constitute the names of the intermediary
     directories are extracted from the tail of the temporary file name.
   id: totrans-254
   prefs: []
   type: TYPE_NORMAL
+  zh: 如你所见，构成中介目录名称的字符是从临时文件名的尾部提取的。
 - en: 'Both hierarchical and nonhierarchical temporary directory structures have to
     be purged from time to time. This could be achieved by walking the directory tree
     and removing all files residing in those directories. You can use a command like
@@ -1561,6 +1647,7 @@
   id: totrans-255
   prefs: []
   type: TYPE_NORMAL
+  zh: 无论是层次结构的还是非层次结构的临时目录结构，都必须定期清理。这可以通过遍历目录树并删除所有位于这些目录中的文件来实现。你可以使用如下命令：
 - en: '[PRE41]'
   id: totrans-256
   prefs: []
@@ -1573,10 +1660,12 @@
   id: totrans-257
   prefs: []
   type: TYPE_NORMAL
+  zh: 你可以在交互式 shell 中使用该命令。此命令将找到所有以数字结尾的临时目录中的文件，并通过运行 `rm` 删除这些文件。如果发现异常，它会提示删除。
 - en: 'For the noninteractive mode, you can use a more dangerous command:'
   id: totrans-258
   prefs: []
   type: TYPE_NORMAL
+  zh: 对于非交互模式，你可以使用更危险的命令：
 - en: '[PRE42]'
   id: totrans-259
   prefs: []
@@ -1586,50 +1675,59 @@
   id: totrans-260
   prefs: []
   type: TYPE_NORMAL
+  zh: 此命令不会提示删除文件。
 - en: Note
   id: totrans-261
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
+  zh: 注意
 - en: 'This command is dangerous as it blindly removes a broadly-specified set of
     files. To avoid data loss, stick to the following principles when managing temporary
     directories:'
   id: totrans-262
   prefs: []
   type: TYPE_NORMAL
+  zh: 此命令危险，因为它会盲目删除一个广泛指定的文件集。为了避免数据丢失，请在管理临时目录时遵循以下原则：
 - en: Never store anything but temporary files inside temporary directories
   id: totrans-263
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 永远只在临时目录中存储临时文件
 - en: Always use absolute paths in the first argument of a `find` command
   id: totrans-264
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 在 `find` 命令的第一个参数中始终使用绝对路径
 - en: If possible, check what you are about to remove by substituting `rm` with `echo`
     in order to print the list of files to be supplied to `rm`
   id: totrans-265
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 如果可能，通过将 `rm` 替换为 `echo` 来检查即将删除的内容，以便打印出将传递给 `rm` 的文件列表。
 - en: Make sure Nginx stores temporary files under a specially-designated user such
     as `nobody` or `www-data`, and never under the superuser
   id: totrans-266
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 确保 Nginx 在一个专门指定的用户（如 `nobody` 或 `www-data`）下存储临时文件，绝不在超级用户下存储
 - en: Make sure the command above runs under a specially-designated user such as `nobody`
     or `www-data`, and never under the superuser
   id: totrans-267
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 确保上述命令在专门指定的用户（如 `nobody` 或 `www-data`）下运行，绝不在超级用户下运行
 - en: Communicating issues to developers
   id: totrans-268
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 向开发者反馈问题
 - en: If you are running nonstable versions of Nginx for trial or using your own or
     third-party modules for Nginx, your instance might occasionally experience crashes.
     If you decide to communicate these issues to developers, here is a guide that
@@ -1637,49 +1735,58 @@
   id: totrans-269
   prefs: []
   type: TYPE_NORMAL
+  zh: 如果你正在运行非稳定版本的 Nginx 进行试用，或使用自定义或第三方模块，你的实例可能偶尔会遇到崩溃。如果你决定将这些问题反馈给开发者，这里有一份指南，帮助你更高效地进行沟通。
 - en: Developers usually don't have access to production systems, but knowing the
     environment your Nginx instance is running in is crucial to trace the cause of
     the problem.
   id: totrans-270
   prefs: []
   type: TYPE_NORMAL
+  zh: 开发者通常无法访问生产系统，但了解你的 Nginx 实例所运行的环境对追踪问题的根本原因至关重要。
 - en: Therefore, you need to provide detailed information about the issue. Detailed
     information about a crash can be found in the core file that was created after
     the crash.
   id: totrans-271
   prefs: []
   type: TYPE_NORMAL
+  zh: 因此，你需要提供关于问题的详细信息。崩溃的详细信息可以在崩溃后创建的核心文件中找到。
 - en: Note
   id: totrans-272
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
+  zh: 注意
 - en: '**Warning!**'
   id: totrans-273
   prefs: []
   type: TYPE_NORMAL
+  zh: '**警告！**'
 - en: The core file contains a memory dump of a worker process at the moment of a
     crash and therefore can contain sensitive information, such as passwords, keys,
     or private data. Therefore, never share core files with people you don't trust.
   id: totrans-274
   prefs: []
   type: TYPE_NORMAL
+  zh: 核心文件包含崩溃时工作进程的内存转储，因此可能包含敏感信息，如密码、密钥或私人数据。因此，永远不要与不信任的人分享核心文件。
 - en: 'Instead, use the following procedure to obtain detailed information about a
     crash:'
   id: totrans-275
   prefs: []
   type: TYPE_NORMAL
+  zh: 另请使用以下程序来获取关于崩溃的详细信息：
 - en: Get a copy of the Nginx binary that you run with debugging information (see
     following instructions)
   id: totrans-276
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 获取你运行的带有调试信息的 Nginx 二进制文件副本（参见以下说明）
 - en: 'If a core file is available, run `gdb` on the binary with the debugging information:'
   id: totrans-277
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 如果核心文件可用，请在带有调试信息的二进制文件上运行 `gdb`：
 - en: '[PRE43]'
   id: totrans-278
   prefs:
@@ -1692,6 +1799,7 @@
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 如果运行成功，这将打开 `gdb` 提示符。在其中输入 `bt full`：
 - en: '[PRE44]'
   id: totrans-280
   prefs:
@@ -1705,11 +1813,13 @@
   id: totrans-281
   prefs: []
   type: TYPE_NORMAL
+  zh: 上述命令将在崩溃时生成一长串堆栈转储，通常足以调试多种问题。总结导致崩溃的配置，并将其与完整的堆栈跟踪一起发送给开发者。
 - en: Creating a binary with debugging information
   id: totrans-282
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 创建带有调试信息的二进制文件
 - en: A detailed stack trace can be obtained only from a binary with debugging information.
     You don't necessarily need to run a binary with debugging information. It's only
     necessary to have a binary that is identical to the one that you run, but with
@@ -1717,18 +1827,21 @@
   id: totrans-283
   prefs: []
   type: TYPE_NORMAL
+  zh: 只有带有调试信息的二进制文件才能获取详细的堆栈跟踪。你不一定需要运行带有调试信息的二进制文件，只需要确保使用的二进制文件与运行的文件相同，但额外包含了调试信息。
 - en: 'It is possible to produce such a binary from the source code of the binary
     that you are running by configuring the source tree with an extra `–with-debug`
     option. The steps are as follows:'
   id: totrans-284
   prefs: []
   type: TYPE_NORMAL
+  zh: 通过在源代码树中配置一个额外的`–with-debug`选项，你可以从你正在运行的二进制文件的源代码中生成这样的二进制文件。步骤如下：
 - en: 'First, obtain configuration script arguments from the binary your instance
     is running:'
   id: totrans-285
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 首先，从你正在运行的二进制文件中获取配置脚本参数：
 - en: '[PRE45]'
   id: totrans-286
   prefs:
@@ -1741,6 +1854,7 @@
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 在参数字符串前添加`–with-debug`选项，并运行配置脚本：
 - en: '[PRE46]'
   id: totrans-288
   prefs:
@@ -1754,6 +1868,7 @@
   id: totrans-289
   prefs: []
   type: TYPE_NORMAL
+  zh: 按照构建过程的剩余步骤进行操作（详细信息请参见上一章）。完成后，你将在源代码树的`objs`目录中找到一个与正在运行的二进制文件相同，但带有调试信息的二进制文件：
 - en: '[PRE47]'
   id: totrans-290
   prefs: []
@@ -1764,15 +1879,18 @@
   id: totrans-291
   prefs: []
   type: TYPE_NORMAL
+  zh: 现在，你可以使用这个二进制文件从其对应的二进制文件生成的核心文件中获取完整的堆栈跟踪。
 - en: Refer to the previous section in order to learn how to produce a stack trace.
   id: totrans-292
   prefs: []
   type: TYPE_NORMAL
+  zh: 请参阅上一节，了解如何生成堆栈跟踪。
 - en: Summary
   id: totrans-293
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 总结
 - en: In this chapter, you learned a lot of Nginx management techniques. We covered
     almost the full circle of Nginx operation, except for problem-dependent details.
     In the next and further chapters, you will start learning about particular features
@@ -1781,3 +1899,4 @@
   id: totrans-294
   prefs: []
   type: TYPE_NORMAL
+  zh: 在本章中，你学习了很多Nginx管理技巧。我们几乎涵盖了Nginx操作的所有内容，除了依赖问题的细节。在接下来的章节中，你将开始学习Nginx的特定功能以及如何应用它们。这将进一步丰富你的Nginx核心技能。
