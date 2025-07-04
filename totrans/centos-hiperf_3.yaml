@@ -1,77 +1,108 @@
 - en: Chapter 3. A Closer Look at High Availability
+  id: totrans-0
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 第3章 高可用性的更深入探讨
 - en: In this chapter, we will look at the components of a high-availability cluster
     in greater detail than we were able to do initially during [Chapter 1](part0014_split_000.html#DB7S1-1d2c6d19b9d242db82da724021b51ea0
     "Chapter 1. Cluster Basics and Installation on CentOS 7"), *Cluster Basics and
     Installation on CentOS 7*; you may want to review that chapter in order to refresh
     your memory before proceeding further.
+  id: totrans-1
   prefs: []
   type: TYPE_NORMAL
+  zh: 本章将比在[第1章](part0014_split_000.html#DB7S1-1d2c6d19b9d242db82da724021b51ea0 "第1章
+    集群基础和CentOS 7上的安装")中更详细地讲解高可用性集群的组件；你可能希望复习那一章，以便在继续深入学习之前刷新记忆。
 - en: 'In this chapter, we will cover the following topics:'
+  id: totrans-2
   prefs: []
   type: TYPE_NORMAL
+  zh: 本章将涵盖以下主题：
 - en: Failover—a premier on high availability and performance
+  id: totrans-3
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 故障切换——高可用性和性能的概述
 - en: Fencing — isolating the malfunctioning nodes
+  id: totrans-4
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 围栏——隔离故障节点
 - en: Split brain — preparing to avoid inconsistencies
+  id: totrans-5
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 脑裂——准备避免不一致
 - en: Quorum — scoring inside your cluster
+  id: totrans-6
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 多数决策——在集群内评分
 - en: Configuring our cluster via PCS GUI
+  id: totrans-7
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 通过PCS图形界面配置我们的集群
 - en: 'We will set out on this chapter by asking ourselves a few questions about how
     to achieve high availability, and we will attempt to get our answers as we go
     along. In the next chapter, we will set up actual real-life examples:'
+  id: totrans-8
   prefs: []
   type: TYPE_NORMAL
+  zh: 本章将通过提问几个关于如何实现高可用性的问题来开始，我们将在过程中尝试寻找答案。在下一章中，我们将设置实际的实际示例：
 - en: How can we ensure an automatic failover without the need for human intervention?
+  id: totrans-9
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 如何确保自动故障切换而不需要人工干预？
 - en: How many nodes are needed in a cluster in order to ensure high availability
     in several failure scenarios?
+  id: totrans-10
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 为了确保在多种故障场景下的高可用性，集群中需要多少个节点？
 - en: How do we consistently ensure data integrity and high availability when an offline
     node comes online again?
+  id: totrans-11
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 如何在离线节点重新上线时始终确保数据完整性和高可用性？
 - en: 'Overall, clusters can be classified into two main categories. For simplicity,
     we will use a cluster consisting of two nodes for the following definitions, but
     the concept can be easily extended to a cluster with a higher number of members:'
+  id: totrans-12
   prefs: []
   type: TYPE_NORMAL
+  zh: 总体而言，集群可以分为两大类。为了简化，我们将使用一个由两个节点组成的集群来进行以下定义，但这个概念可以轻松扩展到包含更多节点的集群：
 - en: '**Active/Active (A/A)**: In this type of cluster, all nodes are active at the
     same time. Thus, they are able to serve requests simultaneously and equally, each
     with independent workloads. When a failover is necessary, the remaining node is
     assigned an additional processing load, thus impacting the overall performance
     of the cluster negatively.'
+  id: totrans-13
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '**主动/主动（A/A）**：在这种类型的集群中，所有节点都同时处于活动状态。因此，它们能够同时并平等地处理请求，每个节点都有独立的工作负载。当需要故障切换时，剩余的节点将承担额外的处理负载，从而对集群的整体性能产生负面影响。'
 - en: '**Active/Passive (A/P)**: In this type of cluster, there is an active node
     and a passive node. The former handles all traffic under normal circumstances,
     while the latter just sits idle waiting to enter the scene during a failover,
     when it actually takes over the situation by servicing requests using its own
     resources until the other node comes back online.'
+  id: totrans-14
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '**主动/被动（A/P）**：在这种类型的集群中，有一个活动节点和一个被动节点。正常情况下，活动节点处理所有流量，而被动节点则处于空闲状态，等待在发生故障切换时登场，实际通过自己的资源接管情况，直到另一个节点重新上线。'
 - en: As you can infer from the last two paragraphs, an A/P cluster presents a clearly
     desired advantage over A/A, wherein, in the event of a failover, the same percentage
     of hardware and software resources is made available to end users. This results
@@ -82,18 +113,24 @@
     you will notice that we will initially set up an A/P cluster in detail and also
     provide the overall instructions to convert it into an A/A cluster if you wish
     to do so at a later stage.
+  id: totrans-15
   prefs: []
   type: TYPE_NORMAL
+  zh: 正如你从最后两段中可以推测的那样，A/P集群相比A/A集群有一个明显的优势，即在发生故障切换时，相同比例的硬件和软件资源会被分配给最终用户。这使得性能保持稳定且透明，这在数据库服务器中尤其重要，因为性能是一个关键要求。另一方面，A/A集群通常提供更高的可用性，因为至少有两个服务器在积极运行应用程序并向最终用户提供服务。在下一章中，你会注意到，我们将首先详细设置一个A/P集群，并提供总体说明，以便你在后续阶段如果希望将其转换为A/A集群时能够做到。
 - en: Failover – an introduction to high availability and performance
+  id: totrans-16
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 故障转移 – 高可用性和性能简介
 - en: The failover process can be roughly described as the action of switching, in
     the event of power or network failure, to an available resource to resume operations
     with the least downtime as possible, with no downtime being the primary goal of
     high availability clusters.
+  id: totrans-17
   prefs: []
   type: TYPE_NORMAL
+  zh: 故障转移过程大致可以描述为，在发生电力或网络故障时，切换到一个可用资源，以尽可能减少停机时间，零停机时间是高可用性集群的主要目标。
 - en: 'In [Chapter 2](part0018_split_000.html#H5A42-1d2c6d19b9d242db82da724021b51ea0
     "Chapter 2. Installing Cluster Services and Configuring Network Components"),
     *Installing Cluster Services and Configuring Network Components*, we configured
@@ -101,33 +138,47 @@
     also recall that in order to start becoming acquainted with PCS—the tool that
     is used as a frontend to PCS (the configuration manager)—we presented a brief
     introduction to its basic syntax and usage.'
+  id: totrans-18
   prefs: []
   type: TYPE_NORMAL
+  zh: 在[第2章](part0018_split_000.html#H5A42-1d2c6d19b9d242db82da724021b51ea0 "第2章 安装集群服务并配置网络组件")，*安装集群服务并配置网络组件*，我们配置了一个简单但对我们目的至关重要的资源：虚拟IP地址。你还会记得，为了开始了解PCS——用于管理集群配置的前端工具——我们介绍了它的基本语法和使用方法。
 - en: Tip
+  id: totrans-19
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
+  zh: 提示
 - en: As in other cases in the Linux ecosystem, the program/protocol/package name
     is written in caps, while the tool and utility is written in lowercase. Thus,
     PCS is used to indicate the package name, and it is the command-line utility that
     is used to manage PCS.
+  id: totrans-20
   prefs: []
   type: TYPE_NORMAL
+  zh: 与Linux生态系统中的其他情况一样，程序/协议/包的名称写成大写，而工具和实用程序的名称写成小写。因此，PCS用于表示包名称，而它是用于管理PCS的命令行工具。
 - en: 'With the `pcs status` command, we will be able to view the current status of
     the cluster and several important pieces of information, as shown in the following
     screenshot:'
+  id: totrans-21
   prefs: []
   type: TYPE_NORMAL
+  zh: 使用`pcs status`命令，我们将能够查看集群的当前状态以及几条重要信息，如下图所示：
 - en: '![Failover – an introduction to high availability and performance](img/00024.jpeg)'
+  id: totrans-22
   prefs: []
   type: TYPE_IMG
+  zh: '![故障转移 – 高可用性和性能简介](img/00024.jpeg)'
 - en: 'The following lines present the cluster resources that are currently available
     for `MyCluster`:'
+  id: totrans-23
   prefs: []
   type: TYPE_NORMAL
+  zh: 以下内容展示了当前可用的`MyCluster`集群资源：
 - en: '[PRE0]'
+  id: totrans-24
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE0]'
 - en: As indicated, the virtual IP address (conveniently named `virtual_ip` in [Chapter
     2](part0018_split_000.html#H5A42-1d2c6d19b9d242db82da724021b51ea0 "Chapter 2. Installing
     Cluster Services and Configuring Network Components"), *Installing Cluster Services
@@ -136,48 +187,72 @@
     automatic failover of this resource is triggered to `node02`. We will simulate
     a node going offline due to a real issue by stopping both `corosync` and `pacemaker`
     on that cluster member.
+  id: totrans-25
   prefs: []
   type: TYPE_NORMAL
+  zh: 如图所示，虚拟IP地址（在[第2章](part0018_split_000.html#H5A42-1d2c6d19b9d242db82da724021b51ea0
+    "第2章 安装集群服务并配置网络组件")中方便地命名为`virtual_ip`，*安装集群服务并配置网络组件*）已在`node01`上启动。由于虚拟IP是集群资源，因此可以预期，如果该节点发生故障，此资源会自动故障转移到`node02`。我们将通过停止该集群成员上的`corosync`和`pacemaker`来模拟节点因真实问题而下线。
 - en: For our current purposes, this simulation will not entitle shutting down (power
     off) the node because we want to show something interesting in the output of `pcs
     status` after stopping `corosync` and `pacemaker` in that node.
+  id: totrans-26
   prefs: []
   type: TYPE_NORMAL
+  zh: 对于我们当前的目的，这次模拟不涉及关闭（关机）节点，因为我们想在停止该节点上的`corosync`和`pacemaker`之后，展示`pcs status`的输出中一些有趣的内容。
 - en: Tip
+  id: totrans-27
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
+  zh: 提示
 - en: You can also simulate a failover by pausing one of the virtual machines in VirtualBox
     (select the **VM** option in **Oracle VM VirtualBox Manager** and press *Ctrl*
     + *P* or choose **Pause** from the **Machine Menu**), and you can also do it by
     disabling the networking using the `systemctl disable network` command in that
     node.
+  id: totrans-28
   prefs: []
   type: TYPE_NORMAL
+  zh: 您还可以通过在VirtualBox中暂停其中一台虚拟机来模拟故障转移（选择**VM**选项，在**Oracle VM VirtualBox Manager**中按*Ctrl*
+    + *P*，或者从**机器菜单**中选择**暂停**），也可以通过在该节点上使用`systemctl disable network`命令禁用网络来模拟。
 - en: 'Let''s stop `pacemaker` and `corosync` in `node01`:'
+  id: totrans-29
   prefs: []
   type: TYPE_NORMAL
+  zh: 让我们在`node01`上停止`pacemaker`和`corosync`：
 - en: '[PRE1]'
+  id: totrans-30
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE1]'
 - en: 'And run again, but on the other node, that is `node02`, using the following
     command:'
+  id: totrans-31
   prefs: []
   type: TYPE_NORMAL
+  zh: 然后在另一台节点，即`node02`上再次运行，使用以下命令：
 - en: '[PRE2]'
+  id: totrans-32
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE2]'
 - en: 'To view the current status of the cluster, its nodes, and resources, which
     is shown in the following screenshot, you will need to run `pcs status` on the
     node where the cluster is currently running:'
+  id: totrans-33
   prefs: []
   type: TYPE_NORMAL
+  zh: 要查看集群、节点和资源的当前状态，如下图所示，您需要在当前运行集群的节点上运行`pcs status`命令：
 - en: '![Failover – an introduction to high availability and performance](img/00025.jpeg)'
+  id: totrans-34
   prefs: []
   type: TYPE_IMG
+  zh: '![故障转移 – 高可用性和性能简介](img/00025.jpeg)'
 - en: There are a few lines from the preceding screenshot that are worth discussing.
+  id: totrans-35
   prefs: []
   type: TYPE_NORMAL
+  zh: 有一些前面截图中的行值得讨论。
 - en: 'The **OFFLINE: [ node01 ]** line indicates that `node01` is offline—as far
     as the cluster as a whole is concerned—which is what we were expecting after stopping
     the cluster resource manager and the messaging services in that member. However,
@@ -185,18 +260,24 @@
     interface, is still running on `node01`, which makes it possible to still control
     `pacemaker` and `corosync` in that node, either locally or remotely from another
     node:'
+  id: totrans-36
   prefs: []
   type: TYPE_NORMAL
+  zh: '**OFFLINE: [ node01 ]**这一行表示`node01`处于离线状态——就整个集群而言——这是我们在停止集群资源管理器和该成员的消息服务后所预期的。但是，接下来的代码表明，`pcsd`守护进程（远程配置接口）仍在`node01`上运行，这使得仍然可以本地或通过其他节点远程控制`pacemaker`和`corosync`：'
 - en: '[PRE3]'
+  id: totrans-37
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE3]'
 - en: 'Finally, the `virtual_ip (ocf::heartbeat:IPaddr2): Started node02` command
     allows us to see that the failover of the virtual IP from `node01` to `node02`
     was performed automatically and without errors. If, for some reason, you run into
     errors while performing the virtual IP address failover, you will want to check
     the related logs for information as to what could have gone wrong.'
+  id: totrans-38
   prefs: []
   type: TYPE_NORMAL
+  zh: '最后，`virtual_ip (ocf::heartbeat:IPaddr2): Started node02`命令让我们看到虚拟IP地址从`node01`故障转移到`node02`是自动完成的且没有错误。如果在执行虚拟IP地址故障转移时遇到错误，你需要检查相关日志，以了解可能出了什么问题。'
 - en: For example, let's examine a case where the cluster resource does not have another
     node to failover to. Picture a scenario where `node02` is offline (either because
     you paused the **VM** or actually shut it down), and all of a sudden, `node01`
@@ -205,144 +286,209 @@
     all of this happens behind the scenes—the only thing that you know right now is
     that you have users complaining that they cannot access whatever application,
     resource, or service is being offered from your cluster.
+  id: totrans-39
   prefs: []
   type: TYPE_NORMAL
+  zh: 例如，让我们来看一个集群资源没有其他节点可以故障转移的案例。假设`node02`处于离线状态（可能是因为你暂停了**虚拟机**，或者真的将其关闭了），然后突然`node01`也宕机了（记住，我们这里讨论的是集群服务不可用，而非实际的电力或网络中断）。当然，这一切都发生在幕后——你现在唯一知道的是，有用户投诉无法访问你的集群提供的任何应用、资源或服务。
 - en: 'The first thing you may feel inclined to try is to see whether the virtual
     IP address is pingable from within your network (change the IP address as per
     your choice while configuring the resource at the end of [Chapter 2](part0018_split_000.html#H5A42-1d2c6d19b9d242db82da724021b51ea0
     "Chapter 2. Installing Cluster Services and Configuring Network Components"),
     *Installing Cluster Services and Configuring Network Components*):'
+  id: totrans-40
   prefs: []
   type: TYPE_NORMAL
+  zh: 你可能最先想尝试的是查看虚拟IP地址是否可以在你的网络内ping通（在配置资源时根据你的选择更改IP地址，参考[第2章](part0018_split_000.html#H5A42-1d2c6d19b9d242db82da724021b51ea0
+    "Chapter 2. Installing Cluster Services and Configuring Network Components")，*安装集群服务和配置网络组件*）：
 - en: '[PRE4]'
+  id: totrans-41
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE4]'
 - en: 'You will notice that none of the four packets was able to reach its intended
     destination:'
+  id: totrans-42
   prefs: []
   type: TYPE_NORMAL
+  zh: 你会注意到四个数据包中没有一个能够到达其预定目的地：
 - en: '[PRE5]'
+  id: totrans-43
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE5]'
 - en: 'For that reason, go to `node01`, where you first started the resource to check
     on the node''s status:'
+  id: totrans-44
   prefs: []
   type: TYPE_NORMAL
+  zh: 因此，前往`node01`，你首先启动资源的地方，检查节点状态：
 - en: '[PRE6]'
+  id: totrans-45
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE6]'
 - en: 'Then you see that the cluster is down on `node01`. But wasn''t the failover
     supposed to happen automatically? At this point, you have two options:'
+  id: totrans-46
   prefs: []
   type: TYPE_NORMAL
+  zh: 然后你会看到集群在`node01`上宕机。但故障转移不是应该自动发生吗？此时，你有两个选择：
 - en: Go to `node02` to check whether the cluster is running there.
+  id: totrans-47
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 转到`node02`检查集群是否在该节点上运行。
 - en: Check the logs on `node01`. Note that this assumes that you shut down `node02`
     and then `node01`. In any event, you want to check the log in the node that you
     shut down last.
+  id: totrans-48
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 检查`node01`上的日志。注意，这假设你已经关闭了`node02`，然后是`node01`。无论如何，你需要查看你最后关闭的节点上的日志。
 - en: 'A brief search for the keyword `virtual_ip` in `/var/log/pacemaker.log` (or
     whatever name you set for the resource during the last stages of [Chapter 2](part0018_split_000.html#H5A42-1d2c6d19b9d242db82da724021b51ea0
     "Chapter 2. Installing Cluster Services and Configuring Network Components"),
     *Installing Cluster Services and Configuring Network Components*) in `node01`
     tells you what the problem is. Here is a brief excerpt of the `grep virtual_ip
     /var/log/pacemaker.log` file:'
+  id: totrans-49
   prefs: []
   type: TYPE_NORMAL
+  zh: 在`/var/log/pacemaker.log`中简要搜索关键字`virtual_ip`（或在[第2章](part0018_split_000.html#H5A42-1d2c6d19b9d242db82da724021b51ea0
+    "第2章 安装集群服务和配置网络组件")的最后阶段你为资源设置的名称）会告诉你问题所在。以下是`grep virtual_ip /var/log/pacemaker.log`文件的简短摘录：
 - en: '[PRE7]'
+  id: totrans-50
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE7]'
 - en: 'The first message indicates that `virtual_ip` was stopped on `node01`, and
     the second message states that it could not be failed over anywhere. The result
     is that the resource is left as `Stopped` (as outlined in the third message) until
     it is manually re-enabled from either node in the cluster. However, remember that
     you need to start the cluster on such a node beforehand:'
+  id: totrans-51
   prefs: []
   type: TYPE_NORMAL
+  zh: 第一条消息表示`virtual_ip`在`node01`上被停止，第二条消息则指出它无法在任何地方进行故障转移。结果是，资源保持为`Stopped`状态（如第三条消息所述），直到从集群中的任何节点手动重新启用它。然而，请记住，在此之前需要先启动该节点上的集群：
 - en: '[PRE8]'
+  id: totrans-52
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE8]'
 - en: 'Then, run the following command on `node01`:'
+  id: totrans-53
   prefs: []
   type: TYPE_NORMAL
+  zh: 然后，在`node01`上运行以下命令：
 - en: '[PRE9]'
+  id: totrans-54
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE9]'
 - en: 'A further check on `pcs status` may or may not indicate that the resource is
     still stopped (it is a good idea to ping the virtual IP address here as well).
     If `virtual_ip` refuses to start, we can use the following command to obtain verbose
     information about why this particular resource is not being started properly,
     and then perform a reset of the cluster resource to make it reload its proper
     configuration:'
+  id: totrans-55
   prefs: []
   type: TYPE_NORMAL
+  zh: 进一步检查`pcs status`可能会表明资源仍然处于停止状态（此时最好也ping一下虚拟IP地址）。如果`virtual_ip`拒绝启动，我们可以使用以下命令获取有关该资源未正确启动的详细信息，然后重置集群资源以重新加载其正确配置：
 - en: '[PRE10]'
+  id: totrans-56
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE10]'
 - en: 'Remember that `pcs` takes an option (not required) and a command as arguments,
     which may in turn be followed by specific options. In this regard, `pcs cluster
     stop`, where `cluster` is the command and `stop` represents a specific action
     of such a command, can be used to shut down `corosync` and `pacemaker` on either
     the local node, all nodes, or a specific node. In the following extract of `man
     pcs` you can review the syntax of pcs cluster stop:'
+  id: totrans-57
   prefs: []
   type: TYPE_NORMAL
+  zh: 请记住，`pcs`命令接受一个选项（不是必需的）和一个命令作为参数，这些参数后面可能会跟随特定的选项。在这方面，`pcs cluster stop`中，`cluster`是命令，`stop`表示该命令的特定操作，可以用来关闭`corosync`和`pacemaker`，无论是在本地节点、所有节点，还是特定节点上。在以下`man
+    pcs`摘录中，你可以查看`pcs cluster stop`的语法：
 - en: '[PRE11]'
+  id: totrans-58
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE11]'
 - en: Note
+  id: totrans-59
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
+  zh: 注意
 - en: Remember that when `corosync` and `pacemaker` are running on both nodes, you
     can run any PCS command to configure the cluster from any of the nodes. In the
     event of a severe failure, where `pcsd` becomes unavailable on both nodes, you
     will have to resort to using SSH authentication from one node to the other to
     troubleshoot and fix issues.
+  id: totrans-60
   prefs: []
   type: TYPE_NORMAL
+  zh: 请记住，当`corosync`和`pacemaker`在两个节点上运行时，你可以从任一节点运行任何PCS命令来配置集群。如果发生严重故障，`pcsd`在两个节点上都不可用时，你将不得不使用SSH从一个节点连接到另一个节点来排查和修复问题。
 - en: 'As it happens in other cases, log files are the best friends of system administrators,
     and they can play a key role in helping you to find out what the root causes of
     issues are when they happen. There are three logs that you may want to check once
     in a while and even as you are performing a failover:'
+  id: totrans-61
   prefs: []
   type: TYPE_NORMAL
+  zh: 正如在其他情况下发生的一样，日志文件是系统管理员最好的朋友，在发生问题时，它们可以发挥关键作用，帮助你找出问题的根本原因。有三个日志是你可能需要不时查看的，甚至在执行故障转移时也需要查看：
 - en: '`/var/log/pacemaker.log`'
+  id: totrans-62
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '`/var/log/pacemaker.log`'
 - en: '`/var/log/cluster/corosync.log`'
+  id: totrans-63
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '`/var/log/cluster/corosync.log`'
 - en: '`/var/log/pcsd/pcsd.log`'
+  id: totrans-64
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '`/var/log/pcsd/pcsd.log`'
 - en: Note
+  id: totrans-65
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
+  zh: 注意
 - en: In addition, you can also search in the systemd log with `journalctl -xn` and
     use `grep` to filter a specific word or phrase.
+  id: totrans-66
   prefs: []
   type: TYPE_NORMAL
+  zh: 此外，你还可以使用`journalctl -xn`在systemd日志中进行搜索，并使用`grep`来过滤特定的单词或短语。
 - en: Tip
+  id: totrans-67
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
+  zh: 提示
 - en: You can reset the status of a cluster resource with the `pcs resource disable
     <resource_name>` and `pcs resource enable <resource_name>` commands.
+  id: totrans-68
   prefs: []
   type: TYPE_NORMAL
+  zh: 你可以使用`pcs resource disable <resource_name>`和`pcs resource enable <resource_name>`命令重置集群资源的状态。
 - en: Fencing – isolating the malfunctioning nodes
+  id: totrans-69
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 隔离——隔离故障节点
 - en: As the number of nodes in a cluster increases, its availability increases, but
     so does the chance of one of them failing at some point. This failure event, whether
     serious or not, suggests that we must secure a way to isolate the malfunctioning
@@ -353,8 +499,10 @@
     (something that is not working properly), but also a node, which also includes
     the resources started on it, whose state cannot be determined by the cluster for
     whatever reason.
+  id: totrans-70
   prefs: []
   type: TYPE_NORMAL
+  zh: 随着集群中节点数量的增加，其可用性也增加，但其中一个节点在某个时刻失败的可能性也随之增加。无论事件严重与否，这种失败事件都意味着我们必须找到一种方法来将故障节点与集群隔离，以便完全释放其处理任务给集群的其他部分。想象一下在共享存储集群中一个不稳定的节点可能引发的问题——数据损坏将不可避免地发生。在这里，“故障”一词的含义不仅仅是在英语中通常的意思（指不能正常工作的东西），还包括一个节点及其上启动的资源，无论出于何种原因，集群都无法确定其状态。
 - en: This is where the term fencing comes into play. By definition, cluster fencing
     is the process of isolating, or separating, a node from using its resources or
     starting services, which it should not have access to, and from the rest of the
@@ -362,8 +510,10 @@
     as, do not let a malfunctioning node run any cluster resources - fence it in all
     cases. In line with the last statement, an unresponsive node must be taken offline
     before another node will take over.
+  id: totrans-71
   prefs: []
   type: TYPE_NORMAL
+  zh: 这就是“隔离”这个术语的用处所在。根据定义，集群隔离是将一个节点与其不应访问的资源或启动服务分离或隔离出来，并与其他节点隔离开来的过程。因此，计算机集群的ABC法则之一可以表述为，不要让一个故障节点运行任何集群资源——在所有情况下都要进行隔离。根据上述声明，一个无响应的节点在另一个节点接管之前必须被下线。
 - en: 'Fencing is performed using a mechanism known as STONITH, which we briefly introduced
     during the last chapter (in few words, STONITH is a fencing method that is used
     to isolate a failed node in order to prevent it from causing problems in a cluster).
@@ -371,53 +521,78 @@
     we would revisit the topic here. A quick inspection of the cluster''s configuration,
     as shown in the following screenshot, will confirm that that STONITH is currently
     disabled:'
+  id: totrans-72
   prefs: []
   type: TYPE_NORMAL
+  zh: 使用一种称为STONITH的机制执行隔离操作，我们在上一章节中简要介绍过（简单来说，STONITH是一种用于隔离故障节点以防止其在集群中引发问题的隔离方法）。你会记得我们在那时禁用了这个功能，并提到我们会在这里重新讨论这个话题。对集群配置的快速检查，如下面截图所示，将确认STONITH当前处于禁用状态：
 - en: '![Fencing – isolating the malfunctioning nodes](img/00026.jpeg)'
+  id: totrans-73
   prefs: []
   type: TYPE_IMG
+  zh: '![隔离故障节点](img/00026.jpeg)'
 - en: Tip
+  id: totrans-74
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
+  zh: 小贴士
 - en: If you run the `pcs config` code, you will be able to view the current configuration
     for the cluster in detail, which is illustrated in the preceding screenshot.
+  id: totrans-75
   prefs: []
   type: TYPE_NORMAL
+  zh: 如果你运行`pcs config`代码，你将能够详细查看集群的当前配置，如前面的截图所示。
 - en: 'At the very end, the `stonith-enabled: false` line clearly reminds us that
     STONITH is disabled in our cluster.'
+  id: totrans-76
   prefs: []
   type: TYPE_NORMAL
+  zh: '最后，`stonith-enabled: false`一行清楚地提醒我们STONITH在我们的集群中是禁用状态的。'
 - en: You will want to add `pcs config` to the list of essential commands that you
     must keep in mind as we move forward with the cluster configuration. It will allow
     you to inspect, at a quick glance, the settings and resources made available through
     the cluster.
+  id: totrans-77
   prefs: []
   type: TYPE_NORMAL
+  zh: 在继续进行集群配置时，你会想把`pcs config`添加到必须牢记的基本命令列表中。它将允许你快速查看通过集群提供的设置和资源。
 - en: 'So, let''s begin by re-enabling STONITH:'
+  id: totrans-78
   prefs: []
   type: TYPE_NORMAL
+  zh: 因此，让我们开始重新启用STONITH：
 - en: '[PRE12]'
+  id: totrans-79
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE12]'
 - en: 'Next, check on the configuration again, either with the `pcs config` or `pcs
     property list` command. For brevity, in the case illustrated in the following
     screenshot, we use the `pcs property list` command in order to introduce you to
     yet another useful PCS command. Note how we check on this property before and
     after re-enabling STONITH:'
+  id: totrans-80
   prefs: []
   type: TYPE_NORMAL
+  zh: 接下来，再次检查配置，可以使用`pcs config`或`pcs property list`命令。为了简洁起见，在下面截图所示的情况下，我们使用了`pcs
+    property list`命令，以介绍另一个有用的PCS命令。注意在重新启用STONITH之前和之后如何检查此属性：
 - en: '![Fencing – isolating the malfunctioning nodes](img/00027.jpeg)'
+  id: totrans-81
   prefs: []
   type: TYPE_IMG
+  zh: '![隔离故障节点](img/00027.jpeg)'
 - en: Once we have enabled STONITH in our cluster, it is time to finally set up fencing
     in our cluster by configuring a STONITH resource (also known as a STONITH device).
+  id: totrans-82
   prefs: []
   type: TYPE_NORMAL
+  zh: 一旦我们在集群中启用了STONITH，现在是时候通过配置STONITH资源（也称为STONITH设备）来最终设置集群中的隔离操作了。
 - en: Installing and configuring a STONITH device
+  id: totrans-83
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 安装和配置STONITH设备
 - en: 'It is worth noting that a STONITH device is a cluster resource that will be
     used to bring down a malfunctioning or unresponsive node. Installing the following
     packages on both nodes will make several STONITH devices available in our cluster.
@@ -425,15 +600,22 @@
     early in [Chapter 1](part0014_split_000.html#DB7S1-1d2c6d19b9d242db82da724021b51ea0
     "Chapter 1. Cluster Basics and Installation on CentOS 7"), *Cluster Basics and
     Installation on CentOS 7*, install the following packages on both nodes:'
+  id: totrans-84
   prefs: []
   type: TYPE_NORMAL
+  zh: 值得注意的是，STONITH设备是一个集群资源，用于关闭故障或无响应的节点。在两个节点上安装以下软件包将使多个STONITH设备在我们的集群中可用。如果你正在按照[第1章](part0014_split_000.html#DB7S1-1d2c6d19b9d242db82da724021b51ea0
+    "第1章. 集群基础与CentOS 7上的安装")中早期的建议，使用两台虚拟机设置2节点集群，*集群基础与CentOS 7上的安装*，请在两个节点上安装以下软件包：
 - en: '[PRE13]'
+  id: totrans-85
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE13]'
 - en: Once the installation is complete, you can list all the available agents with
     the `pcs stonith list` command, as shown in the next screenshot.
+  id: totrans-86
   prefs: []
   type: TYPE_NORMAL
+  zh: 安装完成后，你可以使用`pcs stonith list`命令列出所有可用的代理，如下图所示。
 - en: 'Each of the listed devices in the following screenshot are described by several
     available parameters, which can be shown with `pcs stonith describe agent`, where
     you must replace `agent` with the corresponding name of the resource. Note that
@@ -441,14 +623,21 @@
     a later step. The required parameters are indicated by the word (`required`) at
     the beginning of the description, use the `pcs stonith describe fence_ilo` command,
     which returns the following output:'
+  id: totrans-87
   prefs: []
   type: TYPE_NORMAL
+  zh: 在下图中列出的每个设备都由多个可用参数描述，这些参数可以通过`pcs stonith describe agent`命令显示，在这里你需要将`agent`替换为相应的资源名称。请注意，在稍后的步骤中，我们在实际配置STONITH设备时会使用这些参数。所需的参数在描述的开头标有（`required`）字样，使用`pcs
+    stonith describe fence_ilo`命令将返回以下输出：
 - en: '[PRE14]'
+  id: totrans-88
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE14]'
 - en: '![Installing and configuring a STONITH device](img/00028.jpeg)'
+  id: totrans-89
   prefs: []
   type: TYPE_IMG
+  zh: '![安装和配置STONITH设备](img/00028.jpeg)'
 - en: Among these parameters, you can see that there is an action (`action`) that
     should take place when a fencing event is going to happen, a host list that will
     be controlled by this device (`pcmk_host_list`), and a waiting time (`timeout`
@@ -456,8 +645,10 @@
     complete. These are essential pieces of information that you will need to take
     into account while specifying the STONITH options during the creation of the device
     and setting up your infrastructure.
+  id: totrans-90
   prefs: []
   type: TYPE_NORMAL
+  zh: 在这些参数中，你可以看到有一个操作（`action`），它将在发生围栏事件时执行，还有一个将由该设备控制的主机列表（`pcmk_host_list`）和一个等待时间（`timeout`或`stonith-timeout`），即等待围栏操作完成所需的时间。这些都是在创建设备并设置基础设施时，指定STONITH选项时需要考虑的关键信息。
 - en: The next step, which consists of creating the device itself, will largely depend
     on the hardware device that you have available. For example, if you want to fence
     a Hewlett-Packard node (such as a Proliant server) with a built-in iLO interface,
@@ -466,68 +657,102 @@
     is Dell with **Dell Remote Access Controller** (**DRAC**), for which you would
     use `fence_drac5`. Unfortunately, as of today, there is no out-of-the-box fencing
     device available for VirtualBox.
+  id: totrans-91
   prefs: []
   type: TYPE_NORMAL
+  zh: 下一步，创建设备本身，将主要依赖于你所拥有的硬件设备。例如，如果你想用内置iLO接口为惠普节点（如Proliant服务器）设置围栏，你将使用`fence_ilo`代理，或者如果你的节点是在VMWare虚拟化环境上，你可能需要选择`fence_vmware_soap`。另一个常见的选项是戴尔的**戴尔远程访问控制器**（**DRAC**），你将使用`fence_drac5`。遗憾的是，截止目前，VirtualBox并没有现成的围栏设备。
 - en: Tip
+  id: totrans-92
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
+  zh: 提示
 - en: An **iLO** (**Integrated Lights Out**) card is a separate interface with a separate
     network connection and IP address that allows a system administrator to perform
     certain operations on HP servers remotely via HTTPS. Similar functionality is
     available in Dell servers with built-in DRACs.
+  id: totrans-93
   prefs: []
   type: TYPE_NORMAL
+  zh: '**iLO**（**集成灯光关闭**）卡是一个独立的接口，具有独立的网络连接和IP地址，允许系统管理员通过HTTPS远程执行某些操作，适用于HP服务器。类似的功能在戴尔服务器上也可通过内置的DRAC实现。'
 - en: 'Let''s now create a STONITH `fence_ilo` device named `Stonith_1`, which can
     fence `node01` (although we are showing this example using `node01`, note that
     this has to be done on a per-node basis):'
+  id: totrans-94
   prefs: []
   type: TYPE_NORMAL
+  zh: 现在，让我们创建一个名为`Stonith_1`的STONITH `fence_ilo`设备，用来围栏`node01`（尽管我们在这个例子中使用的是`node01`，但请注意这必须逐个节点进行设置）：
 - en: '[PRE15]'
+  id: totrans-95
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE15]'
 - en: 'The basic syntax to create a fencing device is as follows:'
+  id: totrans-96
   prefs: []
   type: TYPE_NORMAL
+  zh: 创建围栏设备的基本语法如下：
 - en: '[PRE16]'
+  id: totrans-97
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE16]'
 - en: You can view an explained list of `stonith_device_options` with man `stonithd`.
+  id: totrans-98
   prefs: []
   type: TYPE_NORMAL
+  zh: 你可以通过`man stonithd`查看已解释的`stonith_device_options`列表。
 - en: 'To update the device, use the following command:'
+  id: totrans-99
   prefs: []
   type: TYPE_NORMAL
+  zh: 要更新设备，请使用以下命令：
 - en: '[PRE17]'
+  id: totrans-100
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE17]'
 - en: 'To delete the device, use the following command:'
+  id: totrans-101
   prefs: []
   type: TYPE_NORMAL
+  zh: 要删除设备，请使用以下命令：
 - en: '[PRE18]'
+  id: totrans-102
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE18]'
 - en: Finally, The `pcs stonith show [stonith_device_name] --full` command will display
     all the options used for `[stonith_device_name]` or all fencing devices if `[stonith_device_name]`
     is not specified.
+  id: totrans-103
   prefs: []
   type: TYPE_NORMAL
+  zh: 最后，`pcs stonith show [stonith_device_name] --full`命令将显示所有用于`[stonith_device_name]`的选项，或者如果未指定`[stonith_device_name]`，则显示所有围栏设备。
 - en: 'You can then simulate a fencing situation (note that this is done automatically
     behind the scenes under a real-life event) by killing the `pacemaker` and `corosync`
     processes with the following commands:'
+  id: totrans-104
   prefs: []
   type: TYPE_NORMAL
+  zh: 然后，你可以通过使用以下命令杀死`pacemaker`和`corosync`进程来模拟围栏情况（请注意，在实际事件中，这一过程是自动进行的）：
 - en: '[PRE19]'
+  id: totrans-105
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE19]'
 - en: Also, confirm that `node_name` is actually offline using the `pcs stonith confirm
     node01` command.
+  id: totrans-106
   prefs: []
   type: TYPE_NORMAL
+  zh: 同时，使用`pcs stonith confirm node01`命令确认`node_name`实际上已脱机。
 - en: Split-brain – preparing to avoid inconsistencies
+  id: totrans-107
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 分脑现象 – 为避免不一致性进行准备
 - en: Up to this point, we have considered a few essential concepts in clustering,
     leading to the following not completely fictitious scenario—what happens if a
     cluster is formed by nodes that are located in separate networks and the communication
@@ -536,74 +761,104 @@
     offline, but each appears to the other as unavailable. The default behavior would
     be that each node assumes that the other is down and continues serving whatever
     resources or applications the cluster was previously running.
+  id: totrans-108
   prefs: []
   type: TYPE_NORMAL
+  zh: 到此为止，我们已经考虑了一些集群中的基本概念，接下来是一个不完全虚构的场景——如果一个集群由位于不同网络中的节点组成，并且它们之间的通信链路中断会发生什么？当节点处于同一网络中，链路中断时也是如此。也就是说，实际上没有任何节点脱机，但每个节点都认为对方不可用。默认行为是，每个节点假设另一个节点已经宕机，并继续提供集群之前运行的资源或应用程序。
 - en: So far, so good! Now, let's say the network link comes back online but both
     nodes still think they are the main cluster member. That is where data corruption—at
     the worst—or inconsistency—at the best—occur. This is caused by possible changes
     made to data on either side without having been replicated to the other end.
+  id: totrans-109
   prefs: []
   type: TYPE_NORMAL
+  zh: 到目前为止，一切正常！现在，假设网络连接恢复在线，但两个节点仍然认为它们是主集群成员。这时就会发生数据损坏（最坏的情况）或不一致（最好情况）。这是由于任何一方对数据所做的更改未能复制到另一端所造成的。
 - en: This is why configuring fencing is so important, as is ensuring redundant communication
     links between cluster members so that such a **Single Point Of Failure** (**SPOF**)
     does not end up causing the split-brain situation in our cluster.
+  id: totrans-110
   prefs: []
   type: TYPE_NORMAL
+  zh: 这就是为什么配置围栏如此重要，同时也要确保集群成员之间的冗余通信链路，以便不会因为**单点故障**（**SPOF**）导致我们集群中的分脑现象。
 - en: As far as the fencing is concerned, only the node that is marked as **Designated
     Controller** (**DC**) and also has quorum can fence the other nodes and run the
     applications and resources as master, or active, in our A/P cluster. By doing
     so, we ensure that the other node will not be allowed to take over resources that
     may lead to the data inconsistencies described earlier.
+  id: totrans-111
   prefs: []
   type: TYPE_NORMAL
+  zh: 就围栏而言，只有标记为**指定控制器**（**DC**）并且具有法定人数的节点才能围栏其他节点，并在我们的 A/P 集群中作为主节点或活动节点运行应用程序和资源。通过这样做，我们确保不会允许另一个节点接管可能导致前面提到的数据不一致性的资源。
 - en: Quorum – scoring inside your cluster
+  id: totrans-112
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 法定人数 – 在集群内部评分
 - en: In simple terms, the concept of quorum indicates the minimum number of members
     that are required to be active in order for the cluster, as a whole, to be available.
     Specifically, a cluster is said to have quorum when the number of active nodes
     is greater than the total number of nodes divided by two. Another way to express
     this is that quorum is achieved by at least a simple majority (50% of the total
     number of nodes + 1).
+  id: totrans-113
   prefs: []
   type: TYPE_NORMAL
+  zh: 简单来说，法定人数的概念指的是为了使整个集群可用，必须保持活动状态的最小节点数量。具体来说，当活动节点的数量大于总节点数量的一半时，集群被认为具有法定人数。另一种表达方式是，法定人数通过至少简单多数（总节点数的50%
+    + 1）来实现。
 - en: Although the concept of quorum doesn't prevent a split-brain scenario, it will
     decide which node (or group of nodes) is dominant and allowed to run the cluster
     so that when a split-brain situation occurs, only one node (or group of nodes)
     will be able to run the cluster services.
+  id: totrans-114
   prefs: []
   type: TYPE_NORMAL
+  zh: 尽管仲裁概念不能防止分裂大脑的情况发生，但它将决定哪个节点（或节点组）是主导的，并允许运行集群，以便在发生分裂大脑情况时，只有一个节点（或节点组）能够运行集群服务。
 - en: By default, when the cluster does not have quorum, `pacemaker` will stop all
     resources altogether so that they will not be started on more nodes than desired.
     However, a cluster member will still listen for other nodes to reappear on the
     network, but they will not work as a cluster until the quorum exists again.
+  id: totrans-115
   prefs: []
   type: TYPE_NORMAL
+  zh: 默认情况下，当集群没有仲裁时，`pacemaker`将完全停止所有资源，以防止它们在比期望的更多节点上启动。然而，集群成员仍将监听其他节点在网络上重新出现的情况，但在再次具备仲裁之前，它们将无法作为集群工作。
 - en: 'You can easily confirm this behavior by stopping the cluster on `node01` and
     `node02` and then restarting it again. You will notice that `virtual_ip` remains
     stopped:'
+  id: totrans-116
   prefs: []
   type: TYPE_NORMAL
+  zh: 您可以通过停止`node01`和`node02`上的集群，然后再次启动来轻松确认此行为。您将注意到`virtual_ip`仍然停止：
 - en: '[PRE20]'
+  id: totrans-117
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE20]'
 - en: 'Until you enable it manually using the following command:'
+  id: totrans-118
   prefs: []
   type: TYPE_NORMAL
+  zh: 直到您手动启用它，可以使用以下命令：
 - en: '[PRE21]'
+  id: totrans-119
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE21]'
 - en: 'For a 2-node cluster, as it is in our case, when we used the `pcs cluster`
     setup in [Chapter 2](part0018_split_000.html#H5A42-1d2c6d19b9d242db82da724021b51ea0
     "Chapter 2. Installing Cluster Services and Configuring Network Components"),
     *Installing Cluster Services and Configuring Network Components*, the following
     section was added in `/etc/corosync/corosync.conf` for us:'
+  id: totrans-120
   prefs: []
   type: TYPE_NORMAL
+  zh: 对于我们的情况是2节点集群，当我们在[第2章](part0018_split_000.html#H5A42-1d2c6d19b9d242db82da724021b51ea0
+    "第2章。安装集群服务和配置网络组件")中使用`pcs cluster`设置时，为我们在`/etc/corosync/corosync.conf`中添加了以下部分：
 - en: '[PRE22]'
+  id: totrans-121
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE22]'
 - en: 'The `two_node: 1` line tells `corosync` that in a 2-node cluster, one member
     is enough to hold up the quorum. Thus, even when some people would argue that
     a 2-node cluster is pointless, our cluster will continue working when at least
@@ -611,19 +866,27 @@
     the cluster in one node previously, but it is worth pointing out that when trying
     to stop one of the members in our 2-node clusters, you will be asked to use the
     `--force` option:'
+  id: totrans-122
   prefs: []
   type: TYPE_NORMAL
+  zh: '`two_node: 1`行告诉`corosync`在2节点集群中，一个成员足以维持仲裁。因此，即使一些人会争辩说2节点集群是没有意义的，我们的集群在至少一个节点在线时仍将继续工作。也许您之前在一个节点上停止和启动集群时已经注意到了，但是值得指出的是，在尝试停止我们2节点集群中的一个成员时，您将被要求使用`--force`选项：'
 - en: '[PRE23]'
+  id: totrans-123
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE23]'
 - en: 'To display the current list of nodes in the cluster and its individual contributions
     toward cluster quorum (which is shown in the following figure under **Votes**
     column), run the `corosync-quorumtool -l` command:'
+  id: totrans-124
   prefs: []
   type: TYPE_NORMAL
+  zh: 要显示集群中当前节点列表及其对集群仲裁的个别贡献（如在**Votes**列下的图中所示），请运行`corosync-quorumtool -l`命令：
 - en: '![Quorum – scoring inside your cluster](img/00029.jpeg)'
+  id: totrans-125
   prefs: []
   type: TYPE_IMG
+  zh: '![集群内部评分](img/00029.jpeg)'
 - en: In a prospective split-brain situation, as described earlier, and supposing
     that the cluster is divided into two partitions, the partition with a majority
     of votes remains available, while the other is fenced automatically by the DC
@@ -631,68 +894,97 @@
     cluster, quorum is established when at least three cluster nodes are functioning.
     Otherwise, the cluster no longer has quorum and `pacemaker` will stop the services
     run by the cluster.
+  id: totrans-126
   prefs: []
   type: TYPE_NORMAL
+  zh: 在前述潜在的分裂大脑情况下，并假设集群被划分为两个分区，得票数占多数的分区仍然可用，而其他分区将由DC自动进行隔离，如果已经放置并正确配置了STONITH。例如，在4节点集群中，仲裁在至少三个集群节点正常运行时建立。否则，集群将不再具备仲裁，`pacemaker`将停止集群运行的服务。
 - en: Configuring our cluster with PCS GUI
+  id: totrans-127
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 使用PCS GUI配置我们的集群
 - en: If you followed the steps outlined in [Chapter 2](part0018_split_000.html#H5A42-1d2c6d19b9d242db82da724021b51ea0
     "Chapter 2. Installing Cluster Services and Configuring Network Components"),
     *Installing Cluster Services and Configuring Network Components*, to enable the
     Hacluster account for cluster administration, we can also use the PCS GUI, a cluster
     management web interface, to manage clusters. This includes the ability to add,
     remove, and edit existing clusters.
+  id: totrans-128
   prefs: []
   type: TYPE_NORMAL
+  zh: 如果您按照[第2章](part0018_split_000.html#H5A42-1d2c6d19b9d242db82da724021b51ea0 "第2章。安装集群服务和配置网络组件")中概述的步骤来为Hacluster帐户启用集群管理，我们还可以使用PCS
+    GUI，一个集群管理Web界面，来管理集群。这包括能够添加、删除和编辑现有的集群。
 - en: 'To navigate to the PCS web interface, go to `https://<ip_of_one_node>:2224`
     (note that it''s `https` and not `http`), accept the security exceptions, and
     then log in using the credentials that were previously set for Hacluster, as shown
     in the following screenshot:'
+  id: totrans-129
   prefs: []
   type: TYPE_NORMAL
+  zh: 要访问 PCS Web 界面，请前往 `https://<ip_of_one_node>:2224`（注意是 `https` 而不是 `http`），接受安全例外，然后使用之前为
+    Hacluster 设置的凭据登录，如下图所示：
 - en: '![Configuring our cluster with PCS GUI](img/00030.jpeg)'
+  id: totrans-130
   prefs: []
   type: TYPE_IMG
+  zh: '![通过 PCS GUI 配置我们的集群](img/00030.jpeg)'
 - en: 'The next screen that you will see (which is as shown in the following screenshot)
     will present the menus to remove an existing cluster, add an existing cluster,
     or create a new one. When you click on the **Add Existing** button, you will be
     prompted to enter the hostname or IP address of a node that currently belongs
     to an existing cluster that you want to manage using the web UI:'
+  id: totrans-131
   prefs: []
   type: TYPE_NORMAL
+  zh: 你接下来看到的屏幕（如下图所示）将展示移除现有集群、添加现有集群或创建新集群的菜单。当你点击**添加现有**按钮时，系统会提示你输入一个当前属于现有集群的节点的主机名或
+    IP 地址，以便使用 Web UI 进行管理：
 - en: '![Configuring our cluster with PCS GUI](img/00031.jpeg)'
+  id: totrans-132
   prefs: []
   type: TYPE_IMG
+  zh: '![通过 PCS GUI 配置我们的集群](img/00031.jpeg)'
 - en: 'Then, click on the cluster name and feel free to browse through the menu at
     the top of the following figure, which also serves the purpose of letting us add,
     remove, or edit the resources that we have been hitherto talking about:'
+  id: totrans-133
   prefs: []
   type: TYPE_NORMAL
+  zh: 然后，点击集群名称，并可以随意浏览下图顶部的菜单，这也有助于我们添加、删除或编辑我们迄今为止讨论过的资源：
 - en: '![Configuring our cluster with PCS GUI](img/00032.jpeg)'
+  id: totrans-134
   prefs: []
   type: TYPE_IMG
+  zh: '![通过 PCS GUI 配置我们的集群](img/00032.jpeg)'
 - en: Summary
+  id: totrans-135
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 摘要
 - en: In this chapter, we explored situations of node failures and essential techniques
     for malfunctioning cluster members, along with some essential cluster concepts
     in greater depth. In addition to this, we saw how to add cluster resources in
     order to further configure our newly created cluster into a real-world usage case,
     which we will deal with during the next chapter.
+  id: totrans-136
   prefs: []
   type: TYPE_NORMAL
+  zh: 在本章中，我们探讨了节点故障和故障集群成员的基本技术，以及一些更深入的集群概念。除此之外，我们还学习了如何添加集群资源，以便进一步将我们新创建的集群配置为实际使用案例，这将在下一章中详细讲解。
 - en: It is also worth reiterating that there are certain hardware components that
     we have not been able to discuss in detail, such as fencing devices, and you should
     take note of the fencing agents and devices (as per `pcs stonith list`) and see
     if any of them applies to the available hardware in your case.
+  id: totrans-137
   prefs: []
   type: TYPE_NORMAL
+  zh: 还值得再次强调的是，我们并没有详细讨论某些硬件组件，比如围栏设备，你应该注意围栏代理和设备（根据 `pcs stonith list`），并查看它们是否适用于你所在案例中的可用硬件。
 - en: Last but not least, you need to remember that in order to avoid split-brain
     situations, besides applying thoroughly the concepts outlined in the present chapter,
     you also need to ensure redundant communication links between the networks where
     the nodes are located. This will help you prevent a **Single Point Of Failure**
     (**SPOF**) to potentially cause such an unwanted event.
+  id: totrans-138
   prefs: []
   type: TYPE_NORMAL
+  zh: 最后但同样重要的是，你需要记住，为了避免分脑现象，除了彻底应用本章中概述的概念外，还需要确保节点所在网络之间有冗余通信链路。这将帮助你防止**单点故障**（**SPOF**）可能导致此类不希望发生的事件。
