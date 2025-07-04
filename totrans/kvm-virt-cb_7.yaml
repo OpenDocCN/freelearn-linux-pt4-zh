@@ -1,882 +1,1352 @@
 - en: Using Python to Build and Manage KVM Instances
+  id: totrans-0
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 使用 Python 构建和管理 KVM 实例
 - en: 'In this chapter, we are going to cover the following topics:'
+  id: totrans-1
   prefs: []
   type: TYPE_NORMAL
+  zh: 在本章中，我们将讨论以下主题：
 - en: Installing and using the Python libvirt library
+  id: totrans-2
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 安装和使用 Python libvirt 库
 - en: Defining KVM instances with Python
+  id: totrans-3
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 使用 Python 定义 KVM 实例
 - en: Starting, stopping, and deleting KVM instances with Python
+  id: totrans-4
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 使用 Python 启动、停止和删除 KVM 实例
 - en: Inspecting KVM instances with Python
+  id: totrans-5
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 使用 Python 检查 KVM 实例
 - en: Building a simple REST API server with libvirt and bottle
+  id: totrans-6
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 使用 libvirt 和 Bottle 构建一个简单的 REST API 服务器
 - en: Introduction
+  id: totrans-7
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 介绍
 - en: 'The `libvirt` library exposes a virtualization agnostic interface for controlling
     the full lifecycle of KVM (and other technologies, such as XEN and LXC) instances.
     Using the Python bindings we can define, start, destroy, and delete virtual guests,
     along with anything else the `virsh` userspace tool implements. In fact, we can
     see that the `virsh` command uses various libvirt shared libraries, by running:'
+  id: totrans-8
   prefs: []
   type: TYPE_NORMAL
+  zh: '`libvirt` 库提供了一个虚拟化无关的接口，用于控制 KVM（及其他技术，如 XEN 和 LXC）实例的完整生命周期。通过 Python 绑定，我们可以定义、启动、销毁和删除虚拟机，以及
+    `virsh` 用户空间工具实现的任何其他功能。实际上，我们可以通过运行以下命令看到 `virsh` 命令使用了多个 libvirt 共享库：'
 - en: '[PRE0]'
+  id: totrans-9
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE0]'
 - en: The Python libvirt module, also provides methods to monitor and report the use
     of CPU, memory, storage, and network resources on the hypervisor node and other
     capabilities depending on the type of hypervisor driver in use.
+  id: totrans-10
   prefs: []
   type: TYPE_NORMAL
+  zh: Python libvirt 模块还提供了监控和报告 CPU、内存、存储和网络资源使用情况的方法，具体功能取决于所使用的虚拟化驱动程序类型。
 - en: In this chapter, we are going to use a small subset of the Python libvirt API
     to define, start, inspect, and stop a KVM instance.
+  id: totrans-11
   prefs: []
   type: TYPE_NORMAL
+  zh: 在本章中，我们将使用 Python libvirt API 的一个小子集来定义、启动、检查和停止 KVM 实例。
 - en: 'For a complete list of functions, classes, and methods that the Python libvirt module
     provides, execute:'
+  id: totrans-12
   prefs: []
   type: TYPE_NORMAL
+  zh: 要查看 Python libvirt 模块提供的函数、类和方法的完整列表，请执行：
 - en: '`root@kvm:~# pydoc libvirt`'
+  id: totrans-13
   prefs: []
   type: TYPE_NORMAL
+  zh: '`root@kvm:~# pydoc libvirt`'
 - en: Installing and using the Python libvirt library
+  id: totrans-14
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 安装和使用 Python libvirt 库
 - en: In this recipe we are going to install the Python libvirt module and its dependencies,
     create a new virtual environment, and install the `iPython` command shell for
     interactive computing.
+  id: totrans-15
   prefs: []
   type: TYPE_NORMAL
+  zh: 在这个食谱中，我们将安装 Python libvirt 模块及其依赖项，创建一个新的虚拟环境，并安装用于交互计算的 `iPython` 命令行工具。
 - en: Getting ready
+  id: totrans-16
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 准备工作
 - en: 'For this recipe we are going to need the following:'
+  id: totrans-17
   prefs: []
   type: TYPE_NORMAL
+  zh: 在这个食谱中，我们需要以下内容：
 - en: An Ubuntu host, with libvirt and QEMU installed and configured
+  id: totrans-18
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 一台安装并配置了 libvirt 和 QEMU 的 Ubuntu 主机
 - en: The `debian.img` raw image file we built in the *Installing custom OS on the
     image with debootstrap* recipe from [Chapter 1](part0026.html#OPEK0-c1e587dcccb14690b55c247c1809e6ce),
     *Getting Started with QEMU and KVM*
+  id: totrans-19
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 我们在[第1章](part0026.html#OPEK0-c1e587dcccb14690b55c247c1809e6ce)《*使用 QEMU 和 KVM
+    入门*》的*使用 debootstrap 安装自定义操作系统到镜像*食谱中构建的 `debian.img` 原始镜像文件
 - en: The Python 2.7 interpreter, usually provided by the `python2.7` package
+  id: totrans-20
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: Python 2.7 解释器，通常由 `python2.7` 包提供
 - en: How to do it...
+  id: totrans-21
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 如何操作...
 - en: 'To install the Python libvirt module, the `iPython` utility, and to create
     a new virtual environment for our tests, follow these steps:'
+  id: totrans-22
   prefs: []
   type: TYPE_NORMAL
+  zh: 要安装 Python libvirt 模块、`iPython` 工具，并为我们的测试创建新的虚拟环境，请按照以下步骤操作：
 - en: 'Install the Python development packages `pip` and `virtualenv`:'
+  id: totrans-23
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 安装 Python 开发包 `pip` 和 `virtualenv`：
 - en: '[PRE1]'
+  id: totrans-24
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE1]'
 - en: 'Create a new Python virtual environment and activate it:'
+  id: totrans-25
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 创建一个新的 Python 虚拟环境并激活它：
 - en: '[PRE2]'
+  id: totrans-26
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE2]'
 - en: 'Install the libvirt module:'
+  id: totrans-27
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 安装 libvirt 模块：
 - en: '[PRE3]'
+  id: totrans-28
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE3]'
 - en: 'Install `iPython` and start it:'
+  id: totrans-29
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 安装 `iPython` 并启动它：
 - en: '[PRE4]'
+  id: totrans-30
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE4]'
 - en: How it works...
+  id: totrans-31
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 它是如何工作的...
 - en: We start by installing the dependency packages in step 1\. Since we are going
     to use a Python virtual environment for our development, we install the `virtualenv`
     package as well. The Python libvirt module is going to be installed in the virtual
     environment with the `pip` package manager, since we don't want to pollute the
     host with extra packages.
+  id: totrans-32
   prefs: []
   type: TYPE_NORMAL
+  zh: 我们从第 1 步开始安装依赖包。由于我们将使用 Python 虚拟环境进行开发，因此也会安装 `virtualenv` 包。Python libvirt
+    模块将在虚拟环境中使用 `pip` 包管理器安装，因为我们不想让宿主机安装额外的包。
 - en: In step 2, we create and activate a new Python virtual environment and install
     the Python libvirt module in step 3.
+  id: totrans-33
   prefs: []
   type: TYPE_NORMAL
+  zh: 在第 2 步中，我们创建并激活一个新的 Python 虚拟环境，在第 3 步中安装 Python libvirt 模块。
 - en: Finally in step 4, we install and start the `iPython` development tool, which
     we are going to use throughout this chapter.
+  id: totrans-34
   prefs: []
   type: TYPE_NORMAL
+  zh: 最后，在第 4 步中，我们安装并启动 `iPython` 开发工具，整个章节中我们将使用该工具。
 - en: Defining KVM instances with Python
+  id: totrans-35
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 使用 Python 定义 KVM 实例
 - en: In this recipe we are going to define a new KVM instance using the Python libvirt
     module we installed in the previous recipe. We are going to use a virtual environment
     and the `iPython` development tool for the following examples.
+  id: totrans-36
   prefs: []
   type: TYPE_NORMAL
+  zh: 在本食谱中，我们将使用在前一个食谱中安装的 Python libvirt 模块来定义一个新的 KVM 实例。我们将使用虚拟环境和 `iPython` 开发工具进行以下示例。
 - en: Getting ready
+  id: totrans-37
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 准备就绪
 - en: 'For this recipe we are going to need the following:'
+  id: totrans-38
   prefs: []
   type: TYPE_NORMAL
+  zh: 对于这个食谱，我们将需要以下内容：
 - en: An Ubuntu host, with libvirt and QEMU installed and configured
+  id: totrans-39
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 一台已安装并配置了 libvirt 和 QEMU 的 Ubuntu 主机
 - en: The `debian.img` raw image file we built in the *Installing custom OS on the
     image with debootstrap* recipe from [Chapter 1](part0026.html#OPEK0-c1e587dcccb14690b55c247c1809e6ce),
     *Getting Started with QEMU and KVM*
+  id: totrans-40
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 我们在 [第 1 章](part0026.html#OPEK0-c1e587dcccb14690b55c247c1809e6ce) *使用 debootstrap
+    安装自定义操作系统* 中构建的 `debian.img` 原始镜像文件，*开始使用 QEMU 和 KVM*
 - en: Python 2.7, the `iPython` tool, and the virtual environment we created in the
     *Installing and using the Python libvirt library* recipe in this chapter
+  id: totrans-41
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: Python 2.7、`iPython` 工具和我们在本章 *安装并使用 Python libvirt 库* 中创建的虚拟环境
 - en: How to do it...
+  id: totrans-42
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 如何执行...
 - en: 'To define a new KVM instance, using the Python libvirt module follow these
     instructions:'
+  id: totrans-43
   prefs: []
   type: TYPE_NORMAL
+  zh: 要使用 Python libvirt 模块定义新的 KVM 实例，请遵循以下说明：
 - en: 'In the iPython interpreter, import the `libvirt` module:'
+  id: totrans-44
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 在 iPython 解释器中，导入 `libvirt` 模块：
 - en: '[PRE5]'
+  id: totrans-45
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE5]'
 - en: 'Create the instance definition string:'
+  id: totrans-46
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 创建实例定义字符串：
 - en: '[PRE6]'
+  id: totrans-47
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE6]'
 - en: 'Obtain a connection to the hypervisor:'
+  id: totrans-48
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 获取到虚拟化主机的连接：
 - en: '[PRE7]'
+  id: totrans-49
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE7]'
 - en: 'Define the new instance without starting it:'
+  id: totrans-50
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 定义新实例，但不启动它：
 - en: '[PRE8]'
+  id: totrans-51
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE8]'
 - en: 'List the defined instances on the host:'
+  id: totrans-52
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 列出主机上已定义的实例：
 - en: '[PRE9]'
+  id: totrans-53
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE9]'
 - en: 'Ensure the instance has been defined, using the `virsh` command:'
+  id: totrans-54
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 使用 `virsh` 命令确保实例已经定义：
 - en: '[PRE10]'
+  id: totrans-55
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE10]'
 - en: How it works...
+  id: totrans-56
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 它是如何工作的...
 - en: In this recipe, we are using the pre-existing raw Debian image we created in
     [Chapter 1](part0026.html#OPEK0-c1e587dcccb14690b55c247c1809e6ce), *Getting Started
     with QEMU and KVM, *to define the KVM instance.
+  id: totrans-57
   prefs: []
   type: TYPE_NORMAL
+  zh: 在本食谱中，我们使用的是在 [第 1 章](part0026.html#OPEK0-c1e587dcccb14690b55c247c1809e6ce)
+    *开始使用 QEMU 和 KVM* 中创建的现有原始 Debian 镜像，用于定义 KVM 实例。
 - en: In step 1, we import the libvirt package and proceed to define the new KVM instance.
     We assign the XML formatted string to the `xmlconfig` variable in step 2\. Notice
     that the definition contains the name of the new instance and the location of
     the image file.
+  id: totrans-58
   prefs: []
   type: TYPE_NORMAL
+  zh: 在步骤 1 中，我们导入了 libvirt 包，并定义了新的 KVM 实例。在步骤 2 中，我们将 XML 格式的字符串赋值给 `xmlconfig`
+    变量。注意，该定义包含了新实例的名称和镜像文件的位置。
 - en: In step 3, we obtain a connection object and assign it to the `conn` variable.
     We can now use the available methods to define the KVM guest.
+  id: totrans-59
   prefs: []
   type: TYPE_NORMAL
+  zh: 在步骤 3 中，我们获得了连接对象，并将其赋值给 `conn` 变量。现在，我们可以使用可用方法来定义 KVM 客户机。
 - en: 'To list all available methods for an object in iPython, type the variable name
     followed by `*.*` and press the *Tab* key twice:'
+  id: totrans-60
   prefs: []
   type: TYPE_NORMAL
+  zh: 要列出 iPython 中某个对象的所有可用方法，请输入变量名并后跟 `*.*`，然后按 *Tab* 键两次：
 - en: 'In [7]: conn.'
+  id: totrans-61
   prefs: []
   type: TYPE_NORMAL
+  zh: 在 [7] 中：conn.
 - en: Display all 117 possibilities? (y or n)
+  id: totrans-62
   prefs: []
   type: TYPE_NORMAL
+  zh: 显示所有 117 个可能性？（y 或 n）
 - en: '`conn.allocPages`                                                         
                `conn.getURI` `conn.nodeDeviceLookupByName`'
+  id: totrans-63
   prefs: []
   type: TYPE_NORMAL
+  zh: '`conn.allocPages`                                                         
+               `conn.getURI` `conn.nodeDeviceLookupByName`'
 - en: '`conn.baselineCPU`                                                         
          `conn.getVersion` `conn.nodeDeviceLookupSCSIHostByWWN`'
+  id: totrans-64
   prefs: []
   type: TYPE_NORMAL
+  zh: '`conn.baselineCPU`                                                         
+         `conn.getVersion` `conn.nodeDeviceLookupSCSIHostByWWN`'
 - en: '`conn.c_pointer`                                                 `conn.interfaceDefineXML`
     `conn.numOfDefinedDomains`        `conn.interfaceLookupByMACString` `conn.numOfDefinedInterfaces`'
+  id: totrans-65
   prefs: []
   type: TYPE_NORMAL
+  zh: '`conn.c_pointer`                                                 `conn.interfaceDefineXML`
+    `conn.numOfDefinedDomains`        `conn.interfaceLookupByMACString` `conn.numOfDefinedInterfaces`'
 - en: '...'
+  id: totrans-66
   prefs: []
   type: TYPE_NORMAL
+  zh: '...'
 - en: 'In [7]: conn.'
+  id: totrans-67
   prefs: []
   type: TYPE_NORMAL
+  zh: 在 [7] 中：conn.
 - en: 'To obtain help on a method, append the question mark character at the end of
     the method:'
+  id: totrans-68
   prefs: []
   type: TYPE_NORMAL
+  zh: 要获取某个方法的帮助，可以在方法后附加问号字符：
 - en: '`In [7]: conn.defineXML?`'
+  id: totrans-69
   prefs: []
   type: TYPE_NORMAL
+  zh: '`在 [7] 中：conn.defineXML?`'
 - en: '`Type: instancemethod`'
+  id: totrans-70
   prefs: []
   type: TYPE_NORMAL
+  zh: '`类型：实例方法`'
 - en: '`String Form:<bound method virConnect.defineXML of <libvirt.virConnect object
     at 0x7fc5e57dc350>>`'
+  id: totrans-71
   prefs: []
   type: TYPE_NORMAL
+  zh: '`字符串形式：<绑定方法 virConnect.defineXML，位于 <libvirt.virConnect 对象，地址 0x7fc5e57dc350>>`'
 - en: '`File: /root/kvm_python/lib/python2.7/site-packages/libvirt.py`'
+  id: totrans-72
   prefs: []
   type: TYPE_NORMAL
+  zh: '`文件：/root/kvm_python/lib/python2.7/site-packages/libvirt.py`'
 - en: '`Definition: conn.defineXML(self, xml)`'
+  id: totrans-73
   prefs: []
   type: TYPE_NORMAL
+  zh: '`定义：conn.defineXML(self, xml)`'
 - en: '`Docstring:`'
+  id: totrans-74
   prefs: []
   type: TYPE_NORMAL
+  zh: '`文档字符串：`'
 - en: '`Define a domain, but does not start it.`'
+  id: totrans-75
   prefs: []
   type: TYPE_NORMAL
+  zh: '`定义一个域，但不启动它。`'
 - en: '`This definition is persistent, until explicitly undefined with`'
+  id: totrans-76
   prefs: []
   type: TYPE_NORMAL
+  zh: '`此定义是持久的，直到显式取消定义为止`'
 - en: '`virDomainUndefine(). A previous definition for this domain would be`'
+  id: totrans-77
   prefs: []
   type: TYPE_NORMAL
+  zh: '`virDomainUndefine()。该域的先前定义将会被`'
 - en: '`overridden if it already exists.`'
+  id: totrans-78
   prefs: []
   type: TYPE_NORMAL
+  zh: '`如果已经存在，则会被覆盖。`'
 - en: Some hypervisors may prevent this operation if there is a current
+  id: totrans-79
   prefs: []
   type: TYPE_NORMAL
+  zh: 某些虚拟机管理程序可能会阻止此操作，如果当前有
 - en: block copy operation on a transient domain with the same ID as the
+  id: totrans-80
   prefs: []
   type: TYPE_NORMAL
+  zh: 在一个临时域上进行块复制操作，且其 ID 与
 - en: domain being defined; in that case, use `virDomainBlockJobAbort()` to
+  id: totrans-81
   prefs: []
   type: TYPE_NORMAL
+  zh: 如果正在定义域，使用`virDomainBlockJobAbort()`来
 - en: stop the block copy first.
+  id: totrans-82
   prefs: []
   type: TYPE_NORMAL
+  zh: 首先停止块复制操作。
 - en: virDomainFree should be used to free the resources after the
+  id: totrans-83
   prefs: []
   type: TYPE_NORMAL
+  zh: 在资源释放后应使用`virDomainFree`来释放资源
 - en: domain object is no longer needed.
+  id: totrans-84
   prefs: []
   type: TYPE_NORMAL
+  zh: 不再需要该域对象。
 - en: 'In [7]:'
+  id: totrans-85
   prefs: []
   type: TYPE_NORMAL
+  zh: 在[7]：
 - en: 'In step 4, we use the `defineXML()` method on the `libvirt.virConnect` connection
     object, passing the XML definition string and assign it to the instance variable.
     We can see the type of the new object by running:'
+  id: totrans-86
   prefs: []
   type: TYPE_NORMAL
+  zh: 在第 4 步中，我们在`libvirt.virConnect`连接对象上使用`defineXML()`方法，传入 XML 定义字符串，并将其赋值给实例变量。我们可以通过运行以下命令查看新对象的类型：
 - en: '[PRE11]'
+  id: totrans-87
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE11]'
 - en: In step 5, we list the defined instances on the host, by using the `listDefinedDomains()`
     method and we confirm the result by using the `virsh` command in step 6.
+  id: totrans-88
   prefs: []
   type: TYPE_NORMAL
+  zh: 在第 5 步中，我们通过使用`listDefinedDomains()`方法列出主机上的已定义实例，并在第 6 步中使用`virsh`命令确认结果。
 - en: There's more...
+  id: totrans-89
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 还有更多内容...
 - en: 'Let''s add some simple error checking to the preceding Python code and write
     all of it to a new file. We are going to be adding to this file in the subsequent
     recipes:'
+  id: totrans-90
   prefs: []
   type: TYPE_NORMAL
+  zh: 让我们为前面的 Python 代码添加一些简单的错误检查，并将所有内容写入一个新文件。在后续的示例中，我们将继续向这个文件添加内容：
 - en: '[PRE12]'
+  id: totrans-91
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE12]'
 - en: 'To execute the script, ensure that the `python_kmv` instance has been undefined
     first, then run:'
+  id: totrans-92
   prefs: []
   type: TYPE_NORMAL
+  zh: 要执行脚本，请确保首先未定义`python_kmv`实例，然后运行：
 - en: '[PRE13]'
+  id: totrans-93
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE13]'
 - en: Starting, stopping, and deleting KVM instances with Python
+  id: totrans-94
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 使用 Python 启动、停止和删除 KVM 实例
 - en: In this recipe we are going to use the `create()` method on the instance object
     we defined in the previous recipe to start it and the `destroy()` method to stop
     it.
+  id: totrans-95
   prefs: []
   type: TYPE_NORMAL
+  zh: 在这个示例中，我们将使用在上一示例中定义的实例对象上的`create()`方法启动它，并使用`destroy()`方法停止它。
 - en: 'To obtain more information on the `create()` method, run:'
+  id: totrans-96
   prefs: []
   type: TYPE_NORMAL
+  zh: 要获取有关`create()`方法的更多信息，请运行：
 - en: '[PRE14]'
+  id: totrans-97
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE14]'
 - en: Getting ready
+  id: totrans-98
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 准备就绪
 - en: 'For this recipe we are going to need the following:'
+  id: totrans-99
   prefs: []
   type: TYPE_NORMAL
+  zh: 对于这个示例，我们将需要以下内容：
 - en: An Ubuntu host, with libvirt and QEMU installed and configured
+  id: totrans-100
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 一台安装并配置了 libvirt 和 QEMU 的 Ubuntu 主机
 - en: The `debian.img` raw image file we built in the Installing custom OS on the
     image with debootstrap recipe from [Chapter 1](part0026.html#OPEK0-c1e587dcccb14690b55c247c1809e6ce), *Getting
     Started with QEMU and KVM*
+  id: totrans-101
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 我们在[第 1 章](part0026.html#OPEK0-c1e587dcccb14690b55c247c1809e6ce)中的*使用 debootstrap
+    安装自定义操作系统的镜像*示例中构建的`debian.img`原始镜像文件，*开始使用 QEMU 和 KVM*
 - en: Python 2.7, the iPython tool, and the virtual environment we created in the
     *Installing and using the Python libvirt library* recipe in this chapter
+  id: totrans-102
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: Python 2.7、iPython 工具和我们在本章的*安装和使用 Python libvirt 库*示例中创建的虚拟环境
 - en: The instance object we created in the *Defining KVM instances with Python* recipe
     in this chapter
+  id: totrans-103
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 我们在本章的*使用 Python 定义 KVM 实例*示例中创建的实例对象
 - en: How to do it...
+  id: totrans-104
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 如何做...
 - en: 'To start the KVM instance that was defined earlier, to obtain its status and
     finally to stop it, use the following Python code:'
+  id: totrans-105
   prefs: []
   type: TYPE_NORMAL
+  zh: 要启动之前定义的 KVM 实例，获取其状态并最终停止它，可以使用以下 Python 代码：
 - en: 'Invoke the `create()` method on the instance object:'
+  id: totrans-106
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 在实例对象上调用`create()`方法：
 - en: '[PRE15]'
+  id: totrans-107
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE15]'
 - en: 'Ensure the instance is in a running state by calling the `isActive()` method
     on the instance object:'
+  id: totrans-108
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 通过调用实例对象上的`isActive()`方法，确保实例处于运行状态：
 - en: '[PRE16]'
+  id: totrans-109
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE16]'
 - en: 'Check the status of the KVM instance from the host OS:'
+  id: totrans-110
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 检查从主机操作系统获取的 KVM 实例状态：
 - en: '[PRE17]'
+  id: totrans-111
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE17]'
 - en: 'Stop the instance with the `destroy()` method:'
+  id: totrans-112
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 使用`destroy()`方法停止实例：
 - en: '[PRE18]'
+  id: totrans-113
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE18]'
 - en: 'Ensure the instance has been destroyed:'
+  id: totrans-114
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 确保实例已被销毁：
 - en: '[PRE19]'
+  id: totrans-115
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE19]'
 - en: 'Delete the instance and list all defined guests:'
+  id: totrans-116
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 删除实例并列出所有已定义的来宾：
 - en: '[PRE20]'
+  id: totrans-117
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE20]'
 - en: How it works...
+  id: totrans-118
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 它是如何工作的...
 - en: In step 1, we call the `create()` method to launch the defined instance. If
     successful the guest will transition from shut off state to running as we can
     see in the output of the command in step 3\. In step 2, we use the `isActive()`
     method, to check the status of the instance. An output of 1 indicates that the
     instance is running.
+  id: totrans-119
   prefs: []
   type: TYPE_NORMAL
+  zh: 在第 1 步中，我们调用`create()`方法启动定义的实例。如果成功，来宾系统将从关闭状态过渡到运行状态，正如我们在第 3 步命令的输出中看到的那样。在第
+    2 步中，我们使用`isActive()`方法来检查实例的状态。输出为 1 表示实例正在运行。
 - en: In step 4, we stop the instance using the `destroy()` method and confirm in
     step 5.
+  id: totrans-120
   prefs: []
   type: TYPE_NORMAL
+  zh: 在第 4 步中，我们使用`destroy()`方法停止实例，并在第 5 步中进行确认。
 - en: Finally in step 6, we delete the instance using the `undefine()` method and
     list all defined instances with the `listDefinedDomains()` call.
+  id: totrans-121
   prefs: []
   type: TYPE_NORMAL
+  zh: 最后在第 6 步中，我们使用`undefine()`方法删除实例，并通过`listDefinedDomains()`调用列出所有已定义的实例。
 - en: There's more...
+  id: totrans-122
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 还有更多内容...
 - en: 'Let''s add the new code to the Python script we started in the *Defining KVM
     instances with Python* recipe. The updated script should look like the following:'
+  id: totrans-123
   prefs: []
   type: TYPE_NORMAL
+  zh: 让我们将新代码添加到我们在*使用Python定义KVM实例*配方中开始的Python脚本中。更新后的脚本应该如下所示：
 - en: '[PRE21]'
+  id: totrans-124
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE21]'
 - en: 'Starting the script should define a new instance, start it, stop it, and finally
     remove it:'
+  id: totrans-125
   prefs: []
   type: TYPE_NORMAL
+  zh: 启动脚本时，应该定义一个新的实例，启动它，停止它，最后删除它：
 - en: '[PRE22]'
+  id: totrans-126
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE22]'
 - en: In the preceding script, we used the `instance.name()` method to get the name
     of the KVM guest and print it. We also clean up, by closing the connection to
     the hypervisor with the `conn.close()` call.
+  id: totrans-127
   prefs: []
   type: TYPE_NORMAL
+  zh: 在前面的脚本中，我们使用了`instance.name()`方法来获取KVM客户机的名称并打印它。我们还通过调用`conn.close()`关闭与虚拟化管理程序的连接，从而进行清理。
 - en: Inspecting KVM instances with Python
+  id: totrans-128
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 使用Python检查KVM实例
 - en: In this recipe we are going to collect instance information, using methods from
     the `libvirt.virDomain` class.
+  id: totrans-129
   prefs: []
   type: TYPE_NORMAL
+  zh: 在这个配方中，我们将收集实例信息，使用`libvirt.virDomain`类中的方法。
 - en: For more information on the libvirt Python API, please refer to the official
     documentation at: [http://libvirt.org/docs/libvirt-appdev-guide-python/en-US/html/index.html](http://libvirt.org/docs/libvirt-appdev-guide-python/en-US/html/index.html).
+  id: totrans-130
   prefs: []
   type: TYPE_NORMAL
+  zh: 欲了解更多关于libvirt Python API的信息，请参考官方文档：[http://libvirt.org/docs/libvirt-appdev-guide-python/en-US/html/index.html](http://libvirt.org/docs/libvirt-appdev-guide-python/en-US/html/index.html)。
 - en: Getting ready
+  id: totrans-131
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 准备工作
 - en: 'For this recipe we are going to need the following:'
+  id: totrans-132
   prefs: []
   type: TYPE_NORMAL
+  zh: 对于这个配方，我们将需要以下内容：
 - en: An Ubuntu host, with libvirt and QEMU installed and configured
+  id: totrans-133
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 一个安装并配置了libvirt和QEMU的Ubuntu主机
 - en: The `debian.img` raw image file we built in the *Installing custom OS on the
     image with debootstrap* recipe from [Chapter 1](part0026.html#OPEK0-c1e587dcccb14690b55c247c1809e6ce), *Getting
     Started with QEMU and KVM*
+  id: totrans-134
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 我们在[第1章](part0026.html#OPEK0-c1e587dcccb14690b55c247c1809e6ce)的*使用debootstrap安装自定义操作系统到镜像*配方中构建的`debian.img`原始镜像文件，*开始使用QEMU和KVM*
 - en: Python 2.7, the `iPython` tool, and the virtual environment we created in the
     *Installing and using the Python libvirt library* recipe in this chapter
+  id: totrans-135
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: Python 2.7、`iPython`工具和我们在本章的*安装并使用Python libvirt库*配方中创建的虚拟环境
 - en: The `instance` object we created in the *Defining KVM instances with Python* recipe
     in this chapter, representing the KVM guest
+  id: totrans-136
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 我们在本章的*使用Python定义KVM实例*配方中创建的`instance`对象，代表KVM客户机
 - en: How to do it...
+  id: totrans-137
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 如何操作...
 - en: 'To collect CPU, memory, and state information about a running instance, use
     the following Python methods:'
+  id: totrans-138
   prefs: []
   type: TYPE_NORMAL
+  zh: 要收集关于运行实例的CPU、内存和状态信息，可以使用以下Python方法：
 - en: 'Get the name of the instance:'
+  id: totrans-139
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 获取实例的名称：
 - en: '[PRE23]'
+  id: totrans-140
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE23]'
 - en: 'Ensure the instance is running:'
+  id: totrans-141
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 确保实例正在运行：
 - en: '[PRE24]'
+  id: totrans-142
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE24]'
 - en: 'Collect resource statistics on the KVM instance:'
+  id: totrans-143
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 收集KVM实例的资源统计信息：
 - en: '[PRE25]'
+  id: totrans-144
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE25]'
 - en: 'Retrieve the maximum amount of physical memory allocated to the instance:'
+  id: totrans-145
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 获取分配给实例的最大物理内存：
 - en: '[PRE26]'
+  id: totrans-146
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE26]'
 - en: 'Extract CPU statistics for the instance:'
+  id: totrans-147
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 提取实例的CPU统计信息：
 - en: '[PRE27]'
+  id: totrans-148
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE27]'
 - en: 'Check if the virtual machine is using hardware acceleration:'
+  id: totrans-149
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 检查虚拟机是否使用了硬件加速：
 - en: '[PRE28]'
+  id: totrans-150
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE28]'
 - en: 'Collect the instance state:'
+  id: totrans-151
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 收集实例状态：
 - en: '[PRE29]'
+  id: totrans-152
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE29]'
 - en: How it works...
+  id: totrans-153
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 它是如何工作的...
 - en: In this recipe, we used a few new methods from the `libvirt.virDomain` class.
     Let's see what they do in more detail and then add them to the simple `kvm.py`
     Python script we started in the *Defining KVM instances with Python* recipe.
+  id: totrans-154
   prefs: []
   type: TYPE_NORMAL
+  zh: 在本配方中，我们使用了`libvirt.virDomain`类中的一些新方法。让我们更详细地了解它们的作用，然后将它们添加到我们在*使用Python定义KVM实例*配方中开始的简单`kvm.py`
+    Python脚本中。
 - en: In steps 1 and 2, we get the name of the KVM instance and ensure it's in a running
     state.
+  id: totrans-155
   prefs: []
   type: TYPE_NORMAL
+  zh: 在第1步和第2步中，我们获取了KVM实例的名称，并确保它处于运行状态。
 - en: 'In step 3, we collect the following instance information, returned as a Python
     list:'
+  id: totrans-156
   prefs: []
   type: TYPE_NORMAL
+  zh: 在第3步中，我们收集了以下实例信息，并以Python列表的形式返回：
 - en: '**state**: The state of the instance, as defined in the *virDomainState* enumerated
     type at [https://libvirt.org/html/libvirt-libvirt-domain.html#virDomainState](https://libvirt.org/html/libvirt-libvirt-domain.html#virDomainState)'
+  id: totrans-157
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '**state**：实例的状态，如在[https://libvirt.org/html/libvirt-libvirt-domain.html#virDomainState](https://libvirt.org/html/libvirt-libvirt-domain.html#virDomainState)中的*virDomainState*枚举类型中定义'
 - en: '**maxMemory**: The maximum memory used by the guest'
+  id: totrans-158
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '**maxMemory**：客户机使用的最大内存'
 - en: '**memory**: The current amount of memory used by the instance'
+  id: totrans-159
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '**memory**：实例当前使用的内存量'
 - en: '**nbVirtCPU**: The number of allocated virtual CPUs'
+  id: totrans-160
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '**nbVirtCPU**：分配的虚拟CPU数量'
 - en: '**cpuTime**: The time used by the instance (in nanoseconds)'
+  id: totrans-161
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '**cpuTime**：实例使用的时间（以纳秒为单位）'
 - en: In step 4, we collect the memory allocated to the instance. Notice how it matches
     the output of the function from step 3.
+  id: totrans-162
   prefs: []
   type: TYPE_NORMAL
+  zh: 在第4步中，我们收集了分配给实例的内存。注意它如何与第3步函数的输出匹配。
 - en: In step 5, we collect information about the CPU of the guest instance. We can
     see the CPU, system, and user times.
+  id: totrans-163
   prefs: []
   type: TYPE_NORMAL
+  zh: 在第 5 步，我们收集关于来宾实例 CPU 的信息。我们可以看到 CPU、系统和用户时间。
 - en: The `hvm` output of the `OSType()` method in step 6, indicates that the guest
     OS is designed to run on bare metal, requiring full virtualization, such as KVM.
+  id: totrans-164
   prefs: []
   type: TYPE_NORMAL
+  zh: 第 6 步中，`OSType()` 方法的 `hvm` 输出表示来宾操作系统设计为在裸机上运行，要求完全虚拟化，如 KVM。
 - en: In the last step of this recipe, we call the `state()` method to return the
     current instance state.
+  id: totrans-165
   prefs: []
   type: TYPE_NORMAL
+  zh: 在本食谱的最后一步，我们调用 `state()` 方法以返回当前实例状态。
 - en: There's more...
+  id: totrans-166
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 还有更多...
 - en: 'Let''s finish up this chapter with a complete example script, containing all
     of the methods we have used so far:'
+  id: totrans-167
   prefs: []
   type: TYPE_NORMAL
+  zh: 让我们通过一个完整的示例脚本结束这一章，脚本包含了我们至今使用的所有方法：
 - en: '[PRE30]'
+  id: totrans-168
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE30]'
 - en: 'Executing it provides the following output, assuming the `kvm_python` instance
     has been undefined first:'
+  id: totrans-169
   prefs: []
   type: TYPE_NORMAL
+  zh: 执行后将提供以下输出，假设 `kvm_python` 实例已先被取消定义：
 - en: '[PRE31]'
+  id: totrans-170
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE31]'
 - en: Building a simple REST API server with libvirt and bottle
+  id: totrans-171
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 使用 libvirt 和 bottle 构建一个简单的 REST API 服务器
 - en: In this recipe, we are going to use all of the libvirt methods we saw in the
     earlier recipes to build a simple RESTfull API server, leveraging the bottle micro
     framework for Python.
+  id: totrans-172
   prefs: []
   type: TYPE_NORMAL
+  zh: 在本食谱中，我们将使用之前食谱中提到的所有 libvirt 方法，构建一个简单的 RESTful API 服务器，利用 Python 的 bottle
+    微框架。
 - en: Bottle is described as a fast and simple **Web Server Gateway Interface** (**WSGI**)
     micro web-framework for Python, which is distributed as a single module file.
+  id: totrans-173
   prefs: []
   type: TYPE_NORMAL
+  zh: Bottle 被描述为一个快速且简单的 **Web Server Gateway Interface**（**WSGI**）微型 Web 框架，用于 Python，作为一个单一的模块文件发布。
 - en: For more information on the bottle micro framework please visit the official
     website at: [https://bottlepy.org/docs/dev/](https://bottlepy.org/docs/dev/).
+  id: totrans-174
   prefs: []
   type: TYPE_NORMAL
+  zh: 有关 bottle 微框架的更多信息，请访问官方网站：[https://bottlepy.org/docs/dev/](https://bottlepy.org/docs/dev/)。
 - en: 'The simple API server we are implementing, will accept the following requests:'
+  id: totrans-175
   prefs: []
   type: TYPE_NORMAL
+  zh: 我们实现的简单 API 服务器将接受以下请求：
 - en: '**list**: `get` method that lists all defined libvirt instances.'
+  id: totrans-176
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '**list**: `get` 方法，用于列出所有已定义的 libvirt 实例。'
 - en: '**define**: `post` method used to define a new KVM instance. We are going to
     provide the XML definition as a header in the post request.'
+  id: totrans-177
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '**define**: `post` 方法，用于定义一个新的 KVM 实例。我们将在 POST 请求的头部提供 XML 定义。'
 - en: '**start**: `post` method to start an instance. The name of the instance will
     be provided in the header of the request.'
+  id: totrans-178
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '**start**: `post` 方法，用于启动实例。实例的名称将在请求头中提供。'
 - en: '**stop**: `post` method to spot a KVM instance.'
+  id: totrans-179
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '**stop**: `post` 方法，用于停止一个 KVM 实例。'
 - en: '**undefine**: `post` method to delete the instance.'
+  id: totrans-180
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '**undefine**: `post` 方法，用于删除实例。'
 - en: Getting ready
+  id: totrans-181
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 准备中
 - en: 'For this recipe we are going to need the following:'
+  id: totrans-182
   prefs: []
   type: TYPE_NORMAL
+  zh: 对于本食谱，我们将需要以下内容：
 - en: An Ubuntu host, with libvirt and QEMU installed and configured
+  id: totrans-183
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 一台已安装并配置好 libvirt 和 QEMU 的 Ubuntu 主机
 - en: The `debian.img` raw image file we built in the *Installing custom OS on the
     image with debootstrap* recipe from [Chapter 1](part0026.html#OPEK0-c1e587dcccb14690b55c247c1809e6ce), *Getting
     Started with QEMU and KVM*
+  id: totrans-184
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 我们在 *使用 debootstrap 安装自定义操作系统到镜像* 中构建的 `debian.img` 原始镜像文件，来自 [第 1 章](part0026.html#OPEK0-c1e587dcccb14690b55c247c1809e6ce)，*QEMU
+    和 KVM 入门*。
 - en: Python 2.7  and the virtual environment we created in the *Installing and using
     the Python libvirt library* recipe in this chapter
+  id: totrans-185
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: Python 2.7 和我们在本章 *安装并使用 Python libvirt 库* 中创建的虚拟环境
 - en: The `curl` command line tool for transferring data with URL syntax, usually
     provided by the curl package
+  id: totrans-186
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '`curl` 命令行工具用于通过 URL 语法传输数据，通常由 curl 包提供'
 - en: How to do it...
+  id: totrans-187
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 如何操作...
 - en: 'The following steps describe how to install the bottle module and the simple
     RESTfull API server written in Python:'
+  id: totrans-188
   prefs: []
   type: TYPE_NORMAL
+  zh: 以下步骤描述了如何安装 bottle 模块及其 Python 编写的简单 RESTful API 服务器：
 - en: 'Install the `bottle` module:'
+  id: totrans-189
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 安装 `bottle` 模块：
 - en: '[PRE32]'
+  id: totrans-190
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE32]'
 - en: 'Create a new file, import the libvirt and bottle modules and write the libvirt
     connection method:'
+  id: totrans-191
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 创建一个新文件，导入 libvirt 和 bottle 模块，并编写 libvirt 连接方法：
 - en: '[PRE33]'
+  id: totrans-192
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE33]'
 - en: 'Implement `/define` the API route and function:'
+  id: totrans-193
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 实现 `/define` API 路由和功能：
 - en: '[PRE34]'
+  id: totrans-194
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE34]'
 - en: 'Implement `/undefine` the API route and function:'
+  id: totrans-195
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 实现 `/undefine` API 路由和功能：
 - en: '[PRE35]'
+  id: totrans-196
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE35]'
 - en: 'Implement `/start` the API route and function:'
+  id: totrans-197
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 实现 `/start` API 路由和功能：
 - en: '[PRE36]'
+  id: totrans-198
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE36]'
 - en: 'Implement `/stop` the API route and function:'
+  id: totrans-199
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 实现 `/stop` API 路由和功能：
 - en: '[PRE37]'
+  id: totrans-200
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE37]'
 - en: 'Implement `/list` the API route and function:'
+  id: totrans-201
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 实现 `/list` API 路由和功能：
 - en: '[PRE38]'
+  id: totrans-202
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE38]'
 - en: 'Invoke the `run()` method to start the WSGI server when the script is executed:'
+  id: totrans-203
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 执行时调用 `run()` 方法以启动 WSGI 服务器：
 - en: '[PRE39]'
+  id: totrans-204
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE39]'
 - en: How it works...
+  id: totrans-205
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 它是如何工作的...
 - en: 'Let''s look at the code in more detail. First,  save the preceding changes
     in a file and execute the script:'
+  id: totrans-206
   prefs: []
   type: TYPE_NORMAL
+  zh: 让我们更详细地看一下代码。首先，将前面的更改保存到一个文件中并执行脚本：
 - en: '[PRE40]'
+  id: totrans-207
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE40]'
 - en: 'In a separate terminal, define a new instance, passing the following XML definition,
     as a header:'
+  id: totrans-208
   prefs: []
   type: TYPE_NORMAL
+  zh: 在一个单独的终端中，定义一个新的实例，并传递以下XML定义作为头信息：
 - en: '[PRE41]'
+  id: totrans-209
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE41]'
 - en: We are using the raw Debian image we created in [Chapter 1](part0026.html#OPEK0-c1e587dcccb14690b55c247c1809e6ce)*,
     Getting Started with QEMU and KVM*. The XML definition should look familiar as
     well; we've been using it in most of the recipes in this chapter.
+  id: totrans-210
   prefs: []
   type: TYPE_NORMAL
+  zh: 我们正在使用在[第1章](part0026.html#OPEK0-c1e587dcccb14690b55c247c1809e6ce)*《开始使用QEMU和KVM》*中创建的原始Debian镜像。XML定义应该也很熟悉；我们在本章的大部分配方中都使用了它。
 - en: 'We should now have a new KVM instance defined. Let''s use the `/list` route
     to list all instances and confirm with the `virsh` command:'
+  id: totrans-211
   prefs: []
   type: TYPE_NORMAL
+  zh: 我们现在应该已经定义了一个新的KVM实例。让我们使用`/list`路由列出所有实例，并使用`virsh`命令确认：
 - en: '[PRE42]'
+  id: totrans-212
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE42]'
 - en: 'Now that we have a defined instance, let''s start it using the `/start` route
     and ensure it''s running:'
+  id: totrans-213
   prefs: []
   type: TYPE_NORMAL
+  zh: 现在我们已经定义了一个实例，让我们使用`/start`路由启动它，并确保它在运行：
 - en: '[PRE43]'
+  id: totrans-214
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE43]'
 - en: 'To stop the instance and remove it completely, we use the `/stop` and `/undefine`
     routes from the script:'
+  id: totrans-215
   prefs: []
   type: TYPE_NORMAL
+  zh: 要停止实例并完全删除它，我们使用脚本中的`/stop`和`/undefine`路由：
 - en: '[PRE44]'
+  id: totrans-216
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE44]'
 - en: Let us go through the code in more detail.
+  id: totrans-217
   prefs: []
   type: TYPE_NORMAL
+  zh: 让我们更详细地了解代码。
 - en: In step 1, we install the bottle module in the Python virtual environment.
+  id: totrans-218
   prefs: []
   type: TYPE_NORMAL
+  zh: 在第1步中，我们在Python虚拟环境中安装了bottle模块。
 - en: After importing the libvirt and bottle packages in step 2, we define the `libvirtConnect()`
     method. The functions in our program will use it to connect to the hypervisor.
+  id: totrans-219
   prefs: []
   type: TYPE_NORMAL
+  zh: 在第2步中导入libvirt和bottle包后，我们定义了`libvirtConnect()`方法。我们的程序中的函数将使用它连接到虚拟机管理程序。
 - en: In step 3, we implement the `/define` route and its functionality. The `@post` decorator
     links the code from the following function to a URL path. In our example the `/define`
     route is bound to the `build()` function. Passing the `/define` route to the curl
     command will execute the function, which in turn will call the `defineKVMInstance()`
     method to define the instance.
+  id: totrans-220
   prefs: []
   type: TYPE_NORMAL
+  zh: 在第3步中，我们实现了`/define`路由及其功能。`@post`装饰器将以下函数的代码与URL路径关联。在我们的示例中，`/define`路由绑定到`build()`函数。将`/define`路由传递给curl命令将执行该函数，该函数又会调用`defineKVMInstance()`方法来定义实例。
 - en: We use the same code pattern in steps 4, 5, and 6 to start, stop, and undefine
     the instance.
+  id: totrans-221
   prefs: []
   type: TYPE_NORMAL
+  zh: 我们在第4步、第5步和第6步中使用相同的代码模式来启动、停止和取消定义实例。
 - en: In step 7, we use the `@get` decorator to implement a function to list all defined
     instances on the host.
+  id: totrans-222
   prefs: []
   type: TYPE_NORMAL
+  zh: 在第7步中，我们使用`@get`装饰器实现一个函数，用于列出主机上所有已定义的实例。
 - en: In step 8, we use the `run` class which provides the `run()` method we use to
     start a built-in server. In our example the server will be listening on localhost,
     port `8080`.
+  id: totrans-223
   prefs: []
   type: TYPE_NORMAL
+  zh: 在第8步中，我们使用`run`类，它提供了我们用来启动内置服务器的`run()`方法。在我们的示例中，服务器将在本地主机（localhost）上监听，端口为`8080`。
 - en: As we saw earlier, executing the script will start a listening socket on port
     `8080`, which we can interact with, using the `curl` command.
+  id: totrans-224
   prefs: []
   type: TYPE_NORMAL
+  zh: 正如我们之前看到的，执行脚本将在`8080`端口启动一个监听套接字，我们可以通过`curl`命令与之交互。
 - en: There's more...
+  id: totrans-225
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 还有更多...
 - en: 'The full code implementation follows:'
+  id: totrans-226
   prefs: []
   type: TYPE_NORMAL
+  zh: 完整的代码实现如下：
 - en: '[PRE45]'
+  id: totrans-227
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE45]'
