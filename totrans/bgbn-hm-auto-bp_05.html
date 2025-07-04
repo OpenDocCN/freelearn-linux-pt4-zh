@@ -1,0 +1,695 @@
+<html><head></head><body><div class="chapter" title="Chapter&#xA0;5.&#xA0;WhatsApp Laundry Room Monitor"><div class="titlepage"><div><div><h1 class="title"><a id="ch05"/>Chapter 5. WhatsApp Laundry Room Monitor</h1></div></div></div><p>In this chapter, we'll see how to implement a<a id="id205" class="indexterm"/> laundry monitor room with several sensors capable of alerting the user directly on their WhatsApp account when a specific event occurs.</p><p>We'll see how to connect a sound sensor and a light sensor to our BeagleBone Black and then how we can monitor our washing machine with them. Also, we'll see how we can interact with the user directly on the user's smartphone by using a WhatsApp account in order to notify them of some events.</p><div class="section" title="The basics of functioning"><div class="titlepage"><div><div><h1 class="title"><a id="ch05lvl1sec29"/>The basics of functioning</h1></div></div></div><p>Let's assume that<a id="id206" class="indexterm"/> our laundry room is equipped with a washing machine and a lamp used by the user when they have to pick up the laundry. In these conditions, the BeagleBone Black can be equipped with some special sensors to detect when the washing machine has started or finished its job and when someone goes into the laundry room to pick up the washed clothes.</p><p>In this scenario, the BeagleBone Black should detect when the washing machine has been started by the user and then wait until the job has finished. At this point, the system can generate a WhatsApp message to alert the user that they have to pick up their clothes. When the user enters into the room, the light is turned on, and when they leave the room, the light is turned off. In this manner, our BeagleBone Black can detect when the user has done their job and then restart the cycle.</p></div></div>
+<div class="section" title="Setting up the hardware"><div class="titlepage"><div><div><h1 class="title"><a id="ch05lvl1sec30"/>Setting up the hardware</h1></div></div></div><p>As just stated, in<a id="id207" class="indexterm"/> this project<a id="id208" class="indexterm"/> we need two different kind of sensors: one to detect when the washing machine starts/stop, and one to detect when someone enters/exits the laundry room. The former task can be achieved by using a sound detector, that is, a device that is able to measure the environment sound level; while the latter task can be achieved by using a light sensor, that is, a device that is able to measure the environment light. Both these signals can be compared with thresholds in order to detect our relevant events.</p><p>When the washing machine is running, we should measure a high sound level for a long amount of time; while it is not running, the environment sound should be near to zero for a long time. On the other hand, we can assume that the person designed to pick up the washed clothes has to turn the light on in the laundry room, while the light is normally turned off when there is nobody in the room.</p><p>To help the user <a id="id209" class="indexterm"/>understand what <a id="id210" class="indexterm"/>happens inside the system, we can add two LEDs that can be turned on/off or put in a blinking mode with special meanings (in the next section, I'm going to explain these meanings in detail). </p><div class="section" title="Setting up the sound detector"><div class="titlepage"><div><div><h2 class="title"><a id="ch05lvl2sec41"/>Setting up the sound detector</h2></div></div></div><p>The device <a id="id211" class="indexterm"/>to detect the environment sound used in this project is shown in the following image:</p><div class="mediaobject"><img src="graphics/B00255_05_01.jpg" alt="Setting up the sound detector"/></div><div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="note47"/>Note</h3><p>The devices<a id="id212" class="indexterm"/> can be purchased at the following link (or by surfing the Internet): <a class="ulink" href="http://www.cosino.io/product/sound-detector">http://www.cosino.io/product/sound-detector</a>.</p><p>The board is based on the amplifier LMV324 with the datasheet available at <a class="ulink" href="http://dlnmh9ip6v2uc.cloudfront.net/datasheets/Sensors/Sound/LMV324.pdf">http://dlnmh9ip6v2uc.cloudfront.net/datasheets/Sensors/Sound/LMV324.pdf</a>, while the board's schematic is available at <a class="ulink" href="http://dlnmh9ip6v2uc.cloudfront.net/datasheets/Sensors/Sound/sound-detector.pdf">http://dlnmh9ip6v2uc.cloudfront.net/datasheets/Sensors/Sound/sound-detector.pdf</a>.</p></div></div><p>This device is very <a id="id213" class="indexterm"/>simple since it presents three outputs: the one labeled as <span class="strong"><strong>AUDIO</strong></span> can be used to directly get the audio captured, while the output labeled <span class="strong"><strong>ENVELOPE</strong></span> can be used to easily read the amplitude of sound by simply reading the analog voltage. The last output labeled <span class="strong"><strong>GATE</strong></span> is a binary indication of the presence of the sound by using a fixed threshold (even if you can change it by changing the on-board resistors).</p><p>For our prototype, we <a id="id214" class="indexterm"/>can use the <span class="strong"><strong>ENVELOPE</strong></span> output since we can read an analog voltage. Not only this, it allows us to set our own software threshold too. So, let's see the connections in the following table:</p><div class="informaltable"><table border="1"><colgroup><col style="text-align: left"/><col style="text-align: left"/></colgroup><thead><tr><th style="text-align: left" valign="bottom">
+<p>Pin</p>
+</th><th style="text-align: left" valign="bottom">
+<p>Sound Sensor Pin</p>
+</th></tr></thead><tbody><tr><td style="text-align: left" valign="top">
+<p>P9.4 - Vcc</p>
+</td><td style="text-align: left" valign="top">
+<p>VCC</p>
+</td></tr><tr><td style="text-align: left" valign="top">
+<p>P9.39 - AIN0</p>
+</td><td style="text-align: left" valign="top">
+<p>R @ENVELOPE</p>
+</td></tr><tr><td style="text-align: left" valign="top">
+<p>P9.3 - GND</p>
+</td><td style="text-align: left" valign="top">
+<p>GND</p>
+</td></tr></tbody></table></div><p>As already mentioned in <a class="link" href="ch02.html" title="Chapter 2. Ultrasonic Parking Assistant">Chapter 2</a>, <span class="emphasis"><em>Ultrasonic Parking Assistant</em></span>, the ADC's input must be limited to 1.8V and since the Vcc level is 3.3V, we can use the voltage divider proposed there in order to scale the output voltage by a factor of 2. Be sure, then, that the maximum input level is not greater than 1.8V. So, the reader should not directly connect the <span class="emphasis"><em>P9.39</em></span> pin with the sound detector; they should use the resistors connected as in <a class="link" href="ch02.html" title="Chapter 2. Ultrasonic Parking Assistant">Chapter 2</a>, <span class="emphasis"><em>Ultrasonic Parking Assistant</em></span>, to protect the BeagleBone Black's <span class="strong"><strong>ADC</strong></span>.</p><p>Now, to verify that all the connections are okay, we enable the BeagleBone Black's ADCs by using the following command:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@beaglebone:~# echo cape-bone-iio &gt; /sys/devices/bone_capemgr.9/slots</strong></span>
+</pre></div><div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="note48"/>Note</h3><p>These settings can be done by using the <code class="literal">bin/load_firmware.sh</code> script in the book's example code repository as follows:</p><div class="informalexample"><pre class="programlisting">root@beaglebone:~# ./load_firmware.sh adc</pre></div></div></div><p>Then, we can read the captured sound envelope with the following command:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@beaglebone:~# cat /sys/devices/ocp.3/helper.12/AIN0</strong></span>
+<span class="strong"><strong>24</strong></span>
+</pre></div><p>If we try to speak while we rerun the command, we should get a higher value, as follows:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@beaglebone:~# cat /sys/devices/ocp.3/helper.12/AIN0</strong></span>
+<span class="strong"><strong>201</strong></span>
+</pre></div><p>So, the higher the environment sound, the higher the returned value.</p><div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="tip67"/>Tip</h3><p>Let me <a id="id215" class="indexterm"/>remind you again that, as stated in <a class="link" href="ch01.html" title="Chapter 1. Dangerous Gas Sensors">Chapter 1</a>, <span class="emphasis"><em>Dangerous Gas Sensors</em></span>, the ADC can also be read by using another file's still in the <code class="literal">sysfs</code> filesystem with the following command:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@beaglebone:~# cat /sys/bus/iio/devices/iio:device0/in_voltage0_raw</strong></span>
+</pre></div></div></div></div><div class="section" title="Setting up the light sensor"><div class="titlepage"><div><div><h2 class="title"><a id="ch05lvl2sec42"/>Setting up the light sensor</h2></div></div></div><p>The light sensor <a id="id216" class="indexterm"/>is the device shown in the following image:</p><div class="mediaobject"><img src="graphics/B00255_05_02.jpg" alt="Setting up the light sensor"/></div><div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="note49"/>Note</h3><p>The devices can <a id="id217" class="indexterm"/>be purchased at the following link (or by surfing the Internet): <a class="ulink" href="http://www.cosino.io/product/light-sensor">http://www.cosino.io/product/light-sensor</a>.</p><p>The user guide of this device is available at <a class="ulink" href="http://www.phidgets.com/docs/1143_User_Guide">http://www.phidgets.com/docs/1143_User_Guide</a>.</p></div></div><p>As for the sound <a id="id218" class="indexterm"/>detector, this device has an analog output that can be used to measure the environment luminosity. According to the user guide, the luminosity can be obtained by using the following formula:</p><p>
+<span class="emphasis"><em>    Luminosity(lux) = e<sup>m*sensor_output+b</sup></em></span>
+</p><p>Here, <span class="emphasis"><em>sensor_output</em></span> is the raw value from the sensor, and the <span class="emphasis"><em>m</em></span> and <span class="emphasis"><em>b</em></span> are well-defined constants used to get a rough approximation. However, since we are only interested in measuring the light presence and not its precise intensity, we can use our own values or, to make it as simple as possible, the <span class="emphasis"><em>sensor_output</em></span> value directly.</p><p>In the user guide, we also read that even if the device needs a 5V Vcc to function, its output value will not exceed 2.5V. So, considering that our BeagleBone Black's ADC maximum input value is 1.8V, we can use the voltage divider as above to scale down the output value by 2, thus being sure that the 1.8V threshold is satisfied.</p><p>The connections are as shown in the following table:</p><div class="informaltable"><table border="1"><colgroup><col style="text-align: left"/><col style="text-align: left"/></colgroup><thead><tr><th style="text-align: left" valign="bottom">
+<p>Pin</p>
+</th><th style="text-align: left" valign="bottom">
+<p>Light sensor cable</p>
+</th></tr></thead><tbody><tr><td style="text-align: left" valign="top">
+<p>P9.6 - Vcc</p>
+</td><td style="text-align: left" valign="top">
+<p>red</p>
+</td></tr><tr><td style="text-align: left" valign="top">
+<p>P9.40 - AIN1</p>
+</td><td style="text-align: left" valign="top">
+<p>R @white</p>
+</td></tr><tr><td style="text-align: left" valign="top">
+<p>P9.1 - GND</p>
+</td><td style="text-align: left" valign="top">
+<p>black</p>
+</td></tr></tbody></table></div><p>Now, as done in the previous section for the sound detector, we can test the device by using the following command:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@beaglebone:~# cat /sys/devices/ocp.3/helper.12/AIN1</strong></span>
+<span class="strong"><strong>386</strong></span>
+</pre></div><p>However, if I put the device under a light, I get:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@beaglebone:~# cat /sys/devices/ocp.3/helper.12/AIN1</strong></span>
+<span class="strong"><strong>528</strong></span>
+</pre></div><p>Whereas if I cover the sensor with a cup of coffee, I get:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@beaglebone:~# cat /sys/devices/ocp.3/helper.12/AIN1</strong></span>
+<span class="strong"><strong>79</strong></span>
+</pre></div><p>So, as for the sound detector, the same rule exists: the higher the environment light intensity, the higher the returned value from the sensor.</p></div><div class="section" title="Connecting the LEDs"><div class="titlepage"><div><div><h2 class="title"><a id="ch05lvl2sec43"/>Connecting the LEDs</h2></div></div></div><p>To connect the <a id="id219" class="indexterm"/>LEDs, we can use the same circuitry that was used in <a class="link" href="ch01.html" title="Chapter 1. Dangerous Gas Sensors">Chapter 1</a>, <span class="emphasis"><em>Dangerous Gas Sensors</em></span>. The connections are reported in the following table:</p><div class="informaltable"><table border="1"><colgroup><col style="text-align: left"/><col style="text-align: left"/></colgroup><thead><tr><th style="text-align: left" valign="bottom">
+<p>Pin</p>
+</th><th style="text-align: left" valign="bottom">
+<p>LED color</p>
+</th></tr></thead><tbody><tr><td style="text-align: left" valign="top">
+<p>P8.9 - GPIO69</p>
+</td><td style="text-align: left" valign="top">
+<p>R @red</p>
+</td></tr><tr><td style="text-align: left" valign="top">
+<p>P8.10 - GPIO68</p>
+</td><td style="text-align: left" valign="top">
+<p>R @yellow</p>
+</td></tr></tbody></table></div><p>To test the connections, we can use the following commands to set up the lines as outputs and then to set them into a high state:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@beaglebone:~# ../bin/gpio_set.sh 68 out</strong></span>
+<span class="strong"><strong>root@beaglebone:~# ../bin/gpio_set.sh 69 out</strong></span>
+<span class="strong"><strong>root@beaglebone:~# echo 1 &gt; /sys/class/gpio/gpio68/value</strong></span>
+<span class="strong"><strong>root@beaglebone:~# echo 1 &gt; /sys/class/gpio/gpio69/value</strong></span>
+</pre></div><p>If everything works well, you should see both LEDs turned on.</p></div><div class="section" title="The final picture"><div class="titlepage"><div><div><h2 class="title"><a id="ch05lvl2sec44"/>The final picture</h2></div></div></div><p>The following image shows the<a id="id220" class="indexterm"/> prototype I realized to implement this project and to test the software:</p><div class="mediaobject"><img src="graphics/B00255_05_03.jpg" alt="The final picture"/></div><p>Nothing special to say<a id="id221" class="indexterm"/> here, apart from the fact that you must provide a network connection for your BeagleBone Black; otherwise, the WhatsApp alerting service will not work! As you can see, I used a normal Ethernet cable, but let me remind that you can also use a USB connection with the host, as mentioned in the <span class="emphasis"><em>Preface</em></span>.</p></div></div>
+<div class="section" title="Setting up the software"><div class="titlepage"><div><div><h1 class="title"><a id="ch05lvl1sec31"/>Setting up the software</h1></div></div></div><p>This time, to <a id="id222" class="indexterm"/>implement the software of <a id="id223" class="indexterm"/>this prototype, we can use a state-machine with the following states and their relative transactions:</p><div class="informaltable"><table border="1"><colgroup><col style="text-align: left"/><col style="text-align: left"/><col style="text-align: left"/><col style="text-align: left"/></colgroup><thead><tr><th style="text-align: left" valign="bottom">
+<p>State</p>
+</th><th style="text-align: left" valign="bottom">
+<p>Description</p>
+</th><th style="text-align: left" valign="bottom">
+<p>Actions</p>
+</th><th style="text-align: left" valign="bottom">
+<p>Transaction conditions</p>
+</th></tr></thead><tbody><tr><td style="text-align: left" valign="top">
+<p>
+<code class="literal">IDLE</code>
+</p>
+</td><td style="text-align: left" valign="top">
+<p>Idle state; the washing machine is not working.</p>
+</td><td style="text-align: left" valign="top">
+<div class="itemizedlist"><ul class="itemizedlist"><li class="listitem" style="list-style-type: disc">LED yellow off</li><li class="listitem" style="list-style-type: disc">LED red off</li></ul></div>
+</td><td style="text-align: left" valign="top">
+<div class="itemizedlist"><ul class="itemizedlist"><li class="listitem" style="list-style-type: disc">If sound is detected, set <code class="literal">t0=t</code> and move state to <code class="literal">SOUND</code>.</li></ul></div>
+</td></tr><tr><td style="text-align: left" valign="top">
+<p>
+<code class="literal">SOUND</code>
+</p>
+</td><td style="text-align: left" valign="top">
+<p>Sound detected! Keep monitoring the environment for a while.</p>
+</td><td style="text-align: left" valign="top">
+<div class="itemizedlist"><ul class="itemizedlist"><li class="listitem" style="list-style-type: disc">LED yellow is blinking</li><li class="listitem" style="list-style-type: disc">LED red is off</li></ul></div>
+</td><td style="text-align: left" valign="top">
+<div class="itemizedlist"><ul class="itemizedlist"><li class="listitem" style="list-style-type: disc">If sound is detected and <code class="literal">t-t0 &gt; timeout</code>, move to <code class="literal">RUNNING</code>.</li></ul></div>
+</td></tr><tr><td style="text-align: left" valign="top">
+<p>
+<code class="literal">RUNNING</code>
+</p>
+</td><td style="text-align: left" valign="top">
+<p>Continuous sound detected so the washing machine has started its job.</p>
+</td><td style="text-align: left" valign="top">
+<div class="itemizedlist"><ul class="itemizedlist"><li class="listitem" style="list-style-type: disc">LED yellow is on</li><li class="listitem" style="list-style-type: disc">LED red is off</li><li class="listitem" style="list-style-type: disc">Alert the user</li></ul></div>
+</td><td style="text-align: left" valign="top">
+<div class="itemizedlist"><ul class="itemizedlist"><li class="listitem" style="list-style-type: disc">If no sound is detected, set <code class="literal">t0=t</code> and move to <code class="literal">NO_SOUND</code>.</li></ul></div>
+</td></tr><tr><td style="text-align: left" valign="top">
+<p>
+<code class="literal">NO_SOUND</code>
+</p>
+</td><td style="text-align: left" valign="top">
+<p>No more sound detected! Keep monitoring the environment for a while.</p>
+</td><td style="text-align: left" valign="top">
+<div class="itemizedlist"><ul class="itemizedlist"><li class="listitem" style="list-style-type: disc">LED yellow is on</li><li class="listitem" style="list-style-type: disc">LED red is blinking</li></ul></div>
+</td><td style="text-align: left" valign="top">
+<div class="itemizedlist"><ul class="itemizedlist"><li class="listitem" style="list-style-type: disc">If no sound is detected and <code class="literal">t-t0 &gt; timeout</code>, move to <code class="literal">DONE</code>.</li><li class="listitem" style="list-style-type: disc">If sound is detected, move to <code class="literal">RUNNING</code>.</li></ul></div>
+</td></tr><tr><td style="text-align: left" valign="top">
+<p>
+<code class="literal">DONE</code>
+</p>
+</td><td style="text-align: left" valign="top">
+<p>No more sound for a long delay; the washing machine has finished its job.</p>
+</td><td style="text-align: left" valign="top">
+<div class="itemizedlist"><ul class="itemizedlist"><li class="listitem" style="list-style-type: disc">LED yellow is on</li><li class="listitem" style="list-style-type: disc">LED red is on</li><li class="listitem" style="list-style-type: disc">Alert the user</li></ul></div>
+</td><td style="text-align: left" valign="top">
+<div class="itemizedlist"><ul class="itemizedlist"><li class="listitem" style="list-style-type: disc">If light is detected, set <code class="literal">t0=t</code> and move state to <code class="literal">LIGHT</code>.</li></ul></div>
+</td></tr><tr><td style="text-align: left" valign="top">
+<p>
+<code class="literal">LIGHT</code>
+</p>
+</td><td style="text-align: left" valign="top">
+<p>Light detected! Keep monitoring the environment for a while.</p>
+</td><td style="text-align: left" valign="top">
+<div class="itemizedlist"><ul class="itemizedlist"><li class="listitem" style="list-style-type: disc">LED yellow is blinking</li><li class="listitem" style="list-style-type: disc">LED red is on</li></ul></div>
+</td><td style="text-align: left" valign="top">
+<div class="itemizedlist"><ul class="itemizedlist"><li class="listitem" style="list-style-type: disc">If light is detected and <code class="literal">t-t0 &gt; timeout</code>, move to <code class="literal">ROOM</code>.</li><li class="listitem" style="list-style-type: disc">If no light is detected, move to <code class="literal">DONE</code>.</li></ul></div>
+</td></tr><tr><td style="text-align: left" valign="top">
+<p>
+<code class="literal">ROOM</code>
+</p>
+</td><td style="text-align: left" valign="top">
+<p>Light is continuously on; someone has entered into the laundry room.</p>
+</td><td style="text-align: left" valign="top">
+<div class="itemizedlist"><ul class="itemizedlist"><li class="listitem" style="list-style-type: disc">LED yellow is off</li><li class="listitem" style="list-style-type: disc">LED red is on</li></ul></div>
+</td><td style="text-align: left" valign="top">
+<div class="itemizedlist"><ul class="itemizedlist"><li class="listitem" style="list-style-type: disc">If no light is detected, set <code class="literal">t0=t</code> and move state to <code class="literal">NO_LIGHT</code>.</li></ul></div>
+</td></tr><tr><td style="text-align: left" valign="top">
+<p>
+<code class="literal">NO_LIGHT</code>
+</p>
+</td><td style="text-align: left" valign="top">
+<p>No more light detected! Keep monitoring the environment for a while.</p>
+</td><td style="text-align: left" valign="top">
+<div class="itemizedlist"><ul class="itemizedlist"><li class="listitem" style="list-style-type: disc">LED yellow is off</li><li class="listitem" style="list-style-type: disc">LED red is blinking</li></ul></div>
+</td><td style="text-align: left" valign="top">
+<div class="itemizedlist"><ul class="itemizedlist"><li class="listitem" style="list-style-type: disc">If no light is detected and <code class="literal">t-t0 &gt; timeout</code>, move to <code class="literal">IDLE</code>.</li></ul></div>
+</td></tr></tbody></table></div><p>The starting state <a id="id224" class="indexterm"/>is <code class="literal">IDLE</code> and the variable <code class="literal">t</code> holds<a id="id225" class="indexterm"/> the current time. <code class="literal">t0</code> is used to address a starting time, while the <code class="literal">timeout</code> value can be fixed to a suitable amount of time in order to avoid false positive (so, you should try different values to suite your needs). </p><p>For each state, if any of the transaction conditions are not met, the state-machine assumes that no transaction must have been done at all and it remains in the original state.</p><p>Another representation of the preceding table is given by the following screenshot, where all the states of our <a id="id226" class="indexterm"/>machine are represented<a id="id227" class="indexterm"/> by circles and the state transactions are represented by arrows with a corresponding label holding the state transaction condition (the squares are just actions to be done before moving from one state to another). This representation more clearly shows the conditions we need to move from one state to another and how the states are connected to each other.</p><div class="mediaobject"><img src="graphics/B00255_05_04.jpg" alt="Setting up the software"/></div><div class="section" title="The sound detector manager"><div class="titlepage"><div><div><h2 class="title"><a id="ch05lvl2sec45"/>The sound detector manager</h2></div></div></div><p>Okay, now <a id="id228" class="indexterm"/>we should try to understand how we can detect when the washing machine is running and when it's stopped. As already mentioned, the sound detector can help us distinguish these two states. In fact, by using the script in the <code class="literal">chapter_05/sample.sh</code> file in the book's example code repository, we can plot a graph of some samples taken from an ADC input. The script is simple and a snippet of the relevant code is as follows:</p><div class="informalexample"><pre class="programlisting"># Install the signals traps
+trap sig_handler SIGTERM SIGINT
+
+# Start sampling the data till a signal occours
+echo "$NAME: collecting data into file sample.log..."
+
+do_exit=false
+t0=$(date '+%s.%N')
+( while ! $do_exit ; do
+        t=$(date '+%s.%N')
+        v=$(cat $AIN_PATH/$dev)
+
+        echo "$(bc -l &lt;&lt;&lt; "$t - $t0") $v"
+
+        # Sleep till the next period
+        sleep $(bc -l &lt;&lt;&lt; ".5 - $(date '+%s.%N') + $t")
+done ) | tee sample.log
+
+# Plot the data
+echo "$NAME: done. Now generate the plot..."
+
+gnuplot &lt;&lt;EOF
+set terminal png size 800,600 enhanced font "Helvetica,20"
+set output 'sample.png'
+set autoscale
+set nokey
+set grid lw 1
+show grid
+set xlabel "\nTime"
+set ylabel 'sample'
+set xtics rotate
+plot "sample.log" using 1:2 with lines
+EOF
+
+echo "$NAME: done. Data plotted into file sample.png"</pre></div><p>The first part of the<a id="id229" class="indexterm"/> script is simply a <code class="literal">while</code> loop used to read the ADC data at more or less 500 ms (the script is in Bash, so don't expect too much precision from it). When the user strikes the <span class="emphasis"><em>CTRL</em></span> + <span class="emphasis"><em>C</em></span> keys, they generate a signal which is trapped by the <code class="literal">sig_handler</code> signal handler that simply sets the <code class="literal">do_exit</code> variable to <code class="literal">true</code>, as follows:</p><div class="informalexample"><pre class="programlisting">function sig_handler () {
+        do_exit=true
+}</pre></div><p>The <code class="literal">tee</code> command is used to display the sampled data to the terminal and to save them in the <code class="literal">sample.log</code> file at the same time. Once the data are collected, we use the <code class="literal">gnuplot</code> tool to generate the graph in a similar way as done in <a class="link" href="ch01.html" title="Chapter 1. Dangerous Gas Sensors">Chapter 1</a>, <span class="emphasis"><em>Dangerous Gas Sensors</em></span>.</p><p>The following is a sample demo I did on my prototype. In the middle of the test, I discussed the letter <span class="emphasis"><em>A</em></span> in order to produce a detectable sound level:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@beaglebone:~# ./sample.sh AIN0</strong></span>
+<span class="strong"><strong>sample.sh: collecting data into file sample.log (press CTRL+C to stop)...</strong></span>
+<span class="strong"><strong>.046822125 29</strong></span>
+<span class="strong"><strong>.607965667 36</strong></span>
+<span class="strong"><strong>1.168452792 27</strong></span>
+<span class="strong"><strong>1.728863042 37</strong></span>
+<span class="strong"><strong>2.290465209 31</strong></span>
+<span class="strong"><strong>2.851453792 22</strong></span>
+<span class="strong"><strong>3.417320167 25</strong></span>
+<span class="strong"><strong>3.980918459 26</strong></span>
+<span class="strong"><strong>4.541227334 324</strong></span>
+<span class="strong"><strong>5.101803001 439</strong></span>
+<span class="strong"><strong>5.662116709 452</strong></span>
+<span class="strong"><strong>6.223465293 466</strong></span>
+<span class="strong"><strong>6.783610585 631</strong></span>
+<span class="strong"><strong>7.346517043 670</strong></span>
+<span class="strong"><strong>7.910204543 600</strong></span>
+<span class="strong"><strong>8.471078668 569</strong></span>
+<span class="strong"><strong>9.032048168 677</strong></span>
+<span class="strong"><strong>9.592383627 728</strong></span>
+<span class="strong"><strong>10.153342335 708</strong></span>
+<span class="strong"><strong>10.714916752 736</strong></span>
+<span class="strong"><strong>11.275682627 769</strong></span>
+<span class="strong"><strong>11.836266085 672</strong></span>
+<span class="strong"><strong>12.396825252 308</strong></span>
+<span class="strong"><strong>12.958963794 267</strong></span>
+<span class="strong"><strong>13.520244377 20</strong></span>
+<span class="strong"><strong>14.081049085 19</strong></span>
+<span class="strong"><strong>14.641610585 20</strong></span>
+<span class="strong"><strong>15.202588419 20</strong></span>
+<span class="strong"><strong>15.762929794 19</strong></span>
+<span class="strong"><strong>16.324602752 19</strong></span>
+<span class="strong"><strong>16.885479836 25</strong></span>
+<span class="strong"><strong>17.450904252 19</strong></span>
+<span class="strong"><strong>^Csample.sh: done. Now generate the plot...</strong></span>
+
+<span class="strong"><strong>   Rectangular grid drawn at x y tics</strong></span>
+<span class="strong"><strong>   Major grid drawn with linetype 0 linewidth 1.000</strong></span>
+<span class="strong"><strong>   Minor grid drawn with linetype 0 linewidth 1.000</strong></span>
+<span class="strong"><strong>   Grid drawn at default layer</strong></span>
+
+<span class="strong"><strong>sample.sh: done. Data plotted into file sample.png</strong></span>
+</pre></div><p>As you can see<a id="id230" class="indexterm"/> in the preceding output where I just used my voice, I can easily distinguish sound absence or presence. However, the following screenshot, taken from the <code class="literal">sample.png</code> file generated by the preceding script, is more explicative:</p><div class="mediaobject"><img src="graphics/B00255_05_05.jpg" alt="The sound detector manager"/></div><p>It's clear that <a id="id231" class="indexterm"/>just by using a threshold of 200, we can do the trick.</p></div><div class="section" title="The light sensor manager"><div class="titlepage"><div><div><h2 class="title"><a id="ch05lvl2sec46"/>The light sensor manager</h2></div></div></div><p>The light sensor<a id="id232" class="indexterm"/> functioning is very similar to the sound one, so we can use the same <code class="literal">sample.sh</code> script to get some samples from it. This time, I simulate the light absence/presence by simply covering the light sensor with a small cup.</p><p>The command used is as follows:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@beaglebone:~# ./sample.sh AIN1</strong></span>
+<span class="strong"><strong>sample.sh: collecting data into file sample.log (press CTRL+C to stop)...</strong></span>
+<span class="strong"><strong>.046757875 78</strong></span>
+<span class="strong"><strong>.609375334 78</strong></span>
+<span class="strong"><strong>1.169878875 78</strong></span>
+<span class="strong"><strong>1.730529209 78</strong></span>
+<span class="strong"><strong>2.291640417 78</strong></span>
+<span class="strong"><strong>2.852100834 78</strong></span>
+<span class="strong"><strong>3.412606126 78</strong></span>
+<span class="strong"><strong>3.973172542 79</strong></span>
+<span class="strong"><strong>4.534430834 77</strong></span>
+<span class="strong"><strong>5.094665667 78</strong></span>
+<span class="strong"><strong>5.655394084 463</strong></span>
+<span class="strong"><strong>6.216107209 477</strong></span>
+<span class="strong"><strong>6.777377459 484</strong></span>
+<span class="strong"><strong>7.337617209 486</strong></span>
+<span class="strong"><strong>7.898274043 486</strong></span>
+<span class="strong"><strong>8.458853793 487</strong></span>
+<span class="strong"><strong>9.023789835 486</strong></span>
+<span class="strong"><strong>9.590632751 486</strong></span>
+<span class="strong"><strong>10.154009085 486</strong></span>
+<span class="strong"><strong>10.715376668 479</strong></span>
+<span class="strong"><strong>11.275998293 479</strong></span>
+<span class="strong"><strong>11.836406710 476</strong></span>
+<span class="strong"><strong>12.397433502 403</strong></span>
+<span class="strong"><strong>12.958216252 92</strong></span>
+<span class="strong"><strong>13.519537710 79</strong></span>
+<span class="strong"><strong>14.080658377 79</strong></span>
+<span class="strong"><strong>14.641473210 79</strong></span>
+<span class="strong"><strong>15.202038044 78</strong></span>
+<span class="strong"><strong>15.762509877 78</strong></span>
+<span class="strong"><strong>16.323857252 79</strong></span>
+<span class="strong"><strong>16.884874669 78</strong></span>
+<span class="strong"><strong>17.445492127 77</strong></span>
+<span class="strong"><strong>18.006021794 78</strong></span>
+<span class="strong"><strong>^Csample.sh: done. Now generate the plot...</strong></span>
+
+<span class="strong"><strong>   Rectangular grid drawn at x y tics</strong></span>
+<span class="strong"><strong>   Major grid drawn with linetype 0 linewidth 1.000</strong></span>
+<span class="strong"><strong>   Minor grid drawn with linetype 0 linewidth 1.000</strong></span>
+<span class="strong"><strong>   Grid drawn at default layer</strong></span>
+
+<span class="strong"><strong>sample.sh: done. Data plotted into file sample.png</strong></span>
+</pre></div><p>And the <a id="id233" class="indexterm"/>corresponding plot is shown in the following screenshot:</p><div class="mediaobject"><img src="graphics/B00255_05_06.jpg" alt="The light sensor manager"/></div><p>Even in this case, we can use a threshold of 200 to distinguish between the two states.</p></div><div class="section" title="Controlling the LEDs"><div class="titlepage"><div><div><h2 class="title"><a id="ch05lvl2sec47"/>Controlling the LEDs</h2></div></div></div><p>As already <a id="id234" class="indexterm"/>shown in <a class="link" href="ch01.html" title="Chapter 1. Dangerous Gas Sensors">Chapter 1</a>, <span class="emphasis"><em>Dangerous Gas Sensors</em></span>, or in <a class="link" href="ch02.html" title="Chapter 2. Ultrasonic Parking Assistant">Chapter 2, </a>
+<span class="emphasis"><em>Ultrasonic Parking Assistant</em></span>, there are two different manners of managing LED in a Linux-based system. The first is by using GPIO and the second is by using LED device; but, since our state-machine requires that the LEDs should blink, we should use the LED management method that allows us to use a trigger to get a blinking status.</p><p>Similarly, as done in <a class="link" href="ch02.html" title="Chapter 2. Ultrasonic Parking Assistant">Chapter 2</a>, <span class="emphasis"><em>Ultrasonic Parking Assistant</em></span>, we need a proper <code class="literal">.dts</code> file that the reader can find in the <code class="literal">chapter_05/BB-LEDS-C5-00A0.dts</code> file in the book's example code repository. After finding it, we have to compile it with the following command line:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@beaglebone:~# dtc -O dtb -o /lib/firmware/BB-LEDS-C5-00A0.dtbo -b 0 -@ BB-LEDS-C5-00A0.dts</strong></span>
+</pre></div><p>Now, we can enable it by using the following command:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@beaglebone:~# echo BB-LEDS-C5 &gt; /sys/devices/bone_capemgr.9/slots</strong></span>
+</pre></div><p>And then, two <a id="id235" class="indexterm"/>new LEDs are now available in the system, as follows:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@beaglebone:~# ls -d /sys/class/leds/c5*</strong></span>
+<span class="strong"><strong>/sys/class/leds/c5:yellow  /sys/class/leds/c5:red</strong></span>
+</pre></div></div><div class="section" title="Setting up the WhatsApp API"><div class="titlepage"><div><div><h2 class="title"><a id="ch05lvl2sec48"/>Setting up the WhatsApp API</h2></div></div></div><p>Now it's time to show you how we can interact with the <span class="strong"><strong>WhatsApp</strong></span> service. In this project, we simply<a id="id236" class="indexterm"/> need to send messages to the user's account, but even this simple task needs us to accomplish several steps.</p><p>First of all, we must install some prerequisite packages into our BeagleBone Black, as follows:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@beaglebone:~# aptitude install python python-dateutil python-argparse</strong></span>
+</pre></div><p>Then, we have to install the package named <code class="literal">yowsup</code> that we can use to send our messages via WhatsApp:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@beaglebone:~# pip install yowsup</strong></span>
+</pre></div><div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="note50"/>Note</h3><p>The wiki page of <a id="id237" class="indexterm"/>the <code class="literal">yowsup</code> tool is at <a class="ulink" href="https://github.com/tgalal/yowsup/wiki">https://github.com/tgalal/yowsup/wiki</a>.</p></div></div><p>When the installation is finished, we can use the following command to get a sample configuration file:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@beaglebone:~# yowsup-cli demos --help-config &gt; yowsup-cli.config</strong></span>
+</pre></div><p>The new file <code class="literal">yowsup-cli.config</code> should now hold the following lines:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@beaglebone:~# cat yowsup-cli.config</strong></span>
+
+<span class="strong"><strong>############# Yowsup Configuration Sample ###########</strong></span>
+<span class="strong"><strong>#</strong></span>
+<span class="strong"><strong># ====================</strong></span>
+<span class="strong"><strong># The file contains info about your WhatsApp account. This is used during # registration and login.</strong></span>
+<span class="strong"><strong># You can define or override all fields in the command line args as well.</strong></span>
+<span class="strong"><strong>#</strong></span>
+<span class="strong"><strong># Country code. See http://www.ipipi.com/help/telephone-country-codes.htm.</strong></span>
+<span class="strong"><strong> # This is now required.</strong></span>
+<span class="strong"><strong>cc=49</strong></span>
+<span class="strong"><strong>#</strong></span>
+<span class="strong"><strong># Your full phone number including the country code you defined in 'cc', # without preceding '+' or '00'</strong></span>
+<span class="strong"><strong>phone=491234567890</strong></span>
+<span class="strong"><strong>#</strong></span>
+<span class="strong"><strong># You obtain this password when you register using Yowsup.</strong></span>
+<span class="strong"><strong>password=NDkxNTIyNTI1NjAyMkBzLndoYXRzYXBwLm5ldA==</strong></span>
+<span class="strong"><strong>#######################################################</strong></span>
+</pre></div><p>Lines starting with the character # are comments and they can be removed so the important lines are:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>cc=39</strong></span>
+<span class="strong"><strong>phone=39XXXXXXXXXX</strong></span>
+<span class="strong"><strong>id=</strong></span>
+<span class="strong"><strong>password=</strong></span>
+</pre></div><div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="tip68"/>Tip</h3><p>Note that the <code class="literal">id=</code> line may not be present.</p></div></div><p>In the preceding <a id="id238" class="indexterm"/>example, for privacy reasons I replaced my phone number with the <code class="literal">X</code> characters, but you have to put your phone number here in order to get access to the system.</p><div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="tip69"/>Tip</h3><p>Note that you cannot use a phone number when you actually already use WhatsApp or else you're going to get into conflict with the WhatsApp client you are using on your smartphone. That's why I used a phone number when no WhatsApp services are active.</p><p>Simply speaking, you don't need the WhatsApp client running on the phone that is receiving the SMS!</p></div></div><p>Once you have added a phone number, you can put it into the preceding <code class="literal">yowsup-cli.config</code> configuration file, leaving the lines with the <code class="literal">id</code> and <code class="literal">password</code> variables unassigned. Then, the following command must be executed:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@beaglebone:~# yowsup-cli registration -r sms -c  yowsup-cli.config</strong></span>
+</pre></div><p>After a while, the command should answer as follows:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>INFO:yowsup.common.http.warequest:{"status":"sent","length":6,"method":"sms","retry_after":1805}</strong></span>
+
+<span class="strong"><strong>status: sent</strong></span>
+<span class="strong"><strong>retry_after: 1805</strong></span>
+<span class="strong"><strong>length: 6</strong></span>
+<span class="strong"><strong>method: sms</strong></span>
+</pre></div><p>Then, you should<a id="id239" class="indexterm"/> receive an SMS on the phone with your number. You just need the information inside the message itself; in fact, the SMS should hold a message like <code class="literal">WhatsApp code 633-170</code>, so you have to use the following command to finish the registration:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@beaglebone:~# yowsup-cli registration -R 633-170 -c yowsup-cli.config</strong></span>
+</pre></div><p>If everything works well, the preceding command should answer, as follows:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>{"status":"ok","login":"39XXXXXXXXXX","pw":"Kwf07sjuSz2J0Qwm3sBEtVNeBIk=","type":"new","expiration":1467142355,"kind":"free","price":"\u20ac0,89","cost":"0.89","currency":"EUR","price_expiration":1438319298}</strong></span>
+
+<span class="strong"><strong>status: ok</strong></span>
+<span class="strong"><strong>kind: free</strong></span>
+<span class="strong"><strong>pw: Kwf07sjuSz2J0Qwm3sBEtVNeBIk=</strong></span>
+<span class="strong"><strong>price: € 0,89</strong></span>
+<span class="strong"><strong>price_expiration: 1438319298</strong></span>
+<span class="strong"><strong>currency: EUR</strong></span>
+<span class="strong"><strong>cost: 0.89</strong></span>
+<span class="strong"><strong>expiration: 1467142355</strong></span>
+<span class="strong"><strong>login: 393292571400</strong></span>
+<span class="strong"><strong>type: new</strong></span>
+</pre></div><p>The important information here is the password that we must use to correctly log in into our new WhatsApp account. The password is the field <code class="literal">pw</code>, so after putting this information into the <code class="literal">password</code> field of the configuration file, the new look of the <code class="literal">yowsup-cli.config</code> file should be as follows:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@beaglebone:~# cat yowsup-cli.config</strong></span>
+<span class="strong"><strong>cc=39</strong></span>
+<span class="strong"><strong>phone=39XXXXXXXXXX</strong></span>
+<span class="strong"><strong>id=</strong></span>
+<span class="strong"><strong>password=Kwf07sjuSz2J0Qwm3sBEtVNeBIk=</strong></span>
+</pre></div><p>Now we are ready to log in into our new account and send messages from it! For example, the<a id="id240" class="indexterm"/> following command line can be used to send a message from the command line:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@beaglebone:~# yowsup-cli demos -c yowsup-cli.config -s 39YYYYYYYYYY "Hello, it's your BeagleBone Black writing! :)"</strong></span>
+<span class="strong"><strong>WARNING:yowsup.stacks.yowstack:Implicit declaration of parallel layers in a tuple is deprecated, pass a YowParallelLayer instead</strong></span>
+<span class="strong"><strong>INFO:yowsup.demos.sendclient.layer:Message sent</strong></span>
+
+<span class="strong"><strong>Yowsdown</strong></span>
+</pre></div><p>Note that I used another phone number as the destination number, obscured as <code class="literal">39YYYYYYYYYY</code>, to distinguish it from the transmitter one used before.</p><div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="tip70"/>Tip</h3><p>The warning message can be safely ignored.</p><p>Also, it may happen that the first time you execute the command, you get no a "Message Sent" output. In this case, try to rerun the command.</p></div></div><p>Okay, now everything is in place and we just need to see how the state-machine can be implemented. So let's move to the next section.</p></div><div class="section" title="The state-machine"><div class="titlepage"><div><div><h2 class="title"><a id="ch05lvl2sec49"/>The state-machine</h2></div></div></div><p>Now that <a id="id241" class="indexterm"/>every subsystem has been set up, it's time to take a look at a possible implementation of the state-machine described before. The complete code is so simple that it has been developed in Bash and it can be found in the <code class="literal">chapter_05/state_machine.sh</code> file in the book's example code repository. However, the following are some snippets of the relevant code.</p><p>The first snippet is about the configuration file reading, as follows:</p><div class="informalexample"><pre class="programlisting">SOUND_DEV="/sys/devices/ocp.3/helper.12/AIN0"
+LIGHT_DEV="/sys/devices/ocp.3/helper.12/AIN1"
+
+source ../lib/logging.sh
+source ./config.sh
+
+# Check the configuration settings. If not specified use default values
+[ -z "$TIMEOUT" ] &amp;&amp; TIMEOUT=60
+[ -z "$SOUND_TH" ] &amp;&amp; SOUND_TH=500
+[ -z "$LIGHT_TH" ] &amp;&amp; LIGHT_TH=500
+if [ -z "$WHATSAPP_USER" ] ; then
+        err "you must define WHATSAPP_USER!"
+        exit 1
+fi</pre></div><p>After some initial <a id="id242" class="indexterm"/>settings, the code sources the <code class="literal">config.sh</code> file that holds the system settings (see the last section for an example of this file), and then the settings variables are checked up. Then, the code continues defining the sensor's reading functions. In the following snippet, I reported only one of these functions since they are very similar:</p><div class="informalexample"><pre class="programlisting">function read_sound () {
+        ret=0
+ 
+        while [ -z "$v" ] ; do
+                v=$(cat $SOUND_DEV)
+        done
+        [ "$v" -gt $SOUND_TH ] &amp;&amp; ret=1
+
+        echo -n $ret
+}</pre></div><p>The function simply reads the ADC and checks the datum against a specified threshold. The returned value is <code class="literal">0</code> or <code class="literal">1</code>, according to the absence/presence of the sound or light. Note that in case of errors in reading the datum, the function retries the operation until a successful reading.</p><div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="tip71"/>Tip</h3><p>Here, we should add a retries limit in order to avoid an infinite loop. But for the sake of simplicity, I decided to not implement it.</p></div></div><p>The LED's management section looks as follows:</p><div class="informalexample"><pre class="programlisting">function set_led () {
+        name=$1
+        val=$2
+
+        case $val in
+        on)
+                echo none &gt; /sys/class/leds/c5\:$name/trigger
+                echo 255 &gt; /sys/class/leds/c5\:$name/brightness
+                ;;
+
+        off)
+                echo none &gt; /sys/class/leds/c5\:$name/trigger
+                echo 0 &gt; /sys/class/leds/c5\:$name/brightness
+                ;;
+
+        blink)
+                t=$((1000 / 2))
+
+                echo timer &gt; /sys/class/leds/c5\:$name/trigger
+                echo $t &gt; /sys/class/leds/c5\:$name/delay_on
+                echo $t &gt; /sys/class/leds/c5\:$name/delay_off
+                ;;
+
+        *)
+                err "invalid LED status! Abort"
+                exit 1
+                ;;
+        esac
+}
+
+function signal_status () {
+        s=$1
+
+        case $s in
+        IDLE)
+                set_led yellow off
+                set_led red off
+                ;;
+
+        SOUND)
+                set_led yellow blink
+                set_led red off
+                ;;
+
+        RUNNING)
+                set_led yellow on
+                set_led red off
+                ;;
+
+        NO_SOUND)
+                set_led yellow on
+                set_led red blink
+                ;;
+
+        DONE)
+                set_led yellow on
+                set_led red on
+                ;;
+
+        LIGHT)
+                set_led yellow blink
+                set_led red on
+                ;;
+
+        ROOM)
+                set_led yellow off
+                set_led red on
+                ;;
+
+        NO_LIGHT)
+                set_led yellow off
+                set_led red blink
+                ;;
+        esac
+
+        return
+}</pre></div><p>The <code class="literal">set_led</code> function simply sets the LED status according to the system status passed by the <code class="literal">signal_status</code> function.</p><div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="tip72"/>Tip</h3><p>Note that the <code class="literal">signal_status</code> function can be implemented in a more compact manner (maybe by using an associative array), but this form is more readable.</p></div></div><p>Then, the code of the function to send the alerting messages via WhatsApp system is as follows:</p><div class="informalexample"><pre class="programlisting">function send_alert () {
+        msg=$1
+
+        dbg "user=$WHATSAPP_USER msg=\"$1\""
+        yowsup-cli demos -c yowsup-cli.config -s $WHATSAPP_USER "$msg"
+
+        return
+}</pre></div><p>Now, the core of<a id="id243" class="indexterm"/> the whole project is the <code class="literal">change_status</code> function. This is the function that implements the state-machine. It decides which is the new status according to the current one and the system's inputs:</p><div class="informalexample"><pre class="programlisting">function change_status () {
+     status=$1
+     sound=$2
+     light=$3
+     t0=$4
+
+     t=$(date "+%s")
+
+     dbg "status=$status sound=$sound light=$light t-t0=$(($t - $t0))"
+
+     case $status in
+     IDLE)
+             if [ $sound -eq 1 ] ; then
+                     echo SOUND
+                     return
+             fi
+             ;;
+
+     SOUND)
+             if [ $sound -eq 1 -a $(($t - $t0)) -gt $TIMEOUT ] ; then
+                     echo RUNNING
+                     return
+             fi
+             if [ $sound -eq 0 ] ; then
+                     echo IDLE
+                     return
+             fi
+             ;;
+
+     RUNNING)
+             if [ $sound -eq 0 ] ; then
+                     echo NO_SOUND
+                     return
+             fi
+             ;;
+
+     NO_SOUND)
+             if [ $sound -eq 0 -a $(($t - $t0)) -gt $TIMEOUT ] ; then
+                     echo DONE
+                     return
+             fi
+             if [ $sound -eq 1 ] ; then
+                     echo RUNNING
+                     return
+             fi
+             ;;
+
+     DONE)
+             if [ $light -eq 1 ] ; then
+                     echo LIGHT
+                     return
+             fi
+             ;;
+
+     LIGHT)
+             if [ $light -eq 1 -a $(($t - $t0)) -gt $TIMEOUT ] ; then
+                     echo ROOM
+                     return
+             fi
+             if [ $light -eq 0 ] ; then
+                     echo DONE
+                     return
+             fi
+             ;;
+
+     ROOM)
+             if [ $light -eq 0 ] ; then
+                     echo NO_LIGHT
+                     return
+             fi
+             ;;
+
+     NO_LIGHT)
+             if [ $light -eq 0 -a $(($t - $t0)) -gt $TIMEOUT ] ; then
+                     echo IDLE
+                     return
+             fi
+             if [ $light -eq 1 ] ; then
+                     echo NO_LIGHT
+                     return
+             fi
+             ;;
+
+     *)
+             err "invalid status! Abort"
+             exit 1
+             ;;
+     esac
+
+     # No status change!
+     echo $status
+}</pre></div><p>You can verify that<a id="id244" class="indexterm"/> this function correctly implements the state-machine table (or graph) presented previously in this chapter.</p><p>At this point, the core of the main function looks like the following:</p><div class="informalexample"><pre class="programlisting"># Ok, do the job
+dbg "using TIMEOUT=$TIMEOUT SOUND_TH=$SOUND_TH LIGHT_TH=$LIGHT_TH"
+
+status="IDLE"
+t0=0
+
+signal_status $status
+while sleep 1 ; do
+        dbg "old-status=$status"
+
+        # Read the sensors
+        sound=$(read_sound)
+        light=$(read_light)
+
+        # Change status?
+        new_status=$(change_status $status $sound $light $t0)
+        if [ "$new_status" != "$status" ] ; then
+                t0=$(date "+%s")
+ 
+                # Set the leds status
+                signal_status $new_status
+
+                # We have to send any alert?
+                case $new_status in
+                RUNNING)
+                        # Send the message during SOUND-&gt;RUNNING # transaction
+                        # only
+                        [ "$status" == SOUND ] &amp;&amp; send_alert "washing machine is started!"
+                        ;;
+
+                DONE)
+                        # Send the message during NO_SOUND-&gt;DONE # transaction
+                        # only
+                        [ "$status" == NO_SOUND ] &amp;&amp; send_alert "washing machine has finished!"
+                        ;;
+
+                *)
+                        # Nop
+                        ;;
+                esac
+        fi
+        dbg "new-status=$new_status"
+
+        status=$new_status
+done</pre></div><p>As<a id="id245" class="indexterm"/> you can see, the <code class="literal">main</code> function is just a big loop that periodically reads the sensor's inputs and then changes the system's internal status according to it, sending some alerts when needed and setting the LED's statuses accordingly.</p></div></div>
+<div class="section" title="Final test"><div class="titlepage"><div><div><h1 class="title"><a id="ch05lvl1sec32"/>Final test</h1></div></div></div><p>To test the <a id="id246" class="indexterm"/>prototype, I used some tricks to simulate the washing machine and the light in the room. The washing machine can be easily simulated by an audio/video played on the host PC with a reasonable volume level, while the room light on/off status can be simulated by using a small cup to cover the light sensor.</p><p>To set up all peripherals and drivers, we can use all the preceding commands or the <code class="literal">SYSINIT.sh</code> script as follows:</p><div class="informalexample"><pre class="programlisting">root@beaglebone:~# ./SYSINIT.sh
+done!</pre></div><div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="note51"/>Note</h3><p>This command can be found in the <code class="literal">chapter_05/SYSINIT.sh</code> file in the book's example code repository</p></div></div><p>As an initial state (<code class="literal">IDLE</code>), we should cover the light sensor (to simulate that the light is off) and we should stop the video/audio player (to simulate that the washing machine is off). Then, we have to set a low threshold level into the configuration file for both sound and light detection and a very short timeout (<code class="literal">5</code> seconds) in order to speed up the test. The following is my configuration file:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@beaglebone:~# cat config.sh</strong></span>
+<span class="strong"><strong># Set the timeout value</strong></span>
+<span class="strong"><strong>TIMEOUT=5</strong></span>
+
+<span class="strong"><strong># Set the sound threshold</strong></span>
+<span class="strong"><strong>SOUND_TH=200</strong></span>
+<span class="strong"><strong> </strong></span>
+<span class="strong"><strong># Set the light threshold</strong></span>
+<span class="strong"><strong>LIGHT_TH=200</strong></span>
+
+<span class="strong"><strong># Set the Whatsapp account</strong></span>
+<span class="strong"><strong>WHATSAPP_USER=39YYYYYYYYYY</strong></span>
+</pre></div><p>Then, I started the system, enabling all debugging messages on the terminal, by using the following command:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@beaglebone:~# ./state_machine.sh -d -l</strong></span>
+<span class="strong"><strong>state_machine.sh: using TIMEOUT=5 SOUND_TH=200 LIGHT_TH=200</strong></span>
+<span class="strong"><strong>state_machine.sh: old-status=IDLE</strong></span>
+<span class="strong"><strong>state_machine.sh: status=IDLE sound=0 light=0 t-t0=1398295377</strong></span>
+<span class="strong"><strong>state_machine.sh: new-status=IDLE</strong></span>
+<span class="strong"><strong>state_machine.sh: old-status=IDLE</strong></span>
+</pre></div><div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="note52"/>Note</h3><p>Note that the initial state is <code class="literal">IDLE</code> and nothing changes until no new events are detected.</p></div></div><p>In the next output<a id="id247" class="indexterm"/> listing, I'm going to use the <code class="literal">...</code> characters to skip non-relevant lines:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>state_machine.sh: status=IDLE sound=0 light=0 t-t0=1398295379</strong></span>
+<span class="strong"><strong>...</strong></span>
+<span class="strong"><strong>state_machine.sh: status=IDLE sound=1 light=0 t-t0=1398295381</strong></span>
+<span class="strong"><strong>state_machine.sh: new-status=SOUND</strong></span>
+<span class="strong"><strong>state_machine.sh: old-status=SOUND</strong></span>
+</pre></div><p>Now I'm going to simulate the following situation: first, I turn on the washing machine and wait for the end of its job. Then, I go to the laundry room to pick up my washed clothes. As already said before, I'm going to simulate the running washing machine with a video/audio player while the light on/off is simulated by uncovering/covering the light sensor with a cup.</p><p>Okay, the test begins. After a while, I start the video/audio player. So, a sound has been detected and the new state turns to <code class="literal">SOUND</code>:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>state_machine.sh: status=SOUND sound=1 light=0 t-t0=1</strong></span>
+<span class="strong"><strong>...</strong></span>
+<span class="strong"><strong>state_machine.sh: status=SOUND sound=0 light=0 t-t0=4</strong></span>
+<span class="strong"><strong>state_machine.sh: new-status=IDLE</strong></span>
+<span class="strong"><strong>state_machine.sh: old-status=IDLE</strong></span>
+</pre></div><p>Ouch! For a moment, the sound level went under the threshold, so we switched again to the <code class="literal">IDLE</code> state! This is correct because it may happen that the washing machine stops for a while. Here is where the <code class="literal">timeout</code> enters in action, that is, we have to select it for longer than all the possible washing machine's pauses:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>state_machine.sh: status=IDLE sound=1 light=0 t-t0=1</strong></span>
+<span class="strong"><strong>...</strong></span>
+<span class="strong"><strong>state_machine.sh: old-status=SOUND</strong></span>
+<span class="strong"><strong>cat: /sys/devices/ocp.3/helper.12/AIN0: Resource temporarily unavailable</strong></span>
+</pre></div><p>This an error during the reading of the ADC input, but the software is written to retry the faulty operation without problems:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>state_machine.sh: status=SOUND sound=1 light=0 t-t0=4</strong></span>
+<span class="strong"><strong>...</strong></span>
+<span class="strong"><strong>state_machine.sh: status=SOUND sound=1 light=0 t-t0=6</strong></span>
+<span class="strong"><strong>state_machine.sh: user=393492432127 msg="washing machine is started!"</strong></span>
+<span class="strong"><strong>WARNING:yowsup.stacks.yowstack:Implicit declaration of parallel layers in a tuple is deprecated, pass a YowParallelLayer instead</strong></span>
+<span class="strong"><strong>INFO:yowsup.demos.sendclient.layer:Message sent</strong></span>
+
+<span class="strong"><strong>Yowsdown</strong></span>
+<span class="strong"><strong>state_machine.sh: new-status=RUNNING</strong></span>
+<span class="strong"><strong>state_machine.sh: old-status=RUNNING</strong></span>
+</pre></div><p>Good! When the timeout expires while we are into the <code class="literal">SOUND</code> state, it means that a continuous sound has been detected, so it means that the washing machine has started its job.</p><div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="tip73"/>Tip</h3><p>Note that a more reliable implementation should use different timeouts to identify a specific transaction.</p></div></div><p>This is<a id="id248" class="indexterm"/> demonstrated in the following snippet:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>state_machine.sh: status=RUNNING sound=1 light=0 t-t0=2</strong></span>
+<span class="strong"><strong>...</strong></span>
+<span class="strong"><strong>state_machine.sh: new-status=RUNNING</strong></span>
+<span class="strong"><strong>state_machine.sh: old-status=RUNNING</strong></span>
+<span class="strong"><strong>state_machine.sh: status=RUNNING sound=0 light=0 t-t0=8</strong></span>
+<span class="strong"><strong>state_machine.sh: new-status=NO_SOUND</strong></span>
+<span class="strong"><strong>state_machine.sh: old-status=NO_SOUND</strong></span>
+</pre></div><p>Now, I have stopped the video/audio player and no sound has been detected, so we switch to the <code class="literal">NO_SOUND</code> state:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>state_machine.sh: status=NO_SOUND sound=0 light=0 t-t0=1</strong></span>
+<span class="strong"><strong>...</strong></span>
+<span class="strong"><strong>state_machine.sh: status=NO_SOUND sound=0 light=0 t-t0=6</strong></span>
+<span class="strong"><strong>state_machine.sh: user=393492432127 msg="washing machine has finished!"</strong></span>
+<span class="strong"><strong>WARNING:yowsup.stacks.yowstack:Implicit declaration of parallel layers in a tuple is deprecated, pass a YowParallelLayer instead</strong></span>
+<span class="strong"><strong>INFO:yowsup.demos.sendclient.layer:Message sent</strong></span>
+
+<span class="strong"><strong>Yowsdown</strong></span>
+<span class="strong"><strong>state_machine.sh: new-status=DONE</strong></span>
+<span class="strong"><strong>state_machine.sh: old-status=DONE</strong></span>
+</pre></div><p>Okay, when the timeout expires when we are in the <code class="literal">NO_SOUND</code> state, we switch to the <code class="literal">DONE</code> state to signal that the washing machine has finished its job:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>state_machine.sh: status=DONE sound=0 light=0 t-t0=1</strong></span>
+<span class="strong"><strong>...</strong></span>
+<span class="strong"><strong>state_machine.sh: status=DONE sound=0 light=1 t-t0=10</strong></span>
+<span class="strong"><strong>state_machine.sh: new-status=LIGHT</strong></span>
+<span class="strong"><strong>state_machine.sh: old-status=LIGHT</strong></span>
+</pre></div><p>Now, I have uncovered the light sensor to simulate that someone has turned on the light in the laundry room:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>state_machine.sh: status=LIGHT sound=0 light=1 t-t0=1</strong></span>
+<span class="strong"><strong>...</strong></span>
+<span class="strong"><strong>state_machine.sh: status=LIGHT sound=0 light=1 t-t0=6</strong></span>
+<span class="strong"><strong>state_machine.sh: new-status=ROOM</strong></span>
+<span class="strong"><strong>state_machine.sh: old-status=ROOM</strong></span>
+</pre></div><p>Again, the<a id="id249" class="indexterm"/> timeout has expired, so we can consider that the light has been on for a long time, which means that the user has received our WhatsApp message and they have come into the laundry room to pick up the laundry:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>state_machine.sh: status=ROOM sound=0 light=1 t-t0=1</strong></span>
+<span class="strong"><strong>...</strong></span>
+<span class="strong"><strong>state_machine.sh: status=ROOM sound=0 light=0 t-t0=8</strong></span>
+<span class="strong"><strong>state_machine.sh: new-status=NO_LIGHT</strong></span>
+<span class="strong"><strong>state_machine.sh: old-status=NO_LIGHT</strong></span>
+</pre></div><p>Now, I have covered the light sensor again to simulate that the light in the laundry room has been turned off:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>state_machine.sh: status=NO_LIGHT sound=0 light=0 t-t0=1</strong></span>
+<span class="strong"><strong>...</strong></span>
+<span class="strong"><strong>state_machine.sh: status=NO_LIGHT sound=0 light=0 t-t0=6</strong></span>
+<span class="strong"><strong>state_machine.sh: new-status=IDLE</strong></span>
+<span class="strong"><strong>state_machine.sh: old-status=IDLE</strong></span>
+<span class="strong"><strong>state_machine.sh: status=IDLE sound=0 light=0 t-t0=1</strong></span>
+<span class="strong"><strong>state_machine.sh: new-status=IDLE</strong></span>
+<span class="strong"><strong>state_machine.sh: old-status=IDLE</strong></span>
+</pre></div><p>In the end, after <code class="literal">timeout</code> has expired, we can return to the <code class="literal">IDLE</code> state waiting for a new cycle to begin.</p><p>The following is the screenshot of my smartphone showing the WhatsApp activity:</p><div class="mediaobject"><img src="graphics/B00255_05_07.jpg" alt="Final test"/></div></div>
+<div class="section" title="Summary"><div class="titlepage"><div><div><h1 class="title"><a id="ch05lvl1sec33"/>Summary</h1></div></div></div><p>In this chapter, we discovered how to detect sound and light levels by using specific sensors and how to write a simple Bash script to implement a state machine to manage our laundry room. Also, we discovered how to send some alerting messages to a smartphone through the WhatsApp service.</p><p>In the next chapter, we'll try to implement a baby room sentinel to control what happens to our little baby! We'll be able to monitor the room temperature, detect if the baby is crying or if she is actually breathing, and much more.</p></div></body></html>

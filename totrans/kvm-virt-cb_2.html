@@ -1,0 +1,1858 @@
+<html><head></head><body>
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">Using libvirt to Manage KVM</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">In this chapter, we will cover the following topics:</p>
+<ul class="calibre16">
+<li class="calibre17">Installing and configuring libvirt</li>
+<li class="calibre17">Defining KVM instances</li>
+<li class="calibre17">Starting, stopping, and removing KVM instances</li>
+<li class="calibre17">Inspecting and editing KVM configs</li>
+<li class="calibre17">Building new KVM instances with virt-install and using the console</li>
+<li class="calibre17">Managing CPU and memory resources in KVM</li>
+<li class="calibre17">Attaching block devices to virtual machines</li>
+<li class="calibre17">Sharing directories between a running VM and the host OS</li>
+<li class="calibre17">Autostarting KVM instances</li>
+<li class="calibre17">Working with storage pools</li>
+<li class="calibre17">Managing volumes</li>
+<li class="calibre17">Managing secrets</li>
+</ul>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">Introduction</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">In the previous chapter, we saw examples of provisioning virtual machines using the QEMU toolset and the KVM kernel modules. The QEMU commands are convenient for quickly starting virtual instances; however, they don't provide an easy way of configuring and administering the life cycle of the virtual machines.</p>
+<p class="calibre3">In this chapter, we are going to work with the libvirt toolset. Libivrt provides various userspace commands and language bindings in order to build, configure, start, stop, migrate, terminate, and do other functions to manage your virtual machines. It provides support for different virtualization technologies, such as QEMU/KVM, XEN, and containers with LXC.</p>
+<p class="calibre3">We will start by installing and configuring the libvirt tools, then move on to creating virtual machines using the XML configuration files that libvirt supports and explore many of the functionalities that the toolkit provides in order to manage the life cycle of KVM instances. All the recipes in this chapter are going to be in the context of building highly available, multitenant environments.</p>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">Installing and configuring libvirt</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">In this recipe, we are going to install libvirt from packages provided by the Linux distribution of choice and see what configuration files and options are available for configuring it. As with any other production-ready tools, we recommend using packages for your production environment for ease and consistency of deployment; however, compiling the latest version from the source is also an option if the packages from your Linux vendor are older.</p>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">Getting ready</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3"><span>Depending on your Linux distribution, the package name and installation commands will differ. You can use your system's package manager, such as <kbd class="calibre13">apt</kbd>, <kbd class="calibre13">dnf</kbd>, or <kbd class="calibre13">yum</kbd> to search for any packages containing the <kbd class="calibre13">libvirt</kbd> string and get familiar with what is available for your particular Linux variant. The source code can be downloaded from the official</span> libvirt<span> project website at </span><a href="https://libvirt.org/downloads.html" class="calibre8">http://www.qemu-project.org/download/#source</a><span>.</span></p>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">How to do it...</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">To install libvirt from packages and source follow the following steps:</p>
+<ol class="calibre18">
+<li value="1" class="calibre17">On Ubuntu, install the package by running:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# apt update &amp;&amp; apt install libvirt-bin</strong><strong class="calibre4"><br class="calibre7"/></strong><strong class="calibre4">root@kvm:~#</strong>
+</pre>
+<ol start="2" class="calibre18">
+<li value="2" class="calibre17">Ensure that the <kbd class="calibre13">libvirt</kbd> daemon is running by executing:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# pgrep -lfa libvirtd<br class="calibre7"/></strong><strong class="calibre4">36667 /usr/sbin/libvirtd<br class="calibre7"/></strong><strong class="calibre4">root@kvm:~#</strong>
+</pre>
+<ol start="3" class="calibre18">
+<li value="3" class="calibre17">Examine the default configuration:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# cat /etc/libvirt/libvirtd.conf | grep -vi "#"<br class="calibre7"/>   | sed '/^$/d'<br class="calibre7"/></strong><strong class="calibre4">  unix_sock_group = "libvirtd"<br class="calibre7"/></strong><strong class="calibre4">  unix_sock_ro_perms = "0777"</strong><br class="calibre7"/><strong class="calibre4">  unix_sock_rw_perms = "0770"</strong><br class="calibre7"/><strong class="calibre4">  auth_unix_ro = "none"</strong><br class="calibre7"/><strong class="calibre4">  auth_unix_rw = "none"</strong><br class="calibre7"/><strong class="calibre4">  root@kvm:~#</strong>
+</pre>
+<ol start="4" class="calibre18">
+<li value="4" class="calibre17">Disable the security driver in QEMU by editing the <kbd class="calibre13">qemu</kbd> configuration file as follows:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# vim /etc/libvirt/qemu.conf</strong><br class="calibre7"/><strong class="calibre4">...</strong><br class="calibre7"/><strong class="calibre4">security_driver = "none"</strong><br class="calibre7"/><strong class="calibre4">...</strong><br class="calibre7"/><strong class="calibre4">root@kvm:~#</strong>
+</pre>
+<ol start="5" class="calibre18">
+<li value="5" class="calibre17">Restart the <kbd class="calibre13">libvirt</kbd> daemon:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# /etc/init.d/libvirt-bin restart</strong><br class="calibre7"/><strong class="calibre4">libvirt-bin stop/waiting</strong><br class="calibre7"/><strong class="calibre4">libvirt-bin start/running, process 1158</strong><br class="calibre7"/><strong class="calibre4">root@kvm:~#</strong>
+</pre>
+<div class="packt_infobox">Depending on your Linux distribution, the name of the <kbd class="calibre27">libvirt</kbd> service may be different. On RHEL/CentOS, the name of the service is <kbd class="calibre27">libvirtd</kbd>; to restart it, run <kbd class="calibre27">service libvirtd restart</kbd>.</div>
+<ol start="6" class="calibre18">
+<li value="6" class="calibre17"><span>Examine all configuration files in the</span> <kbd class="calibre13">libvirt</kbd> <span>directory:</span></li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# ls -la /etc/libvirt/</strong><br class="calibre7"/><strong class="calibre4">total 76</strong><br class="calibre7"/><strong class="calibre4">drwxr-xr-x 5 root root 4096 Mar 22 14:27 .</strong><br class="calibre7"/><strong class="calibre4">drwxr-xr-x 90 root root 4096 Mar 21 23:17 ..</strong><br class="calibre7"/><strong class="calibre4">drwxr-xr-x 2 root root 4096 Feb 5 2016 hooks</strong><br class="calibre7"/><strong class="calibre4">-rw-r--r-- 1 root root 518 Feb 5 2016 libvirt.conf</strong><br class="calibre7"/><strong class="calibre4">-rw-r--r-- 1 root root 13527 Feb 5 2016 libvirtd.conf</strong><br class="calibre7"/><strong class="calibre4">-rw-r--r-- 1 root root 1176 Feb 5 2016 lxc.conf</strong><br class="calibre7"/><strong class="calibre4">drwxr-xr-x 2 root root 4096 Mar 21 23:16 nwfilter</strong><br class="calibre7"/><strong class="calibre4">drwxr-xr-x 3 root root 4096 Mar 21 23:57 qemu</strong><br class="calibre7"/><strong class="calibre4">-rw------- 1 root root 16953 Mar 21 23:18 qemu.conf</strong><br class="calibre7"/><strong class="calibre4">-rw-r--r-- 1 root root 2170 Feb 5 2016 qemu-lockd.conf</strong><br class="calibre7"/><strong class="calibre4">-rw-r--r-- 1 root root 2213 Feb 5 2016 virtlockd.conf</strong><br class="calibre7"/><strong class="calibre4">-rw-r--r-- 1 root root 1217 Feb 5 2016 virt-login-shell.conf</strong><br class="calibre7"/><strong class="calibre4">root@kvm:~#</strong>
+</pre>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">How it works...</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">In step 1, we installed the package on Ubuntu. The postinstall script started the <kbd class="calibre13">libvirt</kbd> daemon after the package was successfully installed. We verified that in step 2. </p>
+<p class="calibre3">In step 3, we examined the main configuration file for the service-side daemon - <kbd class="calibre13">libvirtd</kbd>. The process runs on the host OS and manages tasks for the virtual machines, such as configuration, life cycle management, migration, storage, and networking, as we are going to see later in this chapter. The userspace tools provided by the package we installed communicate with the daemon by sending requests on a local Unix domain socket. The default options we saw in step 3 are sufficient for the recipes in this chapter, but the configuration file is rather large. We encourage you to go through it and get familiar with the rest of the available configuration options. The file is very well documented.</p>
+<p class="calibre3">In step 4, we disabled the security driver for QEMU. By default on RHEL/CentOS systems, QEMU is configured to use SELinux. Ubuntu distributions use <strong class="calibre4">AppArmor</strong>. For simplicity, we disable that functionality in this step; however, in production, you should take advantage of the extra security that a mandatory access control system such as SELinux provides.</p>
+<p class="calibre3">Any change to the <kbd class="calibre13">libvirt</kbd> configuration file requires a restart. We restart the <kbd class="calibre13">libvirt</kbd> service in step 5.</p>
+<p class="calibre3">There are few important configuration files that we need to be familiar, which are listed in step 6:</p>
+<ul class="calibre16">
+<li class="calibre17"> <kbd class="calibre13">libvirt.conf</kbd> is the client-side configuration file for the <kbd class="calibre13">virsh</kbd> command that we are going to use in this recipe. We can specify URI aliases in it. The defaults should be sufficient.</li>
+<li class="calibre17"> <kbd class="calibre13">libvirtd.conf</kbd> is the server-side configuration file, as we saw in step 3. It provides various security options, request limits, and logging controls. For the purpose of this book, the defaults are sufficient. </li>
+<li class="calibre17"> <kbd class="calibre13">qemu.conf</kbd> is the main configuration file for the QEMU driver that <kbd class="calibre13">libvirt</kbd> uses. We can configure options such as the VNC server address, the security driver that we saw in step 4 and the user and group for the QEMU process.</li>
+<li class="calibre17">Once we create a QEMU/KVM virtual machine, the <kbd class="calibre13">/etc/libvirt/qemu/</kbd> directory will contain the XML configuration definition for that instance, as we are going to see in the following recipes. </li>
+<li class="calibre17">Finally, the <kbd class="calibre13">/etc/libvirt/qemu/networks/</kbd> directory contains configuration files for the networking. We are going to explore those in more detail later in this chapter.</li>
+</ul>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">Defining KVM instances</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">In this recipe, we are going to define a virtual instance by creating a simple XML configuration file that <kbd class="calibre13">libvirt</kbd> can use to build the virtual machine. We are going to describe some of the XML schema blocks and look at examples of how to generate the XML definition file using the <kbd class="calibre13">virt-install</kbd> command rather than writing it manually.</p>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">Getting ready</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">For this recipe, we are going to need the following:</p>
+<ul class="calibre16">
+<li class="calibre17">The QEMU binaries, provided after following the <em class="calibre22">Installing and configuring QEMU</em> recipe from <a target="_blank" href="part0026.html#OPEK0-c1e587dcccb14690b55c247c1809e6ce" class="calibre8">Chapter 1</a><em class="calibre22">, Getting Started with QEMU and KVM</em>.</li>
+<li class="calibre17">The custom raw Debian image we built in the <em class="calibre22">Installing a custom OS on the image with debootstrap</em> recipe from the previous chapter.</li>
+</ul>
+<div class="packt_infobox">You can use your own virtual machine image or download one from the Internet, as we showed in the <em class="calibre29">Using pre-existing images</em> recipe in <a target="_blank" href="part0026.html#OPEK0-c1e587dcccb14690b55c247c1809e6ce" class="calibre30">Chapter 1</a><em class="calibre29">, Getting Started with QEMU and KVM.</em></div>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">How to do it...</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">To define a new KVM virtual machine, run the commands outlined here:</p>
+<ol class="calibre18">
+<li value="1" class="calibre17"><span>List all virtual machines on the host OS:</span></li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# virsh list --all</strong><br class="calibre7"/><strong class="calibre4"> Id Name State</strong><br class="calibre7"/><strong class="calibre4">----------------------------------------------------</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@kvm:~#</strong>
+</pre>
+<ol start="2" class="calibre18">
+<li value="2" class="calibre17">Create the following XML definition file:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# cat kvm1.xml</strong><br class="calibre7"/><strong class="calibre4">&lt;domain type='kvm' id='1'&gt;</strong><br class="calibre7"/><strong class="calibre4"> &lt;name&gt;kvm1&lt;/name&gt;</strong><br class="calibre7"/><strong class="calibre4"> &lt;memory unit='KiB'&gt;1048576&lt;/memory&gt;</strong><br class="calibre7"/><strong class="calibre4"> &lt;vcpu placement='static'&gt;1&lt;/vcpu&gt;</strong><br class="calibre7"/><strong class="calibre4"> &lt;os&gt;</strong><br class="calibre7"/><strong class="calibre4">   &lt;type arch='x86_64' machine='pc-i440fx-trusty'&gt;hvm&lt;/type&gt;</strong><br class="calibre7"/><strong class="calibre4">   &lt;boot dev='hd'/&gt;</strong><br class="calibre7"/><strong class="calibre4"> &lt;/os&gt;</strong><br class="calibre7"/><strong class="calibre4"> &lt;on_poweroff&gt;destroy&lt;/on_poweroff&gt;</strong><br class="calibre7"/><strong class="calibre4"> &lt;on_reboot&gt;restart&lt;/on_reboot&gt;</strong><br class="calibre7"/><strong class="calibre4"> &lt;on_crash&gt;restart&lt;/on_crash&gt;</strong><br class="calibre7"/><strong class="calibre4"> &lt;devices&gt;</strong><br class="calibre7"/><strong class="calibre4">   &lt;emulator&gt;/usr/bin/qemu-system-x86_64&lt;/emulator&gt;</strong><br class="calibre7"/><strong class="calibre4">   &lt;disk type='file' device='disk'&gt;</strong><br class="calibre7"/><strong class="calibre4">     &lt;driver name='qemu' type='raw'/&gt;</strong><br class="calibre7"/><strong class="calibre4">     &lt;source file='/tmp/debian.img'/&gt;</strong><br class="calibre7"/><strong class="calibre4">     &lt;target dev='hda' bus='ide'/&gt;</strong><br class="calibre7"/><strong class="calibre4">     &lt;alias name='ide0-0-0'/&gt;</strong><br class="calibre7"/><strong class="calibre4">     &lt;address type='drive' controller='0' bus='0' target='0' unit='0'/&gt;</strong><br class="calibre7"/><strong class="calibre4">   &lt;/disk&gt;</strong><br class="calibre7"/><strong class="calibre4">   &lt;interface type='network'&gt;</strong><br class="calibre7"/><strong class="calibre4">     &lt;source network='default'/&gt;</strong><br class="calibre7"/><strong class="calibre4">     &lt;target dev='vnet0'/&gt;</strong><br class="calibre7"/><strong class="calibre4">     &lt;model type='rtl8139'/&gt;</strong><br class="calibre7"/><strong class="calibre4">     &lt;alias name='net0'/&gt;</strong><br class="calibre7"/><strong class="calibre4">     &lt;address type='pci' domain='0x0000' bus='0x00' slot='0x03' function='0x0'/&gt;</strong><br class="calibre7"/><strong class="calibre4">   &lt;/interface&gt;</strong><br class="calibre7"/><strong class="calibre4">   &lt;graphics type='vnc' port='5900' autoport='yes' listen='146.20.141.158'&gt;</strong><br class="calibre7"/><strong class="calibre4">     &lt;listen type='address' address='146.20.141.158'/&gt;</strong><br class="calibre7"/><strong class="calibre4">   &lt;/graphics&gt;</strong><br class="calibre7"/><strong class="calibre4"> &lt;/devices&gt;</strong><br class="calibre7"/><strong class="calibre4"> &lt;seclabel type='none'/&gt;</strong><br class="calibre7"/><strong class="calibre4">&lt;/domain&gt;</strong><br class="calibre7"/><strong class="calibre4">root@kvm:~#</strong>
+</pre>
+<ol start="3" class="calibre18">
+<li value="3" class="calibre17">Define the virtual machine:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# virsh define kvm1.xml</strong><br class="calibre7"/><strong class="calibre4">Domain kvm1 defined from kvm1.xml</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@kvm:~#</strong>
+</pre>
+<ol start="4" class="calibre18">
+<li value="4" class="calibre17">List all instances in all states:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# virsh list --all</strong><br class="calibre7"/><strong class="calibre4"> Id Name State</strong><br class="calibre7"/><strong class="calibre4">----------------------------------------------------</strong><br class="calibre7"/><strong class="calibre4"> - kvm1 shut off</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@kvm:~#</strong>
+</pre>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">How it works...</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">In step 1, we used the <kbd class="calibre13">virsh</kbd> command and supplied all argument to list all active and inactive instances. As expected, we started with no instances defined.</p>
+<p class="calibre3">In step 2, we created a definition file for a new KVM instance. We used a small subsection of the available XML schema attributes to set the following options:</p>
+<ul class="calibre16">
+<li class="calibre17">The root element of the XML file is required for all virtual machine definitions and is named <strong class="calibre4">domain</strong>. It has two attributes--<kbd class="calibre13">type</kbd> and <kbd class="calibre13">id</kbd>. We specified <kbd class="calibre13">kvm</kbd> as the <kbd class="calibre13">type</kbd> and an <kbd class="calibre13">id</kbd> as <kbd class="calibre13">1</kbd> because this is our first KVM virtual machine. All other attributes are defined under the domain root element.</li>
+<li class="calibre17">We specified a name for the instance with the name attribute.</li>
+<li class="calibre17">The memory attribute defines the available memory to the VM, in our case, 1 GB.</li>
+<li class="calibre17">The <kbd class="calibre13">vcpu</kbd> element<span> defines the maximum number of virtual CPUs allocated for the guest OS. We specified <kbd class="calibre13">1</kbd>, and we used the optional attribute placement that indicates the CPU placement mode; in this example, static. Static placement indicates that the virtual instance will be pinned to all the available physical CPUs.</span></li>
+<li class="calibre17">The OS element defines the architecture of the VM with the use of the type element. The <kbd class="calibre13">hvm</kbd> option indicates that we are going to use full virtualization, which is going to be KVM, as specified in the domain type attribute we saw earlier. We specify the boot device the VM will start from with the <kbd class="calibre13">&lt;boot dev&gt;</kbd> element.</li>
+<li class="calibre17">The next three elements specify the action to be taken when the guest requests a power off, reboot or it crashes. In our example, the VM will be destroyed when the guest OS is powered off and restarted when the guest reboots or crashes. </li>
+<li class="calibre17">The largest section of the XML definition is the devices section, where we use various XML elements to describe devices provided to the guest OS. The emulator element specifies the path to the emulator binary. We are going to use the same QEMU emulator binary <span><kbd class="calibre13">qemu-system-x86_64</kbd> </span>we used in <a target="_blank" href="part0026.html#OPEK0-c1e587dcccb14690b55c247c1809e6ce" class="calibre8">Chapter 1,</a> <em class="calibre22">Getting Started with QEMU and KVM</em>. In the last few sections of the devices attribute, we define the type of virtual disk we are using, in this example, the raw image we built in the previous chapter. In a similar fashion, we describe the VNC server that the guest should start and the network interface inside the guest OS. </li>
+</ul>
+<p class="calibre3">With the <kbd class="calibre13">config</kbd> file in place, we defined the instance in step 3, using the image we created earlier in <kbd class="calibre13">/tmp</kbd>.</p>
+<p class="calibre3">Once a new instance has been defined, it does not automatically start by default. We can see that the status of the new instance is <kbd class="calibre13">shut off</kbd> in step 4.</p>
+<div class="packt_infobox">For information on all of the available XML elements and their attributes, please refer to the official documentation at <a href="http://libvirt.org/formatdomain.html" class="calibre30">http://libvirt.org/formatdomain.html</a>.</div>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">There's more...</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">Configuring a virtual machine by writing the XML file, can be quite tedious and error-prone. An easier way of creating the VM from an existing image, or from an installation media (which can be physical, virtual, or a network location), is using the <kbd class="calibre13">virt-install</kbd> tool. Lets see an example of creating the same KVM instance using that tool.</p>
+<ol class="calibre18">
+<li value="1" class="calibre17"><span>We start by installing the package:</span></li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# apt install virtinst</strong><br class="calibre7"/><strong class="calibre4">...</strong><br class="calibre7"/><strong class="calibre4">root@kvm:~#</strong>
+</pre>
+<ol start="2" class="calibre18">
+<li value="2" class="calibre17">Next, we define and start the new instance by invoking the <kbd class="calibre13">virt-install</kbd> <span><span>command (if an instance with the same name already exist, you'll need to destroy and undefine it first):</span></span></li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# virt-install --name kvm1 --ram 1024 --disk path=/tmp/debian.img,format=raw --graphics vnc,listen=146.20.141.158 --noautoconsole --hvm --import</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">Starting install...</strong><br class="calibre7"/><strong class="calibre4">Creating domain... | 0 B 00:00</strong><br class="calibre7"/><strong class="calibre4">Domain creation completed. You can restart your domain by running:</strong><br class="calibre7"/><strong class="calibre4"> virsh --connect qemu:///system start kvm1</strong><br class="calibre7"/><strong class="calibre4">root@kvm:~#</strong>
+</pre>
+<ol start="3" class="calibre18">
+<li value="3" class="calibre17">The new VM has now been defined and started. To confirm, execute:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# virsh list --all</strong><br class="calibre7"/><strong class="calibre4"> Id Name State</strong><br class="calibre7"/><strong class="calibre4">----------------------------------------------------</strong><br class="calibre7"/><strong class="calibre4"> 10 kvm1 running</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@kvm:~#</strong>
+</pre>
+<ol start="4" class="calibre18">
+<li value="4" class="calibre17">We can see the virtual machine definition file that was automatically generated by running the following code:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# cat /etc/libvirt/qemu/kvm1.xml</strong><br class="calibre7"/><strong class="calibre4">&lt;!--</strong><br class="calibre7"/><strong class="calibre4">WARNING: THIS IS AN AUTO-GENERATED FILE. CHANGES TO IT ARE LIKELY TO BE</strong><br class="calibre7"/><strong class="calibre4">OVERWRITTEN AND LOST. Changes to this xml configuration should be made using:</strong><br class="calibre7"/><strong class="calibre4"> virsh edit kvm1</strong><br class="calibre7"/><strong class="calibre4">or other application using the libvirt API.</strong><br class="calibre7"/><strong class="calibre4">--&gt;</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">&lt;domain type='kvm'&gt;</strong><br class="calibre7"/><strong class="calibre4"> &lt;name&gt;kvm1&lt;/name&gt;</strong><br class="calibre7"/><strong class="calibre4"> &lt;uuid&gt;c3892cbf-812a-2448-7ad2-098ea8381066&lt;/uuid&gt;</strong><br class="calibre7"/><strong class="calibre4"> &lt;memory unit='KiB'&gt;1048576&lt;/memory&gt;</strong><br class="calibre7"/><strong class="calibre4"> &lt;currentMemory unit='KiB'&gt;1048576&lt;/currentMemory&gt;</strong><br class="calibre7"/><strong class="calibre4"> &lt;vcpu placement='static'&gt;1&lt;/vcpu&gt;</strong><br class="calibre7"/><strong class="calibre4"> &lt;os&gt;</strong><br class="calibre7"/><strong class="calibre4">   &lt;type arch='x86_64' machine='pc-i440fx-trusty'&gt;hvm&lt;/type&gt;</strong><br class="calibre7"/><strong class="calibre4">    &lt;boot dev='hd'/&gt;</strong><br class="calibre7"/><strong class="calibre4"> &lt;/os&gt;</strong><br class="calibre7"/><strong class="calibre4"> &lt;features&gt;</strong><br class="calibre7"/><strong class="calibre4">   &lt;acpi/&gt;</strong><br class="calibre7"/><strong class="calibre4">   &lt;apic/&gt;</strong><br class="calibre7"/><strong class="calibre4">   &lt;pae/&gt;</strong><br class="calibre7"/><strong class="calibre4"> &lt;/features&gt;</strong><br class="calibre7"/><strong class="calibre4"> &lt;clock offset='utc'/&gt;</strong><br class="calibre7"/><strong class="calibre4"> &lt;on_poweroff&gt;destroy&lt;/on_poweroff&gt;</strong><br class="calibre7"/><strong class="calibre4"> &lt;on_reboot&gt;restart&lt;/on_reboot&gt;</strong><br class="calibre7"/><strong class="calibre4"> &lt;on_crash&gt;restart&lt;/on_crash&gt;</strong><br class="calibre7"/><strong class="calibre4"> &lt;devices&gt;</strong><br class="calibre7"/><strong class="calibre4">   &lt;emulator&gt;/usr/bin/qemu-system-x86_64&lt;/emulator&gt;</strong><br class="calibre7"/><strong class="calibre4">   &lt;disk type='file' device='disk'&gt;</strong><br class="calibre7"/><strong class="calibre4">     &lt;driver name='qemu' type='raw'/&gt;</strong><br class="calibre7"/><strong class="calibre4">     &lt;source file='/tmp/debian.img'/&gt;</strong><br class="calibre7"/><strong class="calibre4">     &lt;target dev='hda' bus='ide'/&gt;</strong><br class="calibre7"/><strong class="calibre4">     &lt;address type='drive' controller='0' bus='0' target='0' unit='0'/&gt;</strong><br class="calibre7"/><strong class="calibre4">   &lt;/disk&gt;</strong><br class="calibre7"/><strong class="calibre4">   &lt;controller type='usb' index='0'&gt;</strong><br class="calibre7"/><strong class="calibre4">     &lt;address type='pci' domain='0x0000' bus='0x00' slot='0x01' function='0x2'/&gt;</strong><br class="calibre7"/><strong class="calibre4">   &lt;/controller&gt;</strong><br class="calibre7"/><strong class="calibre4">   &lt;controller type='pci' index='0' model='pci-root'/&gt;</strong><br class="calibre7"/><strong class="calibre4">   &lt;controller type='ide' index='0'&gt;</strong><br class="calibre7"/><strong class="calibre4">     &lt;address type='pci' domain='0x0000' bus='0x00' slot='0x01' function='0x1'/&gt;</strong><br class="calibre7"/><strong class="calibre4">   &lt;/controller&gt;</strong><br class="calibre7"/><strong class="calibre4">   &lt;interface type='network'&gt;</strong><br class="calibre7"/><strong class="calibre4">     &lt;mac address='52:54:00:59:e3:4e'/&gt;</strong><br class="calibre7"/><strong class="calibre4">     &lt;source network='default'/&gt;</strong><br class="calibre7"/><strong class="calibre4">     &lt;model type='rtl8139'/&gt;</strong><br class="calibre7"/><strong class="calibre4">     &lt;address type='pci' domain='0x0000' bus='0x00' slot='0x03' function='0x0'/&gt;</strong><br class="calibre7"/><strong class="calibre4">   &lt;/interface&gt;</strong><br class="calibre7"/><strong class="calibre4">   &lt;serial type='pty'&gt;</strong><br class="calibre7"/><strong class="calibre4">     &lt;target port='0'/&gt;</strong><br class="calibre7"/><strong class="calibre4">   &lt;/serial&gt;</strong><br class="calibre7"/><strong class="calibre4">   &lt;console type='pty'&gt;</strong><br class="calibre7"/><strong class="calibre4">     &lt;target type='serial' port='0'/&gt;</strong><br class="calibre7"/><strong class="calibre4">   &lt;/console&gt;</strong><br class="calibre7"/><strong class="calibre4">   &lt;input type='mouse' bus='ps2'/&gt;</strong><br class="calibre7"/><strong class="calibre4">   &lt;input type='keyboard' bus='ps2'/&gt;</strong><br class="calibre7"/><strong class="calibre4">   &lt;graphics type='vnc' port='-1' autoport='yes' listen='146.20.141.158'&gt;</strong><br class="calibre7"/><strong class="calibre4">     &lt;listen type='address' address='146.20.141.158'/&gt;</strong><br class="calibre7"/><strong class="calibre4">   &lt;/graphics&gt;</strong><br class="calibre7"/><strong class="calibre4">   &lt;video&gt;</strong><br class="calibre7"/><strong class="calibre4">     &lt;model type='cirrus' vram='9216' heads='1'/&gt;</strong><br class="calibre7"/><strong class="calibre4">     &lt;address type='pci' domain='0x0000' bus='0x00' slot='0x02' function='0x0'/&gt;</strong><br class="calibre7"/><strong class="calibre4">   &lt;/video&gt;</strong><br class="calibre7"/><strong class="calibre4">   &lt;memballoon model='virtio'&gt;</strong><br class="calibre7"/><strong class="calibre4">     &lt;address type='pci' domain='0x0000' bus='0x00' slot='0x04' function='0x0'/&gt;</strong><br class="calibre7"/><strong class="calibre4">   &lt;/memballoon&gt;</strong><br class="calibre7"/><strong class="calibre4"> &lt;/devices&gt;</strong><br class="calibre7"/><strong class="calibre4">&lt;/domain&gt;</strong><br class="calibre7"/><strong class="calibre4">root@kvm:~#<br class="calibre7"/></strong>
+</pre>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">Starting, stopping, and removing KVM instances</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">In the previous recipe, we saw how to define new KVM virtual machine by either manually writing the XML definition file or using the <kbd class="calibre13">virt-install</kbd> tool to define the instance for us. </p>
+<p class="calibre3">If you define a new instance from an XML file, by default the instance will not start automatically. In this recipe, we will see how to start an instance that was previously configured.</p>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">Getting ready</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">For this recipe, we are going to need the following:</p>
+<ul class="calibre16">
+<li class="calibre17">The QEMU binaries, provided after following the <span><em class="calibre22">Installing and configuring QEMU</em> recipe from</span> <a target="_blank" href="part0026.html#OPEK0-c1e587dcccb14690b55c247c1809e6ce" class="calibre8">Chapter 1</a><em class="calibre22">, Getting Started with QEMU and KVM</em><span>.</span></li>
+<li class="calibre17">The custom raw Debian image we built in the <em class="calibre22">Installing a custom OS on the image with debootstrap</em> recipe from the previous chapter.</li>
+<li class="calibre17">The virsh tool provided by completing the <em class="calibre22">Installing and configuring libvirt</em> recipe.</li>
+<li class="calibre17">The defined instance from the <em class="calibre22">Defining KVM instances</em> recipe in a <kbd class="calibre13">shut off</kbd> state.</li>
+</ul>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">How to do it...</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">The following steps outline the process of listing, starting, and stopping KVM instances using the <kbd class="calibre13">virsh</kbd> command:</p>
+<ol class="calibre18">
+<li value="1" class="calibre17"><span>List all instances in all states:</span></li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# virsh list --all</strong><br class="calibre7"/><strong class="calibre4"> Id Name State</strong><br class="calibre7"/><strong class="calibre4">----------------------------------------------------</strong><br class="calibre7"/><strong class="calibre4"> - kvm1 shut off</strong><br class="calibre7"/><strong class="calibre4">root@kvm:~#</strong>
+</pre>
+<ol start="2" class="calibre18">
+<li value="2" class="calibre17">Start the newly defined instance and verify its status:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# virsh start kvm1</strong><br class="calibre7"/><strong class="calibre4">Domain kvm1 started</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@kvm:~#</strong><br class="calibre7"/><strong class="calibre4">root@kvm:~# virsh list --all</strong><br class="calibre7"/><strong class="calibre4"> Id Name State</strong><br class="calibre7"/><strong class="calibre4">----------------------------------------------------</strong><br class="calibre7"/><strong class="calibre4"> 1 kvm1 running</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@kvm:~#</strong>
+</pre>
+<ol start="3" class="calibre18">
+<li value="3" class="calibre17">Examine the running process for the virtual machine:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# pgrep -lfa qemu</strong><br class="calibre7"/><strong class="calibre4">1686 /usr/bin/qemu-system-x86_64 -name kvm1 -S -machine pc-i440fx-trusty,accel=kvm,usb=off -m 1024 -realtime mlock=off -smp 1,sockets=1,cores=1,threads=1 -uuid a9dfd1a1-7dd1-098e-a926-db9526785a9e -no-user-config -nodefaults -chardev socket,id=charmonitor,path=/var/lib/libvirt/qemu/kvm1.monitor,server,nowait -mon chardev=charmonitor,id=monitor,mode=control -rtc base=utc -no-shutdown -boot strict=on -device piix3-usb-uhci,id=usb,bus=pci.0,addr=0x1.0x2 -drive file=/tmp/debian.img,if=none,id=drive-ide0-0-0,format=raw -device ide-hd,bus=ide.0,unit=0,drive=drive-ide0-0-0,id=ide0-0-0,bootindex=1 -netdev tap,fd=24,id=hostnet0 -device rtl8139,netdev=hostnet0,id=net0,mac=52:54:00:ce:dd:f2,bus=pci.0,addr=0x3 -chardev pty,id=charserial0 -device isa-serial,chardev=charserial0,id=serial0 -vnc 146.20.141.158:0 -device cirrus-vga,id=video0,bus=pci.0,addr=0x2 -device virtio-balloon-pci,id=balloon0,bus=pci.0,addr=0x4</strong><br class="calibre7"/><strong class="calibre4">root@kvm:~#</strong>
+</pre>
+<ol start="4" class="calibre18">
+<li value="4" class="calibre17">Terminate the VM and ensure its status changed from running to <kbd class="calibre13">shut off</kbd>:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# virsh destroy kvm1</strong><br class="calibre7"/><strong class="calibre4">Domain kvm1 destroyed</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@kvm:~# virsh list --all<br class="calibre7"/> Id Name State<br class="calibre7"/>----------------------------------------------------<br class="calibre7"/> - kvm1 shut off<br class="calibre7"/><br class="calibre7"/>root@kvm:~#</strong>
+</pre>
+<ol start="5" class="calibre18">
+<li value="5" class="calibre17">Remove the instance definition:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# virsh undefine kvm1</strong><br class="calibre7"/><strong class="calibre4">Domain kvm1 has been undefined</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@kvm:~# virsh list --all</strong><br class="calibre7"/><strong class="calibre4"> Id Name State</strong><br class="calibre7"/><strong class="calibre4">----------------------------------------------------</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@kvm:~#</strong>
+</pre>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">How it works...</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">In step 1, we list all defined instances, regardless of their state. From the output, we can see that we currently have one instance that we defined in the earlier recipe.</p>
+<p class="calibre3">In step 2, we started the virtual machine and ensured its status had changed to running.</p>
+<p class="calibre3">If you completed the <em class="calibre22">Running Virtual Machines with qemu-system-*</em> recipe from <a target="_blank" href="part0026.html#OPEK0-c1e587dcccb14690b55c247c1809e6ce" class="calibre8">Chapter 1</a><em class="calibre22">, Getting Started with QEMU and KVM</em>, you might note that the XML definition for this VM is very similar to all the command-line options we used to start the QEMU instance. We can see the similarities of how the new instance was started  in step 3. The main difference is the larger number of parameters that <kbd class="calibre13">libvirt</kbd> passed to the QEMU executable. </p>
+<p class="calibre3">Finally, in steps 4 and 5, we stopped the VM and removed its definition file. The raw image we used for the VM is still available however and can be used again.</p>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">Inspecting and editing KVM configs</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">In this recipe, we are going to use the <kbd class="calibre13">virsh</kbd> tool to inspect and edit the configuration for an existing virtual machine. As we saw earlier, once we define and start a KVM instance, <kbd class="calibre13">libvirt</kbd> creates the XML definition file in the <kbd class="calibre13">/etc/libvirt/qemu/</kbd> directory. We can dump the guest configuration to disk, for inspection, or to back it up. With the <kbd class="calibre13">virsh</kbd> command we can also perform updates to the configuration in place, as we will see later in this recipe.</p>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">Getting ready</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">For this recipe, we are going to need the following:</p>
+<ul class="calibre16">
+<li class="calibre17">The QEMU binaries, provided after following the <span><em class="calibre22">Installing and configuring QEMU</em> recipe from</span> <a target="_blank" href="part0026.html#OPEK0-c1e587dcccb14690b55c247c1809e6ce" class="calibre8">Chapter 1</a><em class="calibre22">, Getting Started with QEMU and KVM</em></li>
+<li class="calibre17">The custom raw Debian image we built in the <em class="calibre22">Installing custom OS on the image with debootstrap</em> recipe from the previous chapter, or any other virtual machine image, in either <kbd class="calibre13">raw</kbd> or <kbd class="calibre13">qcow2</kbd> format</li>
+<li class="calibre17">The <kbd class="calibre13">virsh</kbd> tool provided by completing the <em class="calibre22">Installing and configuring libvirt </em>recipe</li>
+<li class="calibre17">A running <kbd class="calibre13">libvirt</kbd> KVM instance</li>
+</ul>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">How to do it...</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">The following steps outline the process of inspecting and editing the XML definition of a KVM instance:</p>
+<ol class="calibre18">
+<li value="1" class="calibre17"><span>Ensure that you have a running KVM instance with</span> libvirt<span>, if not, follow the steps in the previous recipe:</span></li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# virsh list</strong><br class="calibre7"/><strong class="calibre4"> Id Name State</strong><br class="calibre7"/><strong class="calibre4">----------------------------------------------------</strong><br class="calibre7"/><strong class="calibre4"> 11 kvm1 running</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@kvm:~#</strong>
+</pre>
+<ol start="2" class="calibre18">
+<li value="2" class="calibre17">Dump the instance configuration file to <strong class="calibre4">standard output</strong> (<strong class="calibre4">stdout</strong>). For more information on stdout refer to folllowing link:</li>
+</ol>
+<p class="calibre31"><a href="https://en.wikipedia.org/wiki/Standard_streams" class="calibre8">https://en.wikipedia.org/wiki/Standard_streams</a></p>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# virsh dumpxml kvm1</strong><br class="calibre7"/><strong class="calibre4">&lt;domain type='kvm' id='11'&gt;</strong><br class="calibre7"/><strong class="calibre4"> &lt;name&gt;kvm1&lt;/name&gt;</strong><br class="calibre7"/><strong class="calibre4"> &lt;uuid&gt;9eb9a2e9-abb2-54c5-5cb3-dc86728e70fc&lt;/uuid&gt;</strong><br class="calibre7"/><strong class="calibre4"> &lt;memory unit='KiB'&gt;1048576&lt;/memory&gt;</strong><br class="calibre7"/><strong class="calibre4"> &lt;currentMemory unit='KiB'&gt;1048576&lt;/currentMemory&gt;</strong><br class="calibre7"/><strong class="calibre4"> &lt;vcpu placement='static'&gt;1&lt;/vcpu&gt;</strong><br class="calibre7"/><strong class="calibre4"> &lt;resource&gt;</strong><br class="calibre7"/><strong class="calibre4">   &lt;partition&gt;/machine&lt;/partition&gt;</strong><br class="calibre7"/><strong class="calibre4"> &lt;/resource&gt;</strong><br class="calibre7"/><strong class="calibre4"> &lt;os&gt;</strong><br class="calibre7"/><strong class="calibre4">   &lt;type arch='x86_64' machine='pc-i440fx-trusty'&gt;hvm&lt;/type&gt;</strong><br class="calibre7"/><strong class="calibre4">   &lt;boot dev='hd'/&gt;</strong><br class="calibre7"/><strong class="calibre4"> &lt;/os&gt;</strong><br class="calibre7"/><strong class="calibre4"> &lt;features&gt;</strong><br class="calibre7"/><strong class="calibre4">   &lt;acpi/&gt;</strong><br class="calibre7"/><strong class="calibre4">   &lt;apic/&gt;</strong><br class="calibre7"/><strong class="calibre4"> &lt;pae/&gt;</strong><br class="calibre7"/><strong class="calibre4"> &lt;/features&gt;</strong><br class="calibre7"/><strong class="calibre4"> &lt;clock offset='utc'/&gt;</strong><br class="calibre7"/><strong class="calibre4"> &lt;on_poweroff&gt;destroy&lt;/on_poweroff&gt;</strong><br class="calibre7"/><strong class="calibre4"> &lt;on_reboot&gt;restart&lt;/on_reboot&gt;</strong><br class="calibre7"/><strong class="calibre4"> &lt;on_crash&gt;restart&lt;/on_crash&gt;</strong><br class="calibre7"/><strong class="calibre4"> &lt;devices&gt;</strong><br class="calibre7"/><strong class="calibre4">   &lt;emulator&gt;/usr/bin/qemu-system-x86_64&lt;/emulator&gt;</strong><br class="calibre7"/><strong class="calibre4">   &lt;disk type='file' device='disk'&gt;</strong><br class="calibre7"/><strong class="calibre4">     &lt;driver name='qemu' type='raw'/&gt;</strong><br class="calibre7"/><strong class="calibre4">     &lt;source file='/tmp/debian.img'/&gt;</strong><br class="calibre7"/><strong class="calibre4">     &lt;target dev='hda' bus='ide'/&gt;</strong><br class="calibre7"/><strong class="calibre4">     &lt;alias name='ide0-0-0'/&gt;</strong><br class="calibre7"/><strong class="calibre4">     &lt;address type='drive' controller='0' bus='0' target='0' unit='0'/&gt;</strong><br class="calibre7"/><strong class="calibre4">   &lt;/disk&gt;</strong><br class="calibre7"/><strong class="calibre4">   &lt;controller type='usb' index='0'&gt;</strong><br class="calibre7"/><strong class="calibre4">     &lt;alias name='usb0'/&gt;</strong><br class="calibre7"/><strong class="calibre4">     &lt;address type='pci' domain='0x0000' bus='0x00' slot='0x01' function='0x2'/&gt;</strong><br class="calibre7"/><strong class="calibre4">   &lt;/controller&gt;</strong><br class="calibre7"/><strong class="calibre4">   &lt;controller type='pci' index='0' model='pci-root'&gt;</strong><br class="calibre7"/><strong class="calibre4">     &lt;alias name='pci.0'/&gt;</strong><br class="calibre7"/><strong class="calibre4">   &lt;/controller&gt;</strong><br class="calibre7"/><strong class="calibre4">   &lt;controller type='ide' index='0'&gt;</strong><br class="calibre7"/><strong class="calibre4">     &lt;alias name='ide0'/&gt;</strong><br class="calibre7"/><strong class="calibre4">     &lt;address type='pci' domain='0x0000' bus='0x00' slot='0x01' function='0x1'/&gt;</strong><br class="calibre7"/><strong class="calibre4">   &lt;/controller&gt;</strong><br class="calibre7"/><strong class="calibre4">   &lt;interface type='network'&gt;</strong><br class="calibre7"/><strong class="calibre4">     &lt;mac address='52:54:00:d1:70:df'/&gt;</strong><br class="calibre7"/><strong class="calibre4">     &lt;source network='default'/&gt;</strong><br class="calibre7"/><strong class="calibre4">     &lt;target dev='vnet0'/&gt;</strong><br class="calibre7"/><strong class="calibre4">     &lt;model type='rtl8139'/&gt;</strong><br class="calibre7"/><strong class="calibre4">    &lt;alias name='net0'/&gt;</strong><br class="calibre7"/><strong class="calibre4">    &lt;address type='pci' domain='0x0000' bus='0x00' slot='0x03' function='0x0'/&gt;</strong><br class="calibre7"/><strong class="calibre4">   &lt;/interface&gt;</strong><br class="calibre7"/><strong class="calibre4">   &lt;serial type='pty'&gt;</strong><br class="calibre7"/><strong class="calibre4">     &lt;source path='/dev/pts/0'/&gt;</strong><br class="calibre7"/><strong class="calibre4">     &lt;target port='0'/&gt;</strong><br class="calibre7"/><strong class="calibre4">     &lt;alias name='serial0'/&gt;</strong><br class="calibre7"/><strong class="calibre4">   &lt;/serial&gt;</strong><br class="calibre7"/><strong class="calibre4">   &lt;console type='pty' tty='/dev/pts/0'&gt;</strong><br class="calibre7"/><strong class="calibre4">     &lt;source path='/dev/pts/0'/&gt;</strong><br class="calibre7"/><strong class="calibre4">     &lt;target type='serial' port='0'/&gt;</strong><br class="calibre7"/><strong class="calibre4">     &lt;alias name='serial0'/&gt;</strong><br class="calibre7"/><strong class="calibre4">   &lt;/console&gt;</strong><br class="calibre7"/><strong class="calibre4">   &lt;input type='mouse' bus='ps2'/&gt;</strong><br class="calibre7"/><strong class="calibre4">   &lt;input type='keyboard' bus='ps2'/&gt;</strong><br class="calibre7"/><strong class="calibre4">   &lt;graphics type='vnc' port='5900' autoport='yes' listen='146.20.141.158'&gt;</strong><br class="calibre7"/><strong class="calibre4">     &lt;listen type='address' address='146.20.141.158'/&gt;</strong><br class="calibre7"/><strong class="calibre4">   &lt;/graphics&gt;</strong><br class="calibre7"/><strong class="calibre4">   &lt;video&gt;</strong><br class="calibre7"/><strong class="calibre4">     &lt;model type='cirrus' vram='9216' heads='1'/&gt;</strong><br class="calibre7"/><strong class="calibre4">     &lt;alias name='video0'/&gt;</strong><br class="calibre7"/><strong class="calibre4">     &lt;address type='pci' domain='0x0000' bus='0x00' slot='0x02' function='0x0'/&gt;</strong><br class="calibre7"/><strong class="calibre4">   &lt;/video&gt;</strong><br class="calibre7"/><strong class="calibre4">   &lt;memballoon model='virtio'&gt;</strong><br class="calibre7"/><strong class="calibre4">     &lt;alias name='balloon0'/&gt;</strong><br class="calibre7"/><strong class="calibre4">     &lt;address type='pci' domain='0x0000' bus='0x00' slot='0x04' function='0x0'/&gt;</strong><br class="calibre7"/><strong class="calibre4">   &lt;/memballoon&gt;</strong><br class="calibre7"/><strong class="calibre4"> &lt;/devices&gt;</strong><br class="calibre7"/><strong class="calibre4"> &lt;seclabel type='none'/&gt;</strong><br class="calibre7"/><strong class="calibre4">&lt;/domain&gt;</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@kvm:~#</strong>
+</pre>
+<ol start="3" class="calibre18">
+<li value="3" class="calibre17">Save the configuration to a new file, as follows:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# virsh dumpxml kvm1 &gt; kvm1.xml</strong><br class="calibre7"/><strong class="calibre4">root@kvm:~# head kvm1.xml</strong><br class="calibre7"/><strong class="calibre4">&lt;domain type='kvm' id='11'&gt;</strong><br class="calibre7"/><strong class="calibre4"> &lt;name&gt;kvm1&lt;/name&gt;</strong><br class="calibre7"/><strong class="calibre4"> &lt;uuid&gt;9eb9a2e9-abb2-54c5-5cb3-dc86728e70fc&lt;/uuid&gt;</strong><br class="calibre7"/><strong class="calibre4"> &lt;memory unit='KiB'&gt;1048576&lt;/memory&gt;</strong><br class="calibre7"/><strong class="calibre4"> &lt;currentMemory unit='KiB'&gt;1048576&lt;/currentMemory&gt;</strong><br class="calibre7"/><strong class="calibre4"> &lt;vcpu placement='static'&gt;1&lt;/vcpu&gt;</strong><br class="calibre7"/><strong class="calibre4"> &lt;resource&gt;</strong><br class="calibre7"/><strong class="calibre4">   &lt;partition&gt;/machine&lt;/partition&gt;</strong><br class="calibre7"/><strong class="calibre4"> &lt;/resource&gt;</strong><br class="calibre7"/><strong class="calibre4"> &lt;os&gt;</strong><br class="calibre7"/><strong class="calibre4">root@kvm:~#</strong>
+</pre>
+<ol start="4" class="calibre18">
+<li value="4" class="calibre17">Edit the configuration in place and change the available memory for the VM:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# virsh edit kvm1</strong><br class="calibre7"/><strong class="calibre4">Domain kvm1 XML configuration edited.</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@kvm:~#<br class="calibre7"/></strong>
+</pre>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">How it works...</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">Libvirt provides two main ways to manipulate the configuration definitions of the virtual instances. We can either dump the config from an existing instance, as we did in steps 2 and 3, or edit the XML definition in place, as we did in step 4.</p>
+<p class="calibre3">Saving the current configuration to a file is a convenient way to back up the VM definition. It also provides a way of defining a new instance by editing the saved file and just changing the name and ID of the virtual machine. We can then use that file to start a new VM on the same, or a different host, assuming that the filesystem or image is also available. We are going to see examples of migrating and backing up virtual machines with <kbd class="calibre13">libvirt</kbd> in later recipes.</p>
+<p class="calibre3">When making changes in place, as shown in step 4, the default system <kbd class="calibre13">$EDITOR</kbd> will be used. Once in the editing mode, note that the XML file contains information about the current state of the virtual instance. The <kbd class="calibre13">&lt;uuid&gt;</kbd> and <kbd class="calibre13">&lt;currentMemory&gt;</kbd> attributes are such examples. If you would like to change the available memory for the VM, after updating the <kbd class="calibre13">&lt;memory&gt;</kbd> attribute, you might need to delete the <kbd class="calibre13">&lt;currentMemory&gt;</kbd> stanza. If there are any issues with the edit, libvirt will complain with an error message and present the following options:</p>
+<pre class="calibre23">
+<strong class="calibre4">root@kvm:~# virsh edit kvm1</strong><br class="calibre7"/><strong class="calibre4">error: XML error: current memory '1048576k' exceeds maximum '524288k'</strong><br class="calibre7"/><strong class="calibre4">Failed. Try again? [y,n,f,?]:n</strong><br class="calibre7"/><strong class="calibre4">Domain kvm1 XML configuration not changed.</strong><br class="calibre7"/><strong class="calibre4">root@kvm:~#</strong>
+</pre>
+<p class="calibre3">Also keep in mind that, if you would like to create a new instance from the dump of an existing one, you will need to change the <kbd class="calibre13">&lt;name&gt;</kbd> and delete the <kbd class="calibre13">&lt;uuid&gt;</kbd> attributes, as the latter will be autogenerated once the new instance has been defined.</p>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">Building new KVM instances with virt-install and using the console</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">In the <em class="calibre22">Connecting to the running instance with VNC</em> recipe from <a target="_blank" href="part0026.html#OPEK0-c1e587dcccb14690b55c247c1809e6ce" class="calibre8">Chapter 1</a><em class="calibre22">, Getting Started with QEMU and KVM,</em> you learned how to connect to a QEMU/KVM virtual machine that was running a VNC server. This is a great way to connect to an instance that is being installed or in the process of booting in order to interact with it. </p>
+<p class="calibre3">So far, we've used the custom raw image that we created earlier, which contains an installation of Debian. Recall from <a target="_blank" href="part0026.html#OPEK0-c1e587dcccb14690b55c247c1809e6ce" class="calibre8">Chapter 1</a><em class="calibre22">, Getting Started with QEMU and KVM,</em> that we used the <kbd class="calibre13">debootstrap</kbd> command to install the OS inside the image file. In this recipe, we are going to use the <kbd class="calibre13">virt-install</kbd> tool to install a new Linux distribution, using the provided upstream Internet repository, as the source of the installation and then use the <kbd class="calibre13">virsh</kbd> command to attach to the running instance, using the console.</p>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">Getting ready</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">For this recipe, we are going to need the following:</p>
+<ul class="calibre16">
+<li class="calibre17">The <kbd class="calibre13">virsh</kbd> command</li>
+<li class="calibre17">The <kbd class="calibre13">virt-install</kbd> command</li>
+<li class="calibre17">Internet connectivity in order to download the installation files</li>
+</ul>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">How to do it...</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">To build a new KVM instance and connect to it using the console, perform the following steps:</p>
+<ol class="calibre18">
+<li value="1" class="calibre17"><span>Install a new KVM virtual machine using the official Debian repository:</span></li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# virt-install --name kvm1 --ram 1024 --extra-args="text console=tty0 utf8 console=ttyS0,115200" --graphics vnc,listen=146.20.141.158 --hvm --location=http://ftp.us.debian.org/debian/dists/stable/main/installer-amd64/ --disk path=/tmp/kvm1.img,size=8</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">Retrieving file MANIFEST... | 3.3 kB 00:00 ...</strong><br class="calibre7"/><strong class="calibre4">Retrieving file linux... | 6.0 MB 00:00 ...</strong><br class="calibre7"/><strong class="calibre4">Retrieving file initrd.gz... | 29 MB 00:00 ...</strong><br class="calibre7"/><strong class="calibre4">Creating storage file kvm1.img | 8.0 GB 00:00</strong><br class="calibre7"/><strong class="calibre4">WARNING Unable to connect to graphical console: virt-viewer not installed. Please install the 'virt-viewer' package.</strong><br class="calibre7"/><strong class="calibre4">Domain installation still in progress. You can reconnect to</strong><br class="calibre7"/><strong class="calibre4">the console to complete the installation process.</strong><br class="calibre7"/><strong class="calibre4">root@kvm:~#</strong>
+</pre>
+<ol start="2" class="calibre18">
+<li value="2" class="calibre17">Attach to the console to complete the installation by running the following code:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# virsh console kvm1</strong><br class="calibre7"/><strong class="calibre4">Connected to domain kvm1</strong><br class="calibre7"/><strong class="calibre4">Escape character is ^]</strong>
+</pre>
+<ol start="3" class="calibre18">
+<li value="3" class="calibre17">Once connected to the console, you should be presented with a screen similar to the one here:</li>
+</ol>
+<div class="cdpaligncenter"><img class="image-border2" src="../images/00007.jpeg"/></div>
+<div class="cdpaligncenter1"><span> The console output once connected with the virsh console command</span></div>
+<ol start="4" class="calibre18">
+<li value="4" class="calibre17">Complete the installation by following the text menu prompts.</li>
+<li value="5" class="calibre17"><span>Start the newly provisioned VM:</span></li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# virsh start kvm1</strong><br class="calibre7"/><strong class="calibre4">Domain kvm1 started</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@kvm:~#</strong>
+</pre>
+<ol start="6" class="calibre18">
+<li value="6" class="calibre17">Using your favorite VNC client, connect to the instance, log in with the username and password you created during the installation process in step 3 and enable the serial console access by running the following command:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@debian:~# systemctl enable serial-getty@ttyS0.service</strong><br class="calibre7"/><strong class="calibre4">root@debian:~# systemctl start serial-getty@ttyS0.service</strong><br class="calibre7"/><strong class="calibre4">root@debian:~#</strong>
+</pre>
+<ol start="7" class="calibre18">
+<li value="7" class="calibre17">Close the VNC session and connect to the virtual instance from the host OS, using <kbd class="calibre13">virsh</kbd>:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# virsh console kvm1</strong><br class="calibre7"/><strong class="calibre4">Connected to domain kvm1</strong><br class="calibre7"/><strong class="calibre4">Escape character is ^]</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">Debian GNU/Linux 8 debian ttyS0</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">debian login: root</strong><br class="calibre7"/><strong class="calibre4">Password:</strong><br class="calibre7"/><strong class="calibre4">Last login: Wed Mar 22 16:38:10 CDT 2017 on tty1</strong><br class="calibre7"/><strong class="calibre4">Linux debian 3.16.0-4-amd64 #1 SMP Debian 3.16.39-1+deb8u2 (2017-03-07) x86_64</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">The programs included with the Debian GNU/Linux system are free software;</strong><br class="calibre7"/><strong class="calibre4">the exact distribution terms for each program are described in the</strong><br class="calibre7"/><strong class="calibre4">individual files in /usr/share/doc/*/copyright.</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">Debian GNU/Linux comes with ABSOLUTELY NO WARRANTY, to the extent</strong><br class="calibre7"/><strong class="calibre4">permitted by applicable law.</strong><br class="calibre7"/><strong class="calibre4">root@debian:~# free -m</strong><br class="calibre7"/><strong class="calibre4"> total used free shared buffers cached</strong><br class="calibre7"/><strong class="calibre4">Mem: 1000 98 902 4 9 43</strong><br class="calibre7"/><strong class="calibre4">-/+ buffers/cache: 44 956</strong><br class="calibre7"/><strong class="calibre4">Swap: 382 0 382</strong><br class="calibre7"/><strong class="calibre4">root@debian:~#</strong>
+</pre>
+<ol start="8" class="calibre18">
+<li value="8" class="calibre17">Disconnect from the console using the <em class="calibre22">Ctrl</em> + <em class="calibre22">]</em> key combination.</li>
+<li value="9" class="calibre17"><span>Examine the <kbd class="calibre13">image</kbd> file created after the installation:</span></li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# qemu-img info /tmp/kvm1.img</strong><br class="calibre7"/><strong class="calibre4">image: /tmp/kvm1.img</strong><br class="calibre7"/><strong class="calibre4">file format: raw</strong><br class="calibre7"/><strong class="calibre4">virtual size: 8.0G (8589934592 bytes)</strong><br class="calibre7"/><strong class="calibre4">disk size: 1.9G</strong><br class="calibre7"/><strong class="calibre4">root@kvm:~#</strong>
+</pre>
+<div class="packt_tip">If you are not using systemd-based <kbd class="calibre27">init</kbd> system on the distribution for the KVM machine, in order to allow access to the serial console of the instance, you will need to edit the <kbd class="calibre27">/etc/securetty</kbd> or the <kbd class="calibre27">/etc/inittab</kbd> files.</div>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">How it works...</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">A lot happened in this recipe, so lets go through all the steps in more detail.</p>
+<p class="calibre3">In step 1, we started the installation process for a new KVM instance using the <kbd class="calibre13">virt-install</kbd> utility. We specified the serial console to be enabled during the installation process with the <kbd class="calibre13">--extra-args</kbd> parameter. We also used the <kbd class="calibre13">--location</kbd> flag to tell <kbd class="calibre13">libvirt</kbd> the location of the installation files for the latest Debian distribution. We then specified the location and size of the image file that will contain the guest OS filesystem. Since this file did not exist, <kbd class="calibre13">virt-install</kbd> created it as a raw image, as shown in step 9.</p>
+<p class="calibre3">With console access enabled for the installation, we were able to connect to the console in step 2 and complete the installation process in steps 3 and 4.</p>
+<p class="calibre3">After the installation completed, the console session was terminated and the new KVM instance ready to be started. We started the instance in step 5.</p>
+<p class="calibre3">In order to enable console access on the serial port, we first connected to the running VM using a VNC client and instruct systemd to started the console service in step 6.</p>
+<p class="calibre3">With console access enabled, we were able to connect to the serial console using the virsh tool in step 7.</p>
+<p class="calibre3">With all this completed, we now have two ways of connecting to a running KVM instance using either VNC or the console.</p>
+<p class="calibre3">In the later recipe, we will enable networking in the guest OS and provide a third way to connect using SSH.</p>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">Managing CPU and memory resources in KVM</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">Changing the amount of allocated memory or the number of CPUs can be done either by editing the XML definition for the VM or using the <kbd class="calibre13">libvirt</kbd> toolset. In this recipe, we are going to look at examples of changing both the memory and the CPU count for a KVM instance.</p>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">Getting ready</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">For this recipe, we are going to need the following:</p>
+<ul class="calibre16">
+<li class="calibre17">A running KVM instance with 1 GB of memory, 1 CPU allocated, and console access</li>
+<li class="calibre17">The <kbd class="calibre13">libvirt</kbd> package</li>
+<li class="calibre17">A guest OS with at least 4 GB of available memory and minimum of 4 CPUs</li>
+</ul>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">How to do it...</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">To inspect and update the memory and CPU resources assigned to a virtual machine follow the process outlined here:</p>
+<ol class="calibre18">
+<li value="1" class="calibre17"><span>Get memory statistics for the running instance:</span></li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# virsh dommemstat kvm1</strong><br class="calibre7"/><strong class="calibre4">actual 1048576</strong><br class="calibre7"/><strong class="calibre4">swap_in 0</strong><br class="calibre7"/><strong class="calibre4">rss 333644</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@kvm:~#</strong>
+</pre>
+<ol start="2" class="calibre18">
+<li value="2" class="calibre17">Update the available memory for the VM to 2 GB:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# virsh setmem kvm1 --size 1049000</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@kvm:~#</strong>
+</pre>
+<ol start="3" class="calibre18">
+<li value="3" class="calibre17">Stop the running instance:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# virsh destroy kvm1</strong><br class="calibre7"/><strong class="calibre4">Domain kvm1 destroyed</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@kvm:~#</strong>
+</pre>
+<ol start="4" class="calibre18">
+<li value="4" class="calibre17">Set the maximum usable memory to 2 GB:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# virsh setmaxmem kvm1 --size 2097152</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@kvm:~#</strong>
+</pre>
+<ol start="5" class="calibre18">
+<li value="5" class="calibre17">Start the instance:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# virsh start kvm1</strong><br class="calibre7"/><strong class="calibre4">Domain kvm1 started</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@kvm:~#</strong>
+</pre>
+<ol start="6" class="calibre18">
+<li value="6" class="calibre17">Check the current allocated memory:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# virsh dommemstat kvm1</strong><br class="calibre7"/><strong class="calibre4">actual 2097152</strong><br class="calibre7"/><strong class="calibre4">swap_in 0</strong><br class="calibre7"/><strong class="calibre4">rss 214408</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@kvm:~#</strong>
+</pre>
+<ol start="7" class="calibre18">
+<li value="7" class="calibre17">Connect to the KVM instance and check the memory in the guest OS:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# virsh console kvm1</strong><br class="calibre7"/><strong class="calibre4">Connected to domain kvm1</strong><br class="calibre7"/><strong class="calibre4">Escape character is ^]</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">Debian GNU/Linux 8 debian ttyS0</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">debian login: root</strong><br class="calibre7"/><strong class="calibre4">Password:</strong><br class="calibre7"/><strong class="calibre4">...</strong><br class="calibre7"/><strong class="calibre4">root@debian:~# free -m</strong><br class="calibre7"/><strong class="calibre4">                     total used  free  shared  buffers cached</strong><br class="calibre7"/><strong class="calibre4">Mem:                  2010   93  1917        5       8     40</strong><br class="calibre7"/><strong class="calibre4">-/+ buffers/cache:      43 1966</strong><br class="calibre7"/><strong class="calibre4">Swap:                  382    0  3 82</strong><br class="calibre7"/><strong class="calibre4">root@debian:~#</strong><br class="calibre7"/><strong class="calibre4">root@kvm:~#</strong>
+</pre>
+<ol start="8" class="calibre18">
+<li value="8" class="calibre17">Check the memory settings in the instance XML definition:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# virsh dumpxml kvm1 | grep memory</strong><br class="calibre7"/><strong class="calibre4"> &lt;memory unit='KiB'&gt;2097152&lt;/memory&gt;</strong><br class="calibre7"/><strong class="calibre4">root@kvm:~#</strong>
+</pre>
+<ol start="9" class="calibre18">
+<li value="9" class="calibre17">Get information about the guest CPUs:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# virsh vcpuinfo kvm1</strong><br class="calibre7"/><strong class="calibre4">VCPU: 0</strong><br class="calibre7"/><strong class="calibre4">CPU: 29</strong><br class="calibre7"/><strong class="calibre4">State: running</strong><br class="calibre7"/><strong class="calibre4">CPU time: 9.7s</strong><br class="calibre7"/><strong class="calibre4">CPU Affinity: yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@kvm:~#</strong>
+</pre>
+<ol start="10" class="calibre18">
+<li value="10" class="calibre17">List the number of virtual CPUs used by the guest OS:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# virsh vcpucount kvm1</strong><br class="calibre7"/><strong class="calibre4">maximum config 1</strong><br class="calibre7"/><strong class="calibre4">maximum live 1</strong><br class="calibre7"/><strong class="calibre4">current config 1</strong><br class="calibre7"/><strong class="calibre4">current live 1</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@kvm:~#</strong>
+</pre>
+<ol start="11" class="calibre18">
+<li value="11" class="calibre17">Change the number of allocated CPUs to 4 for the VM:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# virsh edit kvm1</strong><br class="calibre7"/><strong class="calibre4">...</strong><br class="calibre7"/><strong class="calibre4">&lt;vcpu placement='static'&gt;4&lt;/vcpu&gt;</strong><br class="calibre7"/><strong class="calibre4">...</strong><br class="calibre7"/><strong class="calibre4">Domain kvm1 XML configuration edited.</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@kvm:~#</strong>
+</pre>
+<ol start="12" class="calibre18">
+<li value="12" class="calibre17">Ensure that the CPU count update took effect:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# virsh vcpucount kvm1</strong><br class="calibre7"/><strong class="calibre4">maximum config 4</strong><br class="calibre7"/><strong class="calibre4">maximum live 4</strong><br class="calibre7"/><strong class="calibre4">current config 4</strong><br class="calibre7"/><strong class="calibre4">current live 4</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@kvm:~# virsh dumpxml kvm1 | grep -i cpu</strong><br class="calibre7"/><strong class="calibre4"> &lt;vcpu placement='static'&gt;4&lt;/vcpu&gt;</strong><br class="calibre7"/><strong class="calibre4">root@kvm:~#</strong>
+</pre>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">How it works...</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">In step 1, we gathered some memory statistics for the running KVM instance. From the output, we can see that the VM is configured with 1 GB of memory indicated by the actual parameter, and it's currently using 333644 KB of memory.</p>
+<p class="calibre3">In step 2, we updated the available memory to 2 GB and then proceeded to update the maximum memory that can be allocated to the instance in step 4. In order to perform that operation, the instance had to be stopped first, as shown in step 3.</p>
+<p class="calibre3">In steps 6, 7, and 8, we made sure that the updates took place by first invoking the <kbd class="calibre13">dommemstat</kbd> subcommand, then connected to the VMs console and finally checked the current configuration by dumping the instance definition.</p>
+<p class="calibre3">The <kbd class="calibre13">virsh</kbd> command provides few subcommands to inspect the CPU state for a running VM. In steps 9 and 10, we listed the allocated virtual CPUs for the <kbd class="calibre13">kvm1</kbd> instance, in this case, just one and the current state, load, and affinity. </p>
+<p class="calibre3">Finally, in steps 11 and 12, we update the XML definition of the instance, allocating four CPUs and listed the new count. </p>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">There's more...</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">In this recipe, we used the <kbd class="calibre13">virsh</kbd> command with various subcommands in one liners. This is particularly useful if we need to run the commands from a script. The <kbd class="calibre13">virsh</kbd> command also provides an interactive terminal, which saves some typing, and provides contextual help. To start the virtualization-interactive terminal, run the following code:</p>
+<pre class="calibre23">
+<strong class="calibre4">root@kvm:~# virsh</strong><br class="calibre7"/><strong class="calibre4">Welcome to virsh, the virtualization interactive terminal.</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">Type: 'help' for help with commands</strong><br class="calibre7"/><strong class="calibre4"> 'quit' to quit</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">virsh #</strong>
+</pre>
+<p class="calibre3">Typing <kbd class="calibre13">help</kbd> will list all available subcommands with a short description. To obtain more information for a particular subcommand type:</p>
+<pre class="calibre23">
+<strong class="calibre4">virsh # help vcpucount</strong><br class="calibre7"/><strong class="calibre4"> NAME</strong><br class="calibre7"/><strong class="calibre4">   vcpucount - domain vcpu counts</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4"> SYNOPSIS</strong><br class="calibre7"/><strong class="calibre4">   vcpucount &lt;domain&gt; [--maximum] [--active] [--live] [--config] [--current] [--guest]</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4"> DESCRIPTION</strong><br class="calibre7"/><strong class="calibre4">   Returns the number of virtual CPUs used by the domain.</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4"> OPTIONS</strong><br class="calibre7"/><strong class="calibre4">   [--domain] &lt;string&gt; domain name, id or uuid</strong><br class="calibre7"/><strong class="calibre4">   --maximum get maximum count of vcpus</strong><br class="calibre7"/><strong class="calibre4">   --active get number of currently active vcpus</strong><br class="calibre7"/><strong class="calibre4">   --live get value from running domain</strong><br class="calibre7"/><strong class="calibre4">   --config get value to be used on next boot</strong><br class="calibre7"/><strong class="calibre4">   --current get value according to current domain state</strong><br class="calibre7"/><strong class="calibre4">   --guest retrieve vcpu count from the guest instead of the hypervisor</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">virsh #</strong>
+</pre>
+<p class="calibre3">All the steps we performed in this recipe can be done in the interactive terminal.</p>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">Attaching block devices to virtual machines</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">In this recipe, we are going to examine a few different ways of adding new block devices to a KVM instance. The new block device can then be partitioned, formatted, and used as a regular block device inside the guest OS. We can add disks to live running instances, or we can attach them persistently by creating XML definitions for the individual block devices offline. From the host OS, we can present any type of block device file to the guest, including iSCSI targets, LVM logical volumes, or image files.</p>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">Getting ready</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">For this recipe, we will need:</p>
+<ul class="calibre16">
+<li class="calibre17">A running KVM instance with console access</li>
+<li class="calibre17">The <kbd class="calibre13">dd</kbd> utility</li>
+</ul>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">How to do it...</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">To attach a new block device to a KVM guest, run the following:</p>
+<ol class="calibre18">
+<li value="1" class="calibre17"><span>Create a new 1 GB image file:</span></li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# dd if=/dev/zero of=/tmp/new_disk.img bs=1M count=1024</strong><br class="calibre7"/><strong class="calibre4">1024+0 records in</strong><br class="calibre7"/><strong class="calibre4">1024+0 records out</strong><br class="calibre7"/><strong class="calibre4">1073741824 bytes (1.1 GB) copied, 0.670831 s, 1.6 GB/s</strong><br class="calibre7"/><strong class="calibre4">root@kvm:~#</strong>
+</pre>
+<ol start="2" class="calibre18">
+<li value="2" class="calibre17">Attach the file as a new disk to the KVM instance:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# virsh attach-disk kvm1 /tmp/new_disk.img vda --live</strong><br class="calibre7"/><strong class="calibre4">Disk attached successfully</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@kvm:~#</strong>
+</pre>
+<ol start="3" class="calibre18">
+<li value="3" class="calibre17">Connect to the KVM instance via the console:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# virsh console kvm1</strong><br class="calibre7"/><strong class="calibre4">Connected to domain kvm1</strong><br class="calibre7"/><strong class="calibre4">Escape character is ^]</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">Debian GNU/Linux 8 debian ttyS0</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">debian login: root</strong><br class="calibre7"/><strong class="calibre4">Password:</strong><br class="calibre7"/><strong class="calibre4">...</strong><br class="calibre7"/><strong class="calibre4">root@debian:~#</strong>
+</pre>
+<ol start="4" class="calibre18">
+<li value="4" class="calibre17">Print the kernel ring buffer and check for the new <span>block</span> device:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@debian:~# dmesg | grep vda</strong><br class="calibre7"/><strong class="calibre4">[ 3664.134978] sd 2:0:2:0: [vda] 2097152 512-byte logical blocks: (1.07 GB/1.00 GiB)</strong><br class="calibre7"/><strong class="calibre4">[ 3664.135248] sd 2:0:2:0: [vda] Write Protect is off</strong><br class="calibre7"/><strong class="calibre4">[ 3664.135251] sd 2:0:2:0: [vda] Mode Sense: 63 00 00 08</strong><br class="calibre7"/><strong class="calibre4">[ 3664.135340] sd 2:0:2:0: [vda] Write cache: enabled, read cache: enabled, doesn't support DPO or FUA</strong><br class="calibre7"/><strong class="calibre4">[ 3664.138254] vda: unknown partition table</strong><br class="calibre7"/><strong class="calibre4">[ 3664.139008] sd 2:0:2:0: [vda] Attached SCSI disk</strong><br class="calibre7"/><strong class="calibre4">root@debian:~#</strong>
+</pre>
+<ol start="5" class="calibre18">
+<li value="5" class="calibre17">Examine the new block device:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@debian:~# fdisk -l /dev/vda</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">Disk /dev/vda: 1 GiB, 1073741824 bytes, 2097152 sectors</strong><br class="calibre7"/><strong class="calibre4">Units: sectors of 1 * 512 = 512 bytes</strong><br class="calibre7"/><strong class="calibre4">Sector size (logical/physical): 512 bytes / 512 bytes</strong><br class="calibre7"/><strong class="calibre4">I/O size (minimum/optimal): 512 bytes / 512 bytes</strong><br class="calibre7"/><strong class="calibre4">root@debian:~#</strong>
+</pre>
+<ol start="6" class="calibre18">
+<li value="6" class="calibre17">Dump the instance configuration from the host OS:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# virsh dumpxml kvm1</strong><br class="calibre7"/><strong class="calibre4">&lt;domain type='kvm' id='23'&gt;</strong><br class="calibre7"/><strong class="calibre4">...</strong><br class="calibre7"/><strong class="calibre4"> &lt;devices&gt;</strong><br class="calibre7"/><strong class="calibre4">   &lt;emulator&gt;/usr/bin/qemu-system-x86_64&lt;/emulator&gt;</strong><br class="calibre7"/><strong class="calibre4">   &lt;disk type='file' device='disk'&gt;</strong><br class="calibre7"/><strong class="calibre4">     &lt;driver name='qemu' type='raw'/&gt;</strong><br class="calibre7"/><strong class="calibre4">     &lt;source file='/tmp/kvm1.img'/&gt;</strong><br class="calibre7"/><strong class="calibre4">     &lt;target dev='hda' bus='ide'/&gt;</strong><br class="calibre7"/><strong class="calibre4">     &lt;alias name='ide0-0-0'/&gt;</strong><br class="calibre7"/><strong class="calibre4">     &lt;address type='drive' controller='0' bus='0' target='0' unit='0'/&gt;</strong><br class="calibre7"/><strong class="calibre4">   &lt;/disk&gt;</strong><br class="calibre7"/><strong class="calibre4">   &lt;disk type='file' device='disk'&gt;</strong><br class="calibre7"/><strong class="calibre4">     &lt;driver name='qemu' type='raw'/&gt;</strong><br class="calibre7"/><strong class="calibre4">     &lt;source file='/tmp/new_disk.img'/&gt;</strong><br class="calibre7"/><strong class="calibre4">     &lt;target dev='vda' bus='scsi'/&gt;</strong><br class="calibre7"/><strong class="calibre4">     &lt;alias name='scsi0-0-2'/&gt;</strong><br class="calibre7"/><strong class="calibre4">     &lt;address type='drive' controller='0' bus='0' target='0' unit='2'/&gt;</strong><br class="calibre7"/><strong class="calibre4">   &lt;/disk&gt;</strong><br class="calibre7"/><strong class="calibre4"> &lt;/devices&gt;</strong><br class="calibre7"/><strong class="calibre4">&lt;/domain&gt;</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@kvm:~#</strong>
+</pre>
+<ol start="7" class="calibre18">
+<li value="7" class="calibre17">Get information about the new disk:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# virsh domblkstat kvm1 vda</strong><br class="calibre7"/><strong class="calibre4">vda rd_req 119</strong><br class="calibre7"/><strong class="calibre4">vda rd_bytes 487424</strong><br class="calibre7"/><strong class="calibre4">vda wr_req 0</strong><br class="calibre7"/><strong class="calibre4">vda wr_bytes 0</strong><br class="calibre7"/><strong class="calibre4">vda flush_operations 0</strong><br class="calibre7"/><strong class="calibre4">vda rd_total_times 29149092</strong><br class="calibre7"/><strong class="calibre4">vda wr_total_times 0</strong><br class="calibre7"/><strong class="calibre4">vda flush_total_times 0</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@kvm:~#</strong>
+</pre>
+<ol start="8" class="calibre18">
+<li value="8" class="calibre17">Detach the disk:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# virsh detach-disk kvm1 vda --live</strong><br class="calibre7"/><strong class="calibre4">Disk detached successfully</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@kvm:~#</strong>
+</pre>
+<ol start="9" class="calibre18">
+<li value="9" class="calibre17">Copy or create a new raw image:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# cp /tmp/new_disk.img /tmp/other_disk.img</strong><br class="calibre7"/><strong class="calibre4">root@kvm:~#</strong>
+</pre>
+<ol start="10" class="calibre18">
+<li value="10" class="calibre17">Write the following <kbd class="calibre13">config</kbd> file:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# cat other_disk.xml</strong><br class="calibre7"/><strong class="calibre4">&lt;disk type='file' device='disk'&gt;</strong><br class="calibre7"/><strong class="calibre4"> &lt;driver name='qemu' type='raw' cache='none'/&gt;</strong><br class="calibre7"/><strong class="calibre4"> &lt;source file='/tmp/other_disk.img'/&gt;</strong><br class="calibre7"/><strong class="calibre4"> &lt;target dev='vdb'/&gt;</strong><br class="calibre7"/><strong class="calibre4">&lt;/disk&gt;</strong><br class="calibre7"/><strong class="calibre4">root@kvm:~#</strong>
+</pre>
+<ol start="11" class="calibre18">
+<li value="11" class="calibre17">Attach the new device:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# virsh attach-device kvm1 --live other_disk.xml</strong><br class="calibre7"/><strong class="calibre4">Device attached successfully</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@kvm:~#</strong>
+</pre>
+<ol start="12" class="calibre18">
+<li value="12" class="calibre17">Detach the block device:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# virsh detach-device kvm1 other_disk.xml --live</strong><br class="calibre7"/><strong class="calibre4">Device detached successfully</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@kvm:~#</strong>
+</pre>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">How it works...</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">Attaching more disks to running KVM instances can be quite useful, especially when using LVM inside the guest OS, as this allows for extending the logical volumes, thus adding more disk space on the go. Libvirt provides two different methods for this as we saw in the steps outlined earlier. We can use the <kbd class="calibre13">virsh attach-disk</kbd> command by passing the location of the image file and the name of the new block device for the guest VM as we saw in step 2.</p>
+<p class="calibre3">In step 1, we created a new raw image using the <kbd class="calibre13">dd</kbd> command; however, we could have used the qemu-img tool as we saw in the <em class="calibre22">Managing Disk images with qemu-img</em> and dd recipe from <a target="_blank" href="part0026.html#OPEK0-c1e587dcccb14690b55c247c1809e6ce" class="calibre8">Chapter 1</a><em class="calibre22">, Getting Started with QEMU and KVM</em>.</p>
+<p class="calibre3">After attaching the new disk in step 2, in steps 3, 4, and 5, we connected to VM and verified that a new block device is indeed present. This is also reflected in the XML definition of the instance in step 6.</p>
+<div class="packt_infobox">To make the new device available after a VM restart and persist the XML definition changes, pass the <kbd class="calibre27">--persist</kbd> option to the <kbd class="calibre27">virsh attach-disk</kbd> command. </div>
+<p class="calibre3">In step 7, we display some information about the new disk. This data is quite useful in order to monitor the read/write requests for the block device, without having to attach to the virtual instance.</p>
+<p class="calibre3">In step 8, we detached the disk from the running KVM instance. If you dump the instance definition at this point, you will note the absence of the extra disk.</p>
+<p class="calibre3">An alternative way of attaching a block device is shown in step 10. We first create a new XML file with the definition of the block device we are attaching. Note how similar the definition is to the output in step 6. </p>
+<p class="calibre3">In step 11, we detach the new device yet again. Note that we have to specify the same device XML definition file in order to do that.</p>
+<p class="calibre3">Once the disk is visible inside the guest OS, we can use it as a regular block device, we can partition it, create a filesystem, and mount it.</p>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">Sharing directories between a running VM and the host OS</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">In the previous recipe, we saw two examples on how to attach disks to a running KVM instance. In this recipe, we are going to share a directory from the host OS and make it available in the virtual machine. We can only perform this action on a stopped instance however. If you've been following along, you should already have a libvirt KVM instance that you can use.</p>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">Getting ready</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">The prerequisites for this recipe are as follows:</p>
+<ul class="calibre16">
+<li class="calibre17">Stopped libvirt KVM instance with console access</li>
+<li class="calibre17">A guest OS with the <kbd class="calibre13">9p</kbd> and <kbd class="calibre13">virtio</kbd> kernel modules (available on most Linux distributions by default)</li>
+</ul>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">How to do it...</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">To share a directory from the host OS to the KVM guest, execute the following:</p>
+<ol class="calibre18">
+<li value="1" class="calibre17"><span>Create a new directory on the host OS and add a file to it:</span></li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# mkdir /tmp/shared</strong><br class="calibre7"/><strong class="calibre4">root@kvm:~# touch /tmp/shared/file</strong><br class="calibre7"/><strong class="calibre4">root@kvm:~#</strong>
+</pre>
+<ol start="2" class="calibre18">
+<li value="2" class="calibre17">Add the following definition to the stopped KVM instance:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# virsh edit kvm1</strong><br class="calibre7"/><strong class="calibre4"> ...</strong><br class="calibre7"/><strong class="calibre4"> &lt;devices&gt;</strong><br class="calibre7"/><strong class="calibre4">   ...</strong><br class="calibre7"/><strong class="calibre4">   &lt;filesystem type='mount' accessmode='passthrough'&gt;</strong><br class="calibre7"/><strong class="calibre4">     &lt;source dir='/tmp/shared'/&gt;</strong><br class="calibre7"/><strong class="calibre4">     &lt;target dir='tmp_shared'/&gt;</strong><br class="calibre7"/><strong class="calibre4">   &lt;/filesystem&gt;</strong><br class="calibre7"/><strong class="calibre4">   ...</strong><br class="calibre7"/><strong class="calibre4"> &lt;/devices&gt;</strong><br class="calibre7"/><strong class="calibre4"> ...</strong><br class="calibre7"/><strong class="calibre4">Domain kvm1 XML configuration edited.</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@kvm:~#</strong>
+</pre>
+<ol start="3" class="calibre18">
+<li value="3" class="calibre17">Start the VM:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# virsh start kvm1</strong><br class="calibre7"/><strong class="calibre4">Domain kvm1 started</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@kvm:~#</strong>
+</pre>
+<ol start="4" class="calibre18">
+<li value="4" class="calibre17">Connect to the console as follows:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# virsh console kvm1</strong><br class="calibre7"/><strong class="calibre4">Connected to domain kvm1</strong><br class="calibre7"/><strong class="calibre4">Escape character is ^]</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">Debian GNU/Linux 8 debian ttyS0</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">debian login: root</strong><br class="calibre7"/><strong class="calibre4">Password:</strong><br class="calibre7"/><strong class="calibre4">...</strong><br class="calibre7"/><strong class="calibre4">root@debian:~#</strong>
+</pre>
+<ol start="5" class="calibre18">
+<li value="5" class="calibre17">Ensure that the <kbd class="calibre13">9p</kbd> and the <kbd class="calibre13">virtio</kbd> kernel modules are loaded:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@debian:~# lsmod | grep 9p<br class="calibre7"/></strong><strong class="calibre4">9pnet_virtio 17006 0</strong><br class="calibre7"/><strong class="calibre4">9pnet 61632 1 9pnet_virtio</strong><br class="calibre7"/><strong class="calibre4">virtio_ring 17513 3 virtio_pci,virtio_balloon,9pnet_virtio</strong><br class="calibre7"/><strong class="calibre4">virtio 13058 3 virtio_pci,virtio_balloon,9pnet_virtio</strong><br class="calibre7"/><strong class="calibre4">root@debian:~#</strong>
+</pre>
+<ol start="6" class="calibre18">
+<li value="6" class="calibre17">Mount the shared directory to <kbd class="calibre13">/mnt</kbd>:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@debian:~# mount -t 9p -o trans=virtio tmp_shared /mnt</strong><br class="calibre7"/><strong class="calibre4">root@debian:~#</strong>
+</pre>
+<ol start="7" class="calibre18">
+<li value="7" class="calibre17">List the new mount:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@debian:~# mount | grep tmp_shared</strong><br class="calibre7"/><strong class="calibre4">tmp_shared on /mnt type 9p (rw,relatime,sync,dirsync,trans=virtio)</strong><br class="calibre7"/><strong class="calibre4">root@debian:~#</strong>
+</pre>
+<ol start="8" class="calibre18">
+<li value="8" class="calibre17">Ensure that the shared file is visible in the host OS:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@debian:~# ls -la /mnt/</strong><br class="calibre7"/><strong class="calibre4">total 8</strong><br class="calibre7"/><strong class="calibre4">drwxr-xr-x 2  root root 4096 Mar 23 11:25 .</strong><br class="calibre7"/><strong class="calibre4">drwxr-xr-x 22 root root 4096 Mar 22 16:28 ..</strong><br class="calibre7"/><strong class="calibre4">-rw-r--r-- 1  root root 0    Mar 23 11:25 file</strong><br class="calibre7"/><strong class="calibre4">root@debian:~#</strong>
+</pre>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">How it works...</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">Let's get through the steps and see what was accomplished in more details in the previous section.</p>
+<p class="calibre3">In step 1, we create a directory and a file that we want to share with the guest OS. Then, on the stopped KVM instance, we added the new <kbd class="calibre13">&lt;filesystem&gt;</kbd> definition in step 2. We used the mount type because we are mounting a directory and specified the <kbd class="calibre13">accessmode</kbd>, which specifies the security mode for accessing the shared resource. There are three access modes:</p>
+<ul class="calibre16">
+<li class="calibre17"><kbd class="calibre13">passthrough</kbd>: This is the default mode, which accesses the shared directory using the permissions of the user inside the guest OS</li>
+<li class="calibre17"><kbd class="calibre13">mapped</kbd>: In this mode, the shared directory and its files are accessed using the permissions of the QEMU user, inherited from the host</li>
+<li class="calibre17"><kbd class="calibre13">squash</kbd>: This mode is similar to the passthrough mode; however, the failures of privileged operations such as <kbd class="calibre13">chmod</kbd> are ignored</li>
+</ul>
+<p class="calibre3">With the new definition in place, we start the VM in step 3 and connect to it in step 4.</p>
+<p class="calibre3">On the Debian virtual machine we have been using, the required kernel module has been loaded when the VM started. If this is not the case for your VM, load the modules by running:</p>
+<pre class="calibre23">
+<strong class="calibre4">root@debian:~# modprobe 9p virtio</strong><br class="calibre7"/><strong class="calibre4">root@debian:~#</strong>
+</pre>
+<p class="calibre3">The main action happens in step 6, where we mount the shared directory and ensure that it has been successfully mounted and the file present in the subsequent steps.</p>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">There's more...</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">In this chapter, we have been starting KVM virtual machines using the <kbd class="calibre13">virsh</kbd> command, provided by the <kbd class="calibre13">libvirt</kbd> toolset and libraries. If you check the process tree after starting a guest, you can see that <kbd class="calibre13">virsh</kbd> command actually calls the <kbd class="calibre13">/usr/bin/qemu-system-x86_64</kbd> binary. If you recall from the <em class="calibre22">Running virtual machines with qemu-system-*</em> recipe in <a target="_blank" href="part0026.html#OPEK0-c1e587dcccb14690b55c247c1809e6ce" class="calibre8">Chapter 1</a><em class="calibre22">, Getting Started with QEMU and KVM;</em> this is exactly what we used to start QEMU/KVM virtual machines. </p>
+<p class="calibre3">Note the process that the <kbd class="calibre13">libvirt</kbd> daemon started when we ran started the KVM instance in this recipe:</p>
+<pre class="calibre23">
+<strong class="calibre4">root@kvm:~# pgrep -lfa qemu</strong><br class="calibre7"/><strong class="calibre4">6233 /usr/bin/qemu-system-x86_64 -name kvm1 -S -machine pc-i440fx-trusty,accel=kvm,usb=off -m 2048 -realtime mlock=off -smp 2,sockets=2,cores=1,threads=1 -uuid 6ad84d8a-229d-d1f6-ecfc-d29a25fcfa03 -no-user-config -nodefaults -chardev socket,id=charmonitor,path=/var/lib/libvirt/qemu/kvm1.monitor,server,nowait -mon chardev=charmonitor,id=monitor,mode=control -rtc base=utc -no-shutdown -boot strict=on -device piix3-usb-uhci,id=usb,bus=pci.0,addr=0x1.0x2 -device lsi,id=scsi0,bus=pci.0,addr=0x5 -drive file=/tmp/kvm1.img,if=none,id=drive-ide0-0-0,format=raw -device ide-hd,bus=ide.0,unit=0,drive=drive-ide0-0-0,id=ide0-0-0,bootindex=1 -fsdev local,security_model=passthrough,id=fsdev-fs0,path=/tmp/shared -device virtio-9p-pci,id=fs0,fsdev=fsdev-fs0,mount_tag=tmp_shared,bus=pci.0,addr=0x6 -netdev tap,fd=25,id=hostnet0 -device rtl8139,netdev=hostnet0,id=net0,mac=52:54:00:c5:c8:9d,bus=pci.0,addr=0x3 -chardev pty,id=charserial0 -device isa-serial,chardev=charserial0,id=serial0 -vnc 146.20.141.158:0 -device cirrus-vga,id=video0,bus=pci.0,addr=0x2 -device virtio-balloon-pci,id=balloon0,bus=pci.0,addr=0x4</strong><br class="calibre7"/><strong class="calibre4">root@kvm:~#</strong>
+</pre>
+<p class="calibre3">Instead of using libvirt, we can start a new guest OS with the same shared directory we use in this recipe, by just running the following, just make sure to stop the <kbd class="calibre13">libvirt</kbd> instance we started earlier first:</p>
+<pre class="calibre23">
+<strong class="calibre4">root@kvm:~# qemu-system-x86_64 -name debian -fsdev local,id=tmp,path=/tmp/shared,security_model=passthrough -device virtio-9p-pci,fsdev=tmp,mount_tag=tmp_shared -enable-kvm -usbdevice tablet -vnc 146.20.141.158:0 -m 1024 -drive format=raw,file=/tmp/kvm1.img -daemonize</strong><br class="calibre7"/><strong class="calibre4">root@kvm:~#<br class="calibre7"/><br class="calibre7"/></strong>
+</pre>
+<p class="calibre3">You should be able to use your VNC client to connect to the guest and perform the same steps to mount the shared directory, as we did earlier.</p>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">Autostarting KVM instances</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">Once a KVM instance has been defined and started, it will run until the host OS is up. Once the host OS restarts, instances build with libvirt will not automatically start once the host is up and the <kbd class="calibre13">libvirt</kbd> daemon is running. In this recipe, we are going to change this behavior and ensure virtual instance start when the <kbd class="calibre13">libvirt</kbd> daemon starts. </p>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">Getting ready</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">For this recipe, we are going to need a single KVM instance build with libvirt.</p>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">How to do it...</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">To configure a KVM guest to automatically start after a server, or <kbd class="calibre13">libvirtd</kbd> restart, run the following:</p>
+<ol class="calibre18">
+<li value="1" class="calibre17"><span>Enable the VM <kbd class="calibre13">autostart</kbd>:</span></li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# virsh autostart kvm1</strong><br class="calibre7"/><strong class="calibre4">Domain kvm1 marked as autostarted</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@kvm:~#</strong>
+</pre>
+<ol start="2" class="calibre18">
+<li value="2" class="calibre17">Obtain information for the instance:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# virsh dominfo kvm1</strong><br class="calibre7"/><strong class="calibre4">Id: 31</strong><br class="calibre7"/><strong class="calibre4">Name: kvm1</strong><br class="calibre7"/><strong class="calibre4">UUID: 6ad84d8a-229d-d1f6-ecfc-d29a25fcfa03</strong><br class="calibre7"/><strong class="calibre4">OS Type: hvm</strong><br class="calibre7"/><strong class="calibre4">State: running</strong><br class="calibre7"/><strong class="calibre4">CPU(s): 2</strong><br class="calibre7"/><strong class="calibre4">CPU time: 10.9s</strong><br class="calibre7"/><strong class="calibre4">Max memory: 2097152 KiB</strong><br class="calibre7"/><strong class="calibre4">Used memory: 1048576 KiB</strong><br class="calibre7"/><strong class="calibre4">Persistent: yes</strong><br class="calibre7"/><strong class="calibre4">Autostart: enable</strong><br class="calibre7"/><strong class="calibre4">Managed save: no</strong><br class="calibre7"/><strong class="calibre4">Security model: none</strong><br class="calibre7"/><strong class="calibre4">Security DOI: 0</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@kvm:~#</strong>
+</pre>
+<ol start="3" class="calibre18">
+<li value="3" class="calibre17">Stop the running instance and ensure that it is in the <kbd class="calibre13">shut off</kbd> state:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# virsh destroy kvm1</strong><br class="calibre7"/><strong class="calibre4">Domain kvm1 destroyed</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@kvm:~# virsh list --all</strong><br class="calibre7"/><strong class="calibre4"> Id  Name  State</strong><br class="calibre7"/><strong class="calibre4">----------------------------------------------------</strong><br class="calibre7"/><strong class="calibre4"> -   kvm1  shut off</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@kvm:~#</strong>
+</pre>
+<ol start="4" class="calibre18">
+<li value="4" class="calibre17">Stop the <kbd class="calibre13">libvirt</kbd> daemon and ensure that it is not running:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# /etc/init.d/libvirt-bin stop</strong><br class="calibre7"/><strong class="calibre4">libvirt-bin stop/waiting</strong><br class="calibre7"/><strong class="calibre4">root@kvm:~# pgrep -lfa libvirtd</strong><br class="calibre7"/><strong class="calibre4">root@kvm:~#</strong>
+</pre>
+<ol start="5" class="calibre18">
+<li value="5" class="calibre17">Start back the <kbd class="calibre13">libvirt</kbd> daemon:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# /etc/init.d/libvirt-bin start</strong><br class="calibre7"/><strong class="calibre4">libvirt-bin start/running, process 6639</strong><br class="calibre7"/><strong class="calibre4">root@kvm:~#</strong>
+</pre>
+<ol start="6" class="calibre18">
+<li value="6" class="calibre17">List all running instances:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# virsh list --all</strong><br class="calibre7"/><strong class="calibre4"> Id Name State</strong><br class="calibre7"/><strong class="calibre4">----------------------------------------------------</strong><br class="calibre7"/><strong class="calibre4"> 2  kvm1 running</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@kvm:~#</strong>
+</pre>
+<ol start="7" class="calibre18">
+<li value="7" class="calibre17">Disable the <kbd class="calibre13">autostart</kbd> option:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# virsh autostart kvm1 --disable</strong><br class="calibre7"/><strong class="calibre4">Domain kvm1 unmarked as autostarted</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@kvm:~#</strong>
+</pre>
+<ol start="8" class="calibre18">
+<li value="8" class="calibre17">Verify the change:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# virsh dominfo kvm1 | grep -i autostart</strong><br class="calibre7"/><strong class="calibre4">Autostart: disable</strong><br class="calibre7"/><strong class="calibre4">root@kvm:~#</strong>
+</pre>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">How it works...</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">In this simple recipe, we enabled the <kbd class="calibre13">autostart</kbd> feature of a libvirt controlled KVM instance. </p>
+<p class="calibre3">In step 1, we enabled <kbd class="calibre13">autostart</kbd> and verified that it has been enabled in step 2.</p>
+<p class="calibre3">Next, to simulate a server restart, we first stop the running instance in step 3 and the <kbd class="calibre13">libvirt</kbd> daemon in step 4. </p>
+<p class="calibre3">In step 5, we started the <kbd class="calibre13">libvirt</kbd> daemon back and observe that it started the virtual machine as well, as seen in step 6.</p>
+<p class="calibre3">Finally, in steps 7 and 8, we disable the <kbd class="calibre13">autostart</kbd> feature and ensure that it indeed has been disabled.</p>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">Working with storage pools</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">Libvirt provides a centralized way of managing instance volumes (being image files or directories) by defining storage pools. A storage pool is a collection of volumes that then can be assigned to virtual machines and used to host their filesystems or added as additional block devices. The main benefits of using storage pools is the ability for libvirt to present and manage the given storage type to VMs in a centralized way.</p>
+<p class="calibre3">As of this writing, the following storage pool backends are available:</p>
+<ul class="calibre16">
+<li class="calibre17">Directory backend</li>
+<li class="calibre17">Local filesystem backend</li>
+<li class="calibre17">Network filesystem backend</li>
+<li class="calibre17">Logical backend</li>
+<li class="calibre17">Disk backend</li>
+<li class="calibre17">iSCSI backend</li>
+<li class="calibre17">SCSI backend</li>
+<li class="calibre17">Multipath backend</li>
+<li class="calibre17">RADOS block device backend</li>
+<li class="calibre17">Sheepdog backend</li>
+<li class="calibre17">Gluster backend</li>
+<li class="calibre17">ZFS backend</li>
+<li class="calibre17">Virtuozzo storage backend</li>
+</ul>
+<p class="calibre3">In this recipe, we are going to create a directory-backed storage pool, move an existing image to it, and then provision a new KVM instance using the storage pool and volume.</p>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">Getting ready</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">For this recipe, we are going to need the following:</p>
+<ul class="calibre16">
+<li class="calibre17">The Debian raw image we created in the <em class="calibre22">Building new KVM instances with virt-install and using the console</em> recipe</li>
+<li class="calibre17">The <kbd class="calibre13">libvirt</kbd> package</li>
+</ul>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">How to do it...</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">The following steps demonstrate how to create a new storage pool, inspect it, and assign it to a virtual machine:</p>
+<ol class="calibre18">
+<li value="1" class="calibre17"><span>Copy the raw Debian</span> image <span>file we created in the </span><span><em class="calibre22">Building new KVM instances with virt-install and using the console</em> </span><span>recipe earlier in this chapter:</span></li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# cp /tmp/kvm1.img /var/lib/libvirt/images/</strong><br class="calibre7"/><strong class="calibre4">root@kvm:~#</strong>
+</pre>
+<ol start="2" class="calibre18">
+<li value="2" class="calibre17">Create the following storage pool definition:<span> </span></li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# cat file_storage_pool.xml</strong><br class="calibre7"/><strong class="calibre4">&lt;pool type="dir"&gt;</strong><br class="calibre7"/><strong class="calibre4"> &lt;name&gt;file_virtimages&lt;/name&gt;</strong><br class="calibre7"/><strong class="calibre4"> &lt;target&gt;</strong><br class="calibre7"/><strong class="calibre4">   &lt;path&gt;/var/lib/libvirt/images&lt;/path&gt;</strong><br class="calibre7"/><strong class="calibre4"> &lt;/target&gt;</strong><br class="calibre7"/><strong class="calibre4">&lt;/pool&gt;</strong><br class="calibre7"/><strong class="calibre4">root@kvm:~#</strong>
+</pre>
+<ol start="3" class="calibre18">
+<li value="3" class="calibre17">Define the new storage pool:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# virsh pool-define file_storage_pool.xml</strong><br class="calibre7"/><strong class="calibre4">Pool file_virtimages defined from file_storage_pool.xml</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@kvm:~#</strong>
+</pre>
+<ol start="4" class="calibre18">
+<li value="4" class="calibre17">List all storage pools:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# virsh pool-list --all</strong><br class="calibre7"/><strong class="calibre4"> Name            State    Autostart</strong><br class="calibre7"/><strong class="calibre4">-------------------------------------------</strong><br class="calibre7"/><strong class="calibre4"> file_virtimages inactive no</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@kvm:~#</strong>
+</pre>
+<ol start="5" class="calibre18">
+<li value="5" class="calibre17">Start the new storage pool and ensure that it's active:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# virsh pool-start file_virtimages</strong><br class="calibre7"/><strong class="calibre4">Pool file_virtimages started</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@kvm:~# virsh pool-list --all</strong><br class="calibre7"/><strong class="calibre4"> Name            State  Autostart</strong><br class="calibre7"/><strong class="calibre4">-------------------------------------------</strong><br class="calibre7"/><strong class="calibre4"> file_virtimages active no</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@kvm:~#</strong>
+</pre>
+<ol start="6" class="calibre18">
+<li value="6" class="calibre17">Enable the <kbd class="calibre13">autostart</kbd> feature on the storage pool:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# virsh pool-autostart file_virtimages</strong><br class="calibre7"/><strong class="calibre4">Pool file_virtimages marked as autostarted</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@kvm:~# virsh pool-list --all</strong><br class="calibre7"/><strong class="calibre4"> Name            State  Autostart</strong><br class="calibre7"/><strong class="calibre4">-------------------------------------------</strong><br class="calibre7"/><strong class="calibre4"> file_virtimages active yes</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@kvm:~#</strong>
+</pre>
+<ol start="7" class="calibre18">
+<li value="7" class="calibre17">Obtain more information about the storage pool:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# virsh pool-info file_virtimages</strong><br class="calibre7"/><strong class="calibre4">Name: file_virtimages</strong><br class="calibre7"/><strong class="calibre4">UUID: d51d500b-8885-4c26-8000-2ae46ffe9018</strong><br class="calibre7"/><strong class="calibre4">State: running</strong><br class="calibre7"/><strong class="calibre4">Persistent: yes</strong><br class="calibre7"/><strong class="calibre4">Autostart: yes</strong><br class="calibre7"/><strong class="calibre4">Capacity: 219.87 GiB</strong><br class="calibre7"/><strong class="calibre4">Allocation: 7.99 GiB</strong><br class="calibre7"/><strong class="calibre4">Available: 211.88 GiB</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@kvm:~#</strong>
+</pre>
+<ol start="8" class="calibre18">
+<li value="8" class="calibre17">List all volumes that are a part of the storage pool:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# virsh vol-list file_virtimages</strong><br class="calibre7"/><strong class="calibre4"> Name     Path</strong><br class="calibre7"/><strong class="calibre4">----------------------------------------------------</strong><br class="calibre7"/><strong class="calibre4"> kvm1.img /var/lib/libvirt/images/kvm1.img</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@kvm:~#</strong>
+</pre>
+<ol start="9" class="calibre18">
+<li value="9" class="calibre17">Obtain information on the volume:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# virsh vol-info /var/lib/libvirt/images/kvm1.img</strong><br class="calibre7"/><strong class="calibre4">Name: kvm1.img</strong><br class="calibre7"/><strong class="calibre4">Type: file</strong><br class="calibre7"/><strong class="calibre4">Capacity: 8.00 GiB</strong><br class="calibre7"/><strong class="calibre4">Allocation: 1.87 GiB</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@kvm:~#</strong>
+</pre>
+<ol start="10" class="calibre18">
+<li value="10" class="calibre17">Start new KVM instance using the storage pool and volume, then ensure that it's running:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# virt-install --name kvm1 --ram 1024 --graphics vnc,listen=146.20.141.158 --hvm --disk vol=file_virtimages/kvm1.img --import</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">Starting install...</strong><br class="calibre7"/><strong class="calibre4">Creating domain... | 0 B 00:00</strong><br class="calibre7"/><strong class="calibre4">Domain creation completed. You can restart your domain by running:</strong><br class="calibre7"/><strong class="calibre4"> virsh --connect qemu:///system start kvm1</strong><br class="calibre7"/><strong class="calibre4">root@kvm:~#</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@kvm:~# virsh list --all</strong><br class="calibre7"/><strong class="calibre4"> Id Name State</strong><br class="calibre7"/><strong class="calibre4">----------------------------------------------------</strong><br class="calibre7"/><strong class="calibre4"> 3  kvm1 running</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@kvm:~#</strong>
+</pre>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">How it works...</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">We start this recipe with an image of a Debian OS that we installed earlier in the book; however, you can use an <kbd class="calibre13">empty</kbd>, <kbd class="calibre13">raw</kbd>, or <kbd class="calibre13">qcow2</kbd> image, add it to the storage pool, and install the virtual machine OS on it with almost no changes to the recipe steps if you don't have that image already. </p>
+<p class="calibre3">In step 1, we copy the VM image to the default libvirt storage pool location in <kbd class="calibre13">/var/lib/libvirt/images/</kbd>, but you can create your own directory, the location does not matter as long as it's defined in the storage pool configuration file. We do that in step 2.</p>
+<p class="calibre3">In step 3, we define the new storage pool, by specifying a name, target directory, and the type of the pool, in this case, a directory backend pool. We then proceed to list the new pool in step 4. Note that, once defined, we still need to start it, just like defining a new KVM instance from an XML file. By default, the <kbd class="calibre13">autostart</kbd> option is not enabled on a new storage pool.</p>
+<p class="calibre3">In step 5, we start the storage pool and ensure that it's active. We then proceed to enable the <kbd class="calibre13">autostart</kbd> feature so that the volumes can be used in case the host server restarts in step 6.</p>
+<p class="calibre3">Although not mandatory, we check the metadata provided for the storage pool and its volumes in step 7. Note that the allocation field shows how much space is used by the volumes in the pool. We currently have a single raw image with that exact size.</p>
+<p class="calibre3">In step 8, we list all volumes that are a part of the new storage pool and obtain further information about the single volume in step 9.</p>
+<p class="calibre3">Finally in step 10, we start a new KVM instance using the storage pool and volume by passing the storage pool and volume names to the vol disk type. </p>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">There's more...</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">Let's look at a slightly more complicated example of using storage pools by defining an iSCSI-backed pool.</p>
+<p class="calibre3">Creating an iSCSI target and logging it on the initiator  server is beyond the scope of this recipe, so we assume that you have an iSCSI target ready to be used from a remote server. The new storage pool definition is as follows:</p>
+<pre class="calibre23">
+<strong class="calibre4">&lt;pool type='iscsi'&gt;</strong><br class="calibre7"/><strong class="calibre4"> &lt;name&gt;iscsi_virtimages&lt;/name&gt;</strong><br class="calibre7"/><strong class="calibre4"> &lt;source&gt;</strong><br class="calibre7"/><strong class="calibre4">   &lt;host name='iscsi-target.linux-admins.net'/&gt;</strong><br class="calibre7"/><strong class="calibre4">   &lt;device path='iqn.2004-04.ubuntu:ubuntu16:iscsi.libvirtkvm'/&gt;</strong><br class="calibre7"/><strong class="calibre4"> &lt;/source&gt;</strong><br class="calibre7"/><strong class="calibre4"> &lt;target&gt;</strong><br class="calibre7"/><strong class="calibre4">   &lt;path&gt;/dev/disk/by-path&lt;/path&gt;</strong><br class="calibre7"/><strong class="calibre4"> &lt;/target&gt;</strong><br class="calibre7"/><strong class="calibre4">&lt;/pool&gt;</strong>
+</pre>
+<p class="calibre3">The file is very similar to the directory-backed storage pool, the main difference are the following attributes:</p>
+<ul class="calibre16">
+<li class="calibre17">The <kbd class="calibre13">&lt;host&gt;</kbd> attribute specifies the hostname of the iSCSI target server that is exporting the iSCSI LUN</li>
+<li class="calibre17">The <kbd class="calibre13">&lt;device&gt;</kbd> specifies the name of the iSCSI LUN we are going to log in</li>
+<li class="calibre17">Once a new iSCSI block device has been logged in, it will appear in the location specified in <kbd class="calibre13">&lt;path&gt;</kbd>, on most Linux distributions in the <kbd class="calibre13">/dev/disk/by-path</kbd> directory</li>
+</ul>
+<p class="calibre3">We define and start the new storage pool the same way we did in steps 3 and 5 earlier in the recipe. Once the storage pool is active, libvirt will log the remote iSCSI target LUNs. We can list the available iSCSI volumes as usual:</p>
+<pre class="calibre23">
+<strong class="calibre4">root@kvm:~# virsh vol-list iscsi_virtimages</strong><br class="calibre7"/><strong class="calibre4">Name Path</strong><br class="calibre7"/><strong class="calibre4">-----------------------------------------</strong><br class="calibre7"/><strong class="calibre4">10.0.0.1 /dev/disk/by-path/ip-10.184.226.106:3260-iscsi-iqn.2004-04.ubuntu:ubuntu16:iscsi.libvirtkvm-lun-1</strong><br class="calibre7"/><strong class="calibre4">root@kvm:~#</strong>
+</pre>
+<p class="calibre3">To start a new installation process using the iSCSI volume as the target for the guest OS filesystem, run the following code:</p>
+<pre class="calibre23">
+<strong class="calibre4">root@kvm:~# virt-install --name kvm1 --ram 1024 --extra-args="text console=tty0 utf8 console=ttyS0,115200" --graphics vnc,listen=146.20.141.158 --hvm --location=http://ftp.us.debian.org/debian/dists/stable/main/installer-amd64/ --disk vol=iscsi_virtimages/10.0.0.1</strong><br class="calibre7"/><strong class="calibre4">Starting install...</strong><br class="calibre7"/><strong class="calibre4">...</strong><br class="calibre7"/><strong class="calibre4">root@kvm:~#</strong>
+</pre>
+<div class="packt_infobox">For more information about the XML definition of the other backend types, please refer to <a href="https://libvirt.org/storage.html" class="calibre30">https://libvirt.org/storage.html</a>.</div>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">Managing volumes</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">In the previous recipe, we saw how to create new storage pools, add a volume to it, and create a new KVM instance using that volume. In this recipe, we are going to focus on manipulating volumes that are a part of an existing storage pool. Strictly speaking, we are not required to use storage pools and volumes in order to build VMs. We can use other tools to manage and manipulate the virtual instance images, such as the <kbd class="calibre13">qemu-img</kbd> utility. Using volumes is just a convenience for having a centralized storage repository of various backend types.</p>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">Getting ready</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">The main requirement of this recipe is to have an existing storage pool with the directory backend. If you skipped the previous recipe, now is that time to create a new one, as we'll be using it to manipulate volumes.</p>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">How to do it...</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">To create, inspect and assign volumes to an instance, run the following:</p>
+<ol class="calibre18">
+<li value="1" class="calibre17"><span>List the available storage pools:</span></li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# virsh pool-list --all</strong><br class="calibre7"/><strong class="calibre4"> Name            State  Autostart</strong><br class="calibre7"/><strong class="calibre4">-------------------------------------------</strong><br class="calibre7"/><strong class="calibre4"> file_virtimages active yes</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@kvm:~#</strong>
+</pre>
+<ol start="2" class="calibre18">
+<li value="2" class="calibre17">List the available volumes, that are a part of the storage pool:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# virsh vol-list file_virtimages</strong><br class="calibre7"/><strong class="calibre4"> Name     Path</strong><br class="calibre7"/><strong class="calibre4">--------------------------------------------------------------------</strong><br class="calibre7"/><strong class="calibre4"> kvm1.img /var/lib/libvirt/images/kvm1.img</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@kvm:~#</strong>
+</pre>
+<ol start="3" class="calibre18">
+<li value="3" class="calibre17">Create a new volume with the specified size:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# virsh vol-create-as file_virtimages new_volume.img 9G</strong><br class="calibre7"/><strong class="calibre4">Vol new_volume.img created</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@kvm:~#</strong>
+</pre>
+<ol start="4" class="calibre18">
+<li value="4" class="calibre17">List the volumes on the filesystem:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# ls -lah /var/lib/libvirt/images/</strong><br class="calibre7"/><strong class="calibre4">total 11G</strong><br class="calibre7"/><strong class="calibre4">drwx--x--x 2 root root 4.0K Mar 23 20:38 .</strong><br class="calibre7"/><strong class="calibre4">drwxr-xr-x 8 root root 4.0K Mar 21 23:16 ..</strong><br class="calibre7"/><strong class="calibre4">-rwxr-xr-x 1 libvirt-qemu kvm 8.0G Mar 23 20:23 kvm1.img</strong><br class="calibre7"/><strong class="calibre4">-rw------- 1 root root 9.0G Mar 23 20:38 new_volume.img</strong><br class="calibre7"/><strong class="calibre4">root@kvm:~#</strong>
+</pre>
+<ol start="5" class="calibre18">
+<li value="5" class="calibre17">Obtain information about the new volume:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# qemu-img info /var/lib/libvirt/images/new_volume.img</strong><br class="calibre7"/><strong class="calibre4">image: /var/lib/libvirt/images/new_volume.img</strong><br class="calibre7"/><strong class="calibre4">file format: raw</strong><br class="calibre7"/><strong class="calibre4">virtual size: 9.0G (9663676416 bytes)</strong><br class="calibre7"/><strong class="calibre4">disk size: 9.0G</strong><br class="calibre7"/><strong class="calibre4">root@kvm:~#</strong>
+</pre>
+<ol start="6" class="calibre18">
+<li value="6" class="calibre17">Use the <kbd class="calibre13">virsh</kbd> command to get even more information:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# virsh vol-info new_volume.img --pool file_virtimages</strong><br class="calibre7"/><strong class="calibre4">Name: new_volume.img</strong><br class="calibre7"/><strong class="calibre4">Type: file</strong><br class="calibre7"/><strong class="calibre4">Capacity: 9.00 GiB</strong><br class="calibre7"/><strong class="calibre4">Allocation: 9.00 GiB</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@kvm:~#</strong>
+</pre>
+<ol start="7" class="calibre18">
+<li value="7" class="calibre17">Dump the volume configuration:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# virsh vol-dumpxml new_volume.img --pool file_virtimages</strong><br class="calibre7"/><strong class="calibre4">&lt;volume type='file'&gt;</strong><br class="calibre7"/><strong class="calibre4"> &lt;name&gt;new_volume.img&lt;/name&gt;</strong><br class="calibre7"/><strong class="calibre4"> &lt;key&gt;/var/lib/libvirt/images/new_volume.img&lt;/key&gt;</strong><br class="calibre7"/><strong class="calibre4"> &lt;source&gt;</strong><br class="calibre7"/><strong class="calibre4"> &lt;/source&gt;</strong><br class="calibre7"/><strong class="calibre4"> &lt;capacity unit='bytes'&gt;9663676416&lt;/capacity&gt;</strong><br class="calibre7"/><strong class="calibre4"> &lt;allocation unit='bytes'&gt;9663680512&lt;/allocation&gt;</strong><br class="calibre7"/><strong class="calibre4"> &lt;target&gt;</strong><br class="calibre7"/><strong class="calibre4">   &lt;path&gt;/var/lib/libvirt/images/new_volume.img&lt;/path&gt;</strong><br class="calibre7"/><strong class="calibre4">   &lt;format type='raw'/&gt;</strong><br class="calibre7"/><strong class="calibre4">   &lt;permissions&gt;</strong><br class="calibre7"/><strong class="calibre4">     &lt;mode&gt;0600&lt;/mode&gt;</strong><br class="calibre7"/><strong class="calibre4">     &lt;owner&gt;0&lt;/owner&gt;</strong><br class="calibre7"/><strong class="calibre4">     &lt;group&gt;0&lt;/group&gt;</strong><br class="calibre7"/><strong class="calibre4">   &lt;/permissions&gt;</strong><br class="calibre7"/><strong class="calibre4">   &lt;timestamps&gt;</strong><br class="calibre7"/><strong class="calibre4">     &lt;atime&gt;1490301514.446004048&lt;/atime&gt;</strong><br class="calibre7"/><strong class="calibre4">     &lt;mtime&gt;1490301483.698003615&lt;/mtime&gt;</strong><br class="calibre7"/><strong class="calibre4">     &lt;ctime&gt;1490301483.702003615&lt;/ctime&gt;</strong><br class="calibre7"/><strong class="calibre4">   &lt;/timestamps&gt;</strong><br class="calibre7"/><strong class="calibre4"> &lt;/target&gt;</strong><br class="calibre7"/><strong class="calibre4">&lt;/volume&gt;</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@kvm:~#</strong>
+</pre>
+<ol start="8" class="calibre18">
+<li value="8" class="calibre17">Resize the volume and display the new size:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# virsh vol-resize new_volume.img 10G --pool file_virtimages</strong><br class="calibre7"/><strong class="calibre4">Size of volume 'new_volume.img' successfully changed to 10G</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@kvm:~# virsh vol-info new_volume.img --pool file_virtimages</strong><br class="calibre7"/><strong class="calibre4">Name: new_volume.img</strong><br class="calibre7"/><strong class="calibre4">Type: file</strong><br class="calibre7"/><strong class="calibre4">Capacity: 10.00 GiB</strong><br class="calibre7"/><strong class="calibre4">Allocation: 9.00 GiB</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@kvm:~#</strong>
+</pre>
+<ol start="9" class="calibre18">
+<li value="9" class="calibre17">Delete the volume and list all available volumes in the storage pool:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# virsh vol-delete new_volume.img --pool file_virtimages</strong><br class="calibre7"/><strong class="calibre4">Vol new_volume.img deleted</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@kvm:~# virsh vol-list file_virtimages</strong><br class="calibre7"/><strong class="calibre4"> Name     Path</strong><br class="calibre7"/><strong class="calibre4">------------------------------------------------------------------</strong><br class="calibre7"/><strong class="calibre4"> kvm1.img /var/lib/libvirt/images/kvm1.img</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@kvm:~#</strong>
+</pre>
+<ol start="10" class="calibre18">
+<li value="10" class="calibre17">Clone the existing volume:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# virsh vol-clone kvm1.img kvm2.img --pool file_virtimages</strong><br class="calibre7"/><strong class="calibre4">Vol kvm2.img cloned from kvm1.img</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@kvm:~# virsh vol-list file_virtimages</strong><br class="calibre7"/><strong class="calibre4"> Name     Path</strong><br class="calibre7"/><strong class="calibre4">--------------------------------------------------------------------</strong><br class="calibre7"/><strong class="calibre4"> kvm1.img /var/lib/libvirt/images/kvm1.img</strong><br class="calibre7"/><strong class="calibre4"> kvm2.img /var/lib/libvirt/images/kvm2.img</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@kvm:~#</strong>
+</pre>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">How it works...</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">We start this recipe with the <kbd class="calibre13">file_virtimages</kbd> storage pool we created in the previous recipe. We list all storage pools in step 1 to confirm that. In step 2, we see that our storage pool contains a single volume. No surprises here as we created that in the last recipe in this chapter. </p>
+<p class="calibre3">In step 3, we create a new volume, by specifying its name, size, and the storage pool we want it to be a part of. Since this is a directory-backed storage pool, we can see the volume as a raw image file in step 4.</p>
+<p class="calibre3">In steps 5 and 6, we collect more information about the new volume. We can see that it is a raw, therefore by default a sparse image. Sparse images don't allocate all of the disk space and grow as more data is being written to it.</p>
+<p class="calibre3">In step 7, we dump the definition of the volume. We can use that to define a new volume later on with the <kbd class="calibre13">virsh vol-create</kbd> command.</p>
+<p class="calibre3">Libvirt provides a convenient way to resize existing images. This is what we do in step 8--we resize the image to 10 GB. We can now see that the allocation size is smaller than the capacity; this is because the image is raw.</p>
+<p class="calibre3">Finally, in step 9, we delete the image, though we could have used it to install a new virtual machine, as shown in the <em class="calibre22">Working with storage pools</em> recipe.</p>
+<p class="calibre3">In the last step, we use the existing Debian image and created a clone volume from it. Starting a virtual machine using the cloned volume will result in an identical KVM instance, as the one we cloned the volume from. This combined with a dump of the instance definition is a great way to backup your KVM instances, as long as you store the volume image file and the XML definition file to a remote location. We are going to explore backing up KVM instances in later recipes.</p>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">Managing secrets</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">Libvirt provides an API to create, store, and use secrets. Secrets are objects that contain sensitive information such as passwords, that can be associated with different volume backend types. Recall from the <em class="calibre22">Working with storage pools</em> recipe, which we created an iSCSI pool and volume from a remote iSCSI target and used it as the image for a KVM guest. In production environments, more often than not iSCSI targets are presented with CHAP authentication. In this recipe, we are going to create a secret to be used with an iSCSI volume.</p>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">Getting ready</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">For this recipe, we are going to need the following:</p>
+<ul class="calibre16">
+<li class="calibre17">A storage pool with an iSCSI-backed volume</li>
+<li class="calibre17">The <kbd class="calibre13">libvirt</kbd> package</li>
+</ul>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">How to do it...</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">To define and list secrets with libvirt, perform the steps outlined here:</p>
+<ol class="calibre18">
+<li value="1" class="calibre17"><span>List all available secrets:</span></li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# virsh secret-list</strong><br class="calibre7"/><strong class="calibre4"> UUID Usage</strong><br class="calibre7"/><strong class="calibre4">-------------------------------------------------------------------</strong><br class="calibre7"/><strong class="calibre4">root@kvm:~#</strong>
+</pre>
+<ol start="2" class="calibre18">
+<li value="2" class="calibre17">Create the following secrets definition:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# cat volume_secret.xml</strong><br class="calibre7"/><strong class="calibre4">&lt;secret ephemeral='no'&gt;</strong><br class="calibre7"/><strong class="calibre4"> &lt;description&gt;Passphrase for the iSCSI iscsi-target.linux-admins.net target server&lt;/description&gt;</strong><br class="calibre7"/><strong class="calibre4"> &lt;usage type='iscsi'&gt;</strong><br class="calibre7"/><strong class="calibre4">   &lt;target&gt;iscsi_secret&lt;/target&gt;</strong><br class="calibre7"/><strong class="calibre4"> &lt;/usage&gt;</strong><br class="calibre7"/><strong class="calibre4">&lt;/secret&gt;</strong><br class="calibre7"/><strong class="calibre4">root@kvm:~#</strong>
+</pre>
+<ol start="3" class="calibre18">
+<li value="3" class="calibre17">Create the secret and ensure that it has been successfully created:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# virsh secret-define volume_secret.xml</strong><br class="calibre7"/><strong class="calibre4">Secret 7ad1c208-c2c5-4723-8dc5-e2f4f576101a created</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@kvm:~# virsh secret-list</strong><br class="calibre7"/><strong class="calibre4"> UUID                                 Usage</strong><br class="calibre7"/><strong class="calibre4">-----------------------------------------------------------------</strong><br class="calibre7"/><strong class="calibre4"> 7ad1c208-c2c5-4723-8dc5-e2f4f576101a iscsi iscsi_secret</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@kvm:~#</strong>
+</pre>
+<ol start="4" class="calibre18">
+<li value="4" class="calibre17">Set a value for the secret:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# virsh secret-set-value 7ad1c208-c2c5-4723-8dc5-e2f4f576101a $(echo "some_password" | base64)</strong><br class="calibre7"/><strong class="calibre4">Secret value set</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@kvm:~#</strong>
+</pre>
+<ol start="5" class="calibre18">
+<li value="5" class="calibre17">Create a new iSCSI pool definition file:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# cat iscsi.xml</strong><br class="calibre7"/><strong class="calibre4">&lt;pool type='iscsi'&gt;</strong><br class="calibre7"/><strong class="calibre4"> &lt;name&gt;iscsi_virtimages&lt;/name&gt;</strong><br class="calibre7"/><strong class="calibre4"> &lt;source&gt;</strong><br class="calibre7"/><strong class="calibre4">   &lt;host name='iscsi-target.linux-admins.net'/&gt;</strong><br class="calibre7"/><strong class="calibre4">   &lt;device path='iqn.2004-04.ubuntu:ubuntu16:iscsi.libvirtkvm'/&gt;</strong><br class="calibre7"/><strong class="calibre4">   &lt;auth type='chap' username='iscsi_user'&gt;</strong><br class="calibre7"/><strong class="calibre4">     &lt;secret usage='iscsi_secret'/&gt;</strong><br class="calibre7"/><strong class="calibre4">   &lt;/auth&gt;</strong><br class="calibre7"/><strong class="calibre4"> &lt;/source&gt;</strong><br class="calibre7"/><strong class="calibre4"> &lt;target&gt;</strong><br class="calibre7"/><strong class="calibre4">   &lt;path&gt;/dev/disk/by-path&lt;/path&gt;</strong><br class="calibre7"/><strong class="calibre4"> &lt;/target&gt;</strong><br class="calibre7"/><strong class="calibre4">&lt;/pool&gt;</strong><br class="calibre7"/><strong class="calibre4">root@kvm:~#</strong>
+</pre>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">How it works...</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">In step 1, we list all available secrets that libvirt knows about. Since we haven't created any, the list is empty.</p>
+<p class="calibre3">In step 2, we create the XML definition of the secret. The XML elements that we use to define the secret are:</p>
+<ul class="calibre16">
+<li class="calibre17">The <kbd class="calibre13">&lt;secret&gt;</kbd> root element, with an optional <kbd class="calibre13">ephemeral</kbd> attribute, telling <kbd class="calibre13">libvirt</kbd> that the password should only be stored in memory, if set to yes.</li>
+<li class="calibre17">The <kbd class="calibre13">&lt;description&gt;</kbd> attribute containing an arbitrary description.</li>
+<li class="calibre17">The <kbd class="calibre13">&lt;usage&gt;</kbd> element specifies what the secrets is going to be used for and its type. In this example, the <kbd class="calibre13">type</kbd> attribute is set to iSCSI. The other available types are <kbd class="calibre13">volume</kbd>, <kbd class="calibre13">ceph</kbd>, and <kbd class="calibre13">tls</kbd>. The <kbd class="calibre13">type</kbd> attribute is mandatory. </li>
+<li class="calibre17">The <kbd class="calibre13">&lt;target&gt;</kbd> element that specifies an arbitrary name is to be used in the iSCSI pool definition.</li>
+</ul>
+<p class="calibre3">With the configuration file in place, we create the secret in step 3. If the operation is successful, libvirt returns an UUID that identifies the secret.</p>
+<p class="calibre3">In step 4, we set a value for the secret, by base64 encoding the <kbd class="calibre13">some_password</kbd> string, which is the password for the iSCSI target we would like to use, as a storage pool volume.</p>
+<p class="calibre3">And finally in step 5, we add the <kbd class="calibre13">&lt;auth&gt;</kbd> attribute under the <kbd class="calibre13">&lt;source&gt;</kbd> section of the iSCSI pool definition. Note that the secret we would like the iSCSI volume to use is specified in the <kbd class="calibre13">&lt;secret usage='iscsi_secret'/&gt;</kbd> attribute. Libvirt can now use the <kbd class="calibre13">iscsi_secret</kbd> name to locate the actual password that it has stored.</p>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    </body></html>

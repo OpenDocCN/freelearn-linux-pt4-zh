@@ -1,0 +1,635 @@
+<html><head></head><body><div class="chapter" title="Chapter&#xA0;11.&#xA0;A Wireless Home Controller with Z-Wave"><div class="titlepage"><div><div><h1 class="title"><a id="ch11"/>Chapter 11. A Wireless Home Controller with Z-Wave</h1></div></div></div><p>In<a id="id499" class="indexterm"/> this project, we'll see how to implement a little wireless home controller by using a Z-Wave controller connected with our BeagleBone Black and two Z-Wave devices: a wall plug and a multisensor device. With the former, we'll be able to turn on and off every household appliance connected to it, and, at the same time, measure its power consumption. With the latter, we'll be able to measure several environment variables like temperature, humidity, and luminance (and have a motion detector capability too).</p><p>The Z-Wave communication protocol allows us to manage several home automation sensors and actuators wirelessly, so we don't need to modify our pre-existing plant. Also, we can easily add a power consumption measuring system or several environment sensors with a minor impact on the actual home layout.</p><p>As a last step, to keep the code simple, but in order to allow the user to easily manage the system, we'll write a simple web interface written in Python to easily manage the prototype.</p><div class="section" title="The basics of functioning"><div class="titlepage"><div><div><h1 class="title"><a id="ch11lvl1sec60"/>The basics of functioning</h1></div></div></div><p>This<a id="id500" class="indexterm"/> time, the project is a bit more complex than before, but all the complexity is not in the hardware (the connections are very simple, just plug in a USB dongle and the trick is done!,) but in the software! In fact, the management software to set up and control these devices needs some skills. Also, due to the fact that the Z-Wave world is really huge, and the lack of space for it in this book (I suppose I can ask my editor to write a dedicated book just to explain how to use the Z-Wave for the home automation projects!), I'm just going to present the very basics of the Z-Wave protocol, showing a minimal application that you can expand on your own.</p><p>As stated before, we're going to use a Z-Wave controller connected to the BeagleBone Black's USB host port to manage two Z-Wave devices: one used to measure some environment data, and one to turn on and off a connected device. So, what we have to do is to write some software to be able to send and receive messages to/from these devices via the controller in order to exchange data and commands between the BeagleBone Black and the two slave devices. The code we're going to write should have a part to manage the <a id="id501" class="indexterm"/>Z-Wave messages and a part to interact with the user. Regarding this last part, I decided to use a web interface written in Python with a little code in HTML and JavaScript.</p></div></div>
+<div class="section" title="Setting up the hardware"><div class="titlepage"><div><div><h1 class="title"><a id="ch11lvl1sec61"/>Setting up the hardware</h1></div></div></div><p>The <a id="id502" class="indexterm"/>Z-Wave technology, which is oriented to the residential control and automation market, is designed to be suitable for battery-operated devices. In fact, one of its main goals is to minimize the power consumption. Despite this fact, it provides reliable and low-latency transmission of small data packets at data rates of up to 100 kbps, and a simple yet reliable method to wirelessly manage sensors and control lights and appliances in a house.</p><div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="note110"/>Note</h3><p>For more information on <a id="id503" class="indexterm"/>Z-Wave, a good starting point is at <a class="ulink" href="https://en.wikipedia.org/wiki/Z-Wave">https://en.wikipedia.org/wiki/Z-Wave</a>.</p></div></div><p>In our project, we're going to use a Z-Wave controller on a USB dongle, one slave device powered by the same plug where it's connected to, and one multisensor device that can be powered by batteries or via an external USB connection.</p><div class="section" title="Setting up the Z-Wave controller"><div class="titlepage"><div><div><h2 class="title"><a id="ch11lvl2sec87"/>Setting up the Z-Wave controller</h2></div></div></div><p>The <a id="id504" class="indexterm"/>Z-Wave controller I <a id="id505" class="indexterm"/>used in this prototype is shown in the following image:</p><div class="mediaobject"><img src="graphics/B00255_11_01.jpg" alt="Setting up the Z-Wave controller"/></div><div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="note111"/>Note</h3><p>The device can be<a id="id506" class="indexterm"/> purchased at the following link (or by surfing the Internet): <a class="ulink" href="http://www.cosino.io/product/usb-z-wave-controller">http://www.cosino.io/product/usb-z-wave-controller</a>.</p><p>A reference design is available here:</p><p>
+<a class="ulink" href="http://z-wave.sigmadesigns.com/docs/brochures/UZB_br.pdf">http://z-wave.sigmadesigns.com/docs/brochures/UZB_br.pdf</a>.</p></div></div><p>Once <a id="id507" class="indexterm"/>connected with the BeagleBone Black's USB host port by using the<a id="id508" class="indexterm"/> <code class="literal">lsusb</code> command, we should get the following output:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@beaglebone:~# lsusb</strong></span>
+<span class="strong"><strong>Bus 001 Device 002: ID 0658:0200 Sigma Designs, Inc.</strong></span>
+<span class="strong"><strong>Bus 001 Device 001: ID 1d6b:0002 Linux Foundation 2.0 root hub</strong></span>
+<span class="strong"><strong>Bus 002 Device 001: ID 1d6b:0002 Linux Foundation 2.0 root hub</strong></span>
+</pre></div><p>Also we should see the following kernel activity:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>hub 1-0:1.0: hub_resume</strong></span>
+<span class="strong"><strong>hub 1-0:1.0: port 1: status 0101 change 0001</strong></span>
+<span class="strong"><strong>hub 1-0:1.0: state 7 ports 1 chg 0002 evt 0000</strong></span>
+<span class="strong"><strong>hub 1-0:1.0: port 1, status 0101, change 0000, 12 Mb/s</strong></span>
+<span class="strong"><strong>usb 1-1: new full-speed USB device number 2 using musb-hdrc</strong></span>
+<span class="strong"><strong>usb 1-1: ep0 maxpacket = 8</strong></span>
+<span class="strong"><strong>usb 1-1: skipped 4 descriptors after interface</strong></span>
+<span class="strong"><strong>usb 1-1: udev 2, busnum 1, minor = 1</strong></span>
+<span class="strong"><strong>usb 1-1: New USB device found, idVendor=0658, idProduct=0200</strong></span>
+<span class="strong"><strong>usb 1-1: New USB device strings: Mfr=0, Product=0, SerialNumber=0</strong></span>
+<span class="strong"><strong>usb 1-1: usb_probe_device</strong></span>
+<span class="strong"><strong>usb 1-1: configuration #1 chosen from 1 choice</strong></span>
+<span class="strong"><strong>usb 1-1: adding 1-1:1.0 (config #1, interface 0)</strong></span>
+<span class="strong"><strong>cdc_acm 1-1:1.0: usb_probe_interface</strong></span>
+<span class="strong"><strong>cdc_acm 1-1:1.0: usb_probe_interface - got id</strong></span>
+<span class="strong"><strong>cdc_acm 1-1:1.0: This device cannot do calls on its own. It is not a modem.</strong></span>
+<span class="strong"><strong>cdc_acm 1-1:1.0: ttyACM0: USB ACM device</strong></span>
+<span class="strong"><strong>usb 1-1: adding 1-1:1.1 (config #1, interface 1)</strong></span>
+<span class="strong"><strong>hub 1-0:1.0: state 7 ports 1 chg 0000 evt 0002</strong></span>
+<span class="strong"><strong>hub 1-0:1.0: port 1 enable change, status 00000103</strong></span>
+</pre></div><p>Looking at the last but fourth line, we can discover that the Z-Wave controller has been connected to the <code class="literal">/dev/ttyACM0</code> device file. So, the device is correctly connected. But to really test it, we need to install a proper management software. To do so, we can use an open source implementation of the Z-Wave protocol named <a id="id509" class="indexterm"/>
+<span class="strong"><strong>Open Z-Wave</strong></span>, where we can find a lot of suitable software to test a Z-Wave network.</p><div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="note112"/>Note</h3><p>The home page of the <a id="id510" class="indexterm"/>Open Z-Wave project is at <a class="ulink" href="http://www.openzwave.com">http://www.openzwave.com</a>.</p></div></div><p>With the<a id="id511" class="indexterm"/> following command, we can download the code we<a id="id512" class="indexterm"/> need into our prototype:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@beaglebone:~# git clone https://github.com/OpenZWave/open-zwave openzwave</strong></span>
+</pre></div><p>Then, we need some extra packages to compile the needed tools. So, let's install them with the following command:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@beaglebone:~# aptitude install build-essential make git libudev-dev libjson0 libjson0-dev libcurl4-gnutls-dev</strong></span>
+</pre></div><p>Now, just enter into the <code class="literal">openzwave</code> directory, and simply use the <code class="literal">make</code> command as follows:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@beaglebone:~# cd openzwave</strong></span>
+<span class="strong"><strong>root@beaglebone:~/openzwave# make</strong></span>
+</pre></div><div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="tip136"/>Tip</h3><p>The compilation is quite slow, so be patient.</p></div></div><p>When finished, we need to download another repository into the current directory with the following command:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@beaglebone:~/openzwave# git clone https://github.com/OpenZWave/open-zwave-control-panel openzwave-control-panel</strong></span>
+</pre></div><p>Then, after the download, we have to install an extra package to proceed with the compilation. So, let's use the <code class="literal">aptitude</code> command again, as follows:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@beaglebone:~/openzwave# aptitude install libmicrohttpd-dev</strong></span>
+</pre></div><p>Now, as the last step, enter into the <code class="literal">openzwave-control-panel</code> directory and rerun the <code class="literal">make</code> command with the following command lines:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@beaglebone:~/openzwave# cd openzwave-control-panel/</strong></span>
+<span class="strong"><strong>root@beaglebone:~/openzwave/openzwave-control-panel# make</strong></span>
+</pre></div><p>When the compilation is finished, the <code class="literal">ozwcp</code> program should be available. So, let's execute it by using the following command lines:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@beaglebone:~/openzwave/openzwave-control-panel# ln -s ../config</strong></span>
+<span class="strong"><strong>root@beaglebone:~/openzwave/openzwave-control-panel# ./ozwcp -d -p 8080</strong></span>
+<span class="strong"><strong>2014-04-23 21:12:52.943 Always, OpenZwave Version 1.3.526 Starting Up</strong></span>
+<span class="strong"><strong>webserver starting port 8080</strong></span>
+</pre></div><div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="tip137"/>Tip</h3><p>Note that the <code class="literal">ln</code> command is just used once to create a proper link with the Open Z-Wave configuration directory <code class="literal">config</code>, which is located in the upper directory.</p><p>If you get the following error while executing the program, it means that most probably your web server is holding port <code class="literal">8080</code>, so you have to disable it:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>Failed to bind to port 8080: Address already in use</strong></span>
+</pre></div></div></div><p>Now, we <a id="id513" class="indexterm"/>should point the web browser on our host PC to the <a id="id514" class="indexterm"/>address <code class="literal">http://192.168.7.2:8080/</code> to get what is shown in the following screenshot:</p><div class="mediaobject"><img src="graphics/B00255_11_02.jpg" alt="Setting up the Z-Wave controller"/></div><p>Okay, now we have to enter the <code class="literal">/dev/ttyACM0</code> path name into the <span class="strong"><strong>Device name</strong></span> field, and then press the <span class="strong"><strong>Initialize</strong></span> button to start the communication. If everything works well, you should see that a new device is listed in the <span class="strong"><strong>Devices</strong></span> tab, as shown in the following screenshot:</p><div class="mediaobject"><img src="graphics/B00255_11_03.jpg" alt="Setting up the Z-Wave controller"/></div><p>Now, the <a id="id515" class="indexterm"/>controller is up and running, so, we can continue <a id="id516" class="indexterm"/>installing the Z-Wave slaves.</p></div><div class="section" title="Setting up the Z-Wave wall plug"><div class="titlepage"><div><div><h2 class="title"><a id="ch11lvl2sec88"/>Setting up the Z-Wave wall plug</h2></div></div></div><p>The first <a id="id517" class="indexterm"/>Z-Wave <a id="id518" class="indexterm"/>slave is the wall plug shown in the following image:</p><div class="mediaobject"><img src="graphics/B00255_11_04.jpg" alt="Setting up the Z-Wave wall plug"/></div><div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="note113"/>Note</h3><p>The device can be <a id="id519" class="indexterm"/>purchased at the following link (or by surfing the Internet): <a class="ulink" href="http://www.cosino.io/product/z-wave-wall-plug">http://www.cosino.io/product/z-wave-wall-plug</a>.</p><p>A reference manual is available here:</p><p>
+<a class="ulink" href="http://www.fibaro.com/manuals/en/FGWPx-101/FGWPx-101-EN-A-v1.00.pdf">http://www.fibaro.com/manuals/en/FGWPx-101/FGWPx-101-EN-A-v1.00.pdf</a>.</p></div></div><p>The device is <a id="id520" class="indexterm"/>wireless<a id="id521" class="indexterm"/> and, once connected with a powered plug, it's self-powered; so, we don't need special connections to set it up. However, we need some home appliance connected to it, as shown in the following image, for the power consumption measurements:</p><div class="mediaobject"><img src="graphics/B00255_11_05.jpg" alt="Setting up the Z-Wave wall plug"/></div><p>Now, to test this<a id="id522" class="indexterm"/> device and its communication with the controller, we can use<a id="id523" class="indexterm"/> the <code class="literal">ozwcp</code> program again. Just click on the <span class="strong"><strong>Select an operation</strong></span> menu entry in the <span class="strong"><strong>Controller</strong></span> tab and select the <span class="strong"><strong>Add Device</strong></span> entry and then press the <span class="strong"><strong>Go</strong></span> button. On the left, you should see the <span class="strong"><strong>Add Device: waiting for a user action</strong></span> message. So, let's power up the device by putting it into a wall plug and then strike the button on the device in order to start the pairing procedure (just as a Bluetooth device does).</p><div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="tip138"/>Tip</h3><p>Note that newer version of this device doesn't require you to press the button to start the pairing procedure—it just starts automatically after the first plug.</p></div></div><p>If everything works well, a new device should appear in the <span class="strong"><strong>Devices</strong></span> tab as follows:</p><div class="mediaobject"><img src="graphics/B00255_11_06.jpg" alt="Setting up the Z-Wave wall plug"/></div><p>Now, we can<a id="id524" class="indexterm"/> change some of the device's settings by selecting the new device and <a id="id525" class="indexterm"/>then clicking on the <span class="strong"><strong>Configuration</strong></span> option under the <span class="strong"><strong>Devices</strong></span> listing tab. A panel setting similar to the following screenshot should appear:</p><div class="mediaobject"><img src="graphics/B00255_11_07.jpg" alt="Setting up the Z-Wave wall plug"/></div><p>Now, we can <a id="id526" class="indexterm"/>change the <span class="strong"><strong>Standard power load reporting</strong></span> entry by <a id="id527" class="indexterm"/>writing the new value in the related field and then pressing the <span class="strong"><strong>Submit</strong></span> button. In this manner, we can define a lower value by how much power load must change (in percentage) to be reported to the main controller (I used the value <code class="literal">5</code>).</p></div><div class="section" title="Setting up the Z-Wave multisensor"><div class="titlepage"><div><div><h2 class="title"><a id="ch11lvl2sec89"/>Setting up the Z-Wave multisensor</h2></div></div></div><p>The <a id="id528" class="indexterm"/>second<a id="id529" class="indexterm"/> Z-Wave slave is the multisensor shown in the following image:</p><div class="mediaobject"><img src="graphics/B00255_11_08.jpg" alt="Setting up the Z-Wave multisensor"/></div><div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="note114"/>Note</h3><p>The device can be<a id="id530" class="indexterm"/> purchased at the following link (or by surfing the Internet): <a class="ulink" href="http://www.cosino.io/product/z-wave-multi-sensor">http://www.cosino.io/product/z-wave-multi-sensor</a>.</p><p>A reference manual is available here:</p><p>
+<a class="ulink" href="http://aeotec.com/z-wave-sensor/47-multisensor-manual.html">http://aeotec.com/z-wave-sensor/47-multisensor-manual.html</a>.</p></div></div><p>To power the <a id="id531" class="indexterm"/>device, we can use 4 batteries or a USB cable connected <a id="id532" class="indexterm"/>as in the following image. Then, to test the device and its communication with the controller, we can use the <code class="literal">ozwcp</code> program again. So, just click on the <span class="strong"><strong>Select an operation</strong></span> menu entry in the <span class="strong"><strong>Controller</strong></span> tab and select the <span class="strong"><strong>Add Device</strong></span> entry. Then, press the <span class="strong"><strong>Go</strong></span> button in order to repeat a pairing procedure again (the pairing button is the black button near the sensitivity regulator under the battery pack cover pack cover. In the image below it is located in the top-right corner).</p><div class="mediaobject"><img src="graphics/B00255_11_09.jpg" alt="Setting up the Z-Wave multisensor"/></div><p>Again, if<a id="id533" class="indexterm"/> everything<a id="id534" class="indexterm"/> works well, a new device should appear in the <span class="strong"><strong>Devices</strong></span> tab as follows:</p><div class="mediaobject"><img src="graphics/B00255_11_10.jpg" alt="Setting up the Z-Wave multisensor"/></div><p>Now, as before, we<a id="id535" class="indexterm"/> can change the default settings. In particular, we <a id="id536" class="indexterm"/>can set up the environment report's frequencies and the report's content by changing the <span class="strong"><strong>Group 1 Reports</strong></span> entry to <code class="literal">224</code> and the <span class="strong"><strong>Group 2 Reports</strong></span> entry to <code class="literal">1</code>, then <span class="strong"><strong>Group 1 Interval</strong></span> to <code class="literal">10</code> and <span class="strong"><strong>Group 2 Interval</strong></span> to <code class="literal">60</code>. </p><p>These special settings will instruct the multisensor to enable bits 7 (luminosity), 6 (humidity), and 5 (temperature) into group 1, and bit 0 (battery level) into group 2, and to repeat them every 10 seconds for group 1 and every 60 seconds for group 2 (see the following screenshot):</p><div class="mediaobject"><img src="graphics/B00255_11_11.jpg" alt="Setting up the Z-Wave multisensor"/></div><p>Ok, now all <a id="id537" class="indexterm"/>the devices are ready to operate! So, we can stop the <code class="literal">ozwcp</code> program <a id="id538" class="indexterm"/>by pressing the <span class="emphasis"><em>CTRL</em></span> + <span class="emphasis"><em>C</em></span> key sequence and go forward to the next sections.</p></div><div class="section" title="The final picture"><div class="titlepage"><div><div><h2 class="title"><a id="ch11lvl2sec90"/>The final picture</h2></div></div></div><p>The following is <a id="id539" class="indexterm"/>the image that shows the prototype I realized to implement this project and to test the software.</p><p>Nothing special to say here; just the BeagleBone Black with the Z-Wave controller USB dongle and the two Z-Wave devices described before.</p><div class="mediaobject"><img src="graphics/B00255_11_12.jpg" alt="The final picture"/></div></div></div>
+<div class="section" title="Setting up the software"><div class="titlepage"><div><div><h1 class="title"><a id="ch11lvl1sec62"/>Setting up the software</h1></div></div></div><p>As already<a id="id540" class="indexterm"/> stated, the more complex <a id="id541" class="indexterm"/>part of this prototype is the software. We need to install several software packages into our BeagleBone Black, and the software we have to write by ourselves needs some skills. However, don't worry, I'm going to explain all needed steps one at a time!</p><div class="section" title="Setting up the Python bindings"><div class="titlepage"><div><div><h2 class="title"><a id="ch11lvl2sec91"/>Setting up the Python bindings</h2></div></div></div><p>Installing the <a id="id542" class="indexterm"/>
+<span class="strong"><strong>Python</strong></span> bindings is<a id="id543" class="indexterm"/> quite complex since the software package named <code class="literal">python-openzwave</code> still seems in hard development, and it depends on tons of <span class="strong"><strong>Python</strong></span> packages! However, I did it by getting a specific version of the project with the following command line:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@beaglebone:~# wget http://bibi21000.no-ip.biz/python-openzwave/python-openzwave-0.3.0b5.tgz</strong></span>
+</pre></div><div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="note115"/>Note</h3><p>Other versions of the <code class="literal">python-openzwave</code> package<a id="id544" class="indexterm"/> are available at <a class="ulink" href="http://bibi21000.no-ip.biz/python-openzwave/">http://bibi21000.no-ip.biz/python-openzwave/</a>.</p></div></div><p>Now, to<a id="id545" class="indexterm"/> explore the archive file, we <a id="id546" class="indexterm"/>can use the following command:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@beaglebone:~# tar xvfz python-openzwave-0.3.0b5.tgz</strong></span>
+</pre></div><p>A new directory, <code class="literal">python-openzwave-0.3.0b5</code>, is now created; however, to successfully compile the code, we need to install some Python packages by using the following command line several times:</p><div class="informalexample"><pre class="programlisting">
+<code class="literal">root@beaglebone:~# pip install </code>
+<span class="strong"><strong>&lt;package&gt;</strong></span>
+</pre></div><p>Here, with <span class="strong"><strong>&lt;package&gt;</strong></span>, I used the following names: <code class="literal">Louie</code>, <code class="literal">urwid</code>, <code class="literal">Flask-SocketIO</code>, <code class="literal">versiontools</code>, <code class="literal">gevent-socketio</code>, <code class="literal">WebOb</code>, <code class="literal">Flask-Themes</code>, and <code class="literal">Flask-Babel</code>.</p><div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="tip139"/>Tip</h3><p>In reality, the <code class="literal">pip install</code> command accepts more packages at once separated by spaces, so you can use a single command to install all the needed packages at once.</p><p>Note also that to install the <code class="literal">urwid</code> package, I needed to use a different command to update the already installed package. The command is as follows:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@beaglebone:~# pip install --upgrade urwid</strong></span>
+</pre></div><p>Meanwhile, to install the <code class="literal">Flask-WTF</code> package at version 0.9.5, the command I used is as follows:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@beaglebone:~# pip install Flask-WTF==0.9.5</strong></span>
+</pre></div><p>However, on my system I cannot successfully execute it, so I used a <span class="emphasis"><em>dirty-trick</em></span> by applying the following patch to the <code class="literal">setup-web.py</code> file in the <code class="literal">python-openzwave-0.3.0b5</code> directory:</p><div class="informalexample"><pre class="programlisting">--- ./setup-web.py.orig   2014-04-24 03:50:41.398440723 +0000
++++ ./setup-web.py	2014-04-24 03:39:52.212893771 +0000
+@@ -49,7 +49,7 @@
+   install_requires = [
+                      'openzwave == %s' % pyozw_version,
+                      'Flask == 0.10.1',
+-                     'Flask-WTF == 0.9.5',
++                     'Flask-WTF &gt;= 0.9.5',
+                      'Babel &gt;= 1.0',
+                      'Flask-Babel == 0.9',
+                      #'Flask-Fanstatic == 0.2.0',</pre></div><p>Luckily, the code works correctly, even when using a newer version than 0.9.5!</p></div></div><p>After all dependencies have been installed, just move to the <code class="literal">python-openzwave-0.3.0b5</code> directory and use the <code class="literal">make</code> command to do the job, as follows:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@beaglebone:~/python-openzwave-0.3.0b5# make deps build</strong></span>
+</pre></div><div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="tip143"/>Tip</h3><p>Again, the compilation is quite slow, so be patient!</p></div></div><p>When finished, we <a id="id547" class="indexterm"/>have to install the new code by using the following command line:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@beaglebone:~/python-openzwave-0.3.0b5# make install</strong></span>
+</pre></div><p>We did it! To test our new code, we can now use the provided examples by going into the <code class="literal">examples</code> directory, and then executing the following command lines:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@beaglebone:~/python-openzwave-0.3.0b5# cd examples/</strong></span>
+<span class="strong"><strong>root@beaglebone:~/python-openzwave-0.3.0b5/examples# ./test_lib.py --device=/dev/ttyACM0</strong></span>
+</pre></div><div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="tip144"/>Tip</h3><p>Note that, for better readability in the output lines of the <code class="literal">test_lib.py</code> command, all timing references have been removed.</p><p>Also, for all the next Python codes, you can safely ignore all the warning messages in the following form:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>./test_lib.py:28: UserWarning: Module libopenzwave was already imported from None, but /usr/local/lib/python2.7/dist-packages/libopenzwave-0.3.0b5-py2.7-linux-armv7l.egg is being added to sys.path</strong></span>
+</pre></div></div></div><p>The output of the preceding command is really long and, due to lack of space, I cannot report it here completely, so I'm going to report only the relevant parts.</p><p>In the first lines, we get some basic information messages, as follows:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>Always, OpenZwave Version 1.3.482 Starting Up</strong></span>
+<span class="strong"><strong>Add watcher</strong></span>
+<span class="strong"><strong>Add device</strong></span>
+<span class="strong"><strong>Info, Setting Up Provided Network Key for Secure Communications</strong></span>
+<span class="strong"><strong>Warning, Failed - Network Key Not Set</strong></span>
+<span class="strong"><strong>Info, mgr,     Added driver for controller /dev/ttyACM0</strong></span>
+<span class="strong"><strong>Sniff network during 60.0 seconds</strong></span>
+<span class="strong"><strong>Info,   Opening controller /dev/ttyACM0</strong></span>
+<span class="strong"><strong>Info, Trying to open serial port /dev/ttyACM0 (attempt 1)</strong></span>
+<span class="strong"><strong>Info, Serial port /dev/ttyACM0 opened (attempt 1)</strong></span>
+</pre></div><p>Here, there is some information regarding the software release and the device we're getting access to (that is <code class="literal">/dev/ttyACM0</code>). Then, there is a list of the queued commands to be executed, as follows:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>Detail, contrlr, Queuing (Command) FUNC_ID_ZW_GET_VERSION: 0x01, 0x03, 0x00, 0x15, 0xe9</strong></span>
+<span class="strong"><strong>Detail, contrlr, Queuing (Command) FUNC_ID_ZW_MEMORY_GET_ID: 0x01, 0x03, 0x00, 0x20, 0xdc</strong></span>
+<span class="strong"><strong>Detail, contrlr, Queuing (Command) FUNC_ID_ZW_GET_CONTROLLER_CAPABILITIES: 0x01, 0x03, 0x00, 0x05, 0xf9</strong></span>
+<span class="strong"><strong>Detail, contrlr, Queuing (Command) FUNC_ID_SERIAL_API_GET_CAPABILITIES: 0x01, 0x03, 0x00, 0x07, 0xfb</strong></span>
+<span class="strong"><strong>Detail, contrlr, Queuing (Command) FUNC_ID_ZW_GET_SUC_NODE_ID: 0x01, 0x03, 0x00, 0x56, 0xaa</strong></span>
+<span class="strong"><strong>Detail, contrlr, Sending (Command) FUNC_ID_ZW_GET_VERSION: 0x01, 0x03, 0x00, 0x15, 0xe9</strong></span>
+<span class="strong"><strong>Detail, contrlr, Received: 0x01, 0x10, 0x01, 0x15, 0x5a, 0x2d, 0x57, 0x61, 0x76, 0x65, 0x20, 0x33, 0x2e, 0x37, 0x39, 0x00, 0x01, 0x9b</strong></span>
+</pre></div><p>Here, are some first answers:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>Info, contrlr,   Received reply to FUNC_ID_ZW_GET_VERSION:</strong></span>
+<span class="strong"><strong>Info, contrlr,   Static Controller library, version Z-Wave 3.79</strong></span>
+</pre></div><p>Then, a lot of<a id="id548" class="indexterm"/> messages regarding the probing of all available <span class="strong"><strong>Z-Wave</strong></span> nodes follow:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>Info, contrlr,     Node 001 - New</strong></span>
+<span class="strong"><strong>Detail, Node001, AdvanceQueries queryPending=0 queryRetries=0 queryStage=None live=1</strong></span>
+<span class="strong"><strong>Detail, Node001, QueryStage_ProtocolInfo</strong></span>
+<span class="strong"><strong>Detail, Node001, Queuing (Query) Get Node Protocol Info (Node=1): 0x01, 0x04, 0x00, 0x41, 0x01, 0xbb</strong></span>
+<span class="strong"><strong>Detail, Node001, Queuing (Query) Query Stage Complete (ProtocolInfo)</strong></span>
+<span class="strong"><strong>Info, Node001, Initilizing Node. New Node: false (false)</strong></span>
+<span class="strong"><strong>Info, contrlr,     Node 009 - New</strong></span>
+<span class="strong"><strong>Detail, Node009, AdvanceQueries queryPending=0 queryRetries=0 queryStage=None live=1</strong></span>
+<span class="strong"><strong>Detail, Node009, QueryStage_ProtocolInfo</strong></span>
+<span class="strong"><strong>Detail, Node009, Queuing (Query) Get Node Protocol Info (Node=9): 0x01, 0x04, 0x00, 0x41, 0x09, 0xb3</strong></span>
+<span class="strong"><strong>Detail, Node009, Queuing (Query) Query Stage Complete (ProtocolInfo)</strong></span>
+<span class="strong"><strong>Info, Node009, Initilizing Node. New Node: false (false)</strong></span>
+<span class="strong"><strong>Info, contrlr,     Node 010 - New</strong></span>
+<span class="strong"><strong>Detail, Node010, AdvanceQueries queryPending=0 queryRetries=0 queryStage=None live=1</strong></span>
+<span class="strong"><strong>Detail, Node010, QueryStage_ProtocolInfo</strong></span>
+<span class="strong"><strong>Detail, Node010, Queuing (Query) Get Node Protocol Info (Node=10): 0x01, 0x04, 0x00, 0x41, 0x0a, 0xb0</strong></span>
+<span class="strong"><strong>Detail, Node010, Queuing (Query) Query Stage Complete (ProtocolInfo)</strong></span>
+</pre></div><p>Then, the system<a id="id549" class="indexterm"/> starts adding the new discovered nodes. The reader is first, as follows:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>--------------------</strong></span>
+<span class="strong"><strong>[DriverReady]:</strong></span>
+
+<span class="strong"><strong>homeId: 0xe4056d54</strong></span>
+<span class="strong"><strong>nodeId: 1</strong></span>
+<span class="strong"><strong>--------------------</strong></span>
+
+<span class="strong"><strong>2014-04-24 13:56:31.961 Detail, Node001, Notification: NodeNew</strong></span>
+
+<span class="strong"><strong>--------------------</strong></span>
+<span class="strong"><strong>[NodeNew]:</strong></span>
+
+<span class="strong"><strong>homeId: 0xe4056d54</strong></span>
+<span class="strong"><strong>nodeId: 1</strong></span>
+<span class="strong"><strong>--------------------</strong></span>
+
+<span class="strong"><strong>2014-04-24 13:56:31.963 Detail, Node001, Notification: NodeAdded</strong></span>
+
+<span class="strong"><strong>--------------------</strong></span>
+<span class="strong"><strong>[NodeAdded]:</strong></span>
+
+<span class="strong"><strong>homeId: 0xe4056d54</strong></span>
+<span class="strong"><strong>nodeId: 1</strong></span>
+<span class="strong"><strong>---------------</strong></span>
+<span class="strong"><strong>-----</strong></span>
+</pre></div><p>Then, there is the wall plug, as follows:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>2014-04-24 13:56:31.966 Detail, Node009, Notification: NodeNew</strong></span>
+
+<span class="strong"><strong>--------------------</strong></span>
+<span class="strong"><strong>[NodeNew]:</strong></span>
+
+<span class="strong"><strong>homeId: 0xe4056d54</strong></span>
+<span class="strong"><strong>nodeId: 9</strong></span>
+<span class="strong"><strong>--------------------</strong></span>
+
+<span class="strong"><strong>2014-04-24 13:56:31.967 Detail, Node009, Notification: NodeAdded</strong></span>
+
+<span class="strong"><strong>--------------------</strong></span>
+<span class="strong"><strong>[NodeAdded]:</strong></span>
+
+<span class="strong"><strong>homeId: 0xe4056d54</strong></span>
+<span class="strong"><strong>nodeId: 9</strong></span>
+<span class="strong"><strong>--------------------</strong></span>
+</pre></div><p>And, in the end, there is the multisensor, as follows:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>2014-04-24 13:56:31.969 Detail, Node010, Notification: NodeNew</strong></span>
+
+<span class="strong"><strong>-------------------- [NodeNew]:</strong></span>
+
+<span class="strong"><strong>homeId: 0xe4056d54</strong></span>
+<span class="strong"><strong>nodeId: 10</strong></span>
+<span class="strong"><strong>--------------------</strong></span>
+
+<span class="strong"><strong>2014-04-24 13:56:31.972 Detail, Node010, Notification: NodeAdded</strong></span>
+
+<span class="strong"><strong>--------------------</strong></span>
+<span class="strong"><strong>[NodeAdded]:</strong></span>
+
+<span class="strong"><strong>homeId: 0xe4056d54</strong></span>
+<span class="strong"><strong>nodeId: 10</strong></span>
+<span class="strong"><strong>--------------------</strong></span>
+</pre></div><p>After the probing <a id="id550" class="indexterm"/>stage, the system asks for device information, and a lot of it is returned! You can see current values, labels, units of measurement, read-only statuses, and so on:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong> --------------------</strong></span>
+<span class="strong"><strong>[NodeProtocolInfo]:</strong></span>
+
+<span class="strong"><strong>homeId: 0xe4056d54</strong></span>
+<span class="strong"><strong>nodeId: 1</strong></span>
+<span class="strong"><strong>--------------------</strong></span>
+
+<span class="strong"><strong>2014-04-24 13:56:32.015 Detail, Node001, Notification: ValueAdded</strong></span>
+
+<span class="strong"><strong>--------------------</strong></span>
+<span class="strong"><strong>[ValueAdded]:</strong></span>
+
+<span class="strong"><strong>homeId: 0xe4056d54</strong></span>
+<span class="strong"><strong>nodeId: 1</strong></span>
+<span class="strong"><strong>valueID: 72057594055229441</strong></span>
+<span class="strong"><strong>Value: None</strong></span>
+<span class="strong"><strong>Label: None</strong></span>
+<span class="strong"><strong>Units: None</strong></span>
+<span class="strong"><strong>ReadOnly: False</strong></span>
+<span class="strong"><strong>--------------------</strong></span>
+
+<span class="strong"><strong>--------------------</strong></span>
+<span class="strong"><strong>[NodeProtocolInfo]:</strong></span>
+
+<span class="strong"><strong>homeId: 0xe4056d54</strong></span>
+<span class="strong"><strong>nodeId: 9</strong></span>
+<span class="strong"><strong>--------------------</strong></span>
+
+<span class="strong"><strong>2014-04-24 13:56:32.094 Detail, Node009, Notification: ValueAdded</strong></span>
+
+<span class="strong"><strong>--------------------</strong></span>
+<span class="strong"><strong>[ValueAdded]:</strong></span>
+
+<span class="strong"><strong>homeId: 0xe4056d54</strong></span>
+<span class="strong"><strong>nodeId: 9</strong></span>
+<span class="strong"><strong>valueID: 72057594193723392</strong></span>
+<span class="strong"><strong>Value: False</strong></span>
+<span class="strong"><strong>Label: Switch</strong></span>
+<span class="strong"><strong>Units:</strong></span>
+<span class="strong"><strong>ReadOnly: False</strong></span>
+<span class="strong"><strong>--------------------</strong></span>
+<span class="strong"><strong>...</strong></span>
+<span class="strong"><strong>--------------------</strong></span>
+<span class="strong"><strong>[NodeProtocolInfo]:</strong></span>
+
+<span class="strong"><strong>homeId: 0xe4056d54</strong></span>
+<span class="strong"><strong>nodeId: 10</strong></span>
+<span class="strong"><strong>--------------------</strong></span>
+
+<span class="strong"><strong>2014-04-24 13:56:32.150 Detail, Node010, Notification: ValueAdded</strong></span>
+
+<span class="strong"><strong>--------------------</strong></span>
+<span class="strong"><strong>[ValueAdded]:</strong></span>
+
+<span class="strong"><strong>homeId: 0xe4056d54</strong></span>
+<span class="strong"><strong>nodeId: 10</strong></span>
+<span class="strong"><strong>valueID: 72057594210680832</strong></span>
+<span class="strong"><strong>Value: False</strong></span>
+<span class="strong"><strong>Label: Sensor</strong></span>
+<span class="strong"><strong>Units:</strong></span>
+<span class="strong"><strong>ReadOnly: True</strong></span>
+<span class="strong"><strong>--------------------</strong></span>
+</pre></div><p>As you can see<a id="id551" class="indexterm"/> in these examples, the protocol is really powerful and quite complex too! So, to have a better model of our new Z-Wave network, we can use another tool, as follows:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@beaglebone:~/python-openzwave-0.3.0b5/examples# ./api_demo.py --log=Info --device=/dev/ttyACM0</strong></span>
+</pre></div><p>Again, we get tons of messages, but this time, near the end, we can read the following output:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>Try to autodetect nodes on the network</strong></span>
+<span class="strong"><strong>------------------------------------------------------------</strong></span>
+<span class="strong"><strong>Nodes in network : 3</strong></span>
+<span class="strong"><strong>------------------------------------------------------------</strong></span>
+<span class="strong"><strong>Retrieve switches on the network</strong></span>
+<span class="strong"><strong>------------------------------------------------------------</strong></span>
+<span class="strong"><strong>node/name/index/instance : 9//0/1</strong></span>
+<span class="strong"><strong>   label/help : Switch/</strong></span>
+<span class="strong"><strong>   id on the network : e4056d54.9.25.1.0</strong></span>
+<span class="strong"><strong>   state: False</strong></span>
+<span class="strong"><strong>------------------------------------------------------------</strong></span>
+<span class="strong"><strong>Retrieve dimmers on the network</strong></span>
+<span class="strong"><strong>------------------------------------------------------------</strong></span>
+<span class="strong"><strong>------------------------------------------------------------</strong></span>
+<span class="strong"><strong>Retrieve sensors on the network</strong></span>
+<span class="strong"><strong>------------------------------------------------------------</strong></span>
+<span class="strong"><strong>node/name/index/instance : 10//0/1</strong></span>
+<span class="strong"><strong>   label/help : Sensor/</strong></span>
+<span class="strong"><strong>   id on the network : e4056d54.10.30.1.0</strong></span>
+<span class="strong"><strong>   value: True</strong></span>
+<span class="strong"><strong>node/name/index/instance : 10//1/1</strong></span>
+<span class="strong"><strong>   label/help : Temperature/</strong></span>
+<span class="strong"><strong>   id on the network : e4056d54.10.31.1.1</strong></span>
+<span class="strong"><strong>   value: 0.0 F</strong></span>
+<span class="strong"><strong>node/name/index/instance : 10//3/1</strong></span>
+<span class="strong"><strong>   label/help : Luminance/</strong></span>
+<span class="strong"><strong>   id on the network : e4056d54.10.31.1.3</strong></span>
+<span class="strong"><strong>   value: 675.0 lux</strong></span>
+<span class="strong"><strong>node/name/index/instance : 10//5/1</strong></span>
+<span class="strong"><strong>   label/help : Relative Humidity/</strong></span>
+<span class="strong"><strong>   id on the network : e4056d54.10.31.1.5</strong></span>
+<span class="strong"><strong>   value: 48.0 %</strong></span>
+<span class="strong"><strong>node/name/index/instance : 9//32/1</strong></span>
+<span class="strong"><strong>   label/help : Exporting/</strong></span>
+<span class="strong"><strong>   id on the network : e4056d54.9.32.1.32</strong></span>
+<span class="strong"><strong>   value: False</strong></span>
+<span class="strong"><strong>node/name/index/instance : 9//4/1</strong></span>
+<span class="strong"><strong>   label/help : Power/</strong></span>
+<span class="strong"><strong>   id on the network : e4056d54.9.31.1.4</strong></span>
+<span class="strong"><strong>   value: 0.0 W</strong></span>
+<span class="strong"><strong>node/name/index/instance : 9//0/1</strong></span>
+<span class="strong"><strong>   label/help : Energy/</strong></span>
+<span class="strong"><strong>   id on the network : e4056d54.9.32.1.0</strong></span>
+<span class="strong"><strong>   value: 0.0 kWh</strong></span>
+<span class="strong"><strong>node/name/index/instance : 9//8/1</strong></span>
+<span class="strong"><strong>   label/help : Power/</strong></span>
+<span class="strong"><strong>   id on the network : e4056d54.9.32.1.8</strong></span>
+<span class="strong"><strong>   value: 0.0 W</strong></span>
+<span class="strong"><strong>------------------------------------------------------------</strong></span>
+<span class="strong"><strong>Retrieve switches all compatibles devices on the network    </strong></span>
+<span class="strong"><strong>------------------------------------------------------------</strong></span>
+<span class="strong"><strong>node/name/index/instance : 9//0/1</strong></span>
+<span class="strong"><strong>   label/help : Switch All/</strong></span>
+<span class="strong"><strong>   id on the network : e4056d54.9.27.1.0</strong></span>
+<span class="strong"><strong>   value / items: Disabled / set([u'Disabled', u'On and Off Enabled', u'On Enabled', u'Off Enabled'])</strong></span>
+<span class="strong"><strong>   state: False</strong></span>
+<span class="strong"><strong>------------------------------------------------------------</strong></span>
+<span class="strong"><strong>Retrieve protection compatibles devices on the network    </strong></span>
+<span class="strong"><strong>------------------------------------------------------------</strong></span>
+<span class="strong"><strong>Retrieve battery compatibles devices on the network         </strong></span>
+<span class="strong"><strong>------------------------------------------------------------</strong></span>
+<span class="strong"><strong>node/name/index/instance : 10//0/1</strong></span>
+<span class="strong"><strong>   label/help : Battery Level/</strong></span>
+<span class="strong"><strong>   id on the network : e4056d54.10.80.1.0</strong></span>
+<span class="strong"><strong>   value : 100</strong></span>
+<span class="strong"><strong>------------------------------------------------------------</strong></span>
+<span class="strong"><strong>Retrieve power level compatibles devices on the network         </strong></span>
+</pre></div><p>In this output, it's easier to find all the relative information about our slaves; that is, the wall plug at node 9 (that can work as a normal switch and can return some energy consumption information) and the multisensor at node 10 (that can return the temperature, humidity, and environment luminance and motion activity).</p><p>Ok, the <a id="id552" class="indexterm"/>Python support is now fully functional! So, let's go to the next section to see how to write the code for our Z-Wave prototype!</p></div><div class="section" title="The Z-Wave manager"><div class="titlepage"><div><div><h2 class="title"><a id="ch11lvl2sec92"/>The Z-Wave manager</h2></div></div></div><p>After <a id="id553" class="indexterm"/>installing the <a id="id554" class="indexterm"/>Python binding to manage Z-Wave devices, we have to write our own code to implement the prototype's software.</p><p>As already stated, we need to implement a controller that can record the incoming messages from the sensors, can send some commands to the actuators, and, at the same time, can interact with the user. While the former part is Z-Wave-related, the latter can be implemented by using a web interface created in Python plus some extra HTML/JavaScript and CSS files.</p><p>Let's now take a look at the Python code. The whole code is quite long, so I'm going to show the relevant parts only, but you can get the complete code in the <code class="literal">chapter_11/zwmanager.py</code> file in the book's example code repository.</p><p>At the very beginning, we have to declare the code to import:</p><div class="informalexample"><pre class="programlisting">from __future__ import print_function
+import os
+import sys
+import getopt
+import string
+import syslog
+import resource
+import time
+
+from openzwave.node import ZWaveNode
+from openzwave.value import ZWaveValue
+from openzwave.scene import ZWaveScene
+from openzwave.controller import ZWaveController
+from openzwave.network import ZWaveNetwork
+from openzwave.option import ZWaveOption
+from louie import dispatcher, All
+
+from BaseHTTPServer import BaseHTTPRequestHandler, HTTPServer
+import json
+import cgi</pre></div><p>As you can see, we need several inclusions from the <code class="literal">openzwave</code> package, while <code class="literal">BaseHTTPServer</code>, <code class="literal">json</code>, and <code class="literal">cgi</code> are used to manage the web interface.</p><p>Then, some default settings follow:</p><div class="informalexample"><pre class="programlisting">NAME = os.path.basename(sys.argv[0])
+debug = False
+logstderr = False
+log = "Info"
+timeout_s = 20
+port = 8080
+
+# Default system status
+values = {
+   "switch" :  "off",
+   "power"  :    0.0,
+   "temp"   :      0,
+   "hum"    :      0,
+   "lum"    :      0,
+   "bat_lvl":      0,
+   "sensor" :   "no",
+}</pre></div><p>Here, the most <a id="id555" class="indexterm"/>important thing is the <code class="literal">values</code> variable, where we're going to store all devices' statuses.</p><p>Then, the Z-Wave-related functions are defined, as follows:</p><div class="informalexample"><pre class="programlisting">def louie_value(network, node, value):
+   # Record all new status changing
+   if (value.label == "Switch"):
+      values["switch"] = "on" if value.data else "off"
+   elif (value.label == "Power"):
+      values["power"] = value.data
+   elif (value.label == "Temperature"):
+      values["temp"] = value.data
+   elif (value.label == "Relative Humidity"):
+      values["hum"] = value.data
+   elif (value.label == "Luminance"):
+      values["lum"] = value.data
+   elif (value.label == "Battery Level"):
+      values["bat_lvl"] = value.data
+   elif (value.label == "Sensor"):
+      values["sensor"] = "yes" if value.data else "no"
+   dbg("dev=%s(%d) name=%s data=%d" % \
+      (node.product_name, node.node_id, value.label, value.data))
+
+def louie_network_started(network):
+   dbg("network is started: homeid %0.8x" % network.home_id)
+
+def louie_network_resetted(network):
+   dbg("network is resetted")
+
+def louie_network_ready(network):
+   dbg("network is now ready")
+   dispatcher.connect(louie_value, ZWaveNetwork.SIGNAL_VALUE)</pre></div><p>The relevant<a id="id556" class="indexterm"/> functions are the <code class="literal">louie_network_ready()</code> function, which installs a new dispatcher when the Z-Wave network is ready, and the <code class="literal">louie_value()</code> function, which reads all device notifications and stores them in the <code class="literal">values</code> variable.</p><div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="tip145"/>Tip</h3><p>Note that this code is very far from perfect since we suppose that only one multisensor device and one wall plug are present at a time! If you wish to manage more devices, you have to completely review these functions.</p></div></div><p>Then, the HTTP-related functions follow:</p><div class="informalexample"><pre class="programlisting">class myHandler(BaseHTTPRequestHandler):
+   # Disable standard logging messages
+   def log_message(self, format, *args):
+      return
+
+   # Handler for the GET requests
+   def do_GET(self):
+      if self.path == "/":
+         self.path = "/house.html"
+      elif self.path == "/get":
+         #dbg("serving %s..." % self.path)
+
+         # Return the current status in JSON format
+         self.send_response(200)
+         self.send_header('Content-type', 'application/json')
+         self.end_headers()
+         self.request.sendall(json.dumps(values))
+
+         return
+
+      # Otherwise try serving a file
+      try:
+         # Open the file and send it
+         f = open(os.curdir + os.sep + self.path)
+         self.send_response(200)
+         self.send_header('Content-type', 'text/html')
+         self.end_headers()
+         self.wfile.write(f.read())
+         f.close()
+         dbg("file %s served" % self.path)
+ 
+      except IOError:
+         self.send_error(404, 'File Not Found: %s' % self.path)
+         dbg("file %s not found!" % self.path)
+
+      return
+
+   # Handler for the POST requests
+   def do_POST(self):
+      if self.path == "/set":
+         # Parse the data posted
+         dbg("managing %s..." % self.path)
+         data = cgi.FieldStorage(fp = self.rfile, headers = self.headers, environ = {'REQUEST_METHOD':'POST', 'CONTENT_TYPE':self.headers['Content-Type'],})
+
+         self.send_response(200)
+         self.end_headers()
+         dbg("got label=%s" % data["do"].value)
+
+         # Set the device according to user input
+         if data["do"].value == "switch":
+         network.nodes[sw_node].set_switch(sw_val, False if values["switch"] == "on" else True)
+
+         return
+
+      # Otherwise return error
+      self.send_error(404, 'File Not Found: %s' % self.path)
+      dbg("file %s not found!" % self.path)
+
+      return</pre></div><p>The preceding code implements a web server where we just need to manage the <code class="literal">GET</code> and <code class="literal">POST</code> HTTP requests to do the job. The <code class="literal">GET</code> requests are managed by the <code class="literal">do_GET()</code> method that simply tries to serve a normal file to the client apart from when the special path <code class="literal">/get</code> is used in the URL. In this special case, the server returns the content of the <code class="literal">values</code> variable in a JSON format.</p><p>As an opposite <a id="id557" class="indexterm"/>function, when the <code class="literal">POST</code> request is received, it is passed to the <code class="literal">do_PUT()</code> method that, in turn, returns an error code if the special path <code class="literal">/set</code> is not used; if so, the system parses the data posted by client and then switches the wall plug status.</p><div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="tip146"/>Tip</h3><p>Note that we suppose again that only one wall plug is present! So, you have to rewrite the code if you wish to manage more than one wall plug device.</p></div></div><p>Now, we have to show how the system is set up. After some sanity checks to the command line, we start setting up the Z-Wave network:</p><div class="informalexample"><pre class="programlisting"># Define some manager options and create a network object
+options = ZWaveOption(device, config_path = "./openzwave/config", user_path = ".", cmd_line = "")
+options.set_log_file(NAME + ".log")
+options.set_append_log_file(False)
+#options.set_console_output(True)
+options.set_console_output(False)
+options.set_save_log_level(log)
+options.set_logging(True)
+options.lock()
+network = ZWaveNetwork(options, log = None)
+
+# Add the basic callbacks
+dispatcher.connect(louie_network_started, ZWaveNetwork.SIGNAL_NETWORK_STARTED)
+dispatcher.connect(louie_network_resetted, ZWaveNetwork.SIGNAL_NETWORK_RESETTED)
+dispatcher.connect(louie_network_ready, ZWaveNetwork.SIGNAL_NETWORK_READY)
+dbg("callbacks installed")
+
+info("Starting...")
+
+# Waiting for driver to start
+for i in range(0, timeout_s):
+   if network.state &gt;= network.STATE_STARTED:
+      break
+   else:
+      sys.stdout.flush()
+      time.sleep(1.0)
+if network.state &lt; network.STATE_STARTED:
+   err("Can't initialize driver! Look at the logs file")
+   sys.exit(1)
+
+info("use openzwave library   = %s" % network.controller.ozw_library_version)
+info("use python library      = %s" % network.controller.python_library_version)
+info("use ZWave library       = %s" % network.controller.library_description)
+info("network home id         = %s" % network.home_id_str)
+info("controller node id      = %s" % network.controller.node.node_id)
+info("controller node version = %s" % (network.controller.node.version))</pre></div><p>The <code class="literal">ZwaveOption()</code> function is used to set up the network's options, and then the <code class="literal">ZwaveNetwork()</code> function actually does the job according to the selected options. Then, we set up the callbacks to be called each time a Z-Wave signal arrives, and we have to manage it by using the <code class="literal">dispatcher.connect()</code> method.</p><p>Ok, everything<a id="id558" class="indexterm"/> is in place now and we have just to wait for the Z-Wave driver to start. When done, we print some network information. Now, the next step is to wait for the network to be up and running, so we can pass to detect the wall plug device and store its relevant node's information with the following code:</p><div class="informalexample"><pre class="programlisting"># Waiting for network is ready
+time_started = 0
+for i in range(0, timeout_s):
+   if network.state &gt;= network.STATE_READY:
+      break
+   else:
+      time_started += 1
+      sys.stdout.flush()
+      time.sleep(1.0)
+
+dbg("detecting the switch node...")
+for node in network.nodes:
+   for val in network.nodes[node].get_switches():
+      data = network.nodes[node].values[val].data
+      values["switch"] = "on" if data else "off"
+      sw_node = node
+      sw_val = val
+      dbg(" - device %s(%s) is %s" % \
+         (network.nodes[node].values[val].label, node, values["switch"]))
+
+      # We can manage just one switch!
+      break
+
+info("Press CTRL+C to stop")</pre></div><p>The <code class="literal">get_switches()</code> method is used to get all the nodes that can act as a switch, so we use it to detect our wall plug and then to store its information into the <code class="literal">sw_node</code> and <code class="literal">sw_val</code> variables <a id="id559" class="indexterm"/>in order to be used later in the <code class="literal">do_POST()</code> method to turn on/off the switch based on the user request.</p><div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="tip147"/>Tip</h3><p>Here, it is really clear that the code is written for only one wall plug at a time in the network!</p></div></div><p>Now, we only have to define the web server to finish the job, and we can do it with the following code:</p><div class="informalexample"><pre class="programlisting"># Create a web server and define the handler to manage the incoming requests
+try:
+   server = HTTPServer(('', port), myHandler)
+   info("Started HTTP server on port %d" % port)
+
+   # Wait forever for incoming HTTP requests
+   server.serve_forever()
+
+except KeyboardInterrupt:
+   info("CTRL+C received, shutting down...")
+   server.socket.close()
+   network.stop()
+
+info("Done.")</pre></div><p>The main function is the <code class="literal">HTTPServer()</code> function that starts the internal web server listening at the <code class="literal">8080</code> port.</p><p>Now, to complete the software presentation, I need to show how the <code class="literal">house.html</code> file works. This is the file that is served by the web server each time a new client gets connected to it.</p><div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="note116"/>Note</h3><p>Again, as before, I'm going to show the relevant parts only, but you can get the complete code in the <code class="literal">chapter_11/house.html</code> file in the book's example code repository.</p></div></div><p>In the head part, I<a id="id560" class="indexterm"/> define the CSS file name and the JavaScript code to use:</p><div class="informalexample"><pre class="programlisting">   &lt;head&gt;
+      &lt;link href="house.css" rel="stylesheet" type="text/css"&gt;
+
+      &lt;script src="/jquery-1.9.1.js"&gt;&lt;/script&gt;
+
+      &lt;script&gt;
+         var polldata = function() {
+            $.getJSON('/get', function(data) {
+               $.each(data, function(key, val) {
+                  var e = document.getElementById(key);
+
+                  if (e != null) {
+                     if (e.type == "text")
+                        e.value = val;
+                  else
+                     e.textContent = val;
+                 }
+               });
+            });
+         };
+
+         setInterval(polldata, 1000);
+      &lt;/script&gt;
+
+      &lt;script&gt;
+         $(function() {
+            $('button[class="do-button"]').click(function() {
+               var id = $(this).attr("id");
+
+               $.ajax({
+                  url: "/set",
+                  type: "POST",
+                  data: "do=" + id,
+                  success: function() {
+                     console.log('do POST success');
+                  },
+                  error: function() {
+                     console.log('do POST error');
+                  }
+               });
+            });
+         });
+      &lt;/script&gt;
+   &lt;/head&gt;</pre></div><p>In this code, we used the same technique used in <a class="link" href="ch07.html" title="Chapter 7. Facebook Plant Monitor">Chapter 7</a>, <span class="emphasis"><em>Facebook Plant Monitor</em></span>, where I installed a polling function that executes several <code class="literal">GET</code> requests on the server, one per second, to update the displayed data returned in the <code class="literal">JSON</code> format. Also, each time a button is pressed, we <a id="id561" class="indexterm"/>do a <code class="literal">POST</code> request to the server, passing the button ID to it to manage.</p><p>In the body part of the <code class="literal">house.html</code> file, we define the table to show our data in a nice manner:</p><div class="informalexample"><pre class="programlisting"> &lt;body&gt;
+  &lt;h1&gt;Home monitor status&lt;/h1&gt;
+
+  &lt;h2&gt;Internal variables&lt;/h2&gt;
+
+  &lt;table class="status"&gt;
+   &lt;tr class="d0"&gt;
+     &lt;td&gt;Switch&lt;/td&gt;
+     &lt;td&gt;&lt;b id="switch"&gt;off&lt;/b&gt;&lt;/td&gt;
+     &lt;td&gt;&lt;button id="switch" class="do-button"&gt;switch&lt;/button&lt;/td&gt;
+   &lt;/tr&gt;
+   &lt;tr class="d0"&gt;
+     &lt;td&gt;Power[KW]&lt;/td&gt;
+     &lt;td&gt;&lt;b id="power"&gt;0&lt;/b&gt;&lt;/td&gt;
+     &lt;td&gt;&lt;/td&gt;
+   &lt;/tr&gt;
+   &lt;tr class="d1"&gt;
+     &lt;td&gt;Temperature[C]&lt;/td&gt;
+     &lt;td&gt;&lt;b id="temp"&gt;0&lt;/b&gt;&lt;/td&gt;
+     &lt;td&gt;&lt;/td&gt;
+   &lt;/tr&gt;
+   &lt;tr class="d1"&gt;
+     &lt;td&gt;Relative Humidity[%]&lt;/td&gt;
+     &lt;td&gt;&lt;b id="hum"&gt;0&lt;/b&gt;&lt;/td&gt;
+     &lt;td&gt;&lt;/td&gt;
+   &lt;/tr&gt;
+   &lt;tr class="d1"&gt;
+     &lt;td&gt;Luminance[lux]&lt;/td&gt;
+     &lt;td&gt;&lt;b id="lum"&gt;0&lt;/b&gt;&lt;/td&gt;
+     &lt;td&gt;&lt;/td&gt;
+   &lt;/tr&gt;
+   &lt;tr class="d1"&gt;
+     &lt;td&gt;Battery Level[%]&lt;/td&gt;
+     &lt;td&gt;&lt;b id="bat_lvl"&gt;0&lt;/b&gt;&lt;/td&gt;
+     &lt;td&gt;&lt;/td&gt;
+   &lt;/tr&gt;
+   &lt;tr class="d1"&gt;
+     &lt;td&gt;Motion&lt;/td&gt;
+     &lt;td&gt;&lt;b id="sensor"&gt;no&lt;/b&gt;&lt;/td&gt;
+     &lt;td&gt;&lt;/td&gt;
+   &lt;/tr&gt;
+  &lt;/table&gt;
+ &lt;/body&gt;</pre></div><p>Regarding the CSS file, there<a id="id562" class="indexterm"/> is nothing important to say (it's just a CSS file!), while the <code class="literal">jquery-1.9.1.js</code> file is the one already used in the <span class="emphasis"><em>The final test</em></span>, section in <a class="link" href="ch07.html" title="Chapter 7. Facebook Plant Monitor">Chapter 7</a>, <span class="emphasis"><em>Facebook Plant Monitor</em></span>; so, just refer to that section in order to know how to get and install it.</p></div></div>
+<div class="section" title="The final test"><div class="titlepage"><div><div><h1 class="title"><a id="ch11lvl1sec63"/>The final test</h1></div></div></div><p>Now, to test the<a id="id563" class="indexterm"/> prototype, I connected the wall plug with my printer (the power load) and powered the multi-sensor with a USB port of my PC (just to avoid using the batteries). Then, I started the <code class="literal">zwmanager.py</code> program as follows:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@beaglebone:~# ./zwmanager.py -d -l /dev/ttyACM0</strong></span>
+<span class="strong"><strong>zwmanager.py[2732]: callbacks installed</strong></span>
+<span class="strong"><strong>zwmanager.py[2732]: Starting...</strong></span>
+<span class="strong"><strong>zwmanager.py[2732]: network is started: homeid e4056d54</strong></span>
+<span class="strong"><strong>zwmanager.py[2732]: use openzwave library   = 1.3.482</strong></span>
+<span class="strong"><strong>zwmanager.py[2732]: use python library      = 0.3.0b5</strong></span>
+<span class="strong"><strong>zwmanager.py[2732]: use ZWave library       = Static Controller version Z-Wave 3.79</strong></span>
+<span class="strong"><strong>zwmanager.py[2732]: network home id         = 0xe4056d54</strong></span>
+<span class="strong"><strong>zwmanager.py[2732]: controller node id      = 1</strong></span>
+<span class="strong"><strong>zwmanager.py[2732]: controller node version = 4</strong></span>
+<span class="strong"><strong>zwmanager.py[2732]: network is now ready</strong></span>
+<span class="strong"><strong>zwmanager.py[2732]: detecting the switch node...</strong></span>
+<span class="strong"><strong>zwmanager.py[2732]:  - device Switch(9) is off</strong></span>
+<span class="strong"><strong>zwmanager.py[2732]: Press CTRL+C to stop</strong></span>
+<span class="strong"><strong>zwmanager.py[2732]: Started HTTP server on port 8080</strong></span>
+</pre></div><p>Next, I connected my browser to the <code class="literal">192.168.7.2:8080</code> URL, but before doing it, I waited for a while, looking at some messages from the sensors:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>zwmanager.py[4915]: dev=Multi Sensor(10) name=Battery Level data=100</strong></span>
+<span class="strong"><strong>zwmanager.py[4915]: dev=Multi Sensor(10) name=Battery Level data=100</strong></span>
+<span class="strong"><strong>zwmanager.py[4915]: dev=Multi Sensor(10) name=Luminance data=51</strong></span>
+<span class="strong"><strong>zwmanager.py[4915]: dev=Multi Sensor(10) name=Luminance data=51</strong></span>
+<span class="strong"><strong>zwmanager.py[4915]: dev=Multi Sensor(10) name=Relative Humidity data=48</strong></span>
+<span class="strong"><strong>zwmanager.py[4915]: dev=Multi Sensor(10) name=Relative Humidity data=48</strong></span>
+<span class="strong"><strong>zwmanager.py[4915]: dev=Multi Sensor(10) name=Temperature data=20</strong></span>
+<span class="strong"><strong>zwmanager.py[4915]: dev=Multi Sensor(10) name=Temperature data=20</strong></span>
+</pre></div><p>Then, when I started the browser, I got the following messages:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>zwmanager.py[4937]: file /house.html served</strong></span>
+<span class="strong"><strong>zwmanager.py[4937]: file /house.css served</strong></span>
+<span class="strong"><strong>zwmanager.py[4937]: file /jquery-1.9.1.js served</strong></span>
+</pre></div><p>As expected, the <a id="id564" class="indexterm"/>main HTML file, the CSS file, and the JavaScript file are served to the client that showed me something, as shown in the following screenshot:</p><div class="mediaobject"><img src="graphics/B00255_11_13.jpg" alt="The final test"/></div><p>Now, I can try <a id="id565" class="indexterm"/>turning on the printer connected to the wall plug by pressing the <span class="strong"><strong>switch</strong></span> button. I got the following messages from the <code class="literal">zwmanager.py</code> program:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>zwmanager.py[5002]: managing /set...</strong></span>
+<span class="strong"><strong>zwmanager.py[5002]: got label=switch</strong></span>
+<span class="strong"><strong>zwmanager.py[5002]: dev=FGWPE Wall Plug(9) name=Switch data=1</strong></span>
+<span class="strong"><strong>zwmanager.py[5002]: dev=FGWPE Wall Plug(9) name=Power data=0</strong></span>
+<span class="strong"><strong>zwmanager.py[5002]: dev=FGWPE Wall Plug(9) name=Power data=21</strong></span>
+<span class="strong"><strong>zwmanager.py[5002]: dev=FGWPE Wall Plug(9) name=Power data=30</strong></span>
+<span class="strong"><strong>zwmanager.py[5002]: dev=FGWPE Wall Plug(9) name=Power data=36</strong></span>
+<span class="strong"><strong>zwmanager.py[5002]: dev=FGWPE Wall Plug(9) name=Power data=13</strong></span>
+</pre></div><p>Meanwhile, the web panel changed as follows:</p><div class="mediaobject"><img src="graphics/B00255_11_14.jpg" alt="The final test"/></div></div>
+<div class="section" title="Summary"><div class="titlepage"><div><div><h1 class="title"><a id="ch11lvl1sec64"/>Summary</h1></div></div></div><p>In this chapter, we discovered how to implement a basic home management system with a web interface that controls two Z-Wave devices to monitor some environment data and control a wall plug.</p><p>The presented code, even if a bit complex, can be easily extended to support more Z-Wave devices to manage a really complex network.</p></div></body></html>

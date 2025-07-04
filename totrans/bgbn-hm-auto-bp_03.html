@@ -1,0 +1,670 @@
+<html><head></head><body><div class="chapter" title="Chapter&#xA0;3.&#xA0;Aquarium Monitor"><div class="titlepage"><div><div><h1 class="title"><a id="ch03"/>Chapter 3. Aquarium Monitor</h1></div></div></div><p>In this chapter, we'll see how to realize an aquarium monitor where we'll be able to record all the environment data and then control the life of our loved fish from a web panel.</p><p>By using specific sensors, you'll <a id="id96" class="indexterm"/>learn how to monitor your aquarium with the possibility to set alarms, log the aquarium data (water temperature), and to perform actions such as cooling the water and feeding the fish.</p><p>Simply speaking, we're going to implement a simple aquarium web monitor with a real-time live video, some alarms in case of malfunctioning, and a simple temperature data logging that allows us to monitor the system from a standard PC as well as from a smartphone or tablet, without using any specifying mobile app, but just using the on-board standard browser only.</p><div class="section" title="The basics of functioning"><div class="titlepage"><div><div><h1 class="title"><a id="ch03lvl1sec19"/>The basics of functioning</h1></div></div></div><p>This <a id="id97" class="indexterm"/>aquarium monitor is a good (even if very simple) example about how a web monitoring system should be implemented, giving to the reader some basic ideas about how a mid-complex system works and how we can interact with it in order to modify some system settings, displaying some alarms in case of malfunctioning, and plotting a data logging on a PC, smartphone, or tablet.</p><p>Despite these aspects, the basic functioning of this project is similar to what we've already done in previous chapters: we have a periodic task that collects the data and then decides what to do. However, this time, we have a user interface (the web panel) to manage, and a video streaming to be redirected into a web page.</p><p>Note also that in this project, we need an additional power supply in order to power and manage 12V devices (such as a water pump, a lamp, and a cooler) with the BeagleBone Black, which is powered at 5V instead.</p><div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="note25"/>Note</h3><p>Note that I'm not going to test this prototype on a real aquarium (since I don't have one), but by using a normal tea cup filled with water! So you should consider this project for educational purpose only, even if, with some enhancements, it could be used on a real aquarium too!</p></div></div></div></div>
+<div class="section" title="Setting up the hardware"><div class="titlepage"><div><div><h1 class="title"><a id="ch03lvl1sec20"/>Setting up the hardware</h1></div></div></div><p>About the hardware, there<a id="id98" class="indexterm"/> are at least two major issues to be pointed out:</p><div class="itemizedlist"><ul class="itemizedlist"><li class="listitem" style="list-style-type: disc"><span class="strong"><strong>Power supply</strong></span>: We <a id="id99" class="indexterm"/>have two different voltages to use due to the fact the water pump, the lamp, and the cooler are 12V powered, while the other devices are 5V/3.3V powered. So, we have to use a dual output power source (or two different power sources) to power up our prototype.</li><li class="listitem" style="list-style-type: disc"><span class="strong"><strong>Interface</strong></span>: The <a id="id100" class="indexterm"/>second issue is about using a proper interface circuitry between the 12V world and the 5V one in such a way that it doesn't damage the BeagleBone Black or other devices. Let me point out that a single GPIO of the BeagleBone Black can manage a voltage of 3.3V, so we need a proper circuitry to manage a 12V device.</li></ul></div><div class="section" title="Setting up the 12V devices"><div class="titlepage"><div><div><h2 class="title"><a id="ch03lvl2sec25"/>Setting up the 12V devices</h2></div></div></div><p>As just stated, these <a id="id101" class="indexterm"/>devices need special attention and a dedicated<a id="id102" class="indexterm"/> 12V power line which, of course, cannot be the one we wish to use to supply the BeagleBone Black. On my prototype, I used a 12V power supplier that can supply a current till 1A. These characteristics should be enough to manage a single water pump, a lamp, and a cooler.</p><p>After you get a proper power supplier, we can pass to show the circuitry to use to manage the 12V devices. Since all of them are simple on/off devices, we can use a relay to control them. I used the device shown in the following image where we have 8 relays:</p><div class="mediaobject"><img src="graphics/B00255_03_01.jpg" alt="Setting up the 12V devices"/></div><div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="note26"/>Note</h3><p>The devices can be purchased at the following link (or by surfing the Internet): <a class="ulink" href="http://www.cosino.io/product/5v-relays-array">http://www.cosino.io/product/5v-relays-array</a>
+</p></div></div><p>Then, the schematic to connect a single 12V device is shown in the following diagram:</p><div class="mediaobject"><img src="graphics/B00255_03_02.jpg" alt="Setting up the 12V devices"/></div><p>Simply speaking, for<a id="id103" class="indexterm"/> each device, we can turn the power supply on and off simply by moving a specific GPIO of our BeagleBone Black. Note that each relays of the array board can be managed in direct or inverse logic by simply choosing the right connections accordingly as reported on the board itself, that is, we can decide that, by putting the GPIO into a logic <code class="literal">0</code> state, we can activate the relay, and then, turning on the attached device, while putting the GPIO into a logic <code class="literal">1</code> state, we can deactivate the relay, and then turn off the attached device.</p><div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="tip26"/>Tip</h3><p>By using the following logic, when the LED of a relay is turned on, the corresponding device is powered on.</p></div></div><p>The BeagleBone Black's GPIOs and the pins of the relays array I used with 12V devices are reported in the following table:</p><div class="informaltable"><table border="1"><colgroup><col style="text-align: left"/><col style="text-align: left"/><col style="text-align: left"/></colgroup><thead><tr><th style="text-align: left" valign="bottom">
+<p>Pin</p>
+</th><th style="text-align: left" valign="bottom">
+<p>Relays Array pin</p>
+</th><th style="text-align: left" valign="bottom">
+<p>12V Device</p>
+</th></tr></thead><tbody><tr><td style="text-align: left" valign="top">
+<p>P8.10 - GPIO66</p>
+</td><td style="text-align: left" valign="top">
+<p>3</p>
+</td><td style="text-align: left" valign="top">
+<p>Lamp</p>
+</td></tr><tr><td style="text-align: left" valign="top">
+<p>P8.9 - GPIO69</p>
+</td><td style="text-align: left" valign="top">
+<p>2</p>
+</td><td style="text-align: left" valign="top">
+<p>Cooler</p>
+</td></tr><tr><td style="text-align: left" valign="top">
+<p>P8.12 - GPIO68</p>
+</td><td style="text-align: left" valign="top">
+<p>1</p>
+</td><td style="text-align: left" valign="top">
+<p>Pump</p>
+</td></tr><tr><td style="text-align: left" valign="top">
+<p>P9.1 - GND</p>
+</td><td style="text-align: left" valign="top">
+<p>GND</p>
+</td><td style="text-align: left" valign="top"> </td></tr><tr><td style="text-align: left" valign="top">
+<p>P9.5 - 5V</p>
+</td><td style="text-align: left" valign="top">
+<p>Vcc</p>
+</td><td style="text-align: left" valign="top"> </td></tr></tbody></table></div><p>To test the functionality of each GPIO line, we can use the following command to set up the GPIO as an output line at high state:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@arm:~# ./bin/gpio_set.sh 68 out 1</strong></span>
+</pre></div><div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="tip27"/>Tip</h3><p>Note that the <span class="emphasis"><em>off</em></span> state of the relay is <code class="literal">1</code>, while the <span class="emphasis"><em>on</em></span> state is <code class="literal">0</code>.</p></div></div><p>Then, we can<a id="id104" class="indexterm"/> turn the relay on and off by just writing <code class="literal">0</code> and <code class="literal">1</code> into <code class="literal">/sys/class/gpio/gpio68/value</code> file, as follows:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@arm:~# echo 0 &gt; /sys/class/gpio/gpio68/value</strong></span>
+<span class="strong"><strong>root@arm:~# echo 1 &gt; /sys/class/gpio/gpio68/value</strong></span>
+</pre></div></div><div class="section" title="Setting up the webcam"><div class="titlepage"><div><div><h2 class="title"><a id="ch03lvl2sec26"/>Setting up the webcam</h2></div></div></div><p>The webcam I'm<a id="id105" class="indexterm"/> using in my prototype is a normal UVC-based webcam, but you can safely use another one that is supported by the<a id="id106" class="indexterm"/> <span class="strong"><strong>mjpg-streamer</strong></span> tool.</p><div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="note27"/>Note</h3><p>See the <a id="id107" class="indexterm"/>mjpg-streamer project's home site for further information at <a class="ulink" href="http://sourceforge.net/projects/mjpg-streamer/">http://sourceforge.net/projects/mjpg-streamer/</a>.</p></div></div><p>Once connected <a id="id108" class="indexterm"/>to the BeagleBone Black USB host port, I get the following kernel activities:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>usb 1-1: New USB device found, idVendor=045e, idProduct=0766</strong></span>
+<span class="strong"><strong>usb 1-1: New USB device strings: Mfr=1, Product=2, SerialNumber=0</strong></span>
+<span class="strong"><strong>usb 1-1: Product: Microsoft LifeCam VX-800</strong></span>
+<span class="strong"><strong>usb 1-1: Manufacturer: Microsoft</strong></span>
+<span class="strong"><strong>...</strong></span>
+<span class="strong"><strong>uvcvideo 1-1:1.0: usb_probe_interface</strong></span>
+<span class="strong"><strong>uvcvideo 1-1:1.0: usb_probe_interface - got id</strong></span>
+<span class="strong"><strong>uvcvideo: Found UVC 1.00 device Microsoft LifeCam VX-800 (045e:0766)</strong></span>
+</pre></div><p>Now, a new driver called <code class="literal">uvcvideo</code> is loaded into the kernel:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@beaglebone:~# lsmod</strong></span>
+<span class="strong"><strong>Module                  Size  Used by</strong></span>
+<span class="strong"><strong>snd_usb_audio          95766  0</strong></span>
+<span class="strong"><strong>snd_hwdep               4818  1 snd_usb_audio</strong></span>
+<span class="strong"><strong>snd_usbmidi_lib        14457  1 snd_usb_audio</strong></span>
+<span class="strong"><strong>uvcvideo               53354  0</strong></span>
+<span class="strong"><strong>videobuf2_vmalloc       2418  1 uvcvideo</strong></span>
+<span class="strong"><strong>...</strong></span>
+</pre></div><p>Okay, now, to have a streaming server, we need to download the mjpg-streamer source code and compile it. We can do everything within the BeagleBone Black itself with the following command:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@beaglebone:~# svn checkout svn://svn.code.sf.net/p/mjpg-streamer/code/ mjpg-streamer-code</strong></span>
+</pre></div><div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="tip28"/>Tip</h3><p>The <code class="literal">svn</code> command is part of the <code class="literal">subversion</code> package and can be installed by using the following command:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@beaglebone:~# aptitude install subversion</strong></span>
+</pre></div></div></div><p>After the download is finished, we can compile and install the code by using the following command line:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@beaglebone:~# cd mjpg-streamer-code/mjpg-streamer/ &amp;&amp; make &amp;&amp; make install</strong></span>
+</pre></div><div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="note28"/>Note</h3><p>You can find a compressed archive copy of this program in the <code class="literal">chapter_03/mjpg-streamer-code.tgz</code> file in the book's example code repository.</p></div></div><p>If no errors <a id="id109" class="indexterm"/>are reported, you should now be able to execute the new command as follows, where we ask for the help message:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@beaglebone:~# mjpg_streamer --help</strong></span>
+<span class="strong"><strong>-----------------------------------------------------------------------</strong></span>
+<span class="strong"><strong>Usage: mjpg_streamer</strong></span>
+<span class="strong"><strong>  -i | --input "&lt;input-plugin.so&gt; [parameters]"</strong></span>
+<span class="strong"><strong>  -o | --output "&lt;output-plugin.so&gt; [parameters]"</strong></span>
+<span class="strong"><strong> [-h | --help ]........: display this help</strong></span>
+<span class="strong"><strong> [-v | --version ].....: display version information</strong></span>
+<span class="strong"><strong> [-b | --background]...: fork to the background, daemon mode</strong></span>
+<span class="strong"><strong>...</strong></span>
+</pre></div><div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="tip29"/>Tip</h3><p>If you get an error like the following it means that your system misses the <code class="literal">convert</code> tool:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>make[1]: Entering directory `/root/mjpg-streamer-code/mjpg-streamer/plugins/input_testpicture'</strong></span>
+<span class="strong"><strong>convert pictures/960x720_1.jpg -resize 640x480!</strong></span>
+<span class="strong"><strong>pictures/640x480_1.jpg</strong></span>
+<span class="strong"><strong>/bin/sh: 1: convert: not found</strong></span>
+<span class="strong"><strong>make[1]: *** [pictures/640x480_1.jpg] Error 127</strong></span>
+</pre></div><p>You can install it by using the usual <code class="literal">aptitude</code> command:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@beaglebone:~# aptitude install imagemagick</strong></span>
+</pre></div></div></div><p>Okay, now we are ready to test the webcam. Just run the following command line and then point a web browser to the address <code class="literal">http://192.168.32.46:8080/?action=stream</code> (where you should replace my IP address <code class="literal">192.168.32.46</code> with your BeagleBone Black's one) in order to get the live video from your webcam:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@beaglebone:~# LD_LIBRARY_PATH=/usr/local/lib/ mjpg_streamer -i "input_uvc.so -y -f 10 -r QVGA" -o "output_http.so -w /var/www/"</strong></span>
+</pre></div><div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="tip31"/>Tip</h3><p>Note that you can use the USB Ethernet address <code class="literal">192.168.7.2</code> too if you're not using the BeagleBone Black's Ethernet port.</p></div></div><p>If everything works<a id="id110" class="indexterm"/> well, you should get something similar to what is shown in the following screenshot:</p><div class="mediaobject"><img src="graphics/B00255_03_03.jpg" alt="Setting up the webcam"/></div><div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="tip32"/>Tip</h3><p>If you get an error, as follows it means that some other process is holding the <code class="literal">8080</code> port, and most probably it's occupied by the <code class="literal">Bone101</code> service:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>bind: Address already in use</strong></span>
+</pre></div><p>To disable it, you can use the following commands:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@BeagleBone:~# systemctl stop bonescript.socket</strong></span>
+<span class="strong"><strong>root@BeagleBone:~# systemctl disable bonescript.socket</strong></span>
+<span class="strong"><strong>rm '/etc/systemd/system/sockets.target.wants/bonescript.socket'</strong></span>
+</pre></div><p>Or, you <a id="id111" class="indexterm"/>can simply use another port, maybe port <code class="literal">8090</code>, with the following command line:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@beaglebone:~# LD_LIBRARY_PATH=/usr/local/lib/ mjpg_streamer -i "input_uvc.so -y -f 10 -r QVGA" -o "output_http.so -p 8090 -w /var/www/"</strong></span>
+</pre></div></div></div></div><div class="section" title="Connecting the temperature sensor"><div class="titlepage"><div><div><h2 class="title"><a id="ch03lvl2sec27"/>Connecting the temperature sensor</h2></div></div></div><p>The temperature sensor <a id="id112" class="indexterm"/>used in my prototype is the one shown in the following image:</p><div class="mediaobject"><img src="graphics/B00255_03_04.jpg" alt="Connecting the temperature sensor"/></div><div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="note29"/>Note</h3><p>The devices can be purchased at the following link (or by surfing the Internet): <a class="ulink" href="http://www.cosino.io/product/waterproof-temperature-sensor">http://www.cosino.io/product/waterproof-temperature-sensor</a>.</p><p>The datasheet of this device is available at <a class="ulink" href="http://datasheets.maximintegrated.com/en/ds/DS18B20.pdf">http://datasheets.maximintegrated.com/en/ds/DS18B20.pdf</a>.</p></div></div><p>As you can see, it's a<a id="id113" class="indexterm"/> waterproof device, so we can safely put it into the water to get its temperature.</p><p>This device is a <span class="strong"><strong>1-Wire</strong></span> device and we can get access to it by using the <code class="literal">w1-gpio</code> driver, which emulates a 1-Wire controller by using a standard BeagleBone Black GPIO pin. The electrical connection must be done according to the following table, keeping in mind that the sensor has three colored connection cables:</p><div class="informaltable"><table border="1"><colgroup><col style="text-align: left"/><col style="text-align: left"/></colgroup><thead><tr><th style="text-align: left" valign="bottom">
+<p>Pin</p>
+</th><th style="text-align: left" valign="bottom">
+<p>Cable color</p>
+</th></tr></thead><tbody><tr><td style="text-align: left" valign="top">
+<p>P9.4 - Vcc</p>
+</td><td style="text-align: left" valign="top">
+<p>Red</p>
+</td></tr><tr><td style="text-align: left" valign="top">
+<p>P8.11 - GPIO1_13</p>
+</td><td style="text-align: left" valign="top">
+<p>White</p>
+</td></tr><tr><td style="text-align: left" valign="top">
+<p>P9.2 - GND</p>
+</td><td style="text-align: left" valign="top">
+<p>Black</p>
+</td></tr></tbody></table></div><div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="note30"/>Note</h3><p>Interested readers can follow this URL for more information about how 1-Wire works: <a class="ulink" href="http://en.wikipedia.org/wiki/1-Wire">http://en.wikipedia.org/wiki/1-Wire</a>
+</p></div></div><p>Keep in mind that, since our 1-Wire controller is implemented in software, we have to add a pull-up resistor of 4.7KΩ between the red and white cable in order to make it work!</p><p>Once all connections are in place, we can use the <code class="literal">chapter_03/BB-W1-GPIO-00A0.dts</code> file in the book's example code repository to enable the 1-Wire controller on the <span class="emphasis"><em>P8.11</em></span> pin of the BeagleBone Black's expansion connector. The following snippet shows the relevant code where we enable the <code class="literal">w1-gpio</code> driver and assign to it the proper GPIO:</p><div class="informalexample"><pre class="programlisting">   fragment@1 {
+      target = &lt;&amp;ocp&gt;;
+
+      __overlay__ {
+         #address-cells  = &lt;1&gt;;
+         #size-cell      = &lt;0&gt;;
+         status          = "okay";
+
+         /* Setup the pins */
+         pinctrl-names   = "default";
+         pinctrl-0       = &lt;&amp;bb_w1_pins&gt;;
+
+         /* Define the new one-wire master as based on w1-gpio
+         * and using GPIO1_13
+         */
+         onewire@0 {
+            compatible      = "w1-gpio";
+            gpios           = &lt;&amp;gpio2 13 0&gt;;
+         };
+      };
+   };</pre></div><p>To enable it, we <a id="id114" class="indexterm"/>must use the <code class="literal">dtc</code> program to compile it as follows:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@beaglebone:~# dtc -O dtb -o /lib/firmware/BB-W1-GPIO-00A0.dtbo -b 0 -@ BB-W1-GPIO-00A0.dts</strong></span>
+</pre></div><p>Then, we have to load it into the kernel with the following command:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@beaglebone:~# echo BB-W1-GPIO &gt; /sys/devices/bone_capemgr.9/slots</strong></span>
+</pre></div><p>If everything works well, we should see a new 1-Wire device under the <code class="literal">/sys/bus/w1/devices/</code> directory, as follows:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@beaglebone:~# ls /sys/bus/w1/devices/</strong></span>
+<span class="strong"><strong>28-000004b541e9  w1_bus_master1</strong></span>
+</pre></div><p>The new temperature sensor is represented by the directory named <code class="literal">28-000004b541e9</code>. To read the current temperature, we can use the <code class="literal">cat</code> command on the <code class="literal">w1_slave</code> file as follows:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@beaglebone:~# cat /sys/bus/w1/devices/28-000004b541e9/w1_slave</strong></span>
+<span class="strong"><strong>d8 01 00 04 1f ff 08 10 1c : crc=1c YES</strong></span>
+<span class="strong"><strong>d8 01 00 04 1f ff 08 10 1c t=29500</strong></span>
+</pre></div><div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="tip35"/>Tip</h3><p>Note that your sensors have a different ID, so in your system you'll get a different path name in the <code class="literal">/sys/bus/w1/devices/28-NNNNNNNNNNNN/w1_slave </code>form.</p></div></div><p>In the preceding example, the current temperature is <code class="literal">t=29500</code>, which is expressed in <span class="strong"><strong>millicelsius degree</strong></span> (<span class="strong"><strong>m°C</strong></span>), so it's equivalent to 29.5°C.</p><div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="tip36"/>Tip</h3><p>The reader can take a look at the book <span class="emphasis"><em>BeagleBone Essentials</em></span>, <span class="emphasis"><em>Packt Publishing</em></span>, written by the author of this book, in order to have more information regarding the management of the 1-Wire devices on the BeagleBone Black.</p></div></div></div><div class="section" title="Connecting the feeder"><div class="titlepage"><div><div><h2 class="title"><a id="ch03lvl2sec28"/>Connecting the feeder</h2></div></div></div><p>The fish feeder is a<a id="id115" class="indexterm"/> device that can release some feed by moving a motor. Its functioning is represented in the following screenshot:</p><div class="mediaobject"><img src="graphics/B00255_03_05.jpg" alt="Connecting the feeder"/></div><p>In the closed position, the motor is at horizontal position, so the feed cannot fall down, while in the <span class="strong"><strong>Open</strong></span> position, the motor is at vertical position, so that the feed can fall down. I have no real fish feeder, but looking at the preceding functioning, we can simulate it by using the servo motor shown in the following screenshot:</p><div class="mediaobject"><img src="graphics/B00255_03_06.jpg" alt="Connecting the feeder"/></div><div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="note31"/>Note</h3><p>The device can be purchased at the following link (or by surfing the Internet): <a class="ulink" href="http://www.cosino.io/product/nano-servo-motor">http://www.cosino.io/product/nano-servo-motor</a>.</p><p>The datasheet of this device is available at <a class="ulink" href="http://hitecrcd.com/files/Servomanual.pdf.">http://hitecrcd.com/files/Servomanual.pdf.</a>
+</p></div></div><p>This device can be<a id="id116" class="indexterm"/> controlled in position, and it can rotate by 90 degrees with a proper <span class="strong"><strong>PWM</strong></span> signal in input. In fact, reading into the datasheet, we discover that the servo can be managed by using a periodic square waveform with a <span class="strong"><strong>period</strong></span> (<span class="strong"><strong>T</strong></span>) of 20ms and with a <span class="strong"><strong>high state time</strong></span> (<span class="strong"><strong>t<sub>high</sub></strong></span>) between 0.9ms and 2.1ms with 1.5ms as (more or less) center. So, we can consider the motor in the <span class="strong"><strong>Open</strong></span> position when <span class="emphasis"><em>t<sub>high</sub> =1ms</em></span> and in the <span class="strong"><strong>Close</strong></span> position when <span class="emphasis"><em>t<sub>high</sub>=2ms</em></span> (of course, these values should be carefully calibrated once the feeder is really built up!).</p><p>Let's connect the servo as described by the following table:</p><div class="informaltable"><table border="1"><colgroup><col style="text-align: left"/><col style="text-align: left"/></colgroup><thead><tr><th style="text-align: left" valign="bottom">
+<p>Pin</p>
+</th><th style="text-align: left" valign="bottom">
+<p>Cable color</p>
+</th></tr></thead><tbody><tr><td style="text-align: left" valign="top">
+<p>P9.3 - Vcc</p>
+</td><td style="text-align: left" valign="top">
+<p>Red</p>
+</td></tr><tr><td style="text-align: left" valign="top">
+<p>P9.22 - PWM</p>
+</td><td style="text-align: left" valign="top">
+<p>Yellow</p>
+</td></tr><tr><td style="text-align: left" valign="top">
+<p>P9.1 - GND</p>
+</td><td style="text-align: left" valign="top">
+<p>Black</p>
+</td></tr></tbody></table></div><div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="tip37"/>Tip</h3><p>Interested readers can find more details about the PWM at <a class="ulink" href="https://en.wikipedia.org/wiki/Pulse-width_modulation">https://en.wikipedia.org/wiki/Pulse-width_modulation</a>.</p></div></div><p>To test the connections, we have to enable one PWM generator of the BeagleBone Black. So, to respect the preceding connections, we need the one which has its output line on pin <code class="literal">P9.22</code> of the expansion connectors. To do it, we can use the following commands:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@beaglebone:~# echo am33xx_pwm &gt; /sys/devices/bone_capemgr.9/slots</strong></span>
+<span class="strong"><strong>root@beaglebone:~# echo bone_pwm_P9_22 &gt; /sys/devices/bone_capemgr.9/slots</strong></span>
+</pre></div><p>Then, in the <code class="literal">/sys/devices/ocp.3</code> directory, we should find a new entry related to the new enabled PWM device, as follows:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@beaglebone:~# ls -d /sys/devices/ocp.3/pwm_*</strong></span>
+<span class="strong"><strong>/sys/devices/ocp.3/pwm_test_P9_22.12</strong></span>
+</pre></div><p>Looking at the <code class="literal">/sys/devices/ocp.3/pwm_test_P9_22.12</code> directory, we see the files we can use to manage our new PWM device:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@beaglebone:~# ls /sys/devices/ocp.3/pwm_test_P9_22.12/</strong></span>
+<span class="strong"><strong>driver	duty   modalias   period   polarity   power   run   subsystem   uevent</strong></span>
+</pre></div><p>As we can deduce<a id="id117" class="indexterm"/> from the preceding file names, we have to properly set up the values into the files named as <code class="literal">polarity</code>, <code class="literal">period</code>, and <code class="literal">duty</code>. So, for instance, the center position of the servo can be achieved by using the following commands:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@beaglebone:~# echo 0 &gt; /sys/devices/ocp.3/pwm_test_P9_22.12/polarity</strong></span>
+<span class="strong"><strong>root@beaglebone:~# echo 20000000 &gt; /sys/devices/ocp.3/pwm_test_P9_22.12/period</strong></span>
+<span class="strong"><strong>root@beaglebone:~# echo 1500000 &gt; /sys/devices/ocp.3/pwm_test_P9_22.12/duty</strong></span>
+</pre></div><p>The polarity is set to <code class="literal">0</code> to invert it, while the values written in the other files are time values expressed in nanoseconds, set at a period of 20ms and a duty cycle of 1.5ms, as requested by the datasheet (time values are all in nanoseconds.) Now, to move the gear totally clockwise, we can use the following command:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@beaglebone:~# echo 2100000 &gt; /sys/devices/ocp.3/pwm_test_P9_22.12/duty</strong></span>
+</pre></div><p>On the other hand, the following command is to move it totally anticlockwise:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@beaglebone:~# echo 900000 &gt; /sys/devices/ocp.3/pwm_test_P9_22.12/duty</strong></span>
+</pre></div><p>So, by using the following command sequence, we can open and then close (with a delay of <code class="literal">1</code> second) the gate of the feeder:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>echo 1000000 &gt; /sys/devices/ocp.3/pwm_test_P9_22.12/duty</strong></span>
+<span class="strong"><strong>sleep 1</strong></span>
+<span class="strong"><strong>echo 2000000 &gt; /sys/devices/ocp.3/pwm_test_P9_22.12/duty</strong></span>
+</pre></div><p>Note that by simply modifying the delay, we can control how much feed should fall down when the feeder is activated.</p><div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="note32"/>Note</h3><p>The script that implements the feeder controlling mechanism can be found in the <code class="literal">chapter_03/feeder.sh</code> file in the book's example code repository.</p></div></div></div><div class="section" title="The water sensor"><div class="titlepage"><div><div><h2 class="title"><a id="ch03lvl2sec29"/>The water sensor</h2></div></div></div><p>The <a id="id118" class="indexterm"/>water sensor I used is shown in the following screenshot:</p><div class="mediaobject"><img src="graphics/B00255_03_07.jpg" alt="The water sensor"/></div><div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="note33"/>Note</h3><p>The device can be purchased at the following link (or by surfing the Internet): <a class="ulink" href="http://www.cosino.io/product/water_sensor">http://www.cosino.io/product/water_sensor</a>.</p></div></div><p>This is a really<a id="id119" class="indexterm"/> simple device that implements what is shown in the following screenshot, where the <span class="strong"><strong>resistor</strong></span> (<span class="strong"><strong>R</strong></span>) has been added to limit the current when the water closes the circuit:</p><div class="mediaobject"><img src="graphics/B00255_03_08.jpg" alt="The water sensor"/></div><p>When a single drop of water <span class="emphasis"><em>touches</em></span> two or more teeth of the comb in the schematic, the circuit is closed and the <span class="strong"><strong>output voltage</strong></span> (<span class="strong"><strong>Vout</strong></span>) drops from <span class="strong"><strong>Vcc</strong></span> to 0V.</p><p>So, if we wish to check the water level in our aquarium, that is, if we wish to check for a water leakage, we can imagine to put the aquarium into some sort of saucer, and then this device into it, so, if a water leakage occurs, the water is collected by the saucer, and the output voltage from the sensor should move from <span class="strong"><strong>Vcc</strong></span> to GND.</p><p>The GPIO used for this device are shown in the following table:</p><div class="informaltable"><table border="1"><colgroup><col style="text-align: left"/><col style="text-align: left"/></colgroup><thead><tr><th style="text-align: left" valign="bottom">
+<p>Pin</p>
+</th><th style="text-align: left" valign="bottom">
+<p>Cable color</p>
+</th></tr></thead><tbody><tr><td style="text-align: left" valign="top">
+<p>P9.3 - 3.3V</p>
+</td><td style="text-align: left" valign="top">
+<p>Red</p>
+</td></tr><tr><td style="text-align: left" valign="top">
+<p>P8.16 - GPIO67</p>
+</td><td style="text-align: left" valign="top">
+<p>Yellow</p>
+</td></tr><tr><td style="text-align: left" valign="top">
+<p>P9.1 - GND</p>
+</td><td style="text-align: left" valign="top">
+<p>Black</p>
+</td></tr></tbody></table></div><p>To test the<a id="id120" class="indexterm"/> connections, we have to define GPIO 67 as an input line with the following command:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@beaglebone:~# ../bin/gpio_set.sh 67 in</strong></span>
+</pre></div><p>Then, we can try to read the GPIO status while the sensor is in the water and when it is not, by using the following two commands:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@beaglebone:~# cat /sys/class/gpio/gpio67/value</strong></span>
+<span class="strong"><strong>0</strong></span>
+<span class="strong"><strong>root@beaglebone:~# cat /sys/class/gpio/gpio67/value</strong></span>
+<span class="strong"><strong>1</strong></span>
+</pre></div></div><div class="section" title="The final picture"><div class="titlepage"><div><div><h2 class="title"><a id="ch03lvl2sec30"/>The final picture</h2></div></div></div><p>The following screenshot shows the prototype I realized to implement this project and to test the software. As you can see, the aquarium has been replaced by a cup of water:</p><div class="mediaobject"><img src="graphics/B00255_03_09.jpg" alt="The final picture"/></div><p>Note that we have <a id="id121" class="indexterm"/>two external power suppliers: the usual one at 5V for the BeagleBone Black, and the other one with an output voltage of 12V for the other devices (you can see its connector in the upper-right corner on the right of the webcam.)</p></div></div>
+<div class="section" title="Setting up the software"><div class="titlepage"><div><div><h1 class="title"><a id="ch03lvl1sec21"/>Setting up the software</h1></div></div></div><p>Regarding the<a id="id122" class="indexterm"/> software, this<a id="id123" class="indexterm"/> time the major part is covered by the web interface, which is the real core of the project, and the acquisition and controlling process to get the aquarium data and managing the actuators. Then, a dedicated monitor script will be used to implement the communication between the web interface and the internal database.</p><div class="section" title="Managing the system status and configuration"><div class="titlepage"><div><div><h2 class="title"><a id="ch03lvl2sec31"/>Managing the system status and configuration</h2></div></div></div><p>To manage the <a id="id124" class="indexterm"/>status of all devices and<a id="id125" class="indexterm"/> to do the data logging, we can use a database again to store all the relevant data, as we did in <a class="link" href="ch01.html" title="Chapter 1. Dangerous Gas Sensors">Chapter 1</a>, <span class="emphasis"><em>Dangerous Gas Sensors</em></span>. So, we can use the <code class="literal">chapter_03/my_init.sh</code> file in the book's example code repository to set up the database. The following snippet shows the<a id="id126" class="indexterm"/> relevant code where we<a id="id127" class="indexterm"/> define the tables used in the project:</p><div class="informalexample"><pre class="programlisting"># Select database
+USE aquarium_mon;
+
+#
+# Create the system status table
+#
+
+CREATE TABLE status (
+        n VARCHAR(64) NOT NULL,
+        v VARCHAR(64) NOT NULL,
+        PRIMARY KEY (n)
+) ENGINE=MEMORY;
+
+# Setup default values
+INSERT INTO status (n, v) VALUES('alarm_sys', '0');
+INSERT INTO status (n, v) VALUES('alarm_level', '0');
+INSERT INTO status (n, v) VALUES('alarm_temp', '0');
+INSERT INTO status (n, v) VALUES('water', '21');
+INSERT INTO status (n, v) VALUES('cooler', '0');
+INSERT INTO status (n, v) VALUES('pump', '0');
+INSERT INTO status (n, v) VALUES('lamp', '0');
+INSERT INTO status (n, v) VALUES('force_cooler', '0');
+INSERT INTO status (n, v) VALUES('force_pump', '0');
+INSERT INTO status (n, v) VALUES('force_lamp', '0');
+INSERT INTO status (n, v) VALUES('force_feeder', '0');
+
+#
+# Create the system configuration table
+#
+
+CREATE TABLE config (
+   n VARCHAR(64) NOT NULL,
+   v VARCHAR(64) NOT NULL,
+   PRIMARY KEY (n)
+);
+ 
+# Setup default values
+INSERT INTO config (n, v) VALUES('pump_t_on', '20');
+INSERT INTO config (n, v) VALUES('pump_t_off', '60');
+INSERT INTO config (n, v) VALUES('feeder_interval', '60');
+INSERT INTO config (n, v) VALUES('water_temp_max', '27');
+INSERT INTO config (n, v) VALUES('water_temp_min_alarm', '18');
+INSERT INTO config (n, v) VALUES('water_temp_max_alarm', '29');
+
+#
+# Create one table per sensor data
+#
+
+CREATE TABLE temp_log (
+   t DATETIME NOT NULL,
+   v FLOAT,
+   PRIMARY KEY (t)
+);</pre></div><p>The <code class="literal">status</code> table<a id="id128" class="indexterm"/> holds the system<a id="id129" class="indexterm"/> status variables with the following meanings:</p><div class="informaltable"><table border="1"><colgroup><col style="text-align: left"/><col style="text-align: left"/></colgroup><thead><tr><th style="text-align: left" valign="bottom">
+<p>Variable name</p>
+</th><th style="text-align: left" valign="bottom">
+<p>Description</p>
+</th></tr></thead><tbody><tr><td style="text-align: left" valign="top">
+<p>
+<code class="literal">alarm_sys</code>
+</p>
+</td><td style="text-align: left" valign="top">
+<p>Generic system alarm (I/O and communication errors, and so on).</p>
+</td></tr><tr><td style="text-align: left" valign="top">
+<p>
+<code class="literal">alarm_level</code>
+</p>
+</td><td style="text-align: left" valign="top">
+<p>A water leakage has been detected.</p>
+</td></tr><tr><td style="text-align: left" valign="top">
+<p>
+<code class="literal">alarm_temp</code>
+</p>
+</td><td style="text-align: left" valign="top">
+<p>Water temperature is over the <code class="literal">water_temp_max_alarm</code> value or under the <code class="literal">water_temp_min_alarm</code> value (in °C).</p>
+</td></tr><tr><td style="text-align: left" valign="top">
+<p>
+<code class="literal">Water</code>
+</p>
+</td><td style="text-align: left" valign="top">
+<p>Current water temperature (in °C).</p>
+</td></tr><tr><td style="text-align: left" valign="top">
+<p>
+<code class="literal">Cooler</code>
+</p>
+</td><td style="text-align: left" valign="top">
+<p>Current cooler status (0 = off, 1 = on).</p>
+</td></tr><tr><td style="text-align: left" valign="top">
+<p>
+<code class="literal">Pump</code>
+</p>
+</td><td style="text-align: left" valign="top">
+<p>Current pump status (0 = off, 1 = on).</p>
+</td></tr><tr><td style="text-align: left" valign="top">
+<p>
+<code class="literal">Lamp</code>
+</p>
+</td><td style="text-align: left" valign="top">
+<p>Current lamp status (0 = off, 1 = on).</p>
+</td></tr><tr><td style="text-align: left" valign="top">
+<p>
+<code class="literal">force_cooler</code>
+</p>
+</td><td style="text-align: left" valign="top">
+<p>The user asks to turn on the cooler.</p>
+</td></tr><tr><td style="text-align: left" valign="top">
+<p>
+<code class="literal">force_pump</code>
+</p>
+</td><td style="text-align: left" valign="top">
+<p>The user asks to turn on the pump.</p>
+</td></tr><tr><td style="text-align: left" valign="top">
+<p>
+<code class="literal">force_lamp</code>
+</p>
+</td><td style="text-align: left" valign="top">
+<p>The user asks to turn on the lamp.</p>
+</td></tr><tr><td style="text-align: left" valign="top">
+<p>
+<code class="literal">force_feeder</code>
+</p>
+</td><td style="text-align: left" valign="top">
+<p>The user asks to enable the feeder.</p>
+</td></tr></tbody></table></div><p>Note that the feeder has no current status variable due to the fact that it cannot stay opened or closed, but just has an <span class="emphasis"><em>impulse-on</em></span> functioning; that is, when enabled, it opens and then closes it's internal gate.</p><p>On the other hand, in the <code class="literal">config</code> table, there are system configuration variables with the following meanings:</p><div class="informaltable"><table border="1"><colgroup><col style="text-align: left"/><col style="text-align: left"/></colgroup><thead><tr><th style="text-align: left" valign="bottom">
+<p>Variable name</p>
+</th><th style="text-align: left" valign="bottom">
+<p>Description</p>
+</th></tr></thead><tbody><tr><td style="text-align: left" valign="top">
+<p>
+<code class="literal">pump_t_on</code>
+</p>
+</td><td style="text-align: left" valign="top">
+<p>Time in seconds when the pump must be on.</p>
+</td></tr><tr><td style="text-align: left" valign="top">
+<p>
+<code class="literal">pump_t_off</code>
+</p>
+</td><td style="text-align: left" valign="top">
+<p>Time in seconds when the pump must be off.</p>
+</td></tr><tr><td style="text-align: left" valign="top">
+<p>
+<code class="literal">feeder_interval</code>
+</p>
+</td><td style="text-align: left" valign="top">
+<p>Time in seconds between two consecutive "lunch time".</p>
+</td></tr><tr><td style="text-align: left" valign="top">
+<p>
+<code class="literal">water_temp_max</code>
+</p>
+</td><td style="text-align: left" valign="top">
+<p>Turn the cooler on if the water temperature is over this value (in °C).</p>
+</td></tr><tr><td style="text-align: left" valign="top">
+<p>
+<code class="literal">water_temp_min_alarm</code>
+</p>
+</td><td style="text-align: left" valign="top">
+<p>Turn the water alarm on if the water temperature is under this value (in °C).</p>
+</td></tr><tr><td style="text-align: left" valign="top">
+<p>
+<code class="literal">water_temp_max_alarm</code>
+</p>
+</td><td style="text-align: left" valign="top">
+<p>Turn the water alarm on if the water temperature is over this value (in °C).</p>
+</td></tr></tbody></table></div><div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="tip38"/>Tip</h3><p>Note that my project misses the <code class="literal">water_temp_min</code> configuration variable due to the fact that I have no heater available to increase the water temperature in case it is too cold. However, the reader should have all needed information to fill this gap by reading this chapter!</p></div></div><p>In the end, the <code class="literal">temp_log</code> table <a id="id130" class="indexterm"/>is used to <a id="id131" class="indexterm"/>store all water temperature measurements useful to show a little graph into the user's control panel (see the following section).</p></div><div class="section" title="Building up the web control panel"><div class="titlepage"><div><div><h2 class="title"><a id="ch03lvl2sec32"/>Building up the web control panel</h2></div></div></div><p>The web control panel is written in <span class="strong"><strong>PHP</strong></span>
+<a id="id132" class="indexterm"/> and <a id="id133" class="indexterm"/>
+<span class="strong"><strong>JavaScript</strong></span>. PHP is used to implement the acquisition and controlling<a id="id134" class="indexterm"/> processes plus the main page, while the JavaScript is used to implement the graphical widgets. In particular, this last part has been realized by using an <a id="id135" class="indexterm"/>interesting toolkit named <span class="strong"><strong>Drinks</strong></span> (<a class="ulink" href="http://www.goincompany.com/drinks.php">http://www.goincompany.com/drinks.php</a>).</p><p>Using the widgets implemented by this toolkit is trivial. In order to install it, we just need to download the zip archive from the project's home site, unzip it, and then move the files with the <code class="literal">.js</code> extension into the web server's root directory. On my BeagleBone Black, I'm running the Apache web server, which has its root directory in the <code class="literal">/var/www</code> directory. So, to install the <code class="literal">Drinks</code> toolkit, I moved the files as follows:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@beaglebone:~/chapter_03# ls /var/www/</strong></span>
+<span class="strong"><strong>Display.js  Knob.js  Slider.js   Drinks.js   Led.js   Switch.js</strong></span>
+</pre></div><p>Now, we have to add the code to build up our web control panel and manage it in this directory. The main script can be found in the <code class="literal">chapter_03/aquarium.php</code> file in the book's example code repository. I'm going to report all its relevant code into several snippets now.</p><p>In the following first <a id="id136" class="indexterm"/>snippet, there is the PHP code to get the initial statuses of the input widgets, that is, those widgets that the user directly manages to send commands to the system. During the first loading of this page, the user will get the current status of this widgets as they are stored into the internal database:</p><div class="informalexample"><pre class="programlisting"># Open the DB
+db_open("aquarium_mon");
+
+# Set initial statuses for input widgets
+$force_cooler = db_get_status("force_cooler");
+$force_pump = db_get_status("force_pump");
+$force_lamp = db_get_status("force_lamp");
+$force_feeder = db_get_status("force_feeder");</pre></div><p>Then follows the header of the <span class="strong"><strong>HTML</strong></span> page as follows:</p><div class="informalexample"><pre class="programlisting">&lt;html&gt;
+   &lt;head&gt;
+      &lt;link href="aquarium.css" rel="stylesheet" type="text/css"&gt;
+
+      &lt;script type="text/javascript" src="Drinks.js"&gt;&lt;/script&gt;
+
+      &lt;script&gt;
+         var man_in = Drinks.createManager();
+         man_in.href = 'handler.php';
+         man_in.input = new Array("force_cooler", "force_pump", "force_lamp", "force_feeder");
+         man_in.refresh = 1;
+         man_in.start();
+
+         var man_out = Drinks.createManager();
+         man_out.href = 'handler.php';
+         man_out.refresh = 1;
+         man_out.start();
+      &lt;/script&gt;
+   &lt;/head&gt;</pre></div><p>By using this code, we instruct the Drinks toolkit to generate two managers—one to manage the input widgets (<code class="literal">man_in</code>), and the other to manage all other output widgets (<code class="literal">man_out</code>). The output widgets, as opposed to the input ones, are all the widgets that are not under the direct control of the user and then are updated by the system to show the system status to the user.</p><p>Both managers will <a id="id137" class="indexterm"/>refresh their internal status each second (<code class="literal">refresh=1</code>), and both will use the external handler named <code class="literal">handler.php</code> to do it. The code of this handler (which will be presented in the next section) are executed periodically, and it's used to get the input widget's statuses and to set the output widgets statuses into the control panel.</p><p>Then, the control panel is divided into three main subsections. The first one is where the live video and the alarms are placed. This can be achieved with the following code snippet:</p><div class="informalexample"><pre class="programlisting">   &lt;table&gt;
+      &lt;tr&gt;
+         &lt;th&gt;&lt;h3&gt;Live video&lt;/h3&gt;&lt;/th&gt;
+         &lt;th&gt;&lt;h3&gt;Alarms&lt;/h3&gt;&lt;/th&gt;
+      &lt;/tr&gt;
+      &lt;tr&gt;
+         &lt;td&gt;
+            &lt;img src="http://&lt;?=$_SERVER["SERVER_ADDR"]?&gt;:8080/?action=stream" alt="real-time video feed" /&gt;
+         &lt;/td&gt;
+         &lt;td&gt;
+            &lt;table class="widget"&gt;
+               &lt;tr&gt;
+                  &lt;th&gt;system&lt;/th&gt;
+                  &lt;th&gt;Water level&lt;/th&gt;
+                  &lt;th&gt;Water temperature&lt;/th&gt;
+               &lt;/tr&gt;
+               &lt;tr&gt;
+                  &lt;td&gt;&lt;led id="alarm_sys" type="round" radius="25" color="red"&gt;&lt;/led&gt;&lt;/td&gt;
+                  &lt;td&gt;&lt;led id="alarm_level" type="round" radius="25" color="red"&gt;&lt;/led&gt;&lt;/td&gt;
+                  &lt;td&gt;&lt;led id="alarm_temp" type="round" radius="25" color="red"&gt;&lt;/led&gt;&lt;/td&gt;
+               &lt;/tr&gt;
+            &lt;/table&gt;
+         &lt;/td&gt;
+      &lt;/tr&gt;
+   &lt;/table&gt;</pre></div><p>Here, the following line is used to enable the live video from the webcam:</p><div class="informalexample"><pre class="programlisting">&lt;img src="http://&lt;?=$_SERVER["SERVER_ADDR"]?&gt;:8080/?action=stream" alt="real-time video feed" /&gt;</pre></div><p>In the end, the following three lines are used to define the alarm LEDs related to the corresponding alarm variables:</p><div class="informalexample"><pre class="programlisting">               &lt;td&gt;&lt;led id="alarm_sys" type="round" radius="25" color="red"&gt;&lt;/led&gt;&lt;/td&gt;
+               &lt;td&gt;&lt;led id="alarm_level" type="round" radius="25" color="red"&gt;&lt;/led&gt;&lt;/td&gt;
+               &lt;td&gt;&lt;led id="alarm_temp" type="round" radius="25" color="red"&gt;&lt;/led&gt;&lt;/td&gt;</pre></div><p>The second <a id="id138" class="indexterm"/>subsection holds the control widgets, that is, the water thermometer and the lamp, cooler, pump, and feeder LEDs and switches. Since all the input widgets are here, the code uses a big HTML form where these items are placed:</p><div class="informalexample"><pre class="programlisting">   &lt;form method="post"&gt;
+      &lt;table class="widget"&gt;
+         &lt;tr&gt;
+            &lt;th&gt;Water temp (C)&lt;/th&gt;
+            &lt;th&gt;Lamp&lt;/th&gt;
+            &lt;th&gt;Cooler&lt;/th&gt;
+            &lt;th&gt;Pump&lt;/th&gt;
+            &lt;th&gt;Feeder&lt;/th&gt;
+         &lt;/tr&gt;
+         &lt;tr&gt;
+            &lt;td&gt;
+               &lt;display id="water" type="thermo" max_range="50" range_from="10" range_to="50" autoscale="true"&gt;&lt;/display&gt;
+            &lt;/td&gt;
+            &lt;td&gt;
+               &lt;led id="lamp" type="round" radius="25"&gt;&lt;/led&gt;
+               &lt;switch id="force_lamp" type="circle" value="&lt;?=$force_lamp?&gt;"&gt;&lt;/switch&gt;
+            &lt;/td&gt;
+            &lt;td&gt;
+               &lt;led id="cooler" type="round" radius="25"&gt;&lt;/led&gt;
+               &lt;switch id="force_cooler" type="circle" value="&lt;?=$force_cooler?&gt;"&gt;&lt;/switch&gt;
+            &lt;/td&gt;
+            &lt;td&gt;
+               &lt;led id="pump" type="round" radius="25"&gt;&lt;/led&gt;
+               &lt;switch id="force_pump" type="circle" value="&lt;?=$force_pump?&gt;"&gt;&lt;/switch&gt;
+            &lt;/td&gt;
+            &lt;td&gt;
+               &lt;led id="feeder" type="round" radius="25"&gt;&lt;/led&gt;
+               &lt;switch id="force_feeder" type="toggle" width="80" value="&lt;?=$force_feeder?&gt;"&gt;&lt;/switch&gt;
+            &lt;/td&gt;
+         &lt;/tr&gt;
+      &lt;/table&gt;
+      &lt;input type="hidden"&gt;
+   &lt;/form&gt;</pre></div><p>The following line is used to display a thermometer that reports the water temperature:</p><div class="informalexample"><pre class="programlisting">&lt;display id="water" type="thermo" max_range="50" range_from="10" range_to="50" autoscale="true"&gt;&lt;/display&gt;</pre></div><p>The following two lines are used to display the lamp, cooler, and pump switches with the relative LED that indicates the device status:</p><div class="informalexample"><pre class="programlisting">               &lt;led id="lamp" type="round" radius="25"&gt;&lt;/led&gt;
+               &lt;switch id="force_lamp" type="circle" value="&lt;?=$force_lamp?&gt;"&gt;&lt;/switch&gt;</pre></div><p>When an LED is<a id="id139" class="indexterm"/> turned on, the corresponding device is turned on, while when it is turned off, the device is turned off. On the other hand, by moving one of the preceding switches, the user can force the system to turn on the corresponding device during the <span class="emphasis"><em>next cycle</em></span>. (I'm going to explain what the <span class="emphasis"><em>next cycle</em></span> term means in the next section.)</p><p>A special notice must be applied for the feeder. As already stated, it can be enabled with an impulse, and not simply turned on or off. To highlight this fact, this time I used a different kind of switch widget. So, the LED is used to notify the user that the feeder will be enabled in the next cycle, while the LED will remain on and it will be turned off once the feeder has been really enabled.</p><p>The code to display the feeder controls is shown in the following code snippet:</p><div class="informalexample"><pre class="programlisting">               &lt;led id="feeder" type="round" radius="25"&gt;&lt;/led&gt;
+               &lt;switch id="force_feeder" type="toggle" width="80" value="&lt;?=$force_feeder?&gt;"&gt;&lt;/switch&gt;</pre></div><p>Here, the type of the switch is <code class="literal">toggle</code> instead of <code class="literal">circle</code>.</p><p>The last subsection is the temperature log graphic, which can be used to show to the user how the water temperature has been changed during the last 20 cycles. The code to implement this part is as follows:</p><div class="informalexample"><pre class="programlisting">   &lt;display id="temp_graph" type="graph" scale="range" autoscale="true" mode="ch1" power_onload="true"&gt;
+      &lt;channel href="log_temp.php" refresh="60" sweep="0.005" frequency="20"&gt;&lt;/channel&gt;
+   &lt;/display&gt;</pre></div><p>Note that in this case, we need a special handler to generate the graphical points representing the water temperature. This handler is called <code class="literal">log_temp.php</code> and it's specified in the <code class="literal">href</code> parameter of the <code class="literal">channel</code> entry, while the other parameters define the refresh time in seconds (<code class="literal">refresh="60"</code>) and the scaling of the graph (<code class="literal">sweep</code> and <code class="literal">frequency</code>). See the <code class="literal">Drinks</code> documentation pages for further information about these parameters.</p><p>At each refreshing<a id="id140" class="indexterm"/> time, the <code class="literal">log_temp.php</code> script is called, and it will return the points sequence to be displayed to the display widget. To discover how it happens, we have to move to the next section. But before doing it, let me show you how the web control panel we just presented is displayed on my PC:</p><div class="mediaobject"><img src="graphics/B00255_03_10.jpg" alt="Building up the web control panel"/></div></div><div class="section" title="Handling the control panel"><div class="titlepage"><div><div><h2 class="title"><a id="ch03lvl2sec33"/>Handling the control panel</h2></div></div></div><p>In the previous <a id="id141" class="indexterm"/>section, we discovered that the web control panel needs some handlers to send/receive data from the underlying system. In particular, we said that the input/output managers talk with the <code class="literal">handler.php</code> script, while the temperature log needs the <code class="literal">log_temp.php</code> script to get graph data. Let's see how these scripts are written.</p><p>The code in the <code class="literal">handler.php</code> script is as follows:</p><div class="informalexample"><pre class="programlisting">&lt;?php
+
+require("db.php");
+
+# Open the DB
+db_open("aquarium_mon");
+
+if (count($_GET) &gt; 0) {
+   # Input section
+       db_set_status("force_cooler", $_GET["force_cooler"]);
+       db_set_status("force_pump", $_GET["force_pump"]);
+       db_set_status("force_lamp", $_GET["force_lamp"]);
+
+   if ($_GET["force_feeder"])
+      db_set_status("force_feeder", 1);
+}
+
+# Output section
+$values["alarm_sys"] = db_get_status("alarm_sys");
+$values["alarm_level"] = db_get_status("alarm_level");
+$values["alarm_temp"] = db_get_status("alarm_temp");
+
+$values["water"] = db_get_status("water");
+$values["cooler"] = db_get_status("cooler");
+$values["pump"] = db_get_status("pump");
+$values["lamp"] = db_get_status("lamp");
+$values["feeder"] = db_get_status("force_feeder");
+
+$values["force_feeder"] = 0;
+
+echo json_encode($values);
+?&gt;</pre></div><div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="note34"/>Note</h3><p>The script can be found in the <code class="literal">chapter_03/handler.php</code> file in the book's example code repository.</p></div></div><p>This script has an input section to manage the input widgets and an output section to manage the output ones. In the input section, we simply get the status of each input widget and then store it in the <code class="literal">status</code> table. The only exception is for the <code class="literal">force_feeder</code> variable, which is recorded only if its status is <code class="literal">1</code> due to the the fact that it will be cleared when the feeder is actually enabled in the next cycle (again, the meaning of <span class="emphasis"><em>next cycle</em></span> will be explained soon).</p><p>In the output <a id="id142" class="indexterm"/>section, we simply get the status of each status variable from the database and then store it into an array that will be returned to the <code class="literal">Drinks</code> toolkit by using the <code class="literal">json_encode()</code>function. The only note to be highlighted here is the fact that once the <code class="literal">force_feeder</code> switch is moved to the high state, its status is recorded, and then is cleared again, just to simulate the fact that this is not a normal on/off switch but just an <span class="emphasis"><em>impulse-on</em></span> switch.</p><p>On the other hand, as said just now, the <code class="literal">log_temp.php</code> script just has to return a list of points. The following is the code:</p><div class="informalexample"><pre class="programlisting">&lt;?php
+
+require("db.php");
+
+# Open the DB
+db_open("aquarium_mon");
+
+# Get the last 20 points
+$query = "SELECT v FROM temp_log ORDER BY t DESC LIMIT 20";
+$ret = mysql_query($query);
+if (!$ret)
+  die();
+
+$data = array();
+$n = 0;
+while ($row = mysql_fetch_array($ret)) {
+  array_unshift($data, $row["v"]);
+  $n++;
+}
+
+if ($n &lt; 20)
+  echo json_encode(array_merge(array_fill(0, 20 - $n, 0), $data));
+else
+  echo json_encode($data);
+?&gt;</pre></div><div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="note35"/>Note</h3><p>The script can be found in the <code class="literal">chapter_03/log_temp.php</code> file in the book's example code repository.</p></div></div><p>The script simply selects the last 20 recorded points from the <code class="literal">temp_log</code> table and then stores them into the <code class="literal">data[]</code> array, adding some zeros at the beginning just in case there exists less then 20 stored temperature values. The <code class="literal">array_unshift()</code> function is used to put each new extracted value at the beginning of the array due to the fact that the <code class="literal">SELECT</code> statement returns the data in a reversed order.</p><p>Now, the last<a id="id143" class="indexterm"/> step is to put all these scripts together into the web browser root directory. The <code class="literal">/var/www</code> directory on my BeagleBone Black looks like:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@beaglebone:~/chapter_03# ls /var/www/</strong></span>
+<span class="strong"><strong>Display.js  Knob.js  Slider.js  aquarium.css  db.php   log_temp.php</strong></span>
+<span class="strong"><strong>Drinks.js   Led.js   Switch.js  aquarium.php  handler.php</strong></span>
+</pre></div><div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="tip39"/>Tip</h3><p>The CSS can be found in the <code class="literal">chapter_03/aquarium.css</code> file in the book's example code repository. The code is not presented here since it's very trivial and not strictly needed for the understanding of the project.</p></div></div></div><div class="section" title="Knowing the internal state-machine"><div class="titlepage"><div><div><h2 class="title"><a id="ch03lvl2sec34"/>Knowing the internal state-machine</h2></div></div></div><p>Now that the <a id="id144" class="indexterm"/>control panel has been correctly set up, we have to take a look at the internal <span class="emphasis"><em>state-machine</em></span>, that is, the procedure that at each cycle collects all the environment data and then decides what to do according to its internal state and the new environment status.</p><p>Our machine is implemented in the <code class="literal">chapter_03/aquarium_mon.php</code> file in the book's example code repository. The following are several code snippets of its <code class="literal">daemon_body()</code> function (the real core of the program.)</p><p>At its beginning, the function looks like:</p><div class="informalexample"><pre class="programlisting">function daemon_body()
+{
+   global $loop_time;
+   global $sensors;
+
+   $pump_time = strtotime("now");
+   $feeder_time = strtotime("now");
+
+   # The main loop
+   dbg("start main loop (loop_time=${loop_time}s)");
+   while (sleep($loop_time) == 0) {
+   dbg("loop start");
+
+      $alarm_sys = 0;</pre></div><p>At its beginning, the function initializes some variables and then starts its main loop where the first step is to get the water temperature, since, according to this value, many jobs need to be carried out!</p><p>Note also that the <code class="literal">while()</code> statement executes each time the <code class="literal">sleep($loop_time)</code> function, that is, each <code class="literal">loop_time</code> seconds starts a new <span class="emphasis"><em>machine cycle</em></span>, and all the variables are modified according to the environment data read and the user inputs.</p><p>Then, the code<a id="id145" class="indexterm"/> continues reading the temperature as follows:</p><div class="informalexample"><pre class="programlisting">   #
+   # Temperature management
+   #
+
+   $ret = temp_get();
+   if ($ret === false) {
+      err("unable to get temperature!");
+      $alarm_sys = 1;
+   }
+   $temp = $ret;
+   dbg("t=$temp");
+
+   # Save status
+   db_set_status("water", $temp);
+
+   #
+   # Check alarms
+   #
+
+   $water_temp_min = db_get_config("water_temp_min_alarm");
+   $water_temp_max = db_get_config("water_temp_max_alarm");
+   $val = ($temp &lt; $water_temp_min ||
+      $temp &gt; $water_temp_max) ? 1 : 0;
+   db_set_status("alarm_temp", $val);
+
+   # Store the result into the proper log table
+   db_log_var("temp_log", $temp);
+
+   $water_level = get_water_level();
+   db_set_status("alarm_level", $water_level);</pre></div><p>The <code class="literal">temp_get()</code> function reads the water temperature by reading the corresponding <code class="literal">w1_slave</code> file. It stores this value in the <code class="literal">temp</code> variable, and then some alarms are checked against this new value. Note also that in this case, the <code class="literal">alarm_sys</code> variable can be set to <code class="literal">1</code> to signal whether an I/O error has occurred or not.</p><p>The <code class="literal">get_water_level()</code> function is used to read the GPIO connected with the water sensor, and its body looks as follows:</p><div class="informalexample"><pre class="programlisting">function get_water_level()
+{
+   global $gpios;
+
+   return gpio_get($gpios["water"]) == 0 ? 1 : 0;
+}</pre></div><div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="tip40"/>Tip</h3><p>Note that, as the preceding code shows, the water sensor has an inversed logic.</p></div></div><p>Now, it's the <a id="id146" class="indexterm"/>lamp's turn:</p><div class="informalexample"><pre class="programlisting">   #
+   # Lamp management
+   #
+
+   # The lamp is directly managed by the force_lamp switch
+
+   $lamp = db_get_status("force_lamp");
+
+   # Set the new status
+   set_lamp($lamp);
+   db_set_status("lamp", $lamp);
+   dbg("lamp %sactivated", $lamp ? "" : "de");</pre></div><p>In the preceding snippet, we see that the lamp is turned on and off according to the user input, without any automatic mechanism from the system.</p><p>This is not true for the cooler. Its management code looks as follows:</p><div class="informalexample"><pre class="programlisting">   #
+   # Cooler management
+   #
+
+   # The cooler must be enabled if temp &gt; water_temp_max in order
+   # to try to reduce the temperature of the water...
+   $water_temp_max = db_get_config("water_temp_max");
+   $cooler = $temp &gt; $water_temp_max ? 1 : 0;
+
+   # We must force on?
+   $force_cooler = db_get_status("force_cooler");
+   $cooler = $force_cooler ? 1 : $cooler;
+
+   # Set the new status
+   set_cooler($cooler);
+   db_set_status("cooler", $cooler);
+   dbg("cooler %sactivated", $cooler ? "" : "de");</pre></div><p>The cooler status is set according to the <code class="literal">temp</code> value and the <code class="literal">water_temp_max</code> setting and, as last case, it can be forced on by the user if the <code class="literal">force_cooler</code> variable is set to <code class="literal">1</code>.</p><p>A similar functioning <a id="id147" class="indexterm"/>applies for the pump:</p><div class="informalexample"><pre class="programlisting">   #
+   # Pump management
+   #
+
+   # The pump must be on for pump_t_on delay time and off for
+      # pump_t_off delay time (if not forced of course...)
+      $force_pump = db_get_status("force_pump");
+      $pump = db_get_status("pump");
+      $pump_interval = $pump ? db_get_config("pump_t_on") :
+         db_get_config("pump_t_off");
+      if ($force_pump ||
+         strtotime("-$pump_time seconds") &gt; $pump_interval) {
+            $pump_time = strtotime("now");
+
+            $pump = $force_pump ? 1 : !$pump;
+         }
+
+         # Set the new status
+         set_pump($pump);
+         db_set_status("pump", $pump);
+         dbg("pump %sactivated", $pump ? "" : "de");</pre></div><p>This time, the state on or off is set by a timeout and, again, the device can be forced on by the user input, that is, if the <code class="literal">force_pump</code> variable is set to <code class="literal">1</code>.</p><p>All the preceding three snippets call a proper function to set on or off the relative GPIO; for instance, the last one calls the <code class="literal">set_pump()</code> function to set the pump status. The function's body is as follows:</p><div class="informalexample"><pre class="programlisting">function set_pump($status)
+{
+   global $gpios;
+
+   gpio_set($gpios["pump"], $status ? 0 : 1);
+}</pre></div><p>The other two functions are similar.</p><p>The last notice is for the feeder. This time the code is as follows:</p><div class="informalexample"><pre class="programlisting">   #
+   # Feeder management
+   #
+
+   $force_feeder = db_get_status("force_feeder");
+   $feeder_interval = db_get_config("feeder_interval");
+   if ($force_feeder || (strtotime("-$feeder_time seconds") &gt; $feeder_interval)) {
+      $feeder_time = strtotime("now");
+
+      do_feeder();
+      db_set_status("force_feeder", 0);
+      dbg("feeder activated");
+   }</pre></div><p>The feeder can<a id="id148" class="indexterm"/> be activated according to a timeout or by a user input; but, instead of the preceding example, the code calls the <code class="literal">do_feeder()</code> function to call the <code class="literal">feeder.sh</code> script presented, as shown in the preceding code, and then it must clear the <code class="literal">force_feeder</code> status variable to signal to the user that the feeder has been activated. The body of the <code class="literal">do_feeder()</code> function is as follows:</p><div class="informalexample"><pre class="programlisting">function do_feeder()
+{
+   system("feeder.sh &amp;");
+}</pre></div><div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="tip41"/>Tip</h3><p>The character <code class="literal">&amp;</code> in the <code class="literal">system()</code> function is needed in order to create a dedicated process to execute the <code class="literal">feeder.sh</code> script.</p></div></div><p>Now, it's time to execute the script. On my system, I used the following command line to execute it in debugging mode:</p><div class="informalexample"><pre class="programlisting">root@beaglebone:~# ./aquarium_mon.php -d -f -l
+aquarium_mon.php[3882]: signals traps installed
+aquarium_mon.php[3882]: start main loop (loop_time=15s)
+aquarium_mon.php[3882]: loop start
+aquarium_mon.php[3882]: t=28.5
+aquarium_mon.php[3882]: lamp deactivated
+aquarium_mon.php[3882]: cooler activated
+aquarium_mon.php[3882]: pump deactivated
+aquarium_mon.php[3882]: feeder activated
+aquarium_mon.php[3882]: loop end
+...</pre></div><div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="tip42"/>Tip</h3><p>Note that on your system, the <span class="strong"><strong>PHP</strong></span> support may not be installed. In this case, you can solve it by using the following command:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@beaglebone:~# apt-get install php5 libapache2-mod-php5</strong></span>
+</pre></div></div></div><p>Every 15<a id="id149" class="indexterm"/> seconds, the script wakes up and executes all the preceding steps in a new <span class="emphasis"><em>cycle</em></span> of the <span class="emphasis"><em>state-machine</em></span>. Note that to work you must set up all the hardware as presented in this section.</p></div></div>
+<div class="section" title="Final test"><div class="titlepage"><div><div><h1 class="title"><a id="ch03lvl1sec22"/>Final test</h1></div></div></div><p>To test the prototype, I <a id="id150" class="indexterm"/>turned on the board, and after the login, I set up the system by using the commands discussed before, or by using the <code class="literal">chapter_03/SYSINIT.sh</code> script in the book's example code repository, as follows:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@beaglebone:~# ./SYSINIT.sh</strong></span>
+<span class="strong"><strong>done!</strong></span>
+</pre></div><p>Then, I executed the <code class="literal">aquarium_mon.php</code> command as follows:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@beaglebone:~# ./aquarium_mon.php -d -f -l</strong></span>
+</pre></div><p>Also, I executed the video streamer with the following command:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@beaglebone:~# LD_LIBRARY_PATH=/usr/local/lib/ mjpg_streamer -i "input_uvc.so -y -f 10 -r QVGA" -o "output_http.so -w /var/www/"</strong></span>
+</pre></div><p>Then, I pointed my browser to the <code class="literal">aquarium.php</code> file on the BeagleBone Black's IP address (that is, the URL <code class="literal">http://192.168.7.2/aquarium.php</code>) and the game is done!</p><p>Note that at this point, we can try to force some settings or try to change some configuration variables by using the <code class="literal">chapter_03/my_dump.sh</code> and <code class="literal">chapter_03/my_set.sh</code> scripts in the book's example code repository, as follows:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@beaglebone:~# ./my_dump.sh config</strong></span>
+<span class="strong"><strong>n   v</strong></span>
+<span class="strong"><strong>feeder_interval   60</strong></span>
+<span class="strong"><strong>pump_t_off   60</strong></span>
+<span class="strong"><strong>pump_t_on   20</strong></span>
+<span class="strong"><strong>water_temp_max   27</strong></span>
+<span class="strong"><strong>water_temp_max_alarm   29</strong></span>
+<span class="strong"><strong>water_temp_min   20</strong></span>
+<span class="strong"><strong>water_temp_min_alarm   18</strong></span>
+<span class="strong"><strong>root@beaglebone:~# ./my_set.sh config water_temp_max_alarm 30.5</strong></span>
+<span class="strong"><strong>root@beaglebone:~# ./my_dump.sh config</strong></span>
+<span class="strong"><strong>n   v</strong></span>
+<span class="strong"><strong>feeder_interval   60</strong></span>
+<span class="strong"><strong>pump_t_off   60</strong></span>
+<span class="strong"><strong>pump_t_on   20</strong></span>
+<span class="strong"><strong>water_temp_max   27</strong></span>
+<span class="strong"><strong>water_temp_max_alarm   30.5</strong></span>
+<span class="strong"><strong>water_temp_min   20</strong></span>
+<span class="strong"><strong>water_temp_min_alarm   18</strong></span>
+</pre></div><p>In the <a id="id151" class="indexterm"/>preceding setting, I changed the <code class="literal">water_temp_max_alarm</code> limit value just as an example, and you can do all the changes that you wish on your system.</p><p>Before ending this chapter, let me show you how this control panel looks on my smartphone:</p><div class="mediaobject"><img src="graphics/B00255_03_11.jpg" alt="Final test"/></div><div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="tip43"/>Tip</h3><p>The reader <a id="id152" class="indexterm"/>should notice that on the temperature log, there are three spikes due to the fact that during the temperature reading, the sensor returned an error. This issue can be fixed by repeating the reading two or three times before returning an error.</p></div></div></div>
+<div class="section" title="Summary"><div class="titlepage"><div><div><h1 class="title"><a id="ch03lvl1sec23"/>Summary</h1></div></div></div><p>In this chapter, we discovered how to interface our BeagleBone Black to several devices with a different power supply voltage, and how to manage a 1-Wire device and a PWM one. Also, we presented the <code class="literal">Drinks</code> toolkit to realize a web control panel that can be used equally from a PC, smartphone, or tablet.</p><p>In the next chapter, we'll see how to realize a weather station that can store its collected data locally, which can not only show them in a nice manner on a web browser, but also can send its data to a Google Docs document!</p><p>Simply speaking, we're going to realize a simple <span class="strong"><strong>Internet-of-Things</strong></span> (<span class="strong"><strong>IoT</strong></span>) machine.</p></div></body></html>

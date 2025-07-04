@@ -1,0 +1,901 @@
+<html><head></head><body>
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">Migrating KVM Instances</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">In this chapter, we are going to demonstrate the following libvirt KVM migration concepts:</p>
+<ul class="calibre16">
+<li class="calibre17">Manual offline migration using an iSCSI storage pool</li>
+<li class="calibre17">Manual offline migration using GlusterFS shared volumes</li>
+<li class="calibre17">Online migration using the virsh command with shared storage</li>
+<li class="calibre17">Offline migration using the virsh command and local image</li>
+<li class="calibre17">Online migration using the virsh command and local image</li>
+</ul>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">Introduction</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">Migrating KVM instances is the process of sending the state of the guest virtual machine's memory, CPU, and virtualized devices attached to it, to a different server. Migrating KVM instances is a somewhat complicated process, depending on what backend storage the VM is using (that is, directory, image file, iSCSI volume, shared storage, or storage pools), the network infrastructure, and the number of block devices attached to the guest. There are following the two types of migrations as far as libvirt is concerned: </p>
+<ul class="calibre16">
+<li class="calibre17">Offline migration involves downtime for the instance. It works by first suspending the guest VM, then copying an image of the guest memory to the destination hypervisor. The KVM machine is then resumed on the target host. If the filesystem of the VM is not on a shared storage, then it needs to be moved to the target server as well.</li>
+<li class="calibre17">Live migration works by moving the instance in its current state with no perceived downtime, preserving the memory and CPU register states.</li>
+</ul>
+<p class="calibre3">Broadly speaking, the offline migration involves the following:</p>
+<ul class="calibre16">
+<li class="calibre17">Stopping the instance</li>
+<li class="calibre17">Dumping its XML definition to a file</li>
+<li class="calibre17">Copying the guest filesystem image to the destination server (if not using shared storage)</li>
+<li class="calibre17">Defining the instance on the destination host and starting it</li>
+</ul>
+<p class="calibre3">In contrast, the online migration requires shared storage, such as NFS or G<span>luster</span>FS, removing the need to transfer the guest filesystem to the target server. The speed of the migration depends on how often the memory of the source instance is being updated/written to, the size of the memory, and the available network bandwidth between the source and target hosts.</p>
+<p class="calibre3">Live migration follows this process:</p>
+<ul class="calibre16">
+<li class="calibre17">The original VM continues to run while the content of its memory is being transferred to the target host</li>
+<li class="calibre17">Libvirt monitors for any changes in the already transferred memory pages, and if they have been updated, it retransmits them</li>
+<li class="calibre17">Once the memory content has been transferred to the destination host, the original instance is suspended and the new instance on the target host is resumed</li>
+</ul>
+<p class="calibre3">In this chapter, we are going to perform offline and live migrations using iSCSI and GlusterFS with the help of storage pools.</p>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">Manual offline migration using an iSCSI storage pool</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">In this recipe, we are going to set up an iSCSI target, configure a storage pool for it, and create a new KVM instance using the attached iSCSI block device as its backend volume. Then, we are going to perform a manual offline migration of the instance to a new host.</p>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">Getting ready</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">For this recipe, we are going to need the following:</p>
+<ul class="calibre16">
+<li class="calibre17">Two servers with <kbd class="calibre13">libvirt</kbd> and <kbd class="calibre13">qemu</kbd> installed and configured, named <kbd class="calibre13">kvm1</kbd> and <kbd class="calibre13">kvm2</kbd>. The two hosts must be able to connect to each other using SSH keys and short hostname.</li>
+<li class="calibre17">A server with an available block device that will be exported as an iSCSI target and reachable from both <kbd class="calibre13">libvirt</kbd> servers. If a block device is not available, please refer to the <em class="calibre22">There's more...</em> section in this recipe for instructions on how to create one using a regular file. The name of the iSCSI target server in this recipe is <kbd class="calibre13">iscsi_target</kbd>.</li>
+<li class="calibre17">Connectivity to a Linux repository to install the guest OS.</li>
+</ul>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">How to do it...</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">To perform a manual offline migration of a KVM guest using an iSCSI storage pool, follow these steps: </p>
+<ol class="calibre18">
+<li value="1" class="calibre17"><span>On the iSCSI target host, install the</span> <kbd class="calibre13">iscsitarget</kbd> <span>package and kernel module package:</span></li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@iscsi_target:~# apt-get update &amp;&amp; apt-get install iscsitarget iscsitarget-dkms</strong>
+</pre>
+<ol start="2" class="calibre18">
+<li value="2" class="calibre17">Enable the target functionality:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@iscsi_target:~# sed -i 's/ISCSITARGET_ENABLE=false/ISCSITARGET_ENABLE=true/g' /etc/default/iscsitarget</strong><br class="calibre7"/><strong class="calibre4">root@iscsi_target:~# cat /etc/default/iscsitarget</strong><br class="calibre7"/><strong class="calibre4">ISCSITARGET_ENABLE=true</strong><br class="calibre7"/><strong class="calibre4">ISCSITARGET_MAX_SLEEP=3</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4"># ietd options</strong><br class="calibre7"/><strong class="calibre4"># See ietd(8) for details</strong><br class="calibre7"/><strong class="calibre4">ISCSITARGET_OPTIONS=""</strong><br class="calibre7"/><strong class="calibre4">root@iscsi_target:~#</strong>
+</pre>
+<ol start="3" class="calibre18">
+<li value="3" class="calibre17">Configure the block device to export with iSCSI:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@iscsi_target:~# cat /etc/iet/ietd.conf</strong><br class="calibre7"/><strong class="calibre4">Target iqn.2001-04.com.example:kvm</strong><br class="calibre7"/><strong class="calibre4">       Lun 0 Path=/dev/loop1,Type=fileio</strong><br class="calibre7"/><strong class="calibre4">       Alias kvm_lun</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@iscsi_target:~#</strong>
+</pre>
+<div class="packt_tip1">Replace the <kbd class="calibre27">/dev/loop1</kbd> device with the block device you are exporting with iSCSI.</div>
+<ol start="4" class="calibre18">
+<li value="4" class="calibre17">Restart the iSCSI target service:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@iscsi_target:~# /etc/init.d/iscsitarget restart</strong><br class="calibre7"/><strong class="calibre4"> * Removing iSCSI enterprise target devices: [ OK ]</strong><br class="calibre7"/><strong class="calibre4"> * Stopping iSCSI enterprise target service: [ OK ]</strong><br class="calibre7"/><strong class="calibre4"> * Removing iSCSI enterprise target modules: [ OK ]</strong><br class="calibre7"/><strong class="calibre4"> * Starting iSCSI enterprise target service  [ OK ]</strong><br class="calibre7"/><strong class="calibre4">root@iscsi_target:~#</strong>
+</pre>
+<ol start="5" class="calibre18">
+<li value="5" class="calibre17">On both <kbd class="calibre13">libvirt</kbd> hosts, install the iSCSI initiator:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm1/2:~# apt-get update &amp;&amp; apt-get install open-iscsi</strong>
+</pre>
+<ol start="6" class="calibre18">
+<li value="6" class="calibre17">On both <kbd class="calibre13">libvirt</kbd> servers, enable the iSCSI initiator service and start it:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm1/2:~# sed -i 's/node.startup = manual/node.startup = automatic/g' /etc/iscsi/iscsid.conf</strong><br class="calibre7"/><strong class="calibre4">root@kvm1/2:~# /etc/init.d/open-iscsi restart</strong>
+</pre>
+<ol start="7" class="calibre18">
+<li value="7" class="calibre17">From both <kbd class="calibre13">libvirt</kbd> initiator hosts, list what iSCSI volumes are available by querying the iSCSI target server:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm1/2:~# iscsiadm -m discovery -t sendtargets -p iscsi_target</strong><br class="calibre7"/><strong class="calibre4">10.184.226.74:3260,1 iqn.2001-04.com.example:kvm</strong><br class="calibre7"/><strong class="calibre4">172.99.88.246:3260,1 iqn.2001-04.com.example:kvm</strong><br class="calibre7"/><strong class="calibre4">192.168.122.1:3260,1 iqn.2001-04.com.example:kvm</strong><br class="calibre7"/><strong class="calibre4">root@kvm:~#</strong>
+</pre>
+<ol start="8" class="calibre18">
+<li value="8" class="calibre17">On one of the <kbd class="calibre13">libvirt</kbd> servers, create a new iSCSI storage pool:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm1:~# cat iscsi_pool.xml</strong><br class="calibre7"/><strong class="calibre4">&lt;pool type="iscsi"&gt;</strong><br class="calibre7"/><strong class="calibre4"> &lt;name&gt;iscsi_pool&lt;/name&gt;</strong><br class="calibre7"/><strong class="calibre4"> &lt;source&gt;</strong><br class="calibre7"/><strong class="calibre4">   &lt;host name="iscsi_target.example.com"/&gt;</strong><br class="calibre7"/><strong class="calibre4">   &lt;device path="iqn.2001-04.com.example:kvm"/&gt;</strong><br class="calibre7"/><strong class="calibre4"> &lt;/source&gt;</strong><br class="calibre7"/><strong class="calibre4"> &lt;target&gt;</strong><br class="calibre7"/><strong class="calibre4">   &lt;path&gt;/dev/disk/by-path&lt;/path&gt;</strong><br class="calibre7"/><strong class="calibre4"> &lt;/target&gt;</strong><br class="calibre7"/><strong class="calibre4">&lt;/pool&gt;</strong><br class="calibre7"/><strong class="calibre4">root@kvm1:~# virsh pool-define iscsi_pool.xml</strong><br class="calibre7"/><strong class="calibre4">Pool iscsi_pool defined from iscsi_pool.xml</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@kvm1:~# virsh pool-list --all</strong><br class="calibre7"/><strong class="calibre4"> Name        State      Autostart</strong><br class="calibre7"/><strong class="calibre4">-------------------------------------------</strong><br class="calibre7"/><strong class="calibre4"> iscsi_pool  inactive   no</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@kvm1:~#</strong>
+</pre>
+<div class="packt_infobox">Make sure to replace the hostname of the iSCSI target server with what is appropriate for your environment. Both a hostname and an IP address can be used when specifying the iSCSI target host.</div>
+<ol start="9" class="calibre18">
+<li value="9" class="calibre17">Start the new iSCIS pool<span>:</span></li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm1:~# virsh pool-start iscsi_pool</strong><br class="calibre7"/><strong class="calibre4">Pool iscsi_pool started</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@kvm1:~# virsh pool-list --all</strong><br class="calibre7"/><strong class="calibre4"> Name         State   Autostart</strong><br class="calibre7"/><strong class="calibre4">-------------------------------------------</strong><br class="calibre7"/><strong class="calibre4"> iscsi_pool   active   no</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@kvm1:~#</strong>
+</pre>
+<ol start="10" class="calibre18">
+<li value="10" class="calibre17">List the available iSCSI volumes from the pool and obtain more information on it:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm1:~# virsh vol-list --pool iscsi_pool</strong><br class="calibre7"/><strong class="calibre4"> Name Path</strong><br class="calibre7"/><strong class="calibre4">------------------------------------------------------------------------------</strong><br class="calibre7"/><strong class="calibre4"> unit:0:0:0 /dev/disk/by-path/ip-10.184.22.74:3260-iscsi-iqn.2001-04.com.example:kvm-lun-0</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@kvm1:~# virsh vol-info unit:0:0:0 --pool iscsi_pool</strong><br class="calibre7"/><strong class="calibre4">Name:       unit:0:0:0</strong><br class="calibre7"/><strong class="calibre4">Type:       block</strong><br class="calibre7"/><strong class="calibre4">Capacity:   10.00 GiB</strong><br class="calibre7"/><strong class="calibre4">Allocation: 10.00 GiB</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@kvm1:~#</strong>
+</pre>
+<ol start="11" class="calibre18">
+<li value="11" class="calibre17">List the iSCSI session and the associated block devices:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm1:~# iscsiadm -m session</strong><br class="calibre7"/><strong class="calibre4">tcp: [5] 10.184.226.74:3260,1 iqn.2001-04.com.example:kvm</strong><br class="calibre7"/><strong class="calibre4">root@kvm1:~# ls -la /dev/disk/by-path/</strong><br class="calibre7"/><strong class="calibre4">total 0</strong><br class="calibre7"/><strong class="calibre4">drwxr-xr-x 2 root root 100 Apr 12 16:24 .</strong><br class="calibre7"/><strong class="calibre4">drwxr-xr-x 6 root root 120 Mar 21 22:14 ..</strong><br class="calibre7"/><strong class="calibre4">lrwxrwxrwx 1 root root 9 Apr 12 16:24 ip-10.184.22.74:3260-iscsi-iqn.2001-04.com.example:kvm-lun-0 -&gt; ../../sdf</strong><br class="calibre7"/><strong class="calibre4">root@kvm1:~#</strong>
+</pre>
+<ol start="12" class="calibre18">
+<li value="12" class="calibre17">Examine the partition scheme of the iSCSI block device:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm1:~# fdisk -l /dev/disk/by-path/ip-10.184.22.74\:3260-iscsi-iqn.2001-04.com.example\:kvm-lun-0</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">Disk /dev/disk/by-path/ip-10.184.22.74:3260-iscsi-iqn.2001-04.com.example:kvm-lun-0: 10.7 GB, 10737418240 bytes</strong><br class="calibre7"/><strong class="calibre4">64 heads, 32 sectors/track, 10240 cylinders, total 20971520 sectors</strong><br class="calibre7"/><strong class="calibre4">Units = sectors of 1 * 512 = 512 bytes</strong><br class="calibre7"/><strong class="calibre4">Sector size (logical/physical): 512 bytes / 512 bytes</strong><br class="calibre7"/><strong class="calibre4">I/O size (minimum/optimal): 512 bytes / 512 bytes</strong><br class="calibre7"/><strong class="calibre4">Disk identifier: 0x00000000</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">Disk /dev/disk/by-path/ip-10.184.22.74:3260-iscsi-iqn.2001-04.com.example:kvm-lun-0 doesn't contain a valid partition table</strong><br class="calibre7"/><strong class="calibre4">root@kvm1:~#</strong>
+</pre>
+<ol start="13" class="calibre18">
+<li value="13" class="calibre17">Install a new KVM guest using the iSCSI volume and pool:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm1:~# virt-install --name iscsi_kvm --ram 1024 --extra-args="text console=tty0 utf8 console=ttyS0,115200" --graphics vnc,listen=0.0.0.0 --hvm --location=http://ftp.us.debian.org/debian/dists/stable/main/installer-amd64/ --disk vol=iscsi_pool/unit:0:0:0</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">Starting install...</strong><br class="calibre7"/><strong class="calibre4">Retrieving file MANIFEST... | 3.3 kB 00:00 ...</strong><br class="calibre7"/><strong class="calibre4">Retrieving file linux...</strong><br class="calibre7"/><strong class="calibre4">...</strong><br class="calibre7"/><strong class="calibre4">root@kvm1:~# virsh console iscsi_kvm</strong><br class="calibre7"/><strong class="calibre4">...</strong><br class="calibre7"/><strong class="calibre4">Requesting system reboot</strong><br class="calibre7"/><strong class="calibre4">[ 305.315002] reboot: Restarting system</strong><br class="calibre7"/><strong class="calibre4">root@kvm1:~#</strong>
+</pre>
+<ol start="14" class="calibre18">
+<li value="14" class="calibre17">Refresh the partition table list and examine the new block devices after the installation:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm1:~# partprobe</strong><br class="calibre7"/><strong class="calibre4">root@kvm1:~# ls -la /dev/disk/by-path/</strong><br class="calibre7"/><strong class="calibre4">total 0</strong><br class="calibre7"/><strong class="calibre4">drwxr-xr-x 2 root root 160 Apr 12 16:36 .</strong><br class="calibre7"/><strong class="calibre4">drwxr-xr-x 6 root root 120 Mar 21 22:14 ..</strong><br class="calibre7"/><strong class="calibre4">lrwxrwxrwx 1 root root 9 Apr 12 16:36 ip-10.184.22.74:3260-iscsi-iqn.2001-04.com.example:kvm-lun-0 -&gt; ../../sdf</strong><br class="calibre7"/><strong class="calibre4">lrwxrwxrwx 1 root root 10 Apr 12 16:36 ip-10.184.22.74:3260-iscsi-iqn.2001-04.com.example:kvm-lun-0-part1 -&gt; ../../sdf1</strong><br class="calibre7"/><strong class="calibre4">lrwxrwxrwx 1 root root 10 Apr 12 16:36 ip-10.184.22.74:3260-iscsi-iqn.2001-04.com.example:kvm-lun-0-part2 -&gt; ../../sdf2</strong><br class="calibre7"/><strong class="calibre4">lrwxrwxrwx 1 root root 10 Apr 12 16:36 ip-10.184.22.74:3260-iscsi-iqn.2001-04.com.example:kvm-lun-0-part5 -&gt; ../../sdf5</strong><br class="calibre7"/><strong class="calibre4">root@kvm1:~# fdisk -l /dev/sdf</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">Disk /dev/sdf: 10.7 GB, 10737418240 bytes</strong><br class="calibre7"/><strong class="calibre4">255 heads, 63 sectors/track, 1305 cylinders, total 20971520 sectors</strong><br class="calibre7"/><strong class="calibre4">Units = sectors of 1 * 512 = 512 bytes</strong><br class="calibre7"/><strong class="calibre4">Sector size (logical/physical): 512 bytes / 512 bytes</strong><br class="calibre7"/><strong class="calibre4">I/O size (minimum/optimal): 512 bytes / 512 bytes</strong><br class="calibre7"/><strong class="calibre4">Disk identifier: 0x37eb1540</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4"> Device Boot Start End Blocks Id System</strong><br class="calibre7"/><strong class="calibre4">/dev/sdf1 * 2048 20013055 10005504 83 Linux</strong><br class="calibre7"/><strong class="calibre4">/dev/sdf2 20015102 20969471 477185 5 Extended</strong><br class="calibre7"/><strong class="calibre4">/dev/sdf5 20015104 20969471 477184 82 Linux swap / Solaris</strong><br class="calibre7"/><strong class="calibre4">root@kvm1:~#</strong> 
+</pre>
+<ol start="15" class="calibre18">
+<li value="15" class="calibre17">Start the new KVM guest and ensure that it's running, and that you can connect to it using a VNC client:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm1:~# virsh start iscsi_kvm</strong><br class="calibre7"/><strong class="calibre4">Domain iscsi_kvm started</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@kvm1:~# virsh list --all</strong><br class="calibre7"/><strong class="calibre4"> Id  Name        State</strong><br class="calibre7"/><strong class="calibre4">----------------------------------------------------</strong><br class="calibre7"/><strong class="calibre4"> 19  iscsi_kvm   running</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@kvm1:~#</strong>
+</pre>
+<ol start="16" class="calibre18">
+<li value="16" class="calibre17">To manually migrate the instance to a new host, first stop the VM and the iSCSI pool:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm1:~# virsh destroy iscsi_kvm</strong><br class="calibre7"/><strong class="calibre4">Domain iscsi_kvm destroyed</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@kvm1:~# virsh pool-destroy iscsi_pool</strong><br class="calibre7"/><strong class="calibre4">Pool iscsi_pool destroyed</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@kvm1:~# iscsiadm -m session</strong><br class="calibre7"/><strong class="calibre4">iscsiadm: No active sessions.</strong><br class="calibre7"/><strong class="calibre4">root@kvm1:~#</strong>
+</pre>
+<ol start="17" class="calibre18">
+<li value="17" class="calibre17">Dump the XML configuration of the KVM instance to a file and examine it:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm1:~# virsh dumpxml iscsi_kvm &gt; iscsi_kvm.xml</strong><br class="calibre7"/><strong class="calibre4">root@kvm1:~# cat iscsi_kvm.xml</strong><br class="calibre7"/><strong class="calibre4">&lt;domain type='kvm'&gt;</strong><br class="calibre7"/><strong class="calibre4"> &lt;name&gt;iscsi_kvm&lt;/name&gt;</strong><br class="calibre7"/><strong class="calibre4"> &lt;uuid&gt;306e05ed-e398-ef33-d6e2-3708e90b89a6&lt;/uuid&gt;</strong><br class="calibre7"/><strong class="calibre4"> &lt;memory unit='KiB'&gt;1048576&lt;/memory&gt;</strong><br class="calibre7"/><strong class="calibre4"> &lt;currentMemory unit='KiB'&gt;1048576&lt;/currentMemory&gt;</strong><br class="calibre7"/><strong class="calibre4"> &lt;vcpu placement='static'&gt;1&lt;/vcpu&gt;</strong><br class="calibre7"/><strong class="calibre4"> &lt;os&gt;</strong><br class="calibre7"/><strong class="calibre4">   &lt;type arch='x86_64' machine='pc-i440fx-trusty'&gt;hvm&lt;/type&gt;</strong><br class="calibre7"/><strong class="calibre4">   &lt;boot dev='hd'/&gt;</strong><br class="calibre7"/><strong class="calibre4"> &lt;/os&gt;</strong><br class="calibre7"/><strong class="calibre4"> &lt;features&gt;</strong><br class="calibre7"/><strong class="calibre4">   &lt;acpi/&gt;</strong><br class="calibre7"/><strong class="calibre4">   &lt;apic/&gt;</strong><br class="calibre7"/><strong class="calibre4">   &lt;pae/&gt;</strong><br class="calibre7"/><strong class="calibre4"> &lt;/features&gt;</strong><br class="calibre7"/><strong class="calibre4"> &lt;clock offset='utc'/&gt;</strong><br class="calibre7"/><strong class="calibre4"> &lt;on_poweroff&gt;destroy&lt;/on_poweroff&gt;</strong><br class="calibre7"/><strong class="calibre4"> &lt;on_reboot&gt;restart&lt;/on_reboot&gt;</strong><br class="calibre7"/><strong class="calibre4"> &lt;on_crash&gt;restart&lt;/on_crash&gt;</strong><br class="calibre7"/><strong class="calibre4"> &lt;devices&gt;</strong><br class="calibre7"/><strong class="calibre4">   &lt;emulator&gt;/usr/bin/qemu-system-x86_64&lt;/emulator&gt;</strong><br class="calibre7"/><strong class="calibre4">   &lt;disk type='block' device='disk'&gt;</strong><br class="calibre7"/><strong class="calibre4">     &lt;driver name='qemu' type='raw'/&gt;</strong><br class="calibre7"/><strong class="calibre4">     &lt;source dev='/dev/disk/by-path/ip-10.184.22.74:3260-iscsi-iqn.2001-04.com.example:kvm-lun-0'/&gt;</strong><br class="calibre7"/><strong class="calibre4">     &lt;target dev='hda' bus='ide'/&gt;</strong><br class="calibre7"/><strong class="calibre4">     &lt;address type='drive' controller='0' bus='0' target='0' unit='0'/&gt;</strong><br class="calibre7"/><strong class="calibre4">   &lt;/disk&gt;</strong><br class="calibre7"/><strong class="calibre4">   &lt;controller type='usb' index='0'&gt;</strong><br class="calibre7"/><strong class="calibre4">     &lt;address type='pci' domain='0x0000' bus='0x00' slot='0x01' function='0x2'/&gt;</strong><br class="calibre7"/><strong class="calibre4">   &lt;/controller&gt;</strong><br class="calibre7"/><strong class="calibre4">   &lt;controller type='pci' index='0' model='pci-root'/&gt;</strong><br class="calibre7"/><strong class="calibre4">   &lt;controller type='ide' index='0'&gt;</strong><br class="calibre7"/><strong class="calibre4">     &lt;address type='pci' domain='0x0000' bus='0x00' slot='0x01' function='0x1'/&gt;</strong><br class="calibre7"/><strong class="calibre4">   &lt;/controller&gt;</strong><br class="calibre7"/><strong class="calibre4">   &lt;interface type='network'&gt;</strong><br class="calibre7"/><strong class="calibre4">     &lt;mac address='52:54:00:8b:b8:e3'/&gt;</strong><br class="calibre7"/><strong class="calibre4">     &lt;source network='default'/&gt;</strong><br class="calibre7"/><strong class="calibre4">     &lt;model type='rtl8139'/&gt;</strong><br class="calibre7"/><strong class="calibre4">     &lt;address type='pci' domain='0x0000' bus='0x00' slot='0x03' function='0x0'/&gt;</strong><br class="calibre7"/><strong class="calibre4">   &lt;/interface&gt;</strong><br class="calibre7"/><strong class="calibre4">   &lt;serial type='pty'&gt;</strong><br class="calibre7"/><strong class="calibre4">     &lt;target port='0'/&gt;</strong><br class="calibre7"/><strong class="calibre4">   &lt;/serial&gt;</strong><br class="calibre7"/><strong class="calibre4">   &lt;console type='pty'&gt;</strong><br class="calibre7"/><strong class="calibre4">     &lt;target type='serial' port='0'/&gt;</strong><br class="calibre7"/><strong class="calibre4">   &lt;/console&gt;</strong><br class="calibre7"/><strong class="calibre4">   &lt;input type='mouse' bus='ps2'/&gt;</strong><br class="calibre7"/><strong class="calibre4">   &lt;input type='keyboard' bus='ps2'/&gt;</strong><br class="calibre7"/><strong class="calibre4">   &lt;graphics type='vnc' port='-1' autoport='yes' listen='0.0.0.0'&gt;</strong><br class="calibre7"/><strong class="calibre4">     &lt;listen type='address' address='0.0.0.0'/&gt;</strong><br class="calibre7"/><strong class="calibre4">   &lt;/graphics&gt;</strong><br class="calibre7"/><strong class="calibre4">   &lt;video&gt;</strong><br class="calibre7"/><strong class="calibre4">     &lt;model type='cirrus' vram='9216' heads='1'/&gt;</strong><br class="calibre7"/><strong class="calibre4">     &lt;address type='pci' domain='0x0000' bus='0x00' slot='0x02' function='0x0'/&gt;</strong><br class="calibre7"/><strong class="calibre4">   &lt;/video&gt;</strong><br class="calibre7"/><strong class="calibre4">   &lt;memballoon model='virtio'&gt;</strong><br class="calibre7"/><strong class="calibre4">     &lt;address type='pci' domain='0x0000' bus='0x00' slot='0x04' function='0x0'/&gt;</strong><br class="calibre7"/><strong class="calibre4">   &lt;/memballoon&gt;</strong><br class="calibre7"/><strong class="calibre4"> &lt;/devices&gt;</strong><br class="calibre7"/><strong class="calibre4">&lt;/domain&gt;</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@kvm1:~#</strong>
+</pre>
+<ol start="18" class="calibre18">
+<li value="18" class="calibre17">Remotely create the iSCSI storage pool from the <kbd class="calibre13">kvm1</kbd> host to the <kbd class="calibre13">kvm2</kbd> host:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm1:~# virsh --connect qemu+ssh://kvm2/system pool-define iscsi_pool.xml</strong><br class="calibre7"/><strong class="calibre4">Pool iscsi_pool defined from iscsi_pool.xml</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@kvm1:~#</strong>
+</pre>
+<div class="packt_infobox">If you are not using keys for the SSH connection between both the KVM hosts, you will be asked to provide a password before the <kbd class="calibre27">libvirt</kbd> command can proceed. We recommend that you use SSH keys on the <kbd class="calibre27">libvirt</kbd> hosts you are migrating between.</div>
+<ol start="19" class="calibre18">
+<li value="19" class="calibre17">Remotely start the iSCSI pool on the <kbd class="calibre13">kvm2</kbd> server and ensure that it's running:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm1:~# virsh --connect qemu+ssh://kvm2/system pool-start iscsi_pool</strong><br class="calibre7"/><strong class="calibre4">Pool iscsi_pool started</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@kvm1:~# virsh --connect qemu+ssh://kvm2/system pool-list --all</strong><br class="calibre7"/><strong class="calibre4"> Name        State   Autostart</strong><br class="calibre7"/><strong class="calibre4">-------------------------------------------</strong><br class="calibre7"/><strong class="calibre4"> iscsi_pool  active  no</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@kvm1:~#</strong>
+</pre>
+<div class="packt_infobox">You can also SSH to the <kbd class="calibre27">kvm2</kbd> server and perform all of the pool and volume operations locally. We do it remotely to demonstrate the concept.</div>
+<ol start="20" class="calibre18">
+<li value="20" class="calibre17">Remotely list the available iSCSI volumes on the <kbd class="calibre13">kvm2</kbd> node from the source host:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm1:~# virsh --connect qemu+ssh://kvm2/system vol-list --pool iscsi_pool</strong><br class="calibre7"/><strong class="calibre4"> Name Path</strong><br class="calibre7"/><strong class="calibre4">--------------------------------------------------------------------</strong><br class="calibre7"/><strong class="calibre4"> unit:0:0:0 /dev/disk/by-path/ip-10.184.22.74:3260-iscsi-iqn.2001-04.com.example:kvm-lun-0</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@kvm1:~#</strong>
+</pre>
+<ol start="21" class="calibre18">
+<li value="21" class="calibre17">SSH to the second KVM server and ensure that the iSCSI block devices are now available on the host OS:  </li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm2:~# iscsiadm -m session</strong><br class="calibre7"/><strong class="calibre4">tcp: [3] 10.184.226.74:3260,1 iqn.2001-04.com.example:kvm</strong><br class="calibre7"/><strong class="calibre4">root@kvm2:~# ls -la /dev/disk/by-path/</strong><br class="calibre7"/><strong class="calibre4">total 0</strong><br class="calibre7"/><strong class="calibre4">drwxr-xr-x 2 root root 120 Apr 12 17:44 .</strong><br class="calibre7"/><strong class="calibre4">drwxr-xr-x 6 root root 120 Apr 12 17:44 ..</strong><br class="calibre7"/><strong class="calibre4">lrwxrwxrwx 1 root root 9 Apr 12 17:44 ip-10.184.22.74:3260-iscsi-iqn.2001-04.com.example:kvm-lun-0 -&gt; ../../sdc</strong><br class="calibre7"/><strong class="calibre4">lrwxrwxrwx 1 root root 10 Apr 12 17:44 ip-10.184.22.74:3260-iscsi-iqn.2001-04.com.example:kvm-lun-0-part1 -&gt; ../../sdc1</strong><br class="calibre7"/><strong class="calibre4">lrwxrwxrwx 1 root root 10 Apr 12 17:44 ip-10.184.22.74:3260-iscsi-iqn.2001-04.com.example:kvm-lun-0-part2 -&gt; ../../sdc2</strong><br class="calibre7"/><strong class="calibre4">lrwxrwxrwx 1 root root 10 Apr 12 17:44 ip-10.184.22.74:3260-iscsi-iqn.2001-04.com.example:kvm-lun-0-part5 -&gt; ../../sdc5</strong><br class="calibre7"/><strong class="calibre4">root@kvm2:~#</strong>
+</pre>
+<ol start="22" class="calibre18">
+<li value="22" class="calibre17">Complete the migration by remotely defining the KVM instance and starting it on the target host:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm1:~# virsh --connect qemu+ssh://kvm2/system define iscsi_kvm.xml</strong><br class="calibre7"/><strong class="calibre4">Domain iscsi_kvm defined from iscsi_kvm.xml</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@kvm1:~# virsh --connect qemu+ssh://kvm2/system list --all</strong><br class="calibre7"/><strong class="calibre4"> Id   Name        State</strong><br class="calibre7"/><strong class="calibre4">----------------------------------------------------</strong><br class="calibre7"/><strong class="calibre4"> -    iscsi_kvm   shut off</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@kvm:~# virsh --connect qemu+ssh://kvm2/system start iscsi_kvm</strong><br class="calibre7"/><strong class="calibre4">Domain iscsi_kvm started</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@kvm:~# virsh --connect qemu+ssh://kvm2/system list --all</strong><br class="calibre7"/><strong class="calibre4"> Id    Name        State</strong><br class="calibre7"/><strong class="calibre4">----------------------------------------------------</strong><br class="calibre7"/><strong class="calibre4"> 3     iscsi_kvm   running</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@kvm1:~#</strong>
+</pre>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">How it works...</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">In this recipe, we demonstrated how to manually perform an offline migration of a KVM instance from one host to another, using an iSCSI pool. In the <em class="calibre22">Online migration using the virsh command</em> recipe later in this chapter, we are going to perform a live migration using the same iSCSI pool and instance we created in this recipe, using the <kbd class="calibre13">virsh</kbd> command, thus avoiding downtime for the instance.</p>
+<p class="calibre3">Let's step through the process and explore in more detail how the manual offline migration was accomplished.</p>
+<p class="calibre3">We start with the server that is going to be presenting the iSCSI target by first installing the required iSCSI target server packages in step 1. <br class="calibre7"/>
+In step 2, we enable the iSCSI target functionality, enabling the server to export block devices via the iSCSI protocol.<br class="calibre7"/>
+In step 3, we specify an identified (iSCSI qualified name) <kbd class="calibre13">iqn.2001-04.com.example:kvm</kbd> for the iSCSI target device that the initiators are going to use. We are using the <kbd class="calibre13">/dev/loop1</kbd> block device for this example. The iSCSI-qualified name has the format <strong class="calibre4">iqn.yyyy-mm.naming-authority:unique name</strong> where:</p>
+<ul class="calibre16">
+<li class="calibre17"><strong class="calibre4">iqn</strong>: This is the <span>iSCSI-qualified name identifier</span></li>
+<li class="calibre17"><strong class="calibre4">yyyy-mm</strong>: This is the year and month when the naming authority was established</li>
+<li class="calibre17"><strong class="calibre4">naming-authority:</strong> This is usually reverse syntax of the Internet domain name of the naming authority or the domain name of the server</li>
+<li class="calibre17"><strong class="calibre4">Unique name</strong>: This is any name you would like to use</li>
+</ul>
+<div class="packt_infobox">For more information about iSCSI and the naming scheme it uses, please refer to <a href="https://en.wikipedia.org/wiki/ISCSI" class="calibre30">https://en.wikipedia.org/wiki/ISCSI</a>.</div>
+<p class="calibre3">With the target definition in place, in step 4, we restart the iSCSI service on the server.</p>
+<p class="calibre3">In steps 5 and 6, we install and configure the iSCSI initiator service on both KVM nodes, and in step 7, we request all available iSCSI targets. In steps 8 and 9, we define and start a new iSCSI-based storage pool. The syntax of the storage pool definition should look familiar if you've completed the <em class="calibre22">Working with storage pools </em>recipe from <a target="_blank" href="part0068.html#20R680-c1e587dcccb14690b55c247c1809e6ce" class="calibre8">Chapter 2</a>, <em class="calibre22">Using libvirt to Manage KVM.</em></p>
+<p class="calibre3">After creating the iSCSI storage pool, we proceeded to list the volumes part of that pool in step 10. Note that when we started the pool, it logged the iSCSI target in, resulting in a new block device present in the <kbd class="calibre13">/dev/disk/by-path/</kbd> directory, as we can further see in step 11. We can now use this block device locally to install a new Linux OS. In step 12, we can see that the iSCSI block device presented to the host OS does not yet contain any partitions.</p>
+<p class="calibre3">With the new block device present, we proceed to build a new KVM instance in step 13, specifying the storage pool and volume as the target for the installation. After the guest OS installation completes, we can now see that there are multiple partitions on the iSCSI block device in step 14. We then proceed to start the new guest in step 15.</p>
+<p class="calibre3">Now that we have a running KVM instance using an iSCSI block device, we can proceed with the offline manual migration from the <kbd class="calibre13">kvm1</kbd>  hosts to the <kbd class="calibre13">kvm2</kbd> hosts.</p>
+<p class="calibre3">We start the migration process by first stopping the running KVM instance and the associated storage pool in step 16. We then dump the XML configuration of the KVM guest to a file in step 17. We are going to use it to define the guest on the target server. We have a few options for this: we can copy the file over to the target server and define the instance there or we can do that remotely from the original host.</p>
+<p class="calibre3">In steps 18 and 19, we create the iSCSI storage pool remotely from the original host to the target host. We could have logged in to the target host and performed the same operations locally as well with the same result. The point here is that we can use the <kbd class="calibre13">qemu+ssh</kbd> connection string to remotely connect to other qemu instances over SSH. In steps 20 and 21, we ensure that the same iSCSI volume has been successfully logged in to the target host.</p>
+<p class="calibre3">Finally, in step 22, we define the instance on the target host using the XML configuration we dumped in step 17 and then start it. Because we are using the same XML definition file and the same iSCSI block device containing the guest OS filesystem, we now have exactly the same instance created on the new server, thus completing the offline migration.</p>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">There's more...</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">If the iSCSI target server does not have any available block devices to export, we can create a new <span>block device </span>using a regular file by following the steps outlined here:</p>
+<ol class="calibre18">
+<li value="1" class="calibre17">Create a new image file of a given size:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@iscsi_target:~# truncate --size 10G xvdb.img</strong><br class="calibre7"/><strong class="calibre4">root@iscsi_target:~# file -s xvdb.img</strong><br class="calibre7"/><strong class="calibre4">xvdb.img: data</strong><br class="calibre7"/><strong class="calibre4">root@kvmiscsi_target:~# qemu-img info xvdb.img</strong><br class="calibre7"/><strong class="calibre4">image: xvdb.img</strong><br class="calibre7"/><strong class="calibre4">file format: raw</strong><br class="calibre7"/><strong class="calibre4">virtual size: 10G (10737418240 bytes)</strong><br class="calibre7"/><strong class="calibre4">disk size: 0</strong><br class="calibre7"/><strong class="calibre4">root@iscsi_target:~#</strong>
+</pre>
+<ol start="2" class="calibre18">
+<li value="2" class="calibre17"><span>Ensure that the loop kernel module is compiled in (or load it with</span> <kbd class="calibre13">modprobe loop</kbd><span>) and find the first available loop device to use:</span></li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@iscsi_target:~# grep 'loop' /lib/modules/`uname -r`/modules.builtin<br class="calibre7"/>kernel/drivers/block/loop.ko<br class="calibre7"/>root@iscsi_target:~# losetup --find<br class="calibre7"/>/dev/loop0<br class="calibre7"/>root@iscsi_target:~#</strong>
+</pre>
+<ol start="3" class="calibre18">
+<li value="3" class="calibre17">Associate the raw file image with the first available loop device:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@iscsi_target:~# losetup /dev/loop0 xvdb.img</strong><br class="calibre7"/><strong class="calibre4">root@iscsi_target:~# losetup --all</strong><br class="calibre7"/><strong class="calibre4">/dev/loop0: [10300]:263347 (/root/xvdb.img)</strong><br class="calibre7"/><strong class="calibre4">root@iscsi_target:~#</strong>
+</pre>
+<p class="calibre32">In step 1, we create a new image file using the <kbd class="calibre13">truncate</kbd> command.</p>
+<p class="calibre32">In step 2, we list the first available block device to use and in step 3, we associate it with the raw image file we created in step 1. The result is a new block device available as <kbd class="calibre13">/dev/loop0</kbd> that we can use to export in iSCSI.</p>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">Manual offline migration using GlusterFS shared volumes</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">In the <em class="calibre22">Manual offline migration using an iSCSI storage pool</em> recipe, we created an iSCSI storage pool and used it while performing manual offline migration. With storage pools, we can delegate the operation of a shared storage to libvirt rather than manually having to log in/log out iSCSI targets, for example. This is especially useful when we perform live migrations with the <kbd class="calibre13">virsh</kbd> command, as we are going to see in the next recipe. Even though the use of storage pools is not required, it simplifies and centralizes the management of backend volumes.</p>
+<p class="calibre3">In this recipe, we are going to use the G<span>luster</span>FS network filesystem to demonstrate an alternative way of manually migrating a KVM instance, this time not using storage pools.</p>
+<p class="calibre3">G<span>luster</span>FS has the following two components:</p>
+<ul class="calibre16">
+<li class="calibre17"><strong class="calibre4">Server component</strong>: This runs the <kbd class="calibre13">GlusterFS</kbd> daemon and exports local block devices named <strong class="calibre4">bricks</strong> as volumes that can be mounted by the client component</li>
+<li class="calibre17"><strong class="calibre4">Client component</strong>: This connects to the G<span>luster</span>FS cluster over TCP/IP and can mount the exported volumes</li>
+</ul>
+<p class="calibre3">There are <span>the following</span> three types of volumes:</p>
+<ul class="calibre16">
+<li class="calibre17"><strong class="calibre4">Distributed</strong>: These are volumes that distribute files throughout the cluster</li>
+<li class="calibre17"><strong class="calibre4">Replicated</strong>: <span>These are</span> volumes that replicate data across two or more nodes in the storage cluster</li>
+<li class="calibre17"><strong class="calibre4">Striped</strong>: <span>These are</span> stripe files across multiple storage nodes</li>
+</ul>
+<p class="calibre3">For high availability, we are going to use two GFS nodes using the replicated volumes (two bricks containing the same data).</p>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">Getting ready</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">To complete this recipe, we are going to use the following:</p>
+<ul class="calibre16">
+<li class="calibre17">Two servers that will host the GlusterFS shared filesystem.</li>
+<li class="calibre17">Two hosts running <kbd class="calibre13">libvirt</kbd> and <kbd class="calibre13">qemu</kbd> that will be used to migrate the KVM guest.</li>
+<li class="calibre17">All servers should be able to communicate with each other using hostnames.</li>
+<li class="calibre17">Both servers hosting the shared volumes should have one block device available for use as GlusterFS bricks. If a <span>block device </span>is not available, please refer to the <em class="calibre22">There's more...</em> section of the <em class="calibre22">Manual offline migration using an iSCSI storage pool</em> recipe in this chapter on how to create one using a regular file.</li>
+<li class="calibre17"><span>Connectivity to a Linux repository to install the guest OS.</span></li>
+</ul>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">How to do it...</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">To migrate a KVM guest using a shared GlusterFS backend store, run the following:</p>
+<ol class="calibre18">
+<li value="1" class="calibre17"><span>On both servers that will host the shared volumes, install GlusterFS:</span></li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@glusterfs1/2:~# apt-get update &amp;&amp; apt-get install glusterfs-server</strong>
+</pre>
+<ol start="2" class="calibre18">
+<li value="2" class="calibre17">From one of the G<span>luster</span>FS nodes, probe the other in order to form a cluster:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@glusterfs1:~# gluster peer status</strong><br class="calibre7"/><strong class="calibre4">peer status: No peers present</strong><br class="calibre7"/><strong class="calibre4">root@glusterfs1:~# gluster peer probe glusterfs2</strong><br class="calibre7"/><strong class="calibre4">peer probe: success</strong><br class="calibre7"/><strong class="calibre4">root@glusterfs1:~#</strong>
+</pre>
+<ol start="3" class="calibre18">
+<li value="3" class="calibre17">Verify that the G<span>luster</span>FS nodes are aware of each other:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@glusterfs1:~# gluster peer status</strong><br class="calibre7"/><strong class="calibre4">Number of Peers: 1</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">Hostname: glusterfs2</strong><br class="calibre7"/><strong class="calibre4">Port: 24007</strong><br class="calibre7"/><strong class="calibre4">Uuid: 923d152d-df3b-4dfd-9def-18dbebf2b76a</strong><br class="calibre7"/><strong class="calibre4">State: Peer in Cluster (Connected)</strong><br class="calibre7"/><strong class="calibre4">root@glusterfs1:~#</strong>
+</pre>
+<ol start="4" class="calibre18">
+<li value="4" class="calibre17">On both G<span>luster</span>FS hosts, create a filesystem on the block devices that will be used as G<span>luster</span>FS bricks and mount them:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@glusterfs1/2:~# mkfs.ext4 /dev/loop5</strong><br class="calibre7"/><strong class="calibre4">...</strong><br class="calibre7"/><strong class="calibre4">Allocating group tables: done</strong><br class="calibre7"/><strong class="calibre4">Writing inode tables: done</strong><br class="calibre7"/><strong class="calibre4">Creating journal (32768 blocks): done</strong><br class="calibre7"/><strong class="calibre4">Writing superblocks and filesystem accounting information: done</strong><br class="calibre7"/><strong class="calibre4">root@glusterfs1/2:~# mount /dev/loop5 /mnt/</strong><br class="calibre7"/><strong class="calibre4">root@glusterfs1/2:~# mkdir /mnt/bricks</strong><br class="calibre7"/><strong class="calibre4">root@glusterfs1/2:~#</strong>
+</pre>
+<div class="packt_infobox">Make sure to replace the block device name with what is appropriate on your system.</div>
+<ol start="5" class="calibre18">
+<li value="5" class="calibre17">From one of the G<span>luster</span>FS nodes, create the replicated storage volume, using the bricks from both servers and then list it:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@glusterfs1:~# gluster volume create kvm_gfs replica 2 transport tcp glusterfs1:/mnt/bricks/gfs1 glusterfs2:/mnt/bricks/gfs2</strong><br class="calibre7"/><strong class="calibre4">volume create: kvm_gfs: success: please start the volume to access data</strong><br class="calibre7"/><strong class="calibre4">root@glusterfs1:~# gluster volume list</strong><br class="calibre7"/><strong class="calibre4">kvm_gfs</strong><br class="calibre7"/><strong class="calibre4">root@glusterfs1:~#</strong>
+</pre>
+<ol start="6" class="calibre18">
+<li value="6" class="calibre17">From one of the G<span>luster</span>FS hosts, start the new volume and obtain more information on it:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@glusterfs1:~# gluster volume start kvm_gfs</strong><br class="calibre7"/><strong class="calibre4">volume start: kvm_gfs: success</strong><br class="calibre7"/><strong class="calibre4">root@glusterfs1:~# gluster volume info</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">Volume Name: kvm_gfs</strong><br class="calibre7"/><strong class="calibre4">Type: Replicate</strong><br class="calibre7"/><strong class="calibre4">Volume ID: 69823a48-8b1b-469f-b06a-14ef6f33a6f5</strong><br class="calibre7"/><strong class="calibre4">Status: Started</strong><br class="calibre7"/><strong class="calibre4">Number of Bricks: 1 x 2 = 2</strong><br class="calibre7"/><strong class="calibre4">Transport-type: tcp</strong><br class="calibre7"/><strong class="calibre4">Bricks:</strong><br class="calibre7"/><strong class="calibre4">Brick1: glusterfs1:/mnt/bricks/gfs1</strong><br class="calibre7"/><strong class="calibre4">Brick2: glusterfs2:/mnt/bricks/gfs2</strong><br class="calibre7"/><strong class="calibre4">root@glusterfs1:~#</strong>
+</pre>
+<ol start="7" class="calibre18">
+<li value="7" class="calibre17">On both <kbd class="calibre13">libvirt</kbd> nodes, install the G<span>luster</span>FS client and mount the G<span>luster</span>FS volume that will be used to host the KVM image:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm1/2:~# apt-get update &amp;&amp; apt-get install glusterfs-client </strong><br class="calibre7"/><strong class="calibre4">root@kvm1/2:~# mkdir /tmp/kvm_gfs</strong><br class="calibre7"/><strong class="calibre4">root@kvm1/2:~# mount -t glusterfs glusterfs1:/kvm_gfs /tmp/kvm_gfs</strong><br class="calibre7"/><strong class="calibre4">root@kvm1/2:~#</strong>
+</pre>
+<div class="packt_tip">When mounting the G<span class="calibre33">luster</span>FS volume, you can specify either one of the cluster nodes. In the preceding example, we are mounting from the <kbd class="calibre27">glusterfs1</kbd> node.</div>
+<ol start="8" class="calibre18">
+<li value="8" class="calibre17">On one of the <kbd class="calibre13">libvirt</kbd> nodes, build a new KVM instance, using the mounted G<span>luster</span>FS volume:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm1:~# virt-install --name kvm_gfs --ram 1024 --extra-args="text console=tty0 utf8 console=ttyS0,115200" --graphics vnc,listen=0.0.0.0 --hvm --location=http://ftp.us.debian.org/debian/dists/stable/main/installer-amd64/ --disk /tmp/kvm_gfs/gluster_kvm.img,size=5</strong><br class="calibre7"/><strong class="calibre4">...</strong><br class="calibre7"/><strong class="calibre4">root@kvm1:~#</strong>
+</pre>
+<ol start="9" class="calibre18">
+<li value="9" class="calibre17">Ensure that both <kbd class="calibre13">libvirt</kbd> nodes can see the guest image:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm1/2:~# ls -al /tmp/kvm_gfs/</strong><br class="calibre7"/><strong class="calibre4">total 1820300</strong><br class="calibre7"/><strong class="calibre4">drwxr-xr-x 3 root root 4096 Apr 13 14:48 .</strong><br class="calibre7"/><strong class="calibre4">drwxrwxrwt 6 root root 4096 Apr 13 15:00 ..</strong><br class="calibre7"/><strong class="calibre4">-rwxr-xr-x 1 root root 5368709120 Apr 13 14:59 gluster_kvm.img</strong><br class="calibre7"/><strong class="calibre4">root@kvm1/2:~#</strong>
+</pre>
+<ol start="10" class="calibre18">
+<li value="10" class="calibre17">To manually migrate the KVM instance from one <kbd class="calibre13">libvirt</kbd> node to the other, first stop the instance and dump its XML definition:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm1:~# virsh destroy kvm_gfs</strong><br class="calibre7"/><strong class="calibre4">Domain kvm_gfs destroyed</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@kvm1:~# virsh dumpxml kvm_gfs &gt; kvm_gfs.xml</strong><br class="calibre7"/><strong class="calibre4">root@kvm1:~#</strong>
+</pre>
+<ol start="11" class="calibre18">
+<li value="11" class="calibre17">From the source <kbd class="calibre13">libvirt</kbd> node, define the instance on the target host:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm1:~# virsh --connect qemu+ssh://kvm2/system define kvm_gfs.xml</strong><br class="calibre7"/><strong class="calibre4">Domain kvm_gfs defined from kvm_gfs.xml</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@kvm1:~# virsh --connect qemu+ssh://kvm2/system list --all</strong><br class="calibre7"/><strong class="calibre4"> Id    Name       State</strong><br class="calibre7"/><strong class="calibre4">----------------------------------------------------</strong><br class="calibre7"/><strong class="calibre4"> -     kvm_gfs    shut off</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@kvm1:~#</strong>
+</pre>
+<ol start="12" class="calibre18">
+<li value="12" class="calibre17">Start the KVM instance on the target host to complete the migration:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm2:~# virsh start kvm_gfs</strong><br class="calibre7"/><strong class="calibre4">Domain kvm_gfs started</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@kvm2:~#</strong>
+</pre>
+<div class="packt_infobox">We can also start the KVM instance on the destination host from the source host using the <kbd class="calibre27">qemu+ssh</kbd> connection as follows:<br class="calibre34"/>
+<kbd class="calibre27">root@kvm1:~# virsh --connect qemu+ssh://kvm2/system start kvm_gfs</kbd></div>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">How it works...</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">We begin by installing the GlusterFS server-side package on both servers in step 1. Then, in step 2, we proceed to form a cluster by sending a probe from the first G<span>luster</span>FS node. If the probe was successful, we further obtain information about the cluster in step 3. In step 4, we prepare the block devices on both G<span>luster</span>FS servers for use by creating a filesystem on them, then mounting them. The block device once mounted will contain the bricks that will form a virtual replicated volume for G<span>luster</span>FS to export.</p>
+<p class="calibre3">In step 5, we create the new replicated volume on one of the nodes (this will affect the entire cluster and only needs to be run from one G<span>luster</span>FS node). We specify that the type is going to be replicated, using the TCP protocol and the location of the bricks we are going to use. Once the volume is created, we start it in step 6 and get more information about it. Note that from the output of the volume information, we can see the number of bricks in use and their location in the cluster.</p>
+<p class="calibre3">In step 7, we install the G<span>luster</span>FS client component on both <kbd class="calibre13">libvirt</kbd> servers and mount the GFS volume. Both KVM hosts now share the same replicated storage that is physically hosted on the GlusterFS nodes. We are going to use that shared storage to host the new KVM image file.</p>
+<p class="calibre3">In step 8, we proceed with the installation of a new KVM instance, using the GlusterFS volume that we mounted in the previous step. Once the installation is complete, we verify that both <kbd class="calibre13">libvirt</kbd> servers can see the new KVM image, in step 9.</p>
+<p class="calibre3">We start the manual migration in step 10 by first stopping the running KVM instance, then saving its configuration to the disk.  In step 11, we remotely define the KVM guest using the XML dump and verify that it has been successfully defined on the target host. Finally, we start the KVM instance on the target server, completing the migration.</p>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">Online migration using the virsh command with shared storage</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">The <kbd class="calibre13">virsh</kbd> command provides a migrate parameter that we can use to migrate KVM instances between hosts. In the previous two recipes, we saw how to migrate instances manually with downtime. In this recipe, we are going to perform a live migration on an instance that uses either the iSCSI storage pool or the GlusterFS shared volumes that we used earlier in this chapter.</p>
+<p class="calibre3">If you recall, live migration only works when the guest filesystem resides on some sort of shared media, such as NFS, iSCSI, GlusterFS, or if we first copy the image file to all nodes and use the <kbd class="calibre13">--copy-storage-all</kbd> option with <kbd class="calibre13">virsh migrate</kbd>, as we'll see later in this chapter.</p>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">Getting ready</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">In order to complete this recipe, we are going to need the following:</p>
+<ul class="calibre16">
+<li class="calibre17">Two <kbd class="calibre13">libvirt</kbd> hosts with a shared storage between them. If you've completed the earlier recipes in this chapter, you can either use the iSCSI storage pool we created and the KVM instance that is using it or the GFS shared storage with the KVM guest.</li>
+<li class="calibre17">Both <kbd class="calibre13">libvirt</kbd> hosts should be able to communicate with each other using short hostnames.</li>
+</ul>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">How to do it...</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">To perform a live migration using the shared storage, perform the operations listed here:</p>
+<ol start="1" class="calibre18">
+<li value="1" class="calibre17">Ensure that the iSCSI KVM instance we built earlier is running on the source host:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm1:~# virsh list --all</strong><br class="calibre7"/><strong class="calibre4"> Id  Name        State</strong><br class="calibre7"/><strong class="calibre4">----------------------------------------------------</strong><br class="calibre7"/><strong class="calibre4"> 26  iscsi_kvm   running</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@kvm1:~#</strong>
+</pre>
+<ol start="2" class="calibre18">
+<li value="2" class="calibre17">Live migrate the instance to the second <kbd class="calibre13">libvirt</kbd> server (the target node should already have the iSCSI pool configured). If this operation errors out, please consult the <em class="calibre22">There's more...</em> section of this recipe for troubleshooting tips:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm1:~# virsh migrate --live iscsi_kvm qemu+ssh://kvm2/system</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@kvm1:~#</strong>
+</pre>
+<ol start="3" class="calibre18">
+<li value="3" class="calibre17">Ensure that the KVM instance has been stopped on the source host and started on the target server:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm1:~# virsh list --all</strong><br class="calibre7"/><strong class="calibre4"> Id   Name       State</strong><br class="calibre7"/><strong class="calibre4">----------------------------------------------------</strong><br class="calibre7"/><strong class="calibre4"> -    iscsi_kvm  shut off</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@kvm1:~# virsh --connect qemu+ssh://kvm2/system list --all</strong><br class="calibre7"/><strong class="calibre4"> Id   Name     State</strong><br class="calibre7"/><strong class="calibre4">----------------------------------------------------</strong><br class="calibre7"/><strong class="calibre4"> 10   iscsi_kvm  running</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@kvm1:~#</strong>
+</pre>
+<ol start="4" class="calibre18">
+<li value="4" class="calibre17">To migrate the instance back, from the <kbd class="calibre13">kvm2</kbd> node, run the following:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm2:~# virsh migrate --live iscsi_kvm qemu+ssh://kvm1/system</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@kvm2:~# virsh list --all</strong><br class="calibre7"/><strong class="calibre4"> Id Name State</strong><br class="calibre7"/><strong class="calibre4">----------------------------------------------------</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@kvm2:~# virsh --connect qemu+ssh://kvm1/system list --all</strong><br class="calibre7"/><strong class="calibre4"> Id   Name        State</strong><br class="calibre7"/><strong class="calibre4">----------------------------------------------------</strong><br class="calibre7"/><strong class="calibre4"> 28   iscsi_kvm   running</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@kvm2:~#</strong>
+</pre>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">How it works...</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">When migrating a KVM instance that is using a shared storage, such as the iSCSI storage pool in this example, once we initiate the migration with the <kbd class="calibre13">migrate --live</kbd> parameter, libvirt takes care of logging out the iSCSI session from the original host and logging it in to the target server, thus making the block device containing the guest filesystem present on the destination server without the need to copy all the data. You might have noted that the migration took only a few seconds because the only data that was migrated was the memory pages of the running VM on the source host.</p>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">There's more...</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">Depending on your Linux distribution and the server type (on-metal or a cloud instance) you are running this recipe on, you might encounter a few common errors when trying to migrate the instance.</p>
+<p class="calibre3"><strong class="calibre4">Error</strong>: error: Unsafe migration: Migration may lead to data corruption if disks use cache != none.<br class="calibre7"/>
+<strong class="calibre4">Solution</strong>: Edit the XML definition of the instance you are trying to migrate and update the driver section of the block device to contain the <kbd class="calibre13">cache=none</kbd> attribute:</p>
+<pre class="calibre23">
+<strong class="calibre4">root@kvm1:~# virsh edit iscsi_kvm</strong><br class="calibre7"/><strong class="calibre4">...</strong><br class="calibre7"/><strong class="calibre4">&lt;devices&gt;</strong><br class="calibre7"/><strong class="calibre4"> ...</strong><br class="calibre7"/><strong class="calibre4"> &lt;disk type='block' device='disk'&gt;</strong><br class="calibre7"/><strong class="calibre4">   &lt;driver name='qemu' type='raw' <span class="underline"><em class="calibre22">cache='none'</em></span>/&gt;</strong><br class="calibre7"/><strong class="calibre4">   &lt;source dev='/dev/disk/by-path/ip-10.184.22.74:3260-iscsi-iqn.2001-04.com.example:kvm-lun-0'/&gt;</strong><br class="calibre7"/><strong class="calibre4">   &lt;target dev='hda' bus='ide'/&gt;</strong><br class="calibre7"/><strong class="calibre4">   &lt;address type='drive' controller='0' bus='0' target='0' unit='0'/&gt;</strong><br class="calibre7"/><strong class="calibre4"> &lt;/disk&gt;</strong><br class="calibre7"/><strong class="calibre4"> ...</strong><br class="calibre7"/><strong class="calibre4">&lt;/devices&gt;</strong>
+</pre>
+<p class="calibre3"><strong class="calibre4">Error</strong>: error: Internal error: Attempt to migrate guest to the same host <kbd class="calibre13">02000100-0300-0400-0005-000600070008</kbd>.<br class="calibre7"/>
+<strong class="calibre4">Solution</strong>: Some servers, usually virtualized, may return the same system UUID, which causes the migration to fail. To see if this is the case, run the following on both the source and target machines:</p>
+<pre class="calibre23">
+<strong class="calibre4">root@kvm1/2:~# virsh sysinfo | grep -B5 -A3 uuid</strong><br class="calibre7"/><strong class="calibre4"> &lt;system&gt;</strong><br class="calibre7"/><strong class="calibre4">   &lt;entry name='manufacturer'&gt;FOXCONN&lt;/entry&gt;</strong><br class="calibre7"/><strong class="calibre4">   &lt;entry name='product'&gt;CL7100&lt;/entry&gt;</strong><br class="calibre7"/><strong class="calibre4">   &lt;entry name='version'&gt;PVT1-X05&lt;/entry&gt;</strong><br class="calibre7"/><strong class="calibre4">   &lt;entry name='serial'&gt;2M2542Z069&lt;/entry&gt;</strong><br class="calibre7"/><strong class="calibre4">   &lt;entry name='uuid'&gt;<span class="underline"><em class="calibre22">02000100-0300-0400-0005-000600070008</em></span>&lt;/entry&gt;</strong><br class="calibre7"/><strong class="calibre4">   &lt;entry name='sku'&gt;NULL&lt;/entry&gt;</strong><br class="calibre7"/><strong class="calibre4">   &lt;entry name='family'&gt;Intel Grantley EP&lt;/entry&gt;</strong><br class="calibre7"/><strong class="calibre4"> &lt;/system&gt;</strong><br class="calibre7"/><strong class="calibre4">root@kvm1/2:~#</strong>
+</pre>
+<p class="calibre3">If the UUID is the same on both servers, edit the <kbd class="calibre13">libvirt</kbd> configuration file and assign a unique UUID, then restart <kbd class="calibre13">libvirt</kbd>:</p>
+<pre class="calibre23">
+<strong class="calibre4">root@kvm2:~# vim /etc/libvirt/libvirtd.conf</strong><br class="calibre7"/><strong class="calibre4">...</strong><br class="calibre7"/><strong class="calibre4">host_uuid = "02000100-0300-0400-0006-000600070008"</strong><br class="calibre7"/><strong class="calibre4">...</strong><br class="calibre7"/><strong class="calibre4">root@kvm2:~# /etc/init.d/libvirt-bin restart</strong><br class="calibre7"/><strong class="calibre4">libvirt-bin stop/waiting</strong><br class="calibre7"/><strong class="calibre4">libvirt-bin start/running, process 12167</strong><br class="calibre7"/><strong class="calibre4">root@kvm2:~#</strong>
+</pre>
+<p class="calibre3"><strong class="calibre4">Error</strong>: error: Unable to resolve address <kbd class="calibre13">kvm2.localdomain</kbd> service 49152: Name or service is not known.<br class="calibre7"/>
+<strong class="calibre4">Solution</strong>: This indicates that <kbd class="calibre13">libvirt</kbd> is unable to resolve the hostname of the instances. Make sure that the hostname does not resolve to localhost and that you can ping, or SSH between the source and target servers using the hostname instead of the IP address of the server. An example of a working host file for both <kbd class="calibre13">libvirt</kbd> nodes is as follows:</p>
+<pre class="calibre23">
+<strong class="calibre4">root@kvm1:~# cat /etc/hosts</strong><br class="calibre7"/><strong class="calibre4">127.0.0.1 localhost</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">10.184.226.106 kvm1.example.com kvm1</strong><br class="calibre7"/><strong class="calibre4">10.184.226.74  kvm2.example.com kvm2</strong><br class="calibre7"/><strong class="calibre4">root@kvm1:~#</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@kvm2:~# cat /etc/hosts</strong><br class="calibre7"/><strong class="calibre4">127.0.0.1 localhost</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">10.184.226.106 kvm1.example.com kvm1</strong><br class="calibre7"/><strong class="calibre4">10.184.226.74  kvm2.example.com kvm2</strong><br class="calibre7"/><strong class="calibre4">root@kvm2:~#<br class="calibre7"/></strong>
+</pre>
+<p class="calibre3">You can find more information about the operation of an instance by examining the following logs:</p>
+<pre class="calibre23">
+<strong class="calibre4">root@kvm1:~# cat /var/log/libvirt/libvirtd.log</strong><br class="calibre7"/><strong class="calibre4">...</strong><br class="calibre7"/><strong class="calibre4">2017-04-12 19:26:02.297+0000: 33149: error : virCommandWait:2399 : internal error: Child process (/usr/bin/iscsiadm --mode session) unexpected exit status 21</strong><br class="calibre7"/><strong class="calibre4">...</strong><br class="calibre7"/><strong class="calibre4">root@kvm1:~# cat /var/log/libvirt/qemu/iscsi_kvm.log</strong><br class="calibre7"/><strong class="calibre4">...</strong><br class="calibre7"/><strong class="calibre4">2017-04-13 17:59:48.040+0000: starting up</strong><br class="calibre7"/><strong class="calibre4">LC_ALL=C PATH=/usr/local/sbin:/usr/local/bin:/usr/bin:/usr/sbin:/sbin:/bin QEMU_AUDIO_DRV=none /usr/bin/qemu-system-x86_64 -name iscsi_kvm -S -machine pc-i440fx-trusty,accel=kvm,usb=off -m 1024 -realtime mlock=off -smp 1,sockets=1,cores=1,threads=1 -uuid 306e05ed-e398-ef33-d6e2-3708e90b89a6 -no-user-config -nodefaults -chardev socket,id=charmonitor,path=/var/lib/libvirt/qemu/iscsi_kvm.monitor,server,nowait -mon chardev=charmonitor,id=monitor,mode=control -rtc base=utc -no-shutdown -boot strict=on -device piix3-usb-uhci,id=usb,bus=pci.0,addr=0x1.0x2 -drive file=/dev/disk/by-path/ip-10.184.226.74:3260-iscsi-iqn.2001-04.com.example:kvm-lun-0,if=none,id=drive-ide0-0-0,format=raw,cache=none -device ide-hd,bus=ide.0,unit=0,drive=drive-ide0-0-0,id=ide0-0-0,bootindex=1 -netdev tap,fd=24,id=hostnet0 -device rtl8139,netdev=hostnet0,id=net0,mac=52:54:00:8b:b8:e3,bus=pci.0,addr=0x3 -chardev pty,id=charserial0 -device isa-serial,chardev=charserial0,id=serial0 -vnc 0.0.0.0:0 -device cirrus-vga,id=video0,bus=pci.0,addr=0x2 -incoming tcp:[::]:49153 -device virtio-balloon-pci,id=balloon0,bus=pci.0,addr=0x4</strong><br class="calibre7"/><strong class="calibre4">char device redirected to /dev/pts/0 (label charserial0)</strong><br class="calibre7"/><strong class="calibre4">qemu: terminating on signal 15 from pid 33148</strong><br class="calibre7"/><strong class="calibre4">2017-04-13 18:34:49.684+0000: shutting down</strong><br class="calibre7"/><strong class="calibre4">...</strong><br class="calibre7"/><strong class="calibre4">root@kvm1:~#</strong>
+</pre>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">Offline migration using the virsh command and local image</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">Performing offline migration with virsh does not require a shared storage; however, we are responsible for providing the guest filesystem to the new host (by coping the image file and so on). The offline migration transfers the instance definition without starting the guest on the destination host and without stopping it on the source host. In this recipe, we are going to perform an offline migration using the virsh command on a running KVM guest using an image file for its filesystem.</p>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">Getting ready</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">For this simple recipe, we are going to need the following:</p>
+<ul class="calibre16">
+<li class="calibre17">Two <kbd class="calibre13">libvirt</kbd> hosts and a running KVM instance. If one is not present on your host, you can install and start a new guest VM using a local image file:</li>
+</ul>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# virt-install --name kvm_no_sharedfs --ram 1024 --extra-args="text console=tty0 utf8 console=ttyS0,115200" --graphics vnc,listen=0.0.0.0 --hvm --location=http://ftp.us.debian.org/debian/dists/stable/main/installer-amd64/ --disk /tmp/kvm_no_sharedfs.img,size=5</strong>
+</pre>
+<ul class="calibre16">
+<li class="calibre17">Both hosts should be able to communicate with each other using hostnames.</li>
+</ul>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">How to do it...</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">To perform an offline migration using the <kbd class="calibre13">virsh</kbd> command, run the following:</p>
+<ol class="calibre18">
+<li value="1" class="calibre17"><span>Make sure that we have a running KVM instance:</span></li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm1:~# virsh list --all</strong><br class="calibre7"/><strong class="calibre4"> Id  Name              State</strong><br class="calibre7"/><strong class="calibre4">----------------------------------------------------</strong><br class="calibre7"/><strong class="calibre4"> 26  kvm_no_sharedfs   running</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@kvm1:~#</strong>
+</pre>
+<ol start="2" class="calibre18">
+<li value="2" class="calibre17">Migrate the instance using the offline mode. If this operation errors out, please consult the <em class="calibre22">There's more...</em> section of the <em class="calibre22">Online migration using the virsh command</em> recipe for troubleshooting tips:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm1:~# virsh migrate --offline --persistent kvm_no_sharedfs qemu+ssh://kvm2/system</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@kvm1:~#</strong>
+</pre>
+<ol start="3" class="calibre18">
+<li value="3" class="calibre17">Unlike the live migration, the source instance is still running, and the destination instance is stopped:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm1:~# virsh list --all</strong><br class="calibre7"/><strong class="calibre4"> Id    Name              State</strong><br class="calibre7"/><strong class="calibre4">----------------------------------------------------</strong><br class="calibre7"/><strong class="calibre4"> 29    kvm_no_sharedfs   running</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@kvm1:~# virsh --connect qemu+ssh://kvm2/system list --all</strong><br class="calibre7"/><strong class="calibre4"> Id   Name               State</strong><br class="calibre7"/><strong class="calibre4">----------------------------------------------------</strong><br class="calibre7"/><strong class="calibre4"> -    kvm_no_sharedfs    shut off</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@kvm1:~#</strong>
+</pre>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">How it works...</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">Offline migrations are quite simple; the <kbd class="calibre13">virsh</kbd> command transfers the definition file from the target host to the destination and defines the instance. The original KVM guest is left running. In order to start the migrated instance, its image file needs to be transferred to the destination first and be present on the exact same location as the one on the source server. The main difference when performing an offline migration as compared with just dumping the XML file and defining it on the destination host is that <kbd class="calibre13">libvirt</kbd> makes updates to the destination XML file, such as assigning new UUIDs.</p>
+<p class="calibre3">In the earlier-mentioned example, the only two new flags were the offline and persistent flags. The prior specifies an offline type migration, and the latter leaves the domain persistent on the destination host.</p>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">Online migration using the virsh command and local image</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">In this recipe, we are going to live migrate a running instance, without shared storage.</p>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">Getting ready</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">For this recipe, we are going to need the following:</p>
+<ul class="calibre16">
+<li class="calibre17">Two <kbd class="calibre13">libvirt</kbd> servers with a running KVM instance using a local image file. We are going to use the KVM guest we built in the previous recipe, <em class="calibre22">Offline migration using the virsh command and local image</em>.</li>
+<li class="calibre17">Both servers must be able to communicate with each other using their hostnames.</li>
+</ul>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">How to do it...</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">To migrate an instance without shared storage, use the following steps: </p>
+<ol class="calibre18">
+<li value="1" class="calibre17"><span>Ensure that the KVM guest is running:</span></li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm1:~# virsh list --all</strong><br class="calibre7"/><strong class="calibre4"> Id   Name              State</strong><br class="calibre7"/><strong class="calibre4">----------------------------------------------------</strong><br class="calibre7"/><strong class="calibre4"> 33   kvm_no_sharedfs   running</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@kvm1:~#</strong>
+</pre>
+<ol start="2" class="calibre18">
+<li value="2" class="calibre17">Find the location of the image file:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm1:~# virsh dumpxml kvm_no_sharedfs | grep "source file"</strong><br class="calibre7"/><strong class="calibre4"> &lt;source file='/tmp/kvm_no_sharedfs.img'/&gt;</strong><br class="calibre7"/><strong class="calibre4">root@kvm1:~#</strong>
+</pre>
+<ol start="3" class="calibre18">
+<li value="3" class="calibre17">Transfer the image file to the destination host:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm1:~# scp /tmp/kvm_no_sharedfs.img kvm2:/tmp/</strong><br class="calibre7"/><strong class="calibre4">kvm_no_sharedfs.img 100% 5120MB 243.8MB/s 00:21</strong><br class="calibre7"/><strong class="calibre4">root@kvm1:~#</strong>
+</pre>
+<ol start="4" class="calibre18">
+<li value="4" class="calibre17">Migrate the instance and ensure that it's running on the destination host:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm1:~# virsh migrate --live --persistent --verbose --copy-storage-all kvm_no_sharedfs qemu+ssh://kvm2/system</strong><br class="calibre7"/><strong class="calibre4">Migration: [100 %]</strong><br class="calibre7"/><strong class="calibre4">root@kvm1:~# virsh list --all</strong><br class="calibre7"/><strong class="calibre4"> Id     Name               State</strong><br class="calibre7"/><strong class="calibre4">----------------------------------------------------</strong><br class="calibre7"/><strong class="calibre4"> -      kvm_no_sharedfs    shut off</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@kvm1:~# virsh --connect qemu+ssh://kvm2/system list --all</strong><br class="calibre7"/><strong class="calibre4"> Id     Name               State</strong><br class="calibre7"/><strong class="calibre4">----------------------------------------------------</strong><br class="calibre7"/><strong class="calibre4"> 17     kvm_no_sharedfs    running</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@kvm1:~#</strong>
+</pre>
+<ol start="5" class="calibre18">
+<li value="5" class="calibre17">From the destination host, migrate the instance back, using the incremental image transfer:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm2:~# virsh migrate --live --persistent --verbose --copy-storage-inc kvm_no_sharedfs qemu+ssh://kvm/system</strong><br class="calibre7"/><strong class="calibre4">Migration: [100 %]</strong><br class="calibre7"/><strong class="calibre4">root@kvm2:~#</strong>
+</pre>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">How it works...</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">After we ensure that the source instance is in a running state in step 1, we transfer the image file to the destination file, in the exact same location as the source in step 3. With the image file in place, we can now perform a live migration, which we do in step 4 and then back in step 5.</p>
+<p class="calibre3">The two new parameters we haven't used so far are <kbd class="calibre13">--copy-storage-all</kbd> and <kbd class="calibre13">copy-storage-inc.</kbd> The first one instructs <kbd class="calibre13">libvirt</kbd> to transfer the entire image file to the destination, whereas the second performs an incremental transfer, copying only the data that has changed, reducing the transfer time.</p>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    </body></html>

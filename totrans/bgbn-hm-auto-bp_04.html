@@ -1,0 +1,602 @@
+<html><head></head><body><div class="chapter" title="Chapter&#xA0;4.&#xA0;Google Docs Weather Station"><div class="titlepage"><div><div><h1 class="title"><a id="ch04"/>Chapter 4. Google Docs Weather Station</h1></div></div></div><p>In this chapter, we're going to take a look at a <a id="id153" class="indexterm"/>simple weather station that can also be used as an IoT device. This time, our BeagleBone Black will collect environment data and send them to a remote database in order to be reworked and presented into a shared environment.</p><p>Both local and remote data will be available in our preferred browser since, as it's a local system, we're going to use the <code class="literal">wfrog</code> tool, and as remote system, we're going to use a Google Docs spreadsheet.</p><div class="section" title="The basics of functioning"><div class="titlepage"><div><div><h1 class="title"><a id="ch04lvl1sec24"/>The basics of functioning</h1></div></div></div><p>In this project, our <a id="id154" class="indexterm"/>BeagleBone Black will collect the weather data through two sensors. But this time, instead of writing a dedicated software, we are going to use ready-made weather station software on our BeagleBone Black board to do the job. While on the remote side, we're going to use the well known Google Docs cloud system to store the data and then present them to the user.</p><p>In this manner, we can achieve a (<span class="emphasis"><em>quasi</em></span>) professional result with minor effort!</p><p>In this scenario, our job is to connect the sensors, adapt the weather station software to our hardware in order to read the data from the sensors, and then add the proper code to send our data to a Google Docs spreadsheet.</p></div></div>
+<div class="section" title="Setting up the hardware"><div class="titlepage"><div><div><h1 class="title"><a id="ch04lvl1sec25"/>Setting up the hardware</h1></div></div></div><p>This time, the <a id="id155" class="indexterm"/>hardware setting is not very tricky since we <a id="id156" class="indexterm"/>just need two I<sup>2</sup>C chips to get the basic environment data for our weather station, while all the complexity is in the software settings, since we need at least a 3.13 kernel to manage the sensors and a complete software toolchain to talk with the Google Docs system!</p><p>Maybe this is not the case with you, but my BeagleBone Black runs a kernel version 3.8 where some drivers are missing. That's why I decided to install a new distribution based on kernel release 3.13 on an external microSD so that I do not have to modify the default on-board eMMC settings.</p><p>In any case,<a id="id157" class="indexterm"/> just to set up the hardware, I can use the current <a id="id158" class="indexterm"/>running kernel where I can enable the I<sup>2</sup>C bus named <code class="literal">I2C1</code> with the following command:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@beaglebone:~# echo BB-I2C1 &gt; /sys/devices/bone_capemgr.9/slots</strong></span>
+</pre></div><p>If everything works well, you should see the following kernel activities on your board:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>part_number 'BB-I2C1', version 'N/A'</strong></span>
+<span class="strong"><strong>slot #7: generic override</strong></span>
+<span class="strong"><strong>bone: Using override eeprom data at slot 7</strong></span>
+<span class="strong"><strong>slot #7: 'Override Board Name,00A0,Override Manuf,BB-I2C1'</strong></span>
+<span class="strong"><strong>slot #7: Requesting part number/version based 'BB-I2C1-00A0.dtbo</strong></span>
+<span class="strong"><strong>slot #7: Requesting firmware 'BB-I2C1-00A0.dtbo' for board-name 'Override Board Name', version '00A0'</strong></span>
+<span class="strong"><strong>slot #7: dtbo 'BB-I2C1-00A0.dtbo' loaded; converting to live tree</strong></span>
+<span class="strong"><strong>slot #7: #2 overlays</strong></span>
+<span class="strong"><strong>omap_i2c 4802a000.i2c: bus 2 rev0.11 at 100 kHz</strong></span>
+<span class="strong"><strong>omap_i2c 4802a000.i2c: unable to select pin group</strong></span>
+<span class="strong"><strong>slot #7: Applied #2 overlays.</strong></span>
+</pre></div><p>And a new device, <code class="literal">/dev/i2c-2</code> should now be available:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@beaglebone:~# ls -l /dev/i2c-2</strong></span>
+<span class="strong"><strong>crw-rw---T 1 root i2c 89, 2 Apr 23 20:23 /dev/i2c-2</strong></span>
+</pre></div><p>Okay, now we can start adding the hardware to our BeagleBone Black and testing the connections with the current kernel.</p><div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="note36"/>Note</h3><p>The reader can also take a look at the book <span class="emphasis"><em>BeagleBone Essentials</em></span>, <span class="emphasis"><em>Packt Publishing</em></span>, written by the author of this book, in order to have more information regarding how to manage BeagleBone Black's I<sup>2</sup>C buses needed to communicate with the sensors.</p></div></div><div class="section" title="Setting up the temperature/humidity sensor"><div class="titlepage"><div><div><h2 class="title"><a id="ch04lvl2sec35"/>Setting up the temperature/humidity sensor</h2></div></div></div><p>As a temperature and<a id="id159" class="indexterm"/> humidity sensor, I decided to use the device shown in the following image:</p><div class="mediaobject"><img src="graphics/B00255_04_01.jpg" alt="Setting up the temperature/humidity sensor"/></div><div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="note37"/>Note</h3><p>The device can <a id="id160" class="indexterm"/>be purchased at the following link (or by surfing the Internet): <a class="ulink" href="http://www.cosino.io/product/humidity-sensor">http://www.cosino.io/product/humidity-sensor</a>.</p><p>The datasheet of this device is available at <a class="ulink" href="http://dlnmh9ip6v2uc.cloudfront.net/datasheets/BreakoutBoards/HTU21D.pdf">http://dlnmh9ip6v2uc.cloudfront.net/datasheets/BreakoutBoards/HTU21D.pdf</a>.</p></div></div><p>This device is <a id="id161" class="indexterm"/>very simple. The I<sup>2</sup>C connections are as follows:</p><div class="informaltable"><table border="1"><colgroup><col style="text-align: left"/><col style="text-align: left"/></colgroup><thead><tr><th style="text-align: left" valign="bottom">
+<p>Pin</p>
+</th><th style="text-align: left" valign="bottom">
+<p>Temperature/humidity sensor pin</p>
+</th></tr></thead><tbody><tr><td style="text-align: left" valign="top">
+<p>P9.4 - Vcc</p>
+</td><td style="text-align: left" valign="top">
+<p>+</p>
+</td></tr><tr><td style="text-align: left" valign="top">
+<p>P8.17 - CLK</p>
+</td><td style="text-align: left" valign="top">
+<p>CL</p>
+</td></tr><tr><td style="text-align: left" valign="top">
+<p>P8.18 - SDA</p>
+</td><td style="text-align: left" valign="top">
+<p>DA</p>
+</td></tr><tr><td style="text-align: left" valign="top">
+<p>P9.2 - GND</p>
+</td><td style="text-align: left" valign="top">
+<p>-</p>
+</td></tr></tbody></table></div><div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="tip44"/>Tip</h3><p>For further reading on the <a id="id162" class="indexterm"/>working of I<sup>2</sup>C bus, the reader can start with the Wikipedia article at <a class="ulink" href="http://en.wikipedia.org/wiki/I%C2%B2C">http://en.wikipedia.org/wiki/I%C2%B2C</a>.</p></div></div><p>Now, to verify the connections, we can use the <code class="literal">i2cdetect</code> command, as follows:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@arm:~# i2cdetect -y -r 2</strong></span>
+<span class="strong"><strong>     0  1  2  3  4  5  6  7  8  9  a  b  c  d  e  f</strong></span>
+<span class="strong"><strong>00:          -- -- -- -- -- -- -- -- -- -- -- -- --</strong></span>
+<span class="strong"><strong>10: -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --</strong></span>
+<span class="strong"><strong>20: -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --</strong></span>
+<span class="strong"><strong>30: -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --</strong></span>
+<span class="strong"><strong>40: UU -- -- -- -- -- -- -- -- -- -- -- -- -- -- --</strong></span>
+<span class="strong"><strong>50: -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --</strong></span>
+<span class="strong"><strong>60: -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --</strong></span>
+<span class="strong"><strong>70: -- -- -- -- -- -- -- --                         </strong></span>
+</pre></div><div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="tip45"/>Tip</h3><p>Note that even if the I<sup>2</sup>C bus is named <code class="literal">I2C1</code> on the system, it must be addressed with the <code class="literal">2</code> ID number!</p></div></div><p>The string <code class="literal">UU</code> (or <code class="literal">40</code>) at the <code class="literal">0x40</code> address means that the device is connected! However, it may happen that you get no <code class="literal">UU</code> strings at all due to some hardware issues regarding this device. In this case, we can use the <code class="literal">i2cget</code> command as follows in order to force an I<sup>2</sup>C activity on the device:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@beaglebone:~# i2cget -y 2 0x40 0xe7 0x02</strong></span>
+</pre></div><p>Okay, the device<a id="id163" class="indexterm"/> is connected. But if you get the following output, you must recheck the connections:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@beaglebone:~# i2cget -y 2 0x40 0xe7</strong></span>
+<span class="strong"><strong>Error: Read failed</strong></span>
+</pre></div><div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="tip46"/>Tip</h3><p>Note that you may need to disable the on-board pull-up resistors by clearing the soldered jumper on your sensor. In fact, the BeagleBone Black's I<sup>2</sup>C controller has the internal pull-up required by the I<sup>2</sup>C bus specifications, and under some circumstances, the pull-up on the sensor board may interfere with it.</p></div></div></div><div class="section" title="Setting up the barometric sensor"><div class="titlepage"><div><div><h2 class="title"><a id="ch04lvl2sec36"/>Setting up the barometric sensor</h2></div></div></div><p>As barometric<a id="id164" class="indexterm"/> sensor, I decided to use the device shown in the following image:</p><div class="mediaobject"><img src="graphics/B00255_04_02.jpg" alt="Setting up the barometric sensor"/></div><div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="note38"/>Note</h3><p>The device<a id="id165" class="indexterm"/> can be purchased at the following link (or by surfing the Internet): <a class="ulink" href="http://www.cosino.io/product/barometric_sensor">http://www.cosino.io/product/barometric_sensor</a>.</p><p>The datasheet of this device is available at <a class="ulink" href="http://www.epcos.com/inf/57/ds/T5400.pdf">http://www.epcos.com/inf/57/ds/T5400.pdf</a>, and a useful application note is at <a class="ulink" href="http://www.epcos.com/inf/57/ds/T5400.pdf">http://www.epcos.com/inf/57/ds/T5400.pdf</a>.</p></div></div><p>This device has <a id="id166" class="indexterm"/>two interfaces: I<sup>2</sup>C and SPI. However, since the previous device was an I<sup>2</sup>C one, I decided to use the same interface. So, the connections must be done as reported in the following table, leaving the other pins unconnected:</p><div class="informaltable"><table border="1"><colgroup><col style="text-align: left"/><col style="text-align: left"/></colgroup><thead><tr><th style="text-align: left" valign="bottom">
+<p>Pin</p>
+</th><th style="text-align: left" valign="bottom">
+<p>Barometric sensor pin</p>
+</th></tr></thead><tbody><tr><td style="text-align: left" valign="top">
+<p>P9.4 - Vcc</p>
+</td><td style="text-align: left" valign="top">
+<p>VCC</p>
+</td></tr><tr><td style="text-align: left" valign="top">
+<p>P8.17 - CLK</p>
+</td><td style="text-align: left" valign="top">
+<p>SCL/SCLK</p>
+</td></tr><tr><td style="text-align: left" valign="top">
+<p>P8.18 - SDA</p>
+</td><td style="text-align: left" valign="top">
+<p>SDA/MOSI</p>
+</td></tr><tr><td style="text-align: left" valign="top">
+<p>P9.2 - GND</p>
+</td><td style="text-align: left" valign="top">
+<p>GND</p>
+</td></tr></tbody></table></div><div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="tip47"/>Tip</h3><p>Note that we're going to connect both devices to the same I<sup>2</sup>C bus. For the moment, you can disconnect the previous sensor and then connect this one. But keep in mind that in the final configuration, all sensor devices are connected together with the same bus.</p></div></div><p>Now, to verify the connections, we can use the <code class="literal">i2cdetect</code> command, as follows:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@arm:~# i2cdetect -y -r 2</strong></span>
+<span class="strong"><strong>     0  1  2  3  4  5  6  7  8  9  a  b  c  d  e  f</strong></span>
+<span class="strong"><strong>00:          -- -- -- -- -- -- -- -- -- -- -- -- --</strong></span>
+<span class="strong"><strong>10: -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --</strong></span>
+<span class="strong"><strong>20: -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --</strong></span>
+<span class="strong"><strong>30: -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --</strong></span>
+<span class="strong"><strong>40: -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --</strong></span>
+<span class="strong"><strong>50: -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --</strong></span>
+<span class="strong"><strong>60: -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --</strong></span>
+<span class="strong"><strong>70: -- -- -- -- -- -- -- 77                        </strong></span>
+</pre></div><p>As the preceding<a id="id167" class="indexterm"/> command shows, the string <code class="literal">77</code> (or <code class="literal">UU</code>) at the <code class="literal">0x77</code> address means that the device is connected! This time, the device should be detected without any issue. So, if you do not get the preceding output, please consider rechecking your hardware connections.</p></div><div class="section" title="The final picture"><div class="titlepage"><div><div><h2 class="title"><a id="ch04lvl2sec37"/>The final picture</h2></div></div></div><p>The following screenshot shows <a id="id168" class="indexterm"/>the prototype I realized to implement this project and to test the software. As you can see, the connections this time are very tricky.</p><div class="mediaobject"><img src="graphics/B00255_04_03.jpg" alt="The final picture"/></div></div></div>
+<div class="section" title="Setting up the software"><div class="titlepage"><div><div><h1 class="title"><a id="ch04lvl1sec26"/>Setting up the software</h1></div></div></div><p>Now, it's time to<a id="id169" class="indexterm"/> play hard! We have to install a new kernel <a id="id170" class="indexterm"/>with specific patches in order to add the needed drivers. Then, we must set up our Google account in order enable the Google Docs API to manage a spreadsheet on the cloud. And, in the end, we must install and properly configure the weather station software we chose to collect the weather data.</p><div class="section" title="Installing a new kernel"><div class="titlepage"><div><div><h2 class="title"><a id="ch04lvl2sec38"/>Installing a new kernel</h2></div></div></div><p>To install a new <a id="id171" class="indexterm"/>kernel, we must use a host PC where we use the following command to download the sources:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>$ git clone git://github.com/RobertCNelson/bb-kernel.git</strong></span>
+</pre></div><p>When finished, we must enter the <code class="literal">bb-kernel</code> directory and then check out the kernel, version 3.13:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>$ git checkout am33x-v3.13</strong></span>
+</pre></div><p>Now we should configure the compilation suite by generating a proper configuration file named <code class="literal">system.sh</code>, starting from the sample file as follows:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>$ cp system.sh.sample system.sh</strong></span>
+</pre></div><p>On my system, I modified the newly created <code class="literal">system.sh</code> file with the following settings:</p><div class="informalexample"><pre class="programlisting">CC=/usr/bin/arm-linux-gnueabihf-
+MMC=/dev/sdd</pre></div><p>The <code class="literal">MMC</code> variable is<a id="id172" class="indexterm"/> used by the installer tool (named <code class="literal">install_kernel.sh</code>), and it points to the device corresponding to the microSD where the BeagleBone system is installed.</p><div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="tip48"/>Tip</h3><p>Warning! You must pay attention and be sure about the <code class="literal">MMC</code> define settings or the host machine may get damaged.</p></div></div><p>Now we must apply the patch into <code class="literal">chapter_04/0001-Add-support-for-I2C1-bus-and-the-connected-devices.patch</code> file in the book's example code repository in order to enable the I<sup>2</sup>C bus named <code class="literal">I2C1</code> and the drivers for the preceding sensors and to add the missing driver for the barometric sensor. The command is as follows:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>$ git am --whitespace=nowarn  0001-Add-support-for-I2C1-bus-and-the-connected-devices.patch</strong></span>
+</pre></div><div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="tip49"/>Tip</h3><p>Note that the <code class="literal">--whitespace=nowarn</code> command line option is needed just in case your <code class="literal">git</code> system is configured to automatically fix up the whitespace errors, which is wrong in this case.</p></div></div><p>If everything works well, the following command should display the following text:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>$ git log -1</strong></span>
+<span class="strong"><strong>commit 50949bd3a5c53d915dfdce8f790e3cfdd9ae702a</strong></span>
+<span class="strong"><strong>Author:     Rodolfo Giometti &lt;giometti@hce-engineering.com&gt;</strong></span>
+<span class="strong"><strong>AuthorDate: Wed Jun 24 21:58:50 2015 +0200</strong></span>
+<span class="strong"><strong>Commit:     Rodolfo Giometti &lt;giometti@hce-engineering.com&gt;</strong></span>
+<span class="strong"><strong>CommitDate: Wed Jun 24 22:06:06 2015 +0200</strong></span>
+
+<span class="strong"><strong>    Add support for I2C1 bus and the connected devices</strong></span>
+<span class="strong"><strong>    </strong></span>
+<span class="strong"><strong>    Signed-off-by: Rodolfo Giometti &lt;giometti@hce-engineering.com&gt;</strong></span>
+</pre></div><p>Before starting the kernel compilation, let me spend a few words regarding this patch. It simply adds the following two patches:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>$ ls patches/bbb-habp/</strong></span>
+<span class="strong"><strong>0001-iio-Add-t5403-barometric-pressure-sensor-driver.patch</strong></span>
+<span class="strong"><strong>0100-arm-am335x-bone-common.dtsi-enable-bus-I2C1-on-pins-.patch</strong></span>
+</pre></div><p>The first patch is to add the driver for the barometric sensor and the second one is to enable the I<sup>2</sup>C bus labeled <code class="literal">I2C1</code> and to define the connected devices. In particular, the second patch completes the steps<a id="id173" class="indexterm"/> shown in the following snippet:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>diff --git a/arch/arm/boot/dts/am335x-bone-common.dtsi b/arch/arm/boot/dts/am335x-bone-common.dtsi</strong></span>
+<span class="strong"><strong>index 5270d18..ba891ce 100644</strong></span>
+<span class="strong"><strong>--- a/arch/arm/boot/dts/am335x-bone-common.dtsi</strong></span>
+<span class="strong"><strong>+++ b/arch/arm/boot/dts/am335x-bone-common.dtsi</strong></span>
+<span class="strong"><strong>@@ -84,6 +84,13 @@</strong></span>
+<span class="strong"><strong>      &gt;;</strong></span>
+<span class="strong"><strong>   };</strong></span>
+
+<span class="strong"><strong>+   i2c1_pins: pinmux_i2c1_pins {</strong></span>
+<span class="strong"><strong>+      pinctrl-single,pins = &lt;</strong></span>
+<span class="strong"><strong>+         0x158 (PIN_INPUT_PULLUP | MUX_MODE2)    /* i2c1_sda.i2c1_sda */</strong></span>
+<span class="strong"><strong>+         0x15c (PIN_INPUT_PULLUP | MUX_MODE2)    /* i2c1_scl.i2c1_scl */</strong></span>
+<span class="strong"><strong>+      &gt;;</strong></span>
+<span class="strong"><strong>+   };</strong></span>
+<span class="strong"><strong>+</strong></span>
+<span class="strong"><strong>    i2c2_pins: pinmux_i2c2_pins {</strong></span>
+<span class="strong"><strong>       pinctrl-single,pins = &lt;</strong></span>
+<span class="strong"><strong>          0x178 0x73 /* (SLEWCTRL_SLOW | PIN_INPUT_PULLUP | MUX_MODE3) uart1_ctsn.i2c2_sda */</strong></span>
+<span class="strong"><strong>@@ -295,6 +302,24 @@</strong></span>
+<span class="strong"><strong>   };</strong></span>
+<span class="strong"><strong> };</strong></span>
+
+<span class="strong"><strong>+&amp;i2c1 {</strong></span>
+<span class="strong"><strong>+   pinctrl-names = "default";</strong></span>
+<span class="strong"><strong>+   pinctrl-0 = &lt;&amp;i2c1_pins&gt;;</strong></span>
+<span class="strong"><strong>+</strong></span>
+<span class="strong"><strong>+   status = "okay";</strong></span>
+<span class="strong"><strong>+   clock-frequency = &lt;400000&gt;;</strong></span>
+<span class="strong"><strong>+</strong></span>
+<span class="strong"><strong>+   htu21: htu21@40 {</strong></span>
+<span class="strong"><strong>+      compatible = "htu21";</strong></span>
+<span class="strong"><strong>+      reg = &lt;0x40&gt;;</strong></span>
+<span class="strong"><strong>+   };</strong></span>
+<span class="strong"><strong>+</strong></span>
+<span class="strong"><strong>+   t5403: t5403@77 {</strong></span>
+<span class="strong"><strong>+      compatible = "t5403";</strong></span>
+<span class="strong"><strong>+      reg = &lt;0x77&gt;;</strong></span>
+<span class="strong"><strong>+   };</strong></span>
+<span class="strong"><strong>+};</strong></span>
+</pre></div><p>First, the preceding <a id="id174" class="indexterm"/>code defines the <code class="literal">i2c1_pins</code> group by selecting the proper <code class="literal">pinmux</code> settings, and then it enables the <code class="literal">I2C1</code> bus, sets the correct bus frequency, and defines the proper drivers for the attached sensor devices.</p><p>Then, the patch adds the code needed to enable their application as follows:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>$ git whatchanged -p -1 patch.sh          </strong></span>
+<span class="strong"><strong>...</strong></span>
+<span class="strong"><strong>diff --git a/patch.sh b/patch.sh</strong></span>
+<span class="strong"><strong>index 83787f7..ed3a886 100644</strong></span>
+<span class="strong"><strong>--- a/patch.sh</strong></span>
+<span class="strong"><strong>+++ b/patch.sh</strong></span>
+<span class="strong"><strong>@@ -191,6 +191,12 @@ saucy () {</strong></span>
+<span class="strong"><strong>        ${git} "${DIR}/patches/saucy/0003-saucy-disable-stack-protector.patch"</strong></span>
+<span class="strong"><strong> }</strong></span>
+<span class="strong"><strong> </strong></span>
+<span class="strong"><strong>+bbb_habp () {</strong></span>
+<span class="strong"><strong>+       echo "dir: bbb-habp"</strong></span>
+<span class="strong"><strong>+       ${git} "${DIR}/patches/bbb-habp/0001-iio-Add-t5403-barometric-pressure-s</strong></span>
+<span class="strong"><strong>+       ${git} "${DIR}/patches/bbb-habp/0100-arm-am335x-bone-common.dtsi-enable-</strong></span>
+<span class="strong"><strong>+}</strong></span>
+<span class="strong"><strong>+</strong></span>
+<span class="strong"><strong> ###</strong></span>
+<span class="strong"><strong> #arm</strong></span>
+<span class="strong"><strong> deassert_hard_reset</strong></span>
+<span class="strong"><strong>@@ -211,4 +217,6 @@ boards</strong></span>
+<span class="strong"><strong> </strong></span>
+<span class="strong"><strong> saucy</strong></span>
+<span class="strong"><strong> </strong></span>
+<span class="strong"><strong>+bbb_habp</strong></span>
+<span class="strong"><strong>+</strong></span>
+<span class="strong"><strong> echo "patch.sh ran successful"</strong></span>
+</pre></div><p>Also, as the last step, it enables the newly added driver into the default kernel's configuration:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>$ git whatchanged -p -1 patches/defconfig</strong></span>
+<span class="strong"><strong>commit b9b954d37ed2722f7e85e9192d697bb79544ca78</strong></span>
+<span class="strong"><strong>Author:     Rodolfo Giometti &lt;giometti@linux.it&gt;</strong></span>
+<span class="strong"><strong>AuthorDate: Wed Jun 24 21:58:50 2015 +0200</strong></span>
+<span class="strong"><strong>Commit:     Rodolfo Giometti &lt;giometti@linux.it&gt;</strong></span>
+<span class="strong"><strong>CommitDate: Wed Jun 24 22:31:32 2015 +0200</strong></span>
+
+<span class="strong"><strong>    Add support for I2C1 bus and the connected devices</strong></span>
+<span class="strong"><strong>    </strong></span>
+<span class="strong"><strong>    Signed-off-by: Rodolfo Giometti &lt;giometti@hce-engineering.com&gt;</strong></span>
+
+<span class="strong"><strong>diff --git a/patches/defconfig b/patches/defconfig</strong></span>
+<span class="strong"><strong>index 7be0172..464301d 100644</strong></span>
+<span class="strong"><strong>--- a/patches/defconfig</strong></span>
+<span class="strong"><strong>+++ b/patches/defconfig</strong></span>
+<span class="strong"><strong>@@ -4529,6 +4529,7 @@ CONFIG_IIO_SYSFS_TRIGGER=m</strong></span>
+<span class="strong"><strong> CONFIG_IIO_ST_PRESS=m</strong></span>
+<span class="strong"><strong> CONFIG_IIO_ST_PRESS_I2C=m</strong></span>
+<span class="strong"><strong> CONFIG_IIO_ST_PRESS_SPI=m</strong></span>
+<span class="strong"><strong>+CONFIG_T5403=m</strong></span>
+<span class="strong"><strong> </strong></span>
+<span class="strong"><strong> #</strong></span>
+<span class="strong"><strong> # Temperature sensors</strong></span>
+</pre></div><p>Okay, all modifications have been explained, and we can now start to compile the kernel with the following command:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>$ ./build_kernel.sh</strong></span>
+</pre></div><div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="tip50"/>Tip</h3><p>This step and the subsequent ones are time consuming and require patience, so you should take a cup of your preferred tea or coffee and just wait.</p></div></div><p>After some time, the<a id="id175" class="indexterm"/> procedure will present the standard kernel configuration panel, and now we should verify that the needed drivers are enabled. You should navigate to the menu in <span class="strong"><strong>Device Drivers</strong></span> | <span class="strong"><strong>Hardware Monitoring support</strong></span> where the <span class="strong"><strong>Measurement Specialties HTU21D humidity/temperature sensors</strong></span> entry should be selected as module (<span class="strong"><strong>&lt;M&gt;</strong></span>), and in <span class="strong"><strong>Device Drivers</strong></span> | <span class="strong"><strong>Industrial I/O support</strong></span> | <span class="strong"><strong>Pressure sensors</strong></span> where the <span class="strong"><strong>EPCOS T5403 digital barometric pressure sensor driver</strong></span> entry should be selected as module too.</p><p>Then, exit from the menu and the kernel compilation will start. When it ends, the new kernel image is ready, and the following message should appear:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>-----------------------------</strong></span>
+<span class="strong"><strong>Script Complete</strong></span>
+<span class="strong"><strong>eewiki.net: [user@localhost:~$ export kernel_version=3.13.10-bone12]</strong></span>
+<span class="strong"><strong>-----------------------------</strong></span>
+</pre></div><div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="tip51"/>Tip</h3><p>Note that when executing the <code class="literal">build_kernel.sh</code> file, you may get the following error message:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>$ ./build_kernel.sh</strong></span>
+<span class="strong"><strong>+ Detected build host [Ubuntu 14.04.3 LTS]</strong></span>
+<span class="strong"><strong>+ host: [x86_64]</strong></span>
+<span class="strong"><strong>+ git HEAD commit: [b00737d02a5b3567169a6c87311fec76a694fea6]</strong></span>
+<span class="strong"><strong>Debian/Ubuntu/Mint: missing dependencies, please install:</strong></span>
+<span class="strong"><strong>-----------------------------</strong></span>
+<span class="strong"><strong>sudo apt-get update</strong></span>
+<span class="strong"><strong>sudo apt-get install device-tree-compiler lzma lzop u-boot-tools libncurses5:i386 libstdc++6:i386</strong></span>
+<span class="strong"><strong>-----------------------------</strong></span>
+<span class="strong"><strong>* Failed dependency check</strong></span>
+</pre></div><p>In this case, you may resolve the problem by simply giving the preceding two suggested <code class="literal">apt-get</code> (or <code class="literal">aptitude</code>) commands.</p></div></div><p>Now, we can install <a id="id176" class="indexterm"/>it on the microSD using the installation tool:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>$ ./tools/install_kernel.sh</strong></span>
+</pre></div><p>Before updating the kernel, the tool asks whether the user is really sure about the device where the kernel must be placed. For example, on my system, I get the following output:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>I see...</strong></span>
+<span class="strong"><strong>fdisk -l:</strong></span>
+<span class="strong"><strong>Disk /dev/sda: 500.1 GB, 500107862016 bytes</strong></span>
+<span class="strong"><strong>...</strong></span>
+<span class="strong"><strong>sdd       8:48   1   3.7G  0 disk</strong></span>
+<span class="strong"><strong>|-sdd1    8:49   1    12M  0 part  /media/giometti/BOOT</strong></span>
+<span class="strong"><strong>`-sdd2    8:50   1   3.7G  0 part  /media/giometti/rootfs</strong></span>
+<span class="strong"><strong>-----------------------------</strong></span>
+<span class="strong"><strong>Are you 100% sure, on selecting [/dev/sdd] (y/n)?</strong></span>
+</pre></div><p>My <code class="literal">MMC</code> variable is set to <code class="literal">/dev/sdd</code>; so, if I carefully take a look at the corresponding lines, I can verify that these are the right names of the BeagleBone Black's filesystem. So, I can safely answer yes by entering the <code class="literal">y</code> character.</p><div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="tip53"/>Tip</h3><p>Note that the microSD should be a <span class="emphasis"><em>class 10</em></span> and at least of 4 GB in size.</p></div></div><p>At the end of the<a id="id177" class="indexterm"/> command execution, we should get the output as follows:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>This script has finished...</strong></span>
+<span class="strong"><strong>For verification, always test this media with your end device...</strong></span>
+</pre></div><p>Now, just remove the microSD from the host machine and put it in your BeagleBone Black. Turn it on by keeping the user button pressed in order to force the boot from the microSD and, if everything works well, we can verify after the usual login that the new kernel is really running by using the following command:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong># uname -a</strong></span>
+<span class="strong"><strong>Linux arm 3.13.10-bone9 #1 SMP Fri Nov 7 23:25:59 CET 2014 armv7l GNU/ Linux</strong></span>
+</pre></div><div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="note39"/>Note</h3><p>The reader can also take a look at the book <span class="emphasis"><em>BeagleBone Essentials</em></span>, <span class="emphasis"><em>Packt Publishing</em></span>, written by the author of this book, in order to have more information regarding how to install a newer kernel on an external microSD.</p></div></div><p>Okay, the new kernel is ready! Now we can verify that the needed drivers are also correctly loaded:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@arm:~# lsmod | egrep '(t5403|htu21)'</strong></span>
+<span class="strong"><strong>t5403                   3072  0</strong></span>
+<span class="strong"><strong>htu21                   2385  0</strong></span>
+<span class="strong"><strong>industrialio           46516  3 t5403,ti_am335x_adc,kfifo_buf</strong></span>
+</pre></div><p>The new devices can now be accessed through the <span class="emphasis"><em>sysfs</em></span> interface. To get the current barometric pressure, we can use the following command:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@arm:~# cat /sys/bus/iio/devices/iio\:device1/in_pressure_input</strong></span>
+<span class="strong"><strong>101.926000</strong></span>
+</pre></div><p>The data is given in <a id="id178" class="indexterm"/>
+<span class="strong"><strong>kilopascal</strong></span> (<span class="strong"><strong>kPa</strong></span>).</p><p>The temperature/humidity sensor can be accessed using the following commands:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@arm:~# cat /sys/class/hwmon/hwmon0/device/humidity1_input</strong></span>
+<span class="strong"><strong>42988</strong></span>
+<span class="strong"><strong>root@arm:~# cat /sys/class/hwmon/hwmon0/device/temp1_input</strong></span>
+<span class="strong"><strong>27882</strong></span>
+</pre></div><p>The humidity is given as a relative humidity percentage (m%RH), and the temperature is given in thousandths of Celsius degrees (m°C), so we have to divide both measurements by 1000 in order to have the relative humidity percentage (%RH) and the Celsius degrees (°C).</p></div><div class="section" title="Running the weather station software"><div class="titlepage"><div><div><h2 class="title"><a id="ch04lvl2sec39"/>Running the weather station software</h2></div></div></div><p>Now it's time to<a id="id179" class="indexterm"/> set up our weather station. To do so, as already stated, we decided to use an already made project instead of writing a new one. This is because there are tons of well-done weather station software existing that we can use to locally display the collected data in a better manner.</p><p>The software is the <code class="literal">wfrog</code> project.</p><div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="note40"/>Note</h3><p>The home <a id="id180" class="indexterm"/>site of the project is at <a class="ulink" href="https://code.google.com/p/wfrog/">https://code.google.com/p/wfrog/</a>.</p></div></div><p>To install it, we can get the sources from the online repository with the following command:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@arm:~# svn checkout http://wfrog.googlecode.com/svn/trunk/ wfrog-read-only</strong></span>
+</pre></div><div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="tip54"/>Tip</h3><p>The <code class="literal">svn</code> command is located in the <code class="literal">subversion</code> package that can be installed by using the following command:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@arm:~# aptitude install subversion</strong></span>
+</pre></div><p>Note that a compressed archive of the program can be found in the <code class="literal">chapter_04/wfrog/wfrog-read-only.tgz</code> file in the book's example code repository.</p></div></div><p>After the download, we should go into the newly created directory <code class="literal">wfrog-read-only</code> and generate the <code class="literal">debian</code> package with the following commands:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@arm:~# cd wfrog-read-only/</strong></span>
+<span class="strong"><strong>root@arm:~/wfrog-read-only# ./debian/rules binary</strong></span>
+</pre></div><div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="tip56"/>Tip</h3><p>Note that your system may miss some needed packages in order to be able to generate new <code class="literal">debian</code> packages. By using the following command, you should install whatever you need in order to do the job:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@arm:~# aptitude install debhelper</strong></span>
+</pre></div></div></div><p>If everything goes well, the <code class="literal">rules</code> command should display the following message:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>dpkg-deb: building package `wfrog' in `../wfrog_0.8.2-1_all.deb'.</strong></span>
+</pre></div><p>Then, to install the <a id="id181" class="indexterm"/>new packages, we can use the <code class="literal">gdebi</code> command, which will download all package's dependencies for us, as follows:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@arm:~/wfrog-read-only# gdebi ../wfrog_0.8.2-1_all.deb</strong></span>
+<span class="strong"><strong>Reading package lists... Done</strong></span>
+<span class="strong"><strong>Building dependency tree        </strong></span>
+<span class="strong"><strong>Reading state information... Done</strong></span>
+<span class="strong"><strong>Building data structures... Done</strong></span>
+<span class="strong"><strong>Building data structures... Done</strong></span>
+
+<span class="strong"><strong>Requires the installation of the following packages:</strong></span>
+<span class="strong"><strong>libxslt1.1  libyaml-0-2  python-cheetah  python-lxml  python-pygooglechart  python-serial  python-support  python-usb  python-yaml  python2.6  python2.6-minimal</strong></span>
+<span class="strong"><strong>Web-based customizable weather station software</strong></span>
+<span class="strong"><strong> wfrog is a software for logging weather station data and statistics,</strong></span>
+<span class="strong"><strong> viewing them graphically on the web and sending them to a remote FTP site.</strong></span>
+<span class="strong"><strong> The layout and behaviour is fully customizable through an advanced configuration system.</strong></span>
+<span class="strong"><strong> It is written in python with an extensible architecture allowing new station drivers to be written very easily.</strong></span>
+<span class="strong"><strong> wfrog supports many weather stations and is compliant with the WESTEP protocol.</strong></span>
+<span class="strong"><strong> Supported stations:</strong></span>
+<span class="strong"><strong>  * Ambient Weather WS1080</strong></span>
+<span class="strong"><strong>  * Davis VantagePro, VantagePro2</strong></span>
+<span class="strong"><strong>  * Elecsa AstroTouch 6975</strong></span>
+<span class="strong"><strong>  * Fine Offset Electronics WH1080, WH1081, WH1090, WH1091, WH2080, WH2081</strong></span>
+<span class="strong"><strong>  * Freetec PX1117</strong></span>
+<span class="strong"><strong>  * LaCrosse 2300 series</strong></span>
+<span class="strong"><strong>  * Oregon Scientific WMR100N, WMR200, WMRS200, WMR928X</strong></span>
+<span class="strong"><strong>  * PCE FWS20</strong></span>
+<span class="strong"><strong>  * Scientific Sales Pro Touch Screen Weather Station</strong></span>
+<span class="strong"><strong>  * Topcom National Geographic 265NE</strong></span>
+<span class="strong"><strong>  * Watson W8681</strong></span>
+<span class="strong"><strong>Do you want to install the software package? [y/N]:</strong></span>
+<span class="strong"><strong>...</strong></span>
+<span class="strong"><strong>Selecting previously unselected package wfrog.</strong></span>
+<span class="strong"><strong>(Reading database ... 40720 files and directories currently installed.)</strong></span>
+<span class="strong"><strong>Unpacking wfrog (from ../wfrog_0.8.2-1_all.deb) ...</strong></span>
+<span class="strong"><strong>Setting up wfrog (0.8.2-1) …</strong></span>
+</pre></div><div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="tip57"/>Tip</h3><p>The <code class="literal">gdebi</code> command can be<a id="id182" class="indexterm"/> installed by using the following command:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@arm:~# aptitude install gdebi</strong></span>
+</pre></div></div></div><p>Okay, now the software is installed, but we still need to complete some steps before going further. The first one is to configure the system with a special simulator in order to verify that the web interface and the data collecting system are working correctly. To do so, we should execute the <code class="literal">wfrog</code> command as follows:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@arm:~# wfrog -S</strong></span>
+</pre></div><div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="tip58"/>Tip</h3><p>Note that, in case you get an error like the one shown as follows during the very first execution of the software, you may need the following patch to fix up the problem:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>Traceback (most recent call last):</strong></span>
+<span class="strong"><strong>  File "/usr/bin/wfrog", line 132, in &lt;module&gt;</strong></span>
+<span class="strong"><strong>    settings = wflogger.setup.SetupClient().setup_settings(SETTINGS_DEF, settings, settings_file)</strong></span>
+<span class="strong"><strong>  File "/usr/lib/wfrog/wflogger/setup.py", line 40, in setup_settings</strong></span>
+<span class="strong"><strong>    if source == None:</strong></span>
+<span class="strong"><strong>UnboundLocalError: local variable 'source' referenced before assignment</strong></span>
+</pre></div><p>The patch is as follows:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@arm:~/wfrog-read-only# svn diff</strong></span>
+<span class="strong"><strong>Index: wflogger/setup.py</strong></span>
+<span class="strong"><strong>===================================================================</strong></span>
+<span class="strong"><strong>--- wflogger/setup.py   (revision 973)</strong></span>
+<span class="strong"><strong>+++ wflogger/setup.py   (working copy)</strong></span>
+<span class="strong"><strong>@@ -35,6 +35,7 @@</strong></span>
+<span class="strong"><strong>         self.logger.debug('Current settings file: '+str(source_file))</strong></span>
+<span class="strong"><strong>         self.logger.debug('New settings file:'+target_file)</strong></span>
+<span class="strong"><strong>         defs = yaml.load( file(settings_def_file, 'r') )</strong></span>
+<span class="strong"><strong>+        source = None</strong></span>
+<span class="strong"><strong>         if source_file is not None:</strong></span>
+<span class="strong"><strong>             source = yaml.load( file(source_file, 'r') )</strong></span>
+<span class="strong"><strong>         if source == None:</strong></span>
+</pre></div><p>Then, you simply need to rebuild the package.</p><p>The preceding patch can be found in the <code class="literal">chapter_04/wfrog/0001-fix-setup.diff</code> file in the book's example code repository.</p></div></div><p>Now, you should answer all the questions carefully selecting the <code class="literal">1) random-simulator</code> option when the systems asks you to enter the driver for your station model, as follows:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>Please enter the driver for your station model:</strong></span>
+<span class="strong"><strong> 1) random-simulator - Station Simulator</strong></span>
+<span class="strong"><strong> 2) vantagepro2 - Davis VantagePro</strong></span>
+<span class="strong"><strong> 3) wh1080 - Fine Offset WH1080 and compatibles</strong></span>
+<span class="strong"><strong> 4) wh3080 - Fine Offset WH3080 and compatibles</strong></span>
+<span class="strong"><strong> 5) wmr200 - Oregon Scientific WMR200</strong></span>
+<span class="strong"><strong> 6) wmr928nx - Oregon Scientific WMR928NX</strong></span>
+<span class="strong"><strong> 7) wmrs200 - Oregon Scientific WMRS200</strong></span>
+<span class="strong"><strong> 8) ws2300 - LaCrosse WS2300</strong></span>
+<span class="strong"><strong> 9) ws28xx - LaCrosse WS28xx</strong></span>
+<span class="strong"><strong>&gt; 1</strong></span>
+</pre></div><p>Once configured, you <a id="id183" class="indexterm"/>can start the weather station system by issuing the following two commands:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@beaglebone:~# /etc/init.d/wflogger start</strong></span>
+<span class="strong"><strong>root@beaglebone:~# /etc/init.d/wfrender start</strong></span>
+</pre></div><p>Then, the web interface can be accessed at <code class="literal">7680</code> port of the BeagleBone Black's IP address (usually <code class="literal">192.168.7.2</code>), as shown in the following screenshot:</p><div class="mediaobject"><img src="graphics/B00255_04_04.jpg" alt="Running the weather station software"/></div><p>Okay, it works; but the<a id="id184" class="indexterm"/> system is now using a simulator, and we want it to use the data from the weather sensors we just installed! So, we have to add a new driver to our new weather station. To do so, we have to modify the sources just downloaded.</p><p>In the <code class="literal">wfrog-read-only/wfdriver/station/</code> directory, we have to add a new file called <code class="literal">bbb_habp.py</code>. The following shows a first snippet of its code with the lines that define a new class related to our new station:</p><div class="informalexample"><pre class="programlisting">import time
+import logging
+from wfcommon import units
+
+class BBBhabpStation(object):
+
+    '''
+    Station driver for BeagleBone Black Home Automation Blueprints.
+      
+    [Properties]
+    
+    period [numeric] (optional):
+        Polling interval in seconds. Defaults to 60.    
+    '''
+
+    period=60
+
+    logger = logging.getLogger('station.bbb_habp')
+    
+    name = 'BeagleBone Home Automation Blueprints weather station'</pre></div><p>Then, the code defines<a id="id185" class="indexterm"/> the functions to read the environment data: the <code class="literal">get_press()</code> function reads the pressure, <code class="literal">get_temp()</code> reads the temperature, and <code class="literal">get_hum()</code> reads the humidity, as follows:</p><div class="informalexample"><pre class="programlisting">   def get_press(self):
+    f = open("/sys/bus/iio/devices/iio:device1/in_pressure_input", "r")
+    v = f.read()
+    f.close()
+
+        return float(v) * 10.0
+
+   def get_temp(self):
+    f = open("/sys/class/hwmon/hwmon0/device/temp1_input", "r")
+    v = f.read()
+    f.close()
+
+        return int(v) / 1000.0
+
+   def get_hum(self):
+    f = open("/sys/class/hwmon/hwmon0/device/humidity1_input", "r")
+    v = f.read()
+    f.close()
+
+        return int(v) / 1000.0</pre></div><p>After this, the code <a id="id186" class="indexterm"/>defines the core function that has the task to generate all weather events by calling the <code class="literal">generate_event()</code> function with a proper argument. The events just generated are stored into the <code class="literal">e</code> variable, and we have to only fill its fields and send the data to the weather station with the <code class="literal">send_event()</code> function, as shown in the following code snippet:</p><div class="informalexample"><pre class="programlisting">    def run(self, generate_event, send_event, context={}):
+        while True:
+            try:
+                e = generate_event('press')
+                e.value = self.get_press()
+                send_event(e)
+                self.logger.debug("press=%fhPa" % e.value)
+                                
+            except Exception, e:
+                self.logger.error(e)
+ 
+            try:
+                e = generate_event('temp')
+                e.sensor = 0
+                e.value = self.get_temp()
+                send_event(e)
+                self.logger.debug("temp=%fC" % e.value)
+                                
+            except Exception, e:
+                self.logger.error(e)
+                
+            try:
+                e = generate_event('hum')
+                e.sensor = 0
+                e.value = self.get_hum()
+                send_event(e)
+                self.logger.debug("hum=%f%%RH" % e.value)
+                                
+            except Exception, e:
+                self.logger.error(e)
+                
+            try:
+                e = generate_event('temp')
+                e.sensor = 1
+                e.value = self.get_temp()
+                send_event(e)
+                self.logger.debug("temp=%fC" % e.value)
+                                
+            except Exception, e:
+                self.logger.error(e)
+                
+            try:
+                e = generate_event('hum')
+                e.sensor = 1
+                e.value = self.get_hum()
+                send_event(e)
+                self.logger.debug("hum=%f%%RH" % e.value)
+                                
+            except Exception, e:
+                self.logger.error(e)</pre></div><p>The last lines are<a id="id187" class="indexterm"/> used to schedule the next period:</p><div class="informalexample"><pre class="programlisting">            # pause until next update time
+            next_update = self.period - (time.time() % self.period)
+            time.sleep(next_update)                </pre></div><div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="note41"/>Note</h3><p>The preceding code is reported in the <code class="literal">chapter_04/wfrog/bbb_habp.py</code> file in the book's example code repository.</p></div></div><p>Now, to finish the job, we have to patch the <code class="literal">wfrog-read-only/wfdriver/station/__init__.py</code> file as follows:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@arm:~/wfrog-read-only# svn diff wfdriver/station/__init__.py</strong></span>
+<span class="strong"><strong>Index: wfdriver/station/__init__.py</strong></span>
+<span class="strong"><strong>===================================================================</strong></span>
+<span class="strong"><strong>--- wfdriver/station/__init__.py   (revision 973)</strong></span>
+<span class="strong"><strong>+++ wfdriver/station/__init__.py   (working copy)</strong></span>
+<span class="strong"><strong>@@ -19,6 +19,7 @@</strong></span>
+<span class="strong"><strong> import yaml</strong></span>
+<span class="strong"><strong> </strong></span>
+<span class="strong"><strong> import simulator</strong></span>
+<span class="strong"><strong>+import bbb_habp</strong></span>
+<span class="strong"><strong> import wmrs200</strong></span>
+<span class="strong"><strong> import wmr928nx</strong></span>
+<span class="strong"><strong> import wmr200</strong></span>
+<span class="strong"><strong>@@ -66,6 +67,10 @@</strong></span>
+<span class="strong"><strong>     yaml_tag = u'!ws28xx'</strong></span>
+<span class="strong"><strong> auto.stations.append(ws28xx)</strong></span>
+<span class="strong"><strong> </strong></span>
+<span class="strong"><strong>+class YamlWS28xxStation(bbb_habp.BBBhabpStation, yaml.YAMLObject):</strong></span>
+<span class="strong"><strong>+    yaml_tag = u'!bbb_habp'</strong></span>
+<span class="strong"><strong>+auto.stations.append(bbb_habp)</strong></span>
+<span class="strong"><strong>+</strong></span>
+<span class="strong"><strong> class YamlRandomSimulator(simulator.RandomSimulator, yaml.YAMLObject):</strong></span>
+<span class="strong"><strong>     yaml_tag = u'!random-simulator'</strong></span>
+<span class="strong"><strong> auto.stations.append(simulator)</strong></span>
+</pre></div><p>In this manner, we are saying to the <code class="literal">wfrog</code> system that a new station has been added.</p><div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="note42"/>Note</h3><p>The patch is held in the <code class="literal">chapter_04/wfrog/0002-add-bbb_habp-station.diff</code> file in the book's example code repository.</p></div></div><p>After all the <a id="id188" class="indexterm"/>preceding modifications, we have to regenerate the package as just shown and reconfigure it by rerunning the configuration program and selecting the new driver as follows:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@arm:~# wfrog -S</strong></span>
+<span class="strong"><strong>This is the setup of wfrog 0.8.2-svn user settings that will be written in /etc/wfrog/settings.yaml</strong></span>
+
+<span class="strong"><strong>Please enter the driver for your station model:</strong></span>
+<span class="strong"><strong> 1) bbb_habp - BeagleBone Home Automation Blueprints weather station</strong></span>
+<span class="strong"><strong> 2) random-simulator - Station Simulator</strong></span>
+<span class="strong"><strong> 3) vantagepro2 - Davis VantagePro</strong></span>
+<span class="strong"><strong> 4) wh1080 - Fine Offset WH1080 and compatibles</strong></span>
+<span class="strong"><strong> 5) wh3080 - Fine Offset WH3080 and compatibles</strong></span>
+<span class="strong"><strong> 6) wmr200 - Oregon Scientific WMR200</strong></span>
+<span class="strong"><strong> 7) wmr928nx - Oregon Scientific WMR928NX</strong></span>
+<span class="strong"><strong> 8) wmrs200 - Oregon Scientific WMRS200</strong></span>
+<span class="strong"><strong> 9) ws2300 - LaCrosse WS2300</strong></span>
+<span class="strong"><strong>[random-simulator] &gt; 1</strong></span>
+</pre></div><div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="tip61"/>Tip</h3><p>Let me remind you that in order to regenerate the package, you have to execute the following two commands:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@arm:~/wfrog-read-only# ./debian/rules binary</strong></span>
+<span class="strong"><strong>root@arm:~/wfrog-read-only# gdebi ../wfrog_0.8.2-1_all.deb</strong></span>
+</pre></div></div></div><p>Note that this time, a new entry named <code class="literal">bbb_habp</code> is added, so just select it and reconfigure the system as needed.</p><p>When all modifications are in place, we have to stop the running <code class="literal">wfrog</code> tasks:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@arm:~# /etc/init.d/wflogger stop</strong></span>
+<span class="strong"><strong>[ ok ] Stopping wfrog logger - Weather Station Software : wfrog.</strong></span>
+<span class="strong"><strong>root@arm:~# /etc/init.d/wfrender stop</strong></span>
+<span class="strong"><strong>[ ok ] Stopping wfrog renderer - Weather Station Software : wfrender.</strong></span>
+</pre></div><p>Then, we can safely clear the files where <code class="literal">wfrog</code> holds the weather data with the following command:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@arm:~# rm /var/lib/wfrog/wfrog-current.xml /var/lib/wfrog/wfrog.csv</strong></span>
+</pre></div><p>And then, we can restart <code class="literal">wfrog</code> tasks as follows:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>[....] Starting wfrog logger - Weather Station Software : wfrogStarting /usr/lib/wfrog/bin/wfrog...</strong></span>
+<span class="strong"><strong>Detaching to start /usr/lib/wfrog/bin/wfrog...done.</strong></span>
+<span class="strong"><strong>. ok</strong></span>
+<span class="strong"><strong>root@arm:~/chapter_04# /etc/init.d/wfrender start</strong></span>
+<span class="strong"><strong>[ ok ] Starting wfrog renderer - Weather Station Software : wfrender.</strong></span>
+</pre></div><p>Now, if you <a id="id189" class="indexterm"/>take the files in the <code class="literal">/var/lib/wfrog</code> directory under control, you should see that they will be repopulated with the new data from the sensors.</p></div><div class="section" title="Adding the Google Docs API"><div class="titlepage"><div><div><h2 class="title"><a id="ch04lvl2sec40"/>Adding the Google Docs API</h2></div></div></div><p>Our weather station is <a id="id190" class="indexterm"/>now fully functional, but as stated at the beginning of this chapter, we want more—we want a weather station able to save its data over the network on a cloud system. And to do so, we have decided to use a Google Docs spreadsheet.</p><p>The idea is to obtain a worksheet with the current weather data and the historical ones saved in it where all the data are updated periodically. So, let's see how to do this.</p><p>The API to be used for this task is implemented by the <code class="literal">gspread</code> tool, which can be installed into our BeagleBone Black by using the following commands:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@arm:~# aptitude install python-pip python2.7-dev libffi-dev</strong></span>
+<span class="strong"><strong>root@arm:~# pip install --upgrade cffi cryptography PyOpenSSL oauth2client gspread</strong></span>
+</pre></div><div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="note43"/>Note</h3><p>The home site <a id="id191" class="indexterm"/>of the project is at <a class="ulink" href="https://github.com/burnash/gspread">https://github.com/burnash/gspread</a>.</p></div></div><p>After the installation of all the preceding packages, we need to prepare a Google account. In this project, I used my own account, so I simply get access to my Google Docs page. Then, I create a new spreadsheet named <code class="literal">bbb_weather</code>.</p><div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="note44"/>Note</h3><p>Please refer to the <a id="id192" class="indexterm"/>Google Docs documentation at <a class="ulink" href="https://support.google.com/docs">https://support.google.com/docs</a> for further information about the Google Doc usage.</p></div></div><p>Once created, we have to publish the spreadsheet in such a way that we can get access to it from a remote computer. To do so, we must follow the <a id="id193" class="indexterm"/>instructions at <a class="ulink" href="http://gspread.readthedocs.org/en/latest/oauth2.html">http://gspread.readthedocs.org/en/latest/oauth2.html</a>, where the OAuth2 authorization system is explained. The following is a little list of the needed steps directly from that page:</p><div class="orderedlist"><ol class="orderedlist arabic"><li class="listitem">Navigate to<a id="id194" class="indexterm"/> Google Developers Console (<a class="ulink" href="https://console.developers.google.com/project">https://console.developers.google.com/project</a>) and create a new project (or select the one you have).</li><li class="listitem">Under <span class="strong"><strong>API &amp; auth</strong></span> in<a id="id195" class="indexterm"/> the API, enable <span class="strong"><strong>Drive API</strong></span>.</li><li class="listitem">Navigate to <span class="strong"><strong>Credentials</strong></span> and click on <span class="strong"><strong>Create new Client ID</strong></span>.</li><li class="listitem">Select <span class="strong"><strong>Service account</strong></span>. Clicking on <span class="strong"><strong>Create Client ID</strong></span> will generate a new public-private key pair. You will automatically download a JSON file with the following data inside:<div class="informalexample"><pre class="programlisting">{
+    "private_key_id": "2cd ... ba4",
+    "private_key": "-----BEGIN PRIVATE KEY-----\nNrDyLw ...
+                       jINQh/9\n-----END PRIVATE KEY-----\n",
+    "client_email": "473 ... hd@developer.gserviceaccount.com",
+    "client_id": "473 ... hd.apps.googleusercontent.com",
+    "type": "service_account"
+}</pre></div></li><li class="listitem">Go to Google Sheets and share your spreadsheet with an e-mail you have in your <code class="literal">json_key['client_email']</code>. Otherwise, you'll get a <code class="literal">SpreadsheetNotFound</code> exception when trying to open it.<div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="note45"/>Note</h3><p>In the next code examples, my Google credentials are stored in the <code class="literal">Project-9a372e9e20e6.json</code> file which, for security reasons, is not reported in the book's example code repository.</p></div></div></li></ol></div><p>Now, to test if everything has been correctly set up, you can use the following command to create a void sheet in the newly-created spreadsheet:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@arm:~# ./create_new.py</strong></span>
+</pre></div><div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="note46"/>Note</h3><p>You can find the preceding file in the <code class="literal">chapter_04/wfrog/create_new.py</code> file in the book's example code repository.</p></div></div><p>If you get no errors, you <a id="id196" class="indexterm"/>should find a new sheet named <code class="literal">BBB weather</code>, as shown in the following screenshot:</p><div class="mediaobject"><img src="graphics/B00255_04_05.jpg" alt="Adding the Google Docs API"/></div><div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="tip62"/>Tip</h3><p>Note that when executing the preceding command, you may get the following error:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>ImportError: No module named httplib2</strong></span>
+</pre></div><p>In this case, you may resolve installing the missing <code class="literal">python-httplib2</code> package with the following command:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@arm:~# aptitude install python-httplib2</strong></span>
+</pre></div><p>Or you may get the following error:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>oauth2client.client.CryptoUnavailableError: No crypto library available</strong></span>
+</pre></div><p>In this case, the solution is to install the missing <code class="literal">python-crypto</code> package with the following command:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@arm:~# aptitude install python-crypto</strong></span>
+</pre></div></div></div><p>The code in<a id="id197" class="indexterm"/> the <code class="literal">create_new.py</code> file is quite simple, as follows:</p><div class="informalexample"><pre class="programlisting">import gspread
+import json
+from oauth2client.client import SignedJwtAssertionCredentials
+
+# Load the credentials
+json_key = json.load(open('Project-9a372e9e20e6.json'))
+scope = ['https://spreadsheets.google.com/feeds']
+credentials = SignedJwtAssertionCredentials(json_key['client_email'], json_key['private_key'], scope)
+
+# Ask for authorization
+gc = gspread.authorize(credentials)
+ 
+# Open the "bbb_weather" spreadsheet
+sh = gc.open("bbb_weather")
+
+# Add a new worksheet named "BBB weather" with size of 7x4 cells
+wks = sh.add_worksheet(title="BBB weather", rows="7", cols="4")
+
+# Setup the "current status" part
+wks.update_acell('A1', 'Current status')
+
+wks.update_acell('A2', 'Time (D h)')
+wks.update_acell('B2', 'Pressure (hPa)')
+wks.update_acell('C2', 'Temperature (C)')
+wks.update_acell('D2', 'Humidity (%)')
+
+# Setup the "old statuses" part
+wks.update_acell('A5', 'Old statuses')
+
+wks.update_acell('A6', 'Time (D h)')
+wks.update_acell('B6', 'Pressure (hPa)')
+wks.update_acell('C6', 'Temperature (C)')
+wks.update_acell('D6', 'Humidity (%)')
+
+wks.update_acell('A7', 'LAST')</pre></div><p>First of all, you<a id="id198" class="indexterm"/> should note that you must provide your own credentials to the <code class="literal">json.load()</code> function (that is, your <code class="literal">Project-xxxxxxxxxxxx.json</code> file obtained just now). Then, note that after opening the <code class="literal">bbb_weather</code> spreadsheet, we simply add a new worksheet called <code class="literal">sh.add_worksheet()</code> by using the <code class="literal">gc.open()</code> function. Then, we set up the cells content with the <code class="literal">wks.update_acell()</code> method.</p><p>Now, the reader may be curious regarding why the cell A7 holds the <code class="literal">LAST</code> string. Be patient, this will be explained soon!</p><p>Okay, now we need a way to send the collected data to our new worksheet. As seen before, the <code class="literal">wfrog</code> program stores its data into two files: <code class="literal">wfrog-current.xml</code>, which holds the current values, and <code class="literal">wfrog.csv</code>, which holds the historical data. To do the job, we can use the code stored in the <code class="literal">chapter_04/send_data.py</code> file in the book's example code repository. The following are some relevant snippets. The first part of this file is the same as the <code class="literal">create_new.py</code> command, so we can skip the beginning till the opening of the <code class="literal">bbb_weather</code> spreadsheet:</p><div class="informalexample"><pre class="programlisting"># Open the "bbb_weather" spreadsheet
+sh = gc.open("bbb_weather")
+
+# Select the worksheet named "BBB weather"
+wks = sh.worksheet("BBB weather")
+Then we can parse the XML file and extract the current status data to be send over the network:
+#
+# Send data to Google Docs
+#
+
+# Parse the XML file holding the current weather status
+xmldoc = minidom.parse('/var/lib/wfrog/wfrog-current.xml')
+
+# Extract the data
+time_obj = xmldoc.getElementsByTagName('time')
+time = time_obj[0].firstChild.nodeValue
+press_obj = xmldoc.getElementsByTagName('pressure')
+press = float(press_obj[0].firstChild.nodeValue)
+temp_obj = xmldoc.getElementsByTagName('temp')
+temp = float(temp_obj[0].firstChild.nodeValue)
+hum_obj = xmldoc.getElementsByTagName('humidity')
+hum = float(hum_obj[0].firstChild.nodeValue)
+print "current: %s press=%f temp=%f hum=%f" % (time, press, temp, hum)</pre></div><p>Once extracted, this<a id="id199" class="indexterm"/> data can be sent on the relative cells:</p><div class="informalexample"><pre class="programlisting"># Update the current status
+wks.update_acell('A3', time)
+wks.update_acell('B3', press)
+wks.update_acell('C3', temp)
+wks.update_acell('D3', hum)</pre></div><p>Now it's time to save the historical data. This is where the <code class="literal">LAST</code> string comes to help us! First of all, we have to parse the <code class="literal">.csv</code> file:</p><div class="informalexample"><pre class="programlisting"># Parse the CSV file holding the old weather statuses
+csvfile = open('/var/lib/wfrog/wfrog.csv', 'rb')
+reader = csv.reader(csvfile, delimiter=',')
+
+# Skip the headers
+headers = reader.next()</pre></div><p>Then, we ask for the row number holding the <code class="literal">LAST</code> string inside our worksheet by using the <code class="literal">wks.find("LAST").row</code> method. Since the <code class="literal">LAST</code> string is in the row number 7 at the very beginning, we can find how many rows to skip in the <code class="literal">wfrog.csv</code> file in order to find the new data to be stored, as follows:</p><div class="informalexample"><pre class="programlisting"># Find the "LAST" string where to insert data to
+last = wks.find("LAST").row - 7
+print "last saved row was %d" % last
+ 
+# Skip already read row
+for i in range(0, last):
+   dummy = reader.next()</pre></div><p>Now we can extract the data and save them in the worksheet by using the <code class="literal">wks.insert_row(data, n)</code> function that stores them in the <span class="emphasis"><em>nth</em></span> row:</p><div class="informalexample"><pre class="programlisting"># Start saving not yet saved data
+for row in reader:
+   time = row[1]
+   press = float(row[11])
+   temp = float(row[2])
+   hum = float(row[3])
+   print "old: %s press=%f temp=%f hum=%f" % (time, press, temp, hum)
+
+   # Add a new line with an old status
+   wks.insert_row([time, press, temp, hum], 7 + last)
+   last += 1</pre></div><p>To test the code, we <a id="id200" class="indexterm"/>can execute the <code class="literal">send_data.py</code> command as follows:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@arm:~# ./send_data.py</strong></span>
+<span class="strong"><strong>current: 2015-06-27 13:56:00 press=1026.354367 temp=29.083000 hum=44.537000</strong></span>
+<span class="strong"><strong>last saved row was 0</strong></span>
+<span class="strong"><strong>old: 2015-06-27 12:24:32 press=1026.700000 temp=29.200000 hum=49.600000</strong></span>
+<span class="strong"><strong>old: 2015-06-27 12:35:00 press=1026.700000 temp=29.500000 hum=50.100000</strong></span>
+<span class="strong"><strong>old: 2015-06-27 12:45:00 press=1026.600000 temp=29.500000 hum=48.800000</strong></span>
+<span class="strong"><strong>old: 2015-06-27 12:55:00 press=1026.700000 temp=29.400000 hum=48.400000</strong></span>
+<span class="strong"><strong>old: 2015-06-27 13:05:00 press=1026.700000 temp=29.300000 hum=47.500000</strong></span>
+<span class="strong"><strong>old: 2015-06-27 13:15:00 press=1026.600000 temp=29.200000 hum=48.100000</strong></span>
+<span class="strong"><strong>old: 2015-06-27 13:25:00 press=1026.500000 temp=29.100000 hum=45.900000</strong></span>
+<span class="strong"><strong>old: 2015-06-27 13:35:00 press=1026.500000 temp=28.700000 hum=47.100000</strong></span>
+</pre></div><div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="tip66"/>Tip</h3><p>Note that in the preceding file, you have to modify the following line according to your JSON filename!</p><div class="informalexample"><pre class="programlisting">json_key = json.load(open('Project-9a372e9e20e6.json'))</pre></div></div></div><p>The program correctly detects that no historical data was saved before, and it starts to save new data from the very beginning. My worksheet now looks like what is shown in the following screenshot:</p><div class="mediaobject"><img src="graphics/B00255_04_06.jpg" alt="Adding the Google Docs API"/></div><p>Now, the <code class="literal">LAST</code> string <a id="id201" class="indexterm"/>points to the row 15, so if we wait for new data and rerun the command, we get the following:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@arm:~# ./send_data.py</strong></span>
+<span class="strong"><strong>current: 2015-06-27 13:51:00 press=1026.334273 temp=29.276000 hum=46.871000</strong></span>
+<span class="strong"><strong>last saved row was 8</strong></span>
+<span class="strong"><strong>old: 2015-06-27 13:46:00 press=1026.500000 temp=28.900000 hum=48.200000</strong></span>
+</pre></div><p>As we can see in the<a id="id202" class="indexterm"/> following screenshot, our program has just saved the new data at the right position:</p><div class="mediaobject"><img src="graphics/B00255_04_07.jpg" alt="Adding the Google Docs API"/></div><p>To automate these steps, we can use the <code class="literal">cron</code> daemon, scheduling the execution of the <code class="literal">send_data.py</code> program at the desired delays.</p></div></div>
+<div class="section" title="Final test"><div class="titlepage"><div><div><h1 class="title"><a id="ch04lvl1sec27"/>Final test</h1></div></div></div><p>This time, the final test<a id="id203" class="indexterm"/> needs more time than other projects since we must collect several data to get suitable graphics. So, we execute the <code class="literal">wfrog</code> tasks as shown in the preceding screenshot. Then, we leave them running for two days or more. For my test, the results are shown in the following two screenshots:</p><div class="mediaobject"><img src="graphics/B00255_04_08.jpg" alt="Final test"/></div><div class="mediaobject"><img src="graphics/B00255_04_09.jpg" alt="Final test"/></div><p>Then, we can verify <a id="id204" class="indexterm"/>that the preceding weather data has also been stored in the Google Docs spreadsheet by taking a look at our Google account. The following screenshot shows my test results:</p><div class="mediaobject"><img src="graphics/B00255_04_10.jpg" alt="Final test"/></div></div>
+<div class="section" title="Summary"><div class="titlepage"><div><div><h1 class="title"><a id="ch04lvl1sec28"/>Summary</h1></div></div></div><p>In this chapter, we discovered how to install a ready-to-use weather station software into our BeagleBone Black by adapting it to our hardware sensors and by installing a new kernel release with proper drivers. Then, we took a look at how to store data in a Google Docs spreadsheet for future processing.</p><p>In the next chapter, we'll continue to interact with a remote system in order to manage a laundry monitoring system. We're going to use the WhatsApp system to know when our washing machine has finished its duty.</p></div></body></html>

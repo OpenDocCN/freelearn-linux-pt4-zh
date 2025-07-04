@@ -1,0 +1,550 @@
+<html><head></head><body><div class="chapter" title="Chapter&#xA0;7.&#xA0;Facebook Plant Monitor"><div class="titlepage"><div><div><h1 class="title"><a id="ch07"/>Chapter 7. Facebook Plant Monitor</h1></div></div></div><p>Social networks are very common nowadays, and having a monitoring (or controlling) system that interacts with them has become a must, especially for consumer systems.</p><p>In this chapter, we're going <a id="id292" class="indexterm"/>to see how to implement a plant monitor capable of measuring solar light, soil moisture, and the soil temperature (internal and external) along with how to take some pictures at specific intervals via a webcam.</p><p>The user will be able to control the monitor through a web interface and they can then decide to publish the plant pictures on their Facebook timeline.</p><div class="section" title="The basics of functioning"><div class="titlepage"><div><div><h1 class="title"><a id="ch07lvl1sec40"/>The basics of functioning</h1></div></div></div><p>In this project, I'm going <a id="id293" class="indexterm"/>to present a simple implementation of a plant monitor with the following two special features:</p><div class="itemizedlist"><ul class="itemizedlist"><li class="listitem" style="list-style-type: disc">The first feature is the ability to measure and estimate the soil moisture according to a direct measurement of the moisture via a dedicated sensor and through the temperature difference between the external soil temperature and the internal soil temperature in the garden pot where the plant lives. This is because the internal resistance of the moisture sensor may change with the temperature; in fact, when the sun beats down on the soil and the soil warms up, the resistance changes and this effect will produce a false <span class="emphasis"><em>dry</em></span> read. For this reason, we employ two different temperature probes in order to know if the soil is too hot with respect to the internal soil temperature and then we regulate the moisture level.</li><li class="listitem" style="list-style-type: disc">The second feature is the ability to add a webcam to take several pictures of our lovely plant at well-defined intervals and the possibility to publish them, at the user's request, on our Facebook timeline in order to show to our friends how green is our thumb!</li></ul></div><p>A little schematic representation of <a id="id294" class="indexterm"/>the sensors position to correctly implement the first feature is shown in the following image:</p><div class="mediaobject"><img src="graphics/3526OS_07_01.jpg" alt="The basics of functioning"/></div><p>Let's consider <span class="emphasis"><em>Te</em></span> as the external soil temperature and <span class="emphasis"><em>Ti</em></span> as the internal soil temperature. If we name the value returned by the moisture sensor <span class="emphasis"><em>M</em></span>, a reasonable estimation (<span class="emphasis"><em>Me</em></span>) of the real moisture can be given by the following formula:</p><p>
+<span class="emphasis"><em>        Me = M + K * (Te – Ti)      when Te &gt; Ti</em></span>
+</p><p>
+<span class="emphasis"><em>        Me = M                               when Te ≤ Ti</em></span>
+</p><p>where <span class="emphasis"><em>K</em></span> is a suitable (and empirical) <span class="emphasis"><em>moisture coefficient</em></span> that the user can set at runtime in order to fix their needs. Note that if <span class="emphasis"><em>K</em></span> is <code class="literal">0</code>, the system will take the measured moisture level without any compensation.</p><p>Regarding the second feature, it is possible to take a picture of the monitored plant and then publish it on Facebook. In order to do this, we have to use the Facebook API to interact with a Facebook account. This step will be explained in detail in the next section.</p></div></div>
+<div class="section" title="Setting up the hardware"><div class="titlepage"><div><div><h1 class="title"><a id="ch07lvl1sec41"/>Setting up the hardware</h1></div></div></div><p>In this project, we <a id="id295" class="indexterm"/>are going to <a id="id296" class="indexterm"/>use two analog sensors, two digital sensors, and a webcam to take the pictures. The analog sensors are connected to two different ADC channels inputs (as in the previous chapter). The contactless external temperature sensor uses an I<sup>2</sup>C bus to communicate with the BeagleBone Black, while the waterproof internal temperature sensor uses a 1-Wire bus. Finally, the webcam is connected via the <span class="strong"><strong>USB</strong></span> bus.</p><p>As in the previous chapter, I can add some actuators to flood water the plant and so on; but due to lack of space, I decided to leave these tasks to the reader as an exercise.</p><div class="section" title="Connecting the moisture sensor"><div class="titlepage"><div><div><h2 class="title"><a id="ch07lvl2sec57"/>Connecting the moisture sensor</h2></div></div></div><p>The moisture sensor is <a id="id297" class="indexterm"/>the device shown in the following image:</p><div class="mediaobject"><img src="graphics/3526OS_07_02.jpg" alt="Connecting the moisture sensor"/></div><div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="note67"/>Note</h3><p>The device <a id="id298" class="indexterm"/>can be purchased from <a class="ulink" href="http://www.cosino.io/product/moisture-sensor">http://www.cosino.io/product/moisture-sensor</a>, or by surfing the Internet.</p><p>The user guide of this device is available at <a class="ulink" href="http://seeedstudio.com/wiki/Grove_-_Moisture_Sensor">http://seeedstudio.com/wiki/Grove_-_Moisture_Sensor</a>.</p></div></div><p>This device is quite similar to the water sensor presented in <a class="link" href="ch03.html" title="Chapter 3. Aquarium Monitor">Chapter 3</a>, <span class="emphasis"><em>Aquarium Monitor</em></span>, since the functioning is still based on water conductivity; however, its shape is different due to the fact that we are interested in the soil humidity level and not whether water is present or not.</p><p>The connection to the BeagleBone Black is shown in the following table:</p><div class="informaltable"><table border="1"><colgroup><col style="text-align: left"/><col style="text-align: left"/></colgroup><thead><tr><th style="text-align: left" valign="bottom">
+<p>Pin</p>
+</th><th style="text-align: left" valign="bottom">
+<p>Cable color</p>
+</th></tr></thead><tbody><tr><td style="text-align: left" valign="top">
+<p>P9.3 - Vcc</p>
+</td><td style="text-align: left" valign="top">
+<p>Red</p>
+</td></tr><tr><td style="text-align: left" valign="top">
+<p>P9.39 - AIN0</p>
+</td><td style="text-align: left" valign="top">
+<p>Yellow</p>
+</td></tr><tr><td style="text-align: left" valign="top">
+<p>P9.1 - GND</p>
+</td><td style="text-align: left" valign="top">
+<p>Black</p>
+</td></tr></tbody></table></div><p>By using a multimeter, we can verify whether the output voltage is near to 0V when the sensor is in the air, the output is about 1.5V while in water, and that all the other output values stay in this range.</p><p>Note that, since <a id="id299" class="indexterm"/>the maximum output voltage is about 1.5V, we can safely connect the output pin of this device directly to the BeagleBone Black ADC's input. However, we can use a 1.8V Zener diode between the <span class="emphasis"><em>AIN0</em></span> pin and GND in order to be definitely sure that the output voltage cannot go over the critical threshold of 1.8V. (Remember what has been said several times in the previous chapters, starting from <a class="link" href="ch02.html" title="Chapter 2. Ultrasonic Parking Assistant">Chapter 2</a>, <span class="emphasis"><em>Ultrasonic Parking Assistant</em></span>, about this issue.)</p><p>Now, to verify the device output, we can enable the BeagleBone Black's ADCs by using the following command:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@beaglebone:~# echo cape-bone-iio &gt; /sys/devices/bone_capemgr.9/slots</strong></span>
+</pre></div><div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="note68"/>Note</h3><p>These settings can be done by using the <code class="literal">bin/load_firmware.sh</code> script in the book's example code repository, as follows:</p><div class="informalexample"><pre class="programlisting">root@beaglebone:~# ./load_firmware.sh adc</pre></div></div></div><p>Then, we can read the moisture level in water by putting the sensor into a cup of water and then executing the following command:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@beaglebone:~# cat /sys/devices/ocp.3/helper.12/AIN0</strong></span>
+<span class="strong"><strong>1745</strong></span>
+</pre></div><p>Then, we can read the moisture level in air by removing the sensor from the water and then rerunning the following command:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@beaglebone:~# cat /sys/devices/ocp.3/helper.12/AIN0</strong></span>
+<span class="strong"><strong>1</strong></span>
+</pre></div><p>So, the higher the moisture level, the higher the returned value.</p></div><div class="section" title="Connecting the light sensor"><div class="titlepage"><div><div><h2 class="title"><a id="ch07lvl2sec58"/>Connecting the light sensor</h2></div></div></div><p>An ambient light sensor<a id="id300" class="indexterm"/> is shown in the following image:</p><div class="mediaobject"><img src="graphics/B00255_07_03.jpg" alt="Connecting the light sensor"/></div><div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="note69"/>Note</h3><p>The device <a id="id301" class="indexterm"/>can be purchased from <a class="ulink" href="http://www.cosino.io/product/photoresitor">http://www.cosino.io/product/photoresitor</a>, or found by surfing the Internet.</p><p>The user guide of this device is available at <a class="ulink" href="https://www.sparkfun.com/datasheets/Sensors/Imaging/SEN-09088-datasheet.pdf">https://www.sparkfun.com/datasheets/Sensors/Imaging/SEN-09088-datasheet.pdf</a>.</p></div></div><p>This device functioning is quite similar to the light sensor presented in <a class="link" href="ch05.html" title="Chapter 5. WhatsApp Laundry Room Monitor">Chapter 5</a>, <span class="emphasis"><em>WhatsApp Laundry Room Monitor</em></span>; however, this is a single photoresistor with low power consumption that has an output function very similar to the pressure sensor presented in <a class="link" href="ch06.html" title="Chapter 6. Baby Room Sentinel">Chapter 6</a>, <span class="emphasis"><em>Baby Room Sentinel</em></span>, so, even in this case, we can use the same circuitry to manage it, as reported in the following diagram:</p><div class="mediaobject"><img src="graphics/B00255_07_04.jpg" alt="Connecting the light sensor"/></div><p>In the preceding diagram, <span class="emphasis"><em>R=6.8 KΩ</em></span> and <span class="strong"><strong>Rp</strong></span> is the light sensor's internal resistor that is represented by a variable resistor.</p><div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="tip85"/>Tip</h3><p>Note that the preceding circuitry not only connects the sensor to the BeagleBone Black's ADC input pin but also ensures that the input voltage on that pin is lower than the critical value on 1.8V! In fact, the V<sub>ADCin</sub> voltage is given by the following formula:</p><div class="itemizedlist"><ul class="itemizedlist"><li class="listitem" style="list-style-type: disc"><span class="emphasis"><em>V<sub>ADCin</sub></em></span><span class="emphasis"><em> = R / (R + Rp + R) * Vcc = R / (2R + Rp) * Vcc</em></span></li></ul></div><p>Now we know that Vcc is 3.3V, so, even in case the <span class="strong"><strong>Rp</strong></span> value drops to 0Ω, the <span class="emphasis"><em>V<sub>ADCin</sub></em></span> is equal to Vcc/2, that is, 1.65V, which is a safe value for the BeagleBone Black's ADCs.</p></div></div><p>This sensor <a id="id302" class="indexterm"/>must be connected with the BeagleBone Black at the <span class="emphasis"><em>AIN1</em></span> input pin, which is labeled <span class="emphasis"><em>P9.40</em></span>, while the other end must be connected with the resistor R, as shown in the preceding circuitry diagram.</p><p>Now for all connections, we can use the following command:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@beaglebone:~# cat /sys/devices/ocp.3/helper.12/AIN1</strong></span>
+<span class="strong"><strong>317</strong></span>
+</pre></div><p>Now, as we have already done for the other light sensor in the earlier chapters, we can cover it with a cup and try to reread the ADC:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@beaglebone:~# cat /sys/devices/ocp.3/helper.12/AIN1</strong></span>
+<span class="strong"><strong>15</strong></span>
+</pre></div><p>On the other hand, if we turn on a lamp over the sensor, we get the following:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@beaglebone:~# cat /sys/devices/ocp.3/helper.12/AIN1</strong></span>
+<span class="strong"><strong>954</strong></span>
+</pre></div><p>So, the brighter the environment light, the higher the returned value.</p></div><div class="section" title="Setting up the contactless temperature sensor"><div class="titlepage"><div><div><h2 class="title"><a id="ch07lvl2sec59"/>Setting up the contactless temperature sensor</h2></div></div></div><p>The contactless temperature <a id="id303" class="indexterm"/>sensor is the same as that used in <a class="link" href="ch06.html" title="Chapter 6. Baby Room Sentinel">Chapter 6</a>, <span class="emphasis"><em>Baby Room Sentinel</em></span>, so you can take a look at the <span class="emphasis"><em>Setting up the contactless temperature sensor</em></span> section to see how to set up and test this device; however, for completeness, again, some basic information about it is reported as follows:</p><div class="mediaobject"><img src="graphics/B00255_07_05.jpg" alt="Setting up the contactless temperature sensor"/></div><div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="note70"/>Note</h3><p>The device <a id="id304" class="indexterm"/>can be purchased from <a class="ulink" href="http://www.cosino.io/product/contactless-temperature-sensor">http://www.cosino.io/product/contactless-temperature-sensor</a>, or found by surfing the Internet.</p><p>The user guide of this device is available at <a class="ulink" href="https://www.sparkfun.com/datasheets/Sensors/Temperature/SEN-09570-datasheet-3901090614M005.pdf">https://www.sparkfun.com/datasheets/Sensors/Temperature/SEN-09570-datasheet-3901090614M005.pdf</a>.</p></div></div><p>The connections are shown in the following table:</p><div class="informaltable"><table border="1"><colgroup><col style="text-align: left"/><col style="text-align: left"/></colgroup><thead><tr><th style="text-align: left" valign="bottom">
+<p>Pin</p>
+</th><th style="text-align: left" valign="bottom">
+<p>Temperature sensor pin</p>
+</th></tr></thead><tbody><tr><td style="text-align: left" valign="top">
+<p>P9.4 - Vcc</p>
+</td><td style="text-align: left" valign="top">
+<p>3 - Vdd</p>
+</td></tr><tr><td style="text-align: left" valign="top">
+<p>P9.17 - SCL</p>
+</td><td style="text-align: left" valign="top">
+<p>1 - SCL</p>
+</td></tr><tr><td style="text-align: left" valign="top">
+<p>P9.18 - SDA</p>
+</td><td style="text-align: left" valign="top">
+<p>2 - SDA</p>
+</td></tr><tr><td style="text-align: left" valign="top">
+<p>P9.2 - GND</p>
+</td><td style="text-align: left" valign="top">
+<p>3 - Vss</p>
+</td></tr></tbody></table></div><p>Now, if everything <a id="id305" class="indexterm"/>has been well connected, we can activate the I<sup>2</sup>C bus with the following command:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@beaglebone:~# echo BB-I2C1 &gt; /sys/devices/bone_capemgr.9/slots</strong></span>
+</pre></div><p>While the temperature can be retrieved by reading at the device location <code class="literal">0x07</code>, so by using the <code class="literal">i2cget</code> command, we can do the following:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@beaglebone:~# i2cget -y 2 0x5a 0x07 wp</strong></span>
+<span class="strong"><strong>0x3bab</strong></span>
+</pre></div><p>The output value must be converted to degree Celsius by multiplying it by 0.02 after converting it to a decimal value, so we can use the following command:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@beaglebone:~# echo "$(printf "ibase=16; %X\n" $(i2cget -y 2 0x5a 0x07 wp) | bc) * 0.02 - 273.15" | bc</strong></span>
+</pre></div></div><div class="section" title="Setting up the waterproof temperature sensor"><div class="titlepage"><div><div><h2 class="title"><a id="ch07lvl2sec60"/>Setting up the waterproof temperature sensor</h2></div></div></div><p>Regarding the internal <a id="id306" class="indexterm"/>temperature sensor, I used the same one used in <a class="link" href="ch03.html" title="Chapter 3. Aquarium Monitor">Chapter 3, </a>
+<span class="emphasis"><em>Aquarium Monitor</em></span>, so you can take a look at the <span class="emphasis"><em>Connecting the temperature sensor</em></span> section to see how to set up and test this device; however, for completeness, again, some basic information about it is reported:</p><div class="mediaobject"><img src="graphics/B00255_07_06.jpg" alt="Setting up the waterproof temperature sensor"/></div><div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="note71"/>Note</h3><p>The device <a id="id307" class="indexterm"/>can be purchased from <a class="ulink" href="http://www.cosino.io/product/waterproof-temperature-sensor">http://www.cosino.io/product/waterproof-temperature-sensor</a>, or found by surfing the Internet.</p><p>The datasheet of this device is available at <a class="ulink" href="http://datasheets.maximintegrated.com/en/ds/DS18B20.pdf">http://datasheets.maximintegrated.com/en/ds/DS18B20.pdf</a>.</p></div></div><p>The connections are shown in the following table:</p><div class="informaltable"><table border="1"><colgroup><col style="text-align: left"/><col style="text-align: left"/></colgroup><thead><tr><th style="text-align: left" valign="bottom">
+<p>Pin</p>
+</th><th style="text-align: left" valign="bottom">
+<p>Cable color</p>
+</th></tr></thead><tbody><tr><td style="text-align: left" valign="top">
+<p>P9.4 - Vcc</p>
+</td><td style="text-align: left" valign="top">
+<p>Red</p>
+</td></tr><tr><td style="text-align: left" valign="top">
+<p>P8.11 - GPIO1_13</p>
+</td><td style="text-align: left" valign="top">
+<p>White</p>
+</td></tr><tr><td style="text-align: left" valign="top">
+<p>P9.2 - GND</p>
+</td><td style="text-align: left" valign="top">
+<p>Black</p>
+</td></tr></tbody></table></div><p>To enable it, we have to load a proper DTS file into the kernel with the following command:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@beaglebone:~# echo BB-W1-GPIO &gt; /sys/devices/bone_capemgr.9/slots</strong></span>
+</pre></div><div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="note72"/>Note</h3><p>See <a class="link" href="ch03.html" title="Chapter 3. Aquarium Monitor">Chapter 3</a>, <span class="emphasis"><em>Aquarium Monitor</em></span>, to see how to obtain the DTS file.</p></div></div><p>If everything <a id="id308" class="indexterm"/>works well, we should see a new 1-Wire device under the <code class="literal">/sys/bus/w1/devices/</code> directory as follows:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@beaglebone:~# ls /sys/bus/w1/devices/</strong></span>
+<span class="strong"><strong>28-000004b541e9  w1_bus_master1</strong></span>
+</pre></div><p>The new temperature sensor is represented by the directory named <code class="literal">28-000004b541e9</code> and to read the current temperature, we can use the <code class="literal">cat</code> command on the <code class="literal">w1_slave</code> file, as follows:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@beaglebone:~# cat /sys/bus/w1/devices/28-000004b541e9/w1_slave</strong></span>
+<span class="strong"><strong>d8 01 00 04 1f ff 08 10 1c : crc=1c YES</strong></span>
+<span class="strong"><strong>d8 01 00 04 1f ff 08 10 1c t=29500</strong></span>
+</pre></div><p>In the preceding example, the current temperature is <code class="literal">t=29500</code>, which is expressed in <span class="strong"><strong>millidegrees Celsius</strong></span> (<span class="strong"><strong>m°C</strong></span>), so it's equivalent to 29.5°C.</p><div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="tip87"/>Tip</h3><p>Note that your sensor has a different ID, so, in your system, you'll get a different path name in the form of <code class="literal">/sys/bus/w1/devices/28-NNNNNNNNNNNN/w1_slave</code>.</p></div></div></div><div class="section" title="Setting up the webcam"><div class="titlepage"><div><div><h2 class="title"><a id="ch07lvl2sec61"/>Setting up the webcam</h2></div></div></div><p>In <a class="link" href="ch03.html" title="Chapter 3. Aquarium Monitor">Chapter 3</a>, <span class="emphasis"><em>Aquarium Monitor</em></span>, I explained <a id="id309" class="indexterm"/>how to use a webcam with the BeagleBone Black, so you can take a look at that chapter to do the job. However, in that chapter, I required a UVC-based webcam (or at least another one which is supported by the <code class="literal">mjpg-streamer</code> tool). But this time, you can use any webcam supported by the Video4Linux driver class.</p><div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="note73"/>Note</h3><p>The curious <a id="id310" class="indexterm"/>reader can obtain more information about Video4Linux drivers from <a class="ulink" href=" http://www.linuxtv.org/wiki/index.php/Main_Page">http://www.linuxtv.org/wiki/index.php/Main_Page</a>.</p></div></div><p>To know if our webcam is supported by the Video4Linux system, you just need to connect it to the BeagleBone Black USB host port and then check if a new <code class="literal">/dev/video</code>
+<span class="strong"><strong>X</strong></span> device has been added (where <span class="strong"><strong>X</strong></span> can be 0, 1, 2, and so on).</p><p>As an example, on my system, using the same webcam used in <a class="link" href="ch03.html" title="Chapter 3. Aquarium Monitor">Chapter 3</a>, <span class="emphasis"><em>Aquarium Monitor</em></span>, I get the following output:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@beaglebone:~# ls -l /dev/video*</strong></span>
+<span class="strong"><strong>crw-rw---T 1 root video 81, 0 Jan  1  2000 /dev/video0</strong></span>
+</pre></div><p>So, my <a id="id311" class="indexterm"/>webcam is supported by the Video4Linux subsystem and it can be used by the <code class="literal">fswebcam</code> program to take pictures. To install the program, we can use the following command:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@beaglebone:~# aptitude install fswebcam</strong></span>
+</pre></div><p>Then, we can take a simple picture by using the following command:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@beaglebone:~# fswebcam webcam-shot.jpg</strong></span>
+<span class="strong"><strong>--- Opening /dev/video0...</strong></span>
+<span class="strong"><strong>Trying source module v4l2...</strong></span>
+<span class="strong"><strong>/dev/video0 opened.</strong></span>
+<span class="strong"><strong>No input was specified, using the first.</strong></span>
+<span class="strong"><strong>Adjusting resolution from 384x288 to 352x288.</strong></span>
+<span class="strong"><strong>--- Capturing frame...</strong></span>
+<span class="strong"><strong>Captured frame in 0.00 seconds.</strong></span>
+<span class="strong"><strong>--- Processing captured image...</strong></span>
+<span class="strong"><strong>Writing JPEG image to 'webcam-shot.jpg'.</strong></span>
+</pre></div><div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="tip88"/>Tip</h3><p>It can happen that when the <code class="literal">fswebcam</code> program is executed, you get the following message:</p><div class="informalexample"><pre class="programlisting">--- Opening /dev/video0...
+Trying source module v4l2...
+/dev/video0 opened.
+No input was specified, using the first.
+Adjusting resolution from 384x288 to 352x288.
+--- Capturing frame...
+gd-jpeg: JPEG library reports unrecoverable error: Not a JPEG file: starts with 0x11 0x80
+Captured frame in 0.00 seconds.
+--- Processing captured image...
+Writing JPEG image to 'webcam-shot.jpg'.</pre></div><p>Then, when you try to display the picture, the image is black. To resolve this issue, the trick is to skip the first frames with the <code class="literal">-S</code> option argument, as follows:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@beaglebone:~# fswebcam -S 10 webcam-shot.jpg</strong></span>
+</pre></div></div></div><p>However, what is really interesting in this program is the possibility to add text in different positions on the picture. For example, by using the following command, we can take a picture <a id="id312" class="indexterm"/>with, in the bottom-right corner, the text <code class="literal">Picture's title</code>, and in the bottom-left corner the text <code class="literal">Information text</code> with a smaller font and a time stamp:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@beaglebone:~# fswebcam --title "Picture's title" --info "Information text" --jpeg 85 webcam-shot.jpg</strong></span>
+<span class="strong"><strong>--- Opening /dev/video0...</strong></span>
+<span class="strong"><strong>Trying source module v4l2...</strong></span>
+<span class="strong"><strong>/dev/video0 opened.</strong></span>
+<span class="strong"><strong>No input was specified, using the first.</strong></span>
+<span class="strong"><strong>Adjusting resolution from 384x288 to 352x288.</strong></span>
+<span class="strong"><strong>--- Capturing frame...</strong></span>
+<span class="strong"><strong>Captured frame in 0.00 seconds.</strong></span>
+<span class="strong"><strong>--- Processing captured image...</strong></span>
+<span class="strong"><strong>Setting title "Picture's title".</strong></span>
+<span class="strong"><strong>Setting info text "Information text".</strong></span>
+<span class="strong"><strong>Setting output format to JPEG, quality 85</strong></span>
+<span class="strong"><strong>Writing JPEG image to 'webcam-shot.jpg'.</strong></span>
+</pre></div><p>The output picture is shown in the following screenshot:</p><div class="mediaobject"><img src="graphics/B00255_07_07.jpg" alt="Setting up the webcam"/></div><p>As you can see, this is a great software for taking pictures with descriptions!</p></div><div class="section" title="Adding a water pump"><div class="titlepage"><div><div><h2 class="title"><a id="ch07lvl2sec62"/>Adding a water pump</h2></div></div></div><p>Since we know if water<a id="id313" class="indexterm"/> is present on the floor, we can also decide to implement an automatic system to flood our plant with water when we detect that it's missing. A possible solution is using a water pump, as already done in <a class="link" href="ch03.html" title="Chapter 3. Aquarium Monitor">Chapter 3</a>, <span class="emphasis"><em>Aquarium Monitor</em></span>. Then, we can use one or more relays to control several pumps by using BeagleBone Black's GPIOs, but, as already stated, I'm not going to do it here due to lack of space, thus, leaving this issue as a useful exercise for the reader.</p></div><div class="section" title="The final picture"><div class="titlepage"><div><div><h2 class="title"><a id="ch07lvl2sec63"/>The final picture</h2></div></div></div><p>The following image <a id="id314" class="indexterm"/>shows the prototype I made to implement this project and to test the software:</p><div class="mediaobject"><img src="graphics/B00255_07_08.jpg" alt="The final picture"/></div><p>The connections are very simple this time. Note also that all the sensors should be connected to the BeagleBone Black with a long cable in order to be easily put in the plant's garden pot.</p></div></div>
+<div class="section" title="Setting up the software"><div class="titlepage"><div><div><h1 class="title"><a id="ch07lvl1sec42"/>Setting up the software</h1></div></div></div><p>This time, we <a id="id315" class="indexterm"/>monitor (and possibly control) a <a id="id316" class="indexterm"/>very slow system (a growing plant). So, using a simple Bash script is more than appropriate, while the web interface can be implemented by using two little HTML (with JavaScript) and PHP scripts. The real difficulty, apart from getting access to the peripherals, is using the Facebook API in order to get access to an account.</p><p>Apropos the monitoring loop and the web interface, there is a major issue, that is, the <span class="strong"><strong>Inter Process Communication</strong></span> (<span class="strong"><strong>IPC</strong></span>) system <a id="id317" class="indexterm"/>to use in order to exchange data between them. In <a class="link" href="ch01.html" title="Chapter 1. Dangerous Gas Sensors">Chapter 1</a>, <span class="emphasis"><em>Dangerous Gas Sensors</em></span>, we mainly used a MySQL server to store the system's data and configuration settings. But we also used it to exchange data between the different tasks <a id="id318" class="indexterm"/>composing the system! However, this time, we have very few data to store and using a database may be very expensive. So, I decided to use a simple way to solve the problem: I'm going to use a file! Yes, by using a normal file with a well-defined internal structure and proper locking functions to serialize access to it, we can solve the problem with very few system resources. This solution will be explained in detail in a later section.</p><div class="section" title="The Facebook API"><div class="titlepage"><div><div><h2 class="title"><a id="ch07lvl2sec64"/>The Facebook API</h2></div></div></div><p>At <a class="ulink" href="https://developers.facebook.com/docs/reference/php/5.0.0">https://developers.facebook.com/docs/reference/php/5.0.0</a>, there is a user <a id="id319" class="indexterm"/>manual of <a id="id320" class="indexterm"/>the PHP API I used to get access<a id="id321" class="indexterm"/> to my Facebook account.</p><div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="note74"/>Note</h3><p>Actually, different APIs exist to get access to Facebook, and for further information about them, the reader can take a look at <a class="ulink" href="https://developers.facebook.com/docs/apis-and-sdks">https://developers.facebook.com/docs/apis-and-sdks</a>.</p></div></div><p>There is a lot to read, so in the following section I've listed all steps I followed to install and configure it.</p><div class="section" title="Downloading the code"><div class="titlepage"><div><div><h3 class="title"><a id="ch07lvl3sec07"/>Downloading the code</h3></div></div></div><p>First of all, we <a id="id322" class="indexterm"/>have to download the source code. There are two possible ways to do it: installing with <a id="id323" class="indexterm"/>
+<span class="strong"><strong>Composer</strong></span> and manual installing. I decided to use the manual installing method since I have no Composer support on my BeagleBone Black (nor do I wish to install it for such an easy task).</p><div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="note75"/>Note</h3><p>The Composer tool<a id="id324" class="indexterm"/> is a dependency manager for PHP; a curious reader can refer to <a class="ulink" href="https://getcomposer.org/">https://getcomposer.org/</a> for further information about it.</p></div></div><p>The code can be downloaded by clicking either on the <span class="strong"><strong>Download the SDK for PHP v5.0</strong></span> button in the browser running on the host PC or directly on the BeagleBone Black by using the following command:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@beaglebone:~# wget https://github.com/facebook/facebook-php-sdk-v4/archive/5.0-dev.zip</strong></span>
+</pre></div><div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="note76"/>Note</h3><p>A copy of that archive can be found in the <code class="literal">chapter_07/5.0-dev.zip</code> file in the book's example code repository.</p></div></div><p>Once downloaded, put the archive on your BeagleBone Black (if not already present) and then unzip it with the following command:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@beaglebone</strong></span>
+<span class="strong"><strong>:~# unzip 5.0-dev.zip</strong></span>
+</pre></div><div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="tip90"/>Tip</h3><p>If not installed, the <code class="literal">unzip</code> command can be retrieved by using the usual <code class="literal">aptitude</code> command.</p></div></div><p>Now, to use the API, we <a id="id325" class="indexterm"/>simply need to use the following two lines in all our scripts:</p><div class="informalexample"><pre class="programlisting">define('FACEBOOK_SDK_V4_SRC_DIR', __DIR__ . '/facebook-php-sdk-v4-5.0-dev/src/Facebook/');
+require_once __DIR__ . '/facebook-php-sdk-v4-5.0-dev/src/Facebook/autoload.php';</pre></div><p>To simplify this operation, I created a file called <code class="literal">setup.php</code>, where I put these lines so that I can do a simple include in all my scripts, as follows:</p><div class="informalexample"><pre class="programlisting">require_once "setup.php";</pre></div><div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="note77"/>Note</h3><p>The preceding file can be found in the <code class="literal">chapter_07/setup.php</code> file in the book's example code repository.</p></div></div></div><div class="section" title="Creating a new Facebook app"><div class="titlepage"><div><div><h3 class="title"><a id="ch07lvl3sec08"/>Creating a new Facebook app</h3></div></div></div><p>Now, we need a new app that <a id="id326" class="indexterm"/>can use the API. In fact, all Facebook access must be done through a dedicated app, and the following steps are needed to create a new one:</p><div class="orderedlist"><ol class="orderedlist arabic"><li class="listitem">Go to the Facebook developers page <a id="id327" class="indexterm"/>at <a class="ulink" href="https://developers.facebook.com/apps/?action=create">https://developers.facebook.com/apps/?action=create</a> and click on the <span class="strong"><strong>Add a New App</strong></span> button.</li><li class="listitem">Choose the <span class="strong"><strong>Website</strong></span> option.</li><li class="listitem">Type a name for your App (I used <code class="literal">BBB Plant Monitor</code>) and click on the <span class="strong"><strong>Create New Facebook App ID</strong></span> button.</li><li class="listitem">Choose a category (I used <code class="literal">Entertainment</code>) and click on <span class="strong"><strong>Create App ID</strong></span>.</li><li class="listitem">Fill in the <span class="strong"><strong>Site URL</strong></span> with <code class="literal">http://localhost</code> and click on <span class="strong"><strong>Next</strong></span>.<div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="tip91"/>Tip</h3><p>Note that to be able to follow the preceding steps, you need a pre-existing Facebook account, otherwise the system will ask to register before continuing.</p></div></div></li></ol></div><p>Your App has now been created. Then, in the <span class="strong"><strong>Next Steps</strong></span> section, click on <span class="strong"><strong>Skip to Developer Dashboard</strong></span>, and the panel shown in the following screenshot should appear:</p><div class="mediaobject"><img src="graphics/B00255_07_09.jpg" alt="Creating a new Facebook app"/></div><p>The <span class="strong"><strong>App ID</strong></span> is <a id="id328" class="indexterm"/>visible by default, but the <span class="strong"><strong>App Secret</strong></span> is hidden. Click on <span class="strong"><strong>Show</strong></span>, enter your password again (if requested) to reveal the <span class="strong"><strong>App Secret</strong></span>, and then copy and keep this information apart.</p><p>Now, to finish the job, click on <span class="strong"><strong>Settings</strong></span>, add <code class="literal">http://localhost</code> to <span class="strong"><strong>App Domains</strong></span>, add your valid e-mail to <span class="strong"><strong>Contact Email</strong></span>, and then click on <span class="strong"><strong>Save Changes</strong></span>.</p></div><div class="section" title="Getting access to the Facebook account"><div class="titlepage"><div><div><h3 class="title"><a id="ch07lvl3sec09"/>Getting access to the Facebook account</h3></div></div></div><p>Now that our <a id="id329" class="indexterm"/>app is ready, we can start trying some <a id="id330" class="indexterm"/>code on it. However, before going live, we can create a <code class="literal">test user</code> account with different permissions that do not interfere with our real Facebook account to make sure that everything is set up correctly (under the <span class="strong"><strong>Roles</strong></span> menu and then the <span class="strong"><strong>Test Users</strong></span> section).</p><p>The following screenshot shows the <span class="strong"><strong>Test Users</strong></span> panel:</p><div class="mediaobject"><img src="graphics/B00255_07_10.jpg" alt="Getting access to the Facebook account"/></div><p>Click on the <span class="strong"><strong>Edit</strong></span> button and choose the <span class="strong"><strong>Get an access token for this test user</strong></span> entry from the displayed list, accept the default settings, and then copy and keep the access token apart.</p><p>Now it's time to test our first script! The following code snippet of a simple script used to get basic information of a Facebook account:</p><div class="informalexample"><pre class="programlisting"># Define the Facebook session
+$fb = new Facebook\Facebook([
+   'app_id'                  =&gt; APP_ID,
+   'app_secret'              =&gt; APP_SECRET,
+   'default_graph_version'   =&gt; 'v2.4',
+   'default_access_token'    =&gt; DEF_TOKEN,
+   'fileUpload'              =&gt; true,
+   'cookie'                  =&gt; true,
+]);
+
+# Print user's information
+try {
+   $res = $fb-&gt;get('/me');
+} catch(Exception $e) {
+   err("error!\n");
+   dbg("=========================================================================\n");
+   dbg($e);
+   dbg("=========================================================================\n");
+   die();
+}
+$node = $res-&gt;getGraphObject();
+info("name is \"%s\" (%s)\n",
+   $node-&gt;getProperty('name'), $node-&gt;getProperty('id'));
+
+# Print user's permissions
+$res = $fb-&gt;get("/me/permissions");
+$node = $res-&gt;getDecodedBody();
+info("permissions are:\n");
+foreach ($node['data'] as $perm)
+   info("\t%s is %s\n", $perm['permission'], $perm['status']);</pre></div><div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="note78"/>Note</h3><p>The complete code can be found in the <code class="literal">chapter_07/get_info.php</code> file in the book's example code repository.</p></div></div><p>The script is really <a id="id331" class="indexterm"/>simple. As the <a id="id332" class="indexterm"/>first step, we need to define a new Facebook session with the <code class="literal">Facebook\Facebook</code> class, where the <code class="literal">APP_ID</code> and <code class="literal">APP_SECRET</code> values are taken from the preceding app information, and the <code class="literal">DEF_TOKEN</code> is the test that the user's token generated previously. All this information is stored in a dedicated file named <code class="literal">config.php</code>, holding the following code:</p><div class="informalexample"><pre class="programlisting">&lt;?php
+
+define('APP_ID', '000000000000000');
+define('APP_SECRET', '00000000000000000000000000000000');
+define('DEF_TOKEN', 'XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX');
+
+?&gt;</pre></div><div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="tip92"/>Tip</h3><p>Please note that all information has been replaced by zeros or the <code class="literal">X</code> character, so you have to replace them with your custom values.</p></div></div><p>Then, the file can be loaded, as in the preceding command, with the following PHP command:</p><div class="informalexample"><pre class="programlisting">require_once "config.php";</pre></div><p>Once the <a id="id333" class="indexterm"/>Facebook session <a id="id334" class="indexterm"/>has been created, we can start fetching data from it by using the <code class="literal">get()</code> method with different parameters. For example, by using the <code class="literal">/me</code> string, we can get the user's name and ID, while using the <code class="literal">/me/permissions</code> string, we can get the user's permissions.</p><div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="note79"/>Note</h3><p>The Facebook permissions are listed and explained well at <a class="ulink" href="https://developers.facebook.com/docs/facebook-login/permissions/v2.2">https://developers.facebook.com/docs/facebook-login/permissions/v2.2</a>.</p></div></div><p>Once collected, the user's information is displayed as follows:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@beaglebone:~# ./get_info.php</strong></span>
+<span class="strong"><strong>get_info.php[  62]: name is "Open Graph Test User" (119617175051891)</strong></span>
+<span class="strong"><strong>get_info.php[  67]: permissions are:</strong></span>
+<span class="strong"><strong>get_info.php[  69]:    user_friends is granted</strong></span>
+<span class="strong"><strong>get_info.php[  69]:    publish_actions is granted</strong></span>
+<span class="strong"><strong>get_info.php[  69]:    public_profile is granted</strong></span>
+</pre></div><p>The API is okay and the accessing information has been correctly written! So, let's see how we can post a picture on the test user's timeline. To do the trick, we must use the <code class="literal">post()</code> method, as shown in the following code snippet:</p><div class="informalexample"><pre class="programlisting"># Define the Facebook session
+$fb = new Facebook\Facebook([
+   'app_id'                  =&gt; APP_ID,
+   'app_secret'              =&gt; APP_SECRET,
+   'default_graph_version'   =&gt; 'v2.4',
+   'default_access_token'    =&gt; DEF_TOKEN,
+   'fileUpload'              =&gt; true,
+   'cookie'                  =&gt; true,
+]);
+
+# Print user's information
+try {
+   $res = $fb-&gt;get('/me');
+} catch(Exception $e) {
+   err("error!\n");
+   dbg("=========================================================================\n");
+   dbg($e);
+   dbg("=========================================================================\n");
+   die();
+}
+$node = $res-&gt;getGraphObject();
+info("name is \"%s\" (%s)\n",
+   $node-&gt;getProperty('name'), $node-&gt;getProperty('id'));
+
+# Publish to user's timeline
+try {
+   $ret = $fb-&gt;post('/me/photos', array(
+      'message'   =&gt; 'MyPlant message',
+      'source'   =&gt; $fb-&gt;videoToUpload(realpath('web-cam-shot.jpg')),
+   ));
+} catch(Exception $e) {
+   err("error!\n");
+   dbg("=========================================================================\n");
+   dbg($e);
+   dbg("=========================================================================\n");
+   die();
+}
+
+info("done\n");</pre></div><p>After creating <a id="id335" class="indexterm"/>the Facebook <a id="id336" class="indexterm"/>session, as explained previously, we have to call the <code class="literal">post()</code> method with the <code class="literal">/me/photos</code> string and proper parameters. In particular, you should pay attention to the <code class="literal">videoToUpload()</code> method that is used to specify the image to be published.</p><p>Now, supposing that the image is in the <code class="literal">webcam-shot.jpg</code> file, we can do our post with the following command:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@beaglebone:~# ./post_pic.php</strong></span>
+<span class="strong"><strong>post_pic.php[  62]: name is "Open Graph Test User" (119617175051891)</strong></span>
+<span class="strong"><strong>post_pic.php[  78]: done</strong></span>
+</pre></div><p>To verify the post, we can log in with the test user account generated previously by selecting the <span class="strong"><strong>Log in as this test user</strong></span> entry in the <span class="strong"><strong>Edit</strong></span> button. The following screenshot shows what I got on my test:</p><div class="mediaobject"><img src="graphics/B00255_07_11.jpg" alt="Getting access to the Facebook account"/></div><p>When finished, you <a id="id337" class="indexterm"/>have to log <a id="id338" class="indexterm"/>out from this test account and then log in again with your own account.</p><p>Now we are ready to go. Click on the <span class="strong"><strong>Status &amp; Review</strong></span> menu in the <span class="strong"><strong>Do you want to make this app and all its live features available to the general public?</strong></span> section and click on <span class="strong"><strong>Yes</strong></span>. Then, we need an access token for our Facebook profile, so we have to go to the <span class="strong"><strong>Tools &amp; Support</strong></span> top menu entry and then select the <span class="strong"><strong>Graph API Explorer</strong></span> entry. On the new page, click on the <span class="strong"><strong>Graph API Explorer</strong></span> drop-down list and then select our new application, <span class="strong"><strong>BBB Plant Monitor</strong></span>. Then, click on the <span class="strong"><strong>Get Token</strong></span> drop-down list and select the <span class="strong"><strong>Get Access Token</strong></span> entry.</p><p>In the new window, you can add whatever permission you wish; however, we need only the extended permission <code class="literal">publish_actions</code>, so enable it and then click on the <span class="strong"><strong>Get Access Token</strong></span> button.</p><p>At this time, an authorization window such as the one shown in the following screenshot should appear (sorry for the non-English text):</p><div class="mediaobject"><img src="graphics/B00255_07_12.jpg" alt="Getting access to the Facebook account"/></div><p>Then, approve <a id="id339" class="indexterm"/>and select the <a id="id340" class="indexterm"/>audience of the new app (just you, your friends only, or public. Don't worry about it—this setting can be changed later from your profile settings).</p><p>Now, get the new access token and copy it into the <code class="literal">config.php</code> file and then rerun the <code class="literal">get_info.php</code> script. If everything works well, you should get something like the following:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@beaglebone:~# ./get_info.php</strong></span>
+<span class="strong"><strong>get_info.php[  62]: name is "Rodolfo Giometti" (10206138948545992)</strong></span>
+<span class="strong"><strong>get_info.php[  67]: permissions are:</strong></span>
+<span class="strong"><strong>get_info.php[  69]:    publish_actions is granted</strong></span>
+<span class="strong"><strong>get_info.php[  69]:    public_profile is granted</strong></span>
+</pre></div><p>Great, now I can try to post a picture to my Facebook timeline by using the <code class="literal">post_pic.php</code> script, as follows:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@beaglebone:~# ./post_pic.php</strong></span>
+<span class="strong"><strong>post_pic.php[  62]: name is "Rodolfo Giometti" (10206138948545992)</strong></span>
+<span class="strong"><strong>post_pic.php[  78]: done</strong></span>
+</pre></div><p>The following screenshot shows a snippet of my Facebook timeline with the new post:</p><div class="mediaobject"><img src="graphics/B00255_07_13.jpg" alt="Getting access to the Facebook account"/></div><p>Okay, it seems to <a id="id341" class="indexterm"/>work well! However, there <a id="id342" class="indexterm"/>is a problem. If you click on the <span class="strong"><strong>i</strong></span> in the blue circle (near the beginning of your new access token), a window will appear showing the token's expiration time (that is, the time till your access token will work), and, as you can see, it's very short! Usually, it is only 1 or 2 hours.</p><p>See the following screenshot for an example:</p><div class="mediaobject"><img src="graphics/B00255_07_14.jpg" alt="Getting access to the Facebook account"/></div><p>To increase <a id="id343" class="indexterm"/>this time, we <a id="id344" class="indexterm"/>can click on the <span class="strong"><strong>Open in Access Token Tool</strong></span> button and then ask for an extended version by clicking on the <span class="strong"><strong>Extend Access Token</strong></span> button. Then, a new extended token will be released, as shown in the following screenshot (note that it may happen that the system will request your profile password again before giving the extended token to you; if so, enter the password again):</p><div class="mediaobject"><img src="graphics/B00255_07_15.jpg" alt="Getting access to the Facebook account"/></div><p>The new token is now valid for 60 days.</p><p>Unluckily, I've not <a id="id345" class="indexterm"/>found <a id="id346" class="indexterm"/>a suitable way to either automate this procedure or to renew a token when the current one expires. When it happens, you have to repeat this procedure to get a new valid token and then update the <code class="literal">config.php</code> file accordingly.</p><div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="tip93"/>Tip</h3><p>It may happen that you get an error in executing the command. In that case, you can enable the debugging messages by using the <code class="literal">-d</code> option argument and then trying to execute the command again, as follows:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@beaglebone:~# ./get_info.php -d</strong></span>
+<span class="strong"><strong>get_info.php[  54]: error!</strong></span>
+<span class="strong"><strong>get_info.php[  55]: ==========================================================================</strong></span>
+<span class="strong"><strong>get_info.php[  56]: exception 'Facebook\Exceptions\FacebookSDKException' with message 'SSL certificate problem: certificate is not yet valid' in /root/chapter_07/facebook-php-sdk-v4-5.0-dev/src/Facebook/HttpClients/FacebookCurlHttpClient.php:83</strong></span>
+<span class="strong"><strong>Stack trace:</strong></span>
+<span class="strong"><strong>#0 /root/chapter_07/facebook-php-sdk-v4-5.0-dev/src/Facebook/FacebookClient.php(216): Facebook\HttpClients\FacebookCurlHttpClient-&gt;send('https://graph.f...', 'GET', '', Array, 60)</strong></span>
+<span class="strong"><strong>#1 /root/chapter_07/facebook-php-sdk-v4-5.0-dev/src/Facebook/Facebook.php(504): Facebook\FacebookClient-&gt;sendRequest(Object(Facebook\FacebookRequest))</strong></span>
+<span class="strong"><strong>#2 /root/chapter_07/facebook-php-sdk-v4-5.0-dev/src/Facebook/Facebook.php(377): Facebook\Facebook-&gt;sendRequest('GET', '/me', Array, NULL, NULL, NULL)</strong></span>
+<span class="strong"><strong>#3 /root/chapter_07/get_info.php(52): Facebook\Facebook-&gt;get('/me')</strong></span>
+<span class="strong"><strong>#4 {main}get_info.php[  57]: ==========================================================================</strong></span>
+</pre></div><p>This is not related to the Facebook API itself, but to an authentication stage of the SSL certificate. A possible workaround is implemented by using the following patch. However, this decreases the security level of the whole API. You are warned!</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@beaglebone# diff -u facebook-php-sdk-v4-5.0-dev/src/Facebook/HttpClients/FacebookCurlHttpClient.php.orig facebook-php-sdk-v4-5.0-dev/src/Facebook/HttpClients/FacebookCurlHttpClient.php</strong></span>
+<span class="strong"><strong>--- facebook-php-sdk-v4-5.0-dev/src/Facebook/HttpClients/FacebookCurlHttpClient.php.orig   2014-04-26 01:34:08.187500961 +0000</strong></span>
+<span class="strong"><strong>+++ facebook-php-sdk-v4-5.0-dev/src/Facebook/HttpClients/FacebookCurlHttpClient.php   2014-04-26 01:34:37.582032215 +0000</strong></span>
+<span class="strong"><strong>@@ -111,7 +111,7 @@</strong></span>
+<span class="strong"><strong>             CURLOPT_RETURNTRANSFER =&gt; true, // Follow 301 redirects</strong></span>
+<span class="strong"><strong>             CURLOPT_HEADER =&gt; true, // Enable header processing</strong></span>
+<span class="strong"><strong>             CURLOPT_SSL_VERIFYHOST =&gt; 2,</strong></span>
+<span class="strong"><strong>-            CURLOPT_SSL_VERIFYPEER =&gt; true,</strong></span>
+<span class="strong"><strong>+            CURLOPT_SSL_VERIFYPEER =&gt; false,</strong></span>
+<span class="strong"><strong>             CURLOPT_CAINFO =&gt; __DIR__ . '/certs/DigiCertHighAssuranceEVRootCA.pem',</strong></span>
+<span class="strong"><strong>         ];</strong></span>
+</pre></div></div></div></div></div><div class="section" title="The monitoring loop"><div class="titlepage"><div><div><h2 class="title"><a id="ch07lvl2sec65"/>The monitoring loop</h2></div></div></div><p>Now that the <a id="id347" class="indexterm"/>Facebook API is up and running, we can start writing the code to implement our plant monitor.</p><p>As already stated, the monitoring system is so slow that using a Bash script can be the most <span class="emphasis"><em>quick-and-dirty</em></span> way to resolve our problem. In fact, we simply need to read plant's data from all installed sensors and then do some simple actions. The most difficult part is to create a status file containing all measured data to be exchanged with the web interface (see the next section for this last part).</p><p>The monitoring loop is in the <code class="literal">chapter_07/plant_mon.sh</code> file in the book's example code repository, while <a id="id348" class="indexterm"/>the relevant code is shown in the following snippet:</p><div class="informalexample"><pre class="programlisting">function daemon_body () {
+   # Read plant data and take the first picture
+   read_sensors
+   next_date=$(do_picture)
+
+   # The main loop
+   dbg "start main loop"
+   while sleep 1 ; do
+      # Read plant data from all sensors
+      read_sensors
+
+      ( # Wait for lock on LOCK_FILE (fd 99) for 10 seconds
+      flock -w 10 -x 99 || exit 1
+
+      # Read the user parameters
+      cff_mois=$(cat $STATUS_FILE | json_decode cff_mois)
+      [ -z "$cff_mois" ] &amp;&amp; cff_mois=1
+      dbg "cff_mois=$cff_mois"
+
+      # Compute the moisture level
+      est_mois=$msr_mois
+      if (( $(bc &lt;&lt;&lt; "$int_temp &lt; $ext_temp") == 1 )) ; then
+         est_mois=$(bc -l &lt;&lt;&lt; "$msr_mois + $cff_mois * ( $ext_temp - $int_temp )")
+         fi
+         dbg "est_mois=$est_mois"
+
+         # Write back the plant parameters
+         json_encode lig_levl $lig_levl \
+            int_temp $int_temp \
+            ext_temp $ext_temp \
+            msr_mois $msr_mois \
+            cff_mois $cff_mois \
+            est_mois $est_mois &gt; $STATUS_FILE
+
+         # Release the lock
+         ) 99&gt;$LOCK_FILE
+
+         # Have to take a new picture?
+         [ $(date "+%H%M") == "$next_date" ] &amp;&amp; next_date=$(do_picture)
+     done
+}</pre></div><p>As you can see, there are three main steps to execute:</p><div class="orderedlist"><ol class="orderedlist arabic"><li class="listitem">Read the plant's data from all sensors.</li><li class="listitem">Exchange the data by managing the file addressed by the <code class="literal">STATUS_FILE</code> variable.</li><li class="listitem">Take a new picture according to the user input.</li></ol></div><p>The first step is <a id="id349" class="indexterm"/>implemented by the <code class="literal">read_sensors</code> function as follows:</p><div class="informalexample"><pre class="programlisting">function read_sensors ( ) {
+   lig_levl=$(adc_read $LIGHT_DEV)
+   int_temp=$(w1_read $INT_TEMP_DEV)
+   ext_temp=$(i2c_read $EXT_TEMP_DEV)
+   msr_mois=$(adc_read $MOISTURE_DEV)
+   dbg "lig_levl=$lig_levl int_temp=$int_temp ext_temp=$ext_temp msr_mois=$msr_mois"
+   dbg "curr_date=$(date "+%H%M") next_date=$next_date"
+}</pre></div><p>The last step is implemented by the <code class="literal">do_picture</code> function as follows:</p><div class="informalexample"><pre class="programlisting">function do_picture ( ) {
+   # Compute the light level
+   ll="mid"
+   [ $lig_levl -le $LIGHT_LOW ] &amp;&amp; ll="low"
+   [ $lig_levl -ge $LIGHT_HIGH ] &amp;&amp; ll="high"
+
+   # Take the picture
+   fswebcam -q --title "My lovely plant" \
+      --info "Temp: $ext_temp/$int_temp°C - Light: $ll" \
+      --jpeg 85 $IMG_FILE
+
+   # Compute the next picture time
+   date -d "now +$1 minutes" "+%H%M"
+}</pre></div><p>The second action needs some explanation. As already stated, we have to send the plant's data to the web interface. From the web interface, we have to read an input value (the moisture coefficient). To do that, I decided to use a normal file due to the fact that all operations are executed very slowly.</p><p>The only difficulty when using a file to exchange data is related to the fact that we must be sure to have exclusive access to it. To do so, we can use the <code class="literal">flock()</code> system call to ask the system for exclusive access to a file in order to exclude concurrent reads or writes.</p><p>To use the <code class="literal">flock()</code> in a Bash script, we have the <code class="literal">flock</code> command that, when used in a shell script, must be used as suggested by the <code class="literal">flock</code>'s man pages. The code is as follows:</p><div class="informalexample"><pre class="programlisting">   (
+      flock -n 9 || exit 1
+      # ... commands executed under lock ...
+   ) 9&gt;/var/lock/mylockfile</pre></div><div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="tip95"/>Tip</h3><p>See the <code class="literal">man flock</code> command for further information.</p></div></div><p>After grabbing the <a id="id350" class="indexterm"/>lock, we can start reading the file. It holds the system status in the JSON format because the file content must be shared with a PHP application that has predefined functions to manage such format. So, first we read the user input by using the <code class="literal">json_decode</code> function, then we calculate the estimated moisture level using the formula described at the beginning of this chapter, and, as the last step, we write back the status file in the JSON format by using the <code class="literal">json_encode</code> function.</p><p>To execute the program enabling all debugging messages, we can use the following command line:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@beaglebone:~# ./plant_mon.sh -d -l -f -k 1</strong></span>
+<span class="strong"><strong>plant_mon.sh: min=1</strong></span>
+<span class="strong"><strong>plant_mon.sh: signals traps installed</strong></span>
+<span class="strong"><strong>plant_mon.sh: lig_levl=295 int_temp=29.50 ext_temp=31.01 msr_mois=0</strong></span>
+<span class="strong"><strong>plant_mon.sh: curr_date=1109 next_date=</strong></span>
+<span class="strong"><strong>plant_mon.sh: start main loop</strong></span>
+<span class="strong"><strong>plant_mon.sh: lig_levl=304 int_temp=29.50 ext_temp=31.11 msr_mois=0</strong></span>
+<span class="strong"><strong>plant_mon.sh: curr_date=1109 next_date=1110</strong></span>
+<span class="strong"><strong>plant_mon.sh: cff_mois=50</strong></span>
+<span class="strong"><strong>plant_mon.sh: est_mois=80.50</strong></span>
+<span class="strong"><strong>...</strong></span>
+</pre></div><p>Then, the program can be stopped by running the <span class="emphasis"><em>CTRL</em></span> + <span class="emphasis"><em>C</em></span> keys.</p><div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="tip96"/>Tip</h3><p>Remember to modify the line where I define the <code class="literal">INT_TEMP_DEV</code> variable holding the 1-Wire temperature sensor's ID according to the ID of your sensor, otherwise you're going to get a read error while executing the program.</p></div></div><p>Note that as the first step, the program reads all the sensors' data and then takes a picture in such a way that the web interface has whatever it needs to display the current system <a id="id351" class="indexterm"/>status to the user, as explained in the next section.</p></div><div class="section" title="The web interface"><div class="titlepage"><div><div><h2 class="title"><a id="ch07lvl2sec66"/>The web interface</h2></div></div></div><p>This time, I'm <a id="id352" class="indexterm"/>going to implement a simple web interface by using the HTML, PHP, and JavaScript languages. What I want to implement is something really simple that allows the user to see the plant's data and the last picture of the plant stored on the system. Then, they should be able to post that picture on the Facebook timeline.</p><p>The core of the web interface is in the <code class="literal">chapter_07/plant.html</code> file in the book's example code repository, while the relevant code is shown in the following snippet:</p><div class="informalexample"><pre class="programlisting">&lt;body&gt;
+ &lt;h1&gt;Plant monitor status&lt;/h1&gt;
+
+ &lt;h2&gt;Internal variables&lt;/h2&gt;
+
+ &lt;table class="status"&gt;
+  &lt;tr class="d0"&gt;
+    &lt;td&gt;Light level&lt;/td&gt;
+    &lt;td&gt;&lt;b id="lig_levl"&gt;0&lt;/b&gt;&lt;/td&gt;
+    &lt;td&gt;&lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr class="d1"&gt;
+    &lt;td&gt;Internal temperature[C]&lt;/td&gt;
+    &lt;td&gt;&lt;b id="int_temp"&gt;0&lt;/b&gt;&lt;/td&gt;
+    &lt;td&gt;&lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr class="d0"&gt;
+    &lt;td&gt;External temperature[C]&lt;/td&gt;
+    &lt;td&gt;&lt;b id="ext_temp"&gt;0&lt;/b&gt;&lt;/td&gt;
+    &lt;td&gt;&lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr class="d1"&gt;
+    &lt;td&gt;Measured moisture&lt;/td&gt;
+    &lt;td&gt;&lt;b id="msr_mois"&gt;0&lt;/b&gt;&lt;/td&gt;
+    &lt;td&gt;&lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr class="d0"&gt;
+    &lt;td&gt;Moisture coefficient&lt;/td&gt;
+    &lt;td&gt;&lt;b id="cff_mois"&gt;0&lt;/b&gt;&lt;/td&gt;
+    &lt;td&gt;&lt;input id="val_cff_mois" name="val_cff_mois" class="set-inputbox"&gt;
+     &lt;button id="set_cff_mois" class="set-button"&gt;Set&lt;/button&gt;
+    &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr class="d1"&gt;
+    &lt;td&gt;Estimated moisture&lt;/td&gt;
+    &lt;td&gt;&lt;b id="est_mois"&gt;0&lt;/b&gt;&lt;/td&gt;
+    &lt;td&gt;&lt;/td&gt;
+  &lt;/tr&gt;
+ &lt;/table&gt;
+
+ &lt;h2&gt;Last picture&lt;/h2&gt;
+
+ &lt;img id="webcam_shot" alt="Last picture"&gt;
+
+ &lt;p&gt;&lt;button id="post_pic" class="do-button"&gt;Post on Facebook&lt;/button&gt;&lt;/p&gt;
+
+&lt;/body&gt;</pre></div><p>As you can see, there<a id="id353" class="indexterm"/> is a simple table where all the data is reported and where the user can change the moisture coefficient with the <span class="strong"><strong>Set</strong></span> button. Then, the plant's picture is shown at the bottom with a <span class="strong"><strong>Post on Facebook</strong></span> button to allow the user to post the current picture on Facebook.</p><p>The <span class="strong"><strong>Set</strong></span> button is managed by the following JavaScript code included in the <code class="literal">plant.html</code> file:</p><div class="informalexample"><pre class="programlisting">&lt;script&gt;
+ $(function() {
+  $('button[class="set-button"]').click(function() {
+   var id = $(this).attr("id");
+   var box = document.getElementById(id.replace('set_', 'val_'));
+
+   $.ajax({
+    url: "/handler.php",
+    type: "POST",
+    data: "set=" + id.replace('set_', '') + "&amp;val=" + box.value,      success: function() {
+      console.log('set POST success');
+     },
+     error: function() {
+      console.log('set POST error');
+     }
+   });
+  });
+ });
+&lt;/script&gt;</pre></div><p>So, each time <a id="id354" class="indexterm"/>we press the button, we generate a <code class="literal">POST</code> request holding the user input value.</p><p>In a similar manner, the <span class="strong"><strong>Post on Facebook</strong></span> button is managed by the following code:</p><div class="informalexample"><pre class="programlisting">    &lt;script&gt;
+      $(function() {
+        $('button[class="do-button"]').click(function() {
+          var id = $(this).attr("id");
+
+          $.ajax({
+            url: "/handler.php",
+            type: "POST",
+            data: "do=" + id,
+            success: function() {
+              console.log('do POST success');
+            },
+            error: function() {
+              console.log('do POST error');
+            }
+          });
+        });
+      });
+    &lt;/script&gt;</pre></div><p>In this case, we generate another <code class="literal">POST</code> request, but with different parameters.</p><p>On the other hand, the following JavaScript code is used for two main tasks:</p><div class="informalexample"><pre class="programlisting">    &lt;script&gt;
+      var polldata = function() {
+        $.getJSON('/handler.php', function(data) {
+          $.each(data, function(key, val) {
+            var e = document.getElementById(key);
+
+            if (e != null) {
+              if (e.type == "text")
+                e.value = val;
+              else
+                e.textContent = val;
+            }
+          });
+        });
+
+        var url = '/webcam-shot.jpg';
+        var d = new Date();
+        $('#webcam_shot').attr('src', url + '?d=' + d.getTime());
+      };
+
+      setInterval(polldata, 1000);
+    &lt;/script&gt;</pre></div><p>The first task is to <a id="id355" class="indexterm"/>request and then update the plant's data on the web page, while the second task is to update the plant's image.</p><div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="tip97"/>Tip</h3><p>Note that we use a trick to force the browser to refresh the plant's image:</p><div class="informalexample"><pre class="programlisting">        var url = '/webcam-shot.jpg';
+        var d = new Date();
+        $('#webcam_shot').attr('src', url + '?d=' + d.getTime());</pre></div><p>Here, I appended a parameter with the current date to the image's attribute in order to force the browser to update the image.</p></div></div><p>Looking at the preceding codes, the reader can notice that when the PHP file is executed, the <code class="literal">handler.php</code> script is executed in turn too. The <code class="literal">handler.php</code> file manages the data on the server side, and the following snippet shows its relevant code:</p><div class="informalexample"><pre class="programlisting">#
+# Ok, do the job
+#
+
+# Check the POST requests
+if (isset($_POST["val"]))
+   $new_cff_mois = floatval($_POST["val"]);
+else if (isset($_POST["do"]))
+   do_post();
+
+# Wait for lock on /tmp/plant.lock
+$lock = file_lock(LOCK_FILE);
+if (!$lock)
+   die();
+
+# Read the status file and decode it
+$ret = file_get_contents(STATUS_FILE);
+if ($ret === false)
+   die();
+$data = json_decode($ret, true);
+
+# Use the stored value reset to a specific defualt
+if (isset($new_cff_mois))
+   $data['cff_mois'] = $new_cff_mois;
+
+# Write back the new status (if needed)
+$status = json_encode($data);
+if (isset($new_cff_mois)) {
+   $ret = file_put_contents(STATUS_FILE, $status);
+   if ($ret === false)
+      die();
+}
+
+# Release the lock
+file_unlock($lock);
+
+# Encode data for JSON
+echo $status;</pre></div><div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="note80"/>Note</h3><p>The complete code can be found in the <code class="literal">chapter_07/handler.php</code> file in the book's example code repository.</p></div></div><p>At the first step, we <a id="id356" class="indexterm"/>check for any <code class="literal">POST</code> requests and, in case, we serve them. In the first case, we update the moisture coefficient, while in the second case we call the <code class="literal">do_post()</code> function that is explained next to post the plant's image on Facebook.</p><p>Then, we have to read (and eventually update) the system's status file by using the <code class="literal">flock()</code> system call. In PHP, the file lock is managed by the <code class="literal">flock()</code> function, as follows, in order to acquire and release the lock on a file:</p><div class="informalexample"><pre class="programlisting">function file_lock($name)
+{
+   $f = fopen($name, 'w');
+   if ($f === false)
+      return false;
+
+   $ret = flock($f, LOCK_EX);
+   if ($ret === false)
+      return false;
+
+   return $f;
+}
+
+function file_unlock($f)
+{
+   flock($f, LOCK_UN);
+   fclose($f);
+}</pre></div><p>As the last action, we <a id="id357" class="indexterm"/>return the plant's data to the browser in the JSON format suitable for the calling JavaScript.</p><p>Okay, now we're at the last thing to show, which is the <code class="literal">do_post()</code> function:</p><div class="informalexample"><pre class="programlisting">function do_post()
+{
+   # Define the Facebook session
+   $fb = new Facebook\Facebook([
+      'app_id'                =&gt; APP_ID,
+      'app_secret'            =&gt; APP_SECRET,
+      'default_graph_version' =&gt; 'v2.4',
+      'default_access_token'  =&gt; DEF_TOKEN,
+      'fileUpload'            =&gt; true,
+      'cookie'                =&gt; true,
+   ]);
+
+   # Publish to user's timeline
+   $ret = $fb-&gt;post('/me/photos', array(
+      'message'    =&gt; 'My lovely plant!',
+      'source'     =&gt; $fb-&gt;videoToUpload(realpath('webcam-shot.jpg')),
+   ));
+}</pre></div><p>This function simply performs the same steps as the <code class="literal">post_pic.php</code> script shown previously in order to post the plant's picture on the user's Facebook timeline.</p></div></div>
+<div class="section" title="Final test"><div class="titlepage"><div><div><h1 class="title"><a id="ch07lvl1sec43"/>Final test</h1></div></div></div><p>To test the <a id="id358" class="indexterm"/>prototype, I first executed the <code class="literal">chapter_07/SYSINIT.sh</code> file in the book's example code repository to set up all peripherals:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@beaglebone:~# ./SYSINIT.sh</strong></span>
+<span class="strong"><strong>done!</strong></span>
+</pre></div><p>Now, after checking that the web server is running, I started the <code class="literal">plant_mon.sh</code> plant monitor script, enabling all debugging messages:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@beaglebone:~# root@beaglebone:~/chapter_07# ./plant_mon.sh -d -l -f</strong></span>
+<span class="strong"><strong>plant_mon.sh: min=10</strong></span>
+<span class="strong"><strong>plant_mon.sh: signals traps installed</strong></span>
+<span class="strong"><strong>plant_mon.sh: lig_levl=442 int_temp=29.50 ext_temp=29.91 msr_mois=0</strong></span>
+<span class="strong"><strong>plant_mon.sh: curr_date=0010 next_date=</strong></span>
+<span class="strong"><strong>plant_mon.sh: start main loop</strong></span>
+<span class="strong"><strong>plant_mon.sh: lig_levl=428 int_temp=29.50 ext_temp=29.25 msr_mois=0</strong></span>
+<span class="strong"><strong>plant_mon.sh: curr_date=0010 next_date=0011</strong></span>
+<span class="strong"><strong>plant_mon.sh: cff_mois=50</strong></span>
+<span class="strong"><strong>plant_mon.sh: est_mois=221</strong></span>
+<span class="strong"><strong>plant_mon.sh: lig_levl=423 int_temp=29.50 ext_temp=27.99 msr_mois=0</strong></span>
+<span class="strong"><strong>plant_mon.sh: curr_date=0010 next_date=0011</strong></span>
+<span class="strong"><strong>plant_mon.sh: cff_mois=50</strong></span>
+<span class="strong"><strong>plant_mon.sh: est_mois=220</strong></span>
+<span class="strong"><strong>...</strong></span>
+</pre></div><p>Then, I set up the <a id="id359" class="indexterm"/>web server's root directory in order to implement the web interface. On my BeagleBone Black, the web server's root directory is <code class="literal">/var/www/</code>, but it may vary according to your system settings.</p><div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="note81"/>Note</h3><p>The reader can take a look at the book <span class="emphasis"><em>BeagleBone Essentials</em></span>, <span class="emphasis"><em>Packt Publishing</em></span>, written by the author of this book, in order to get more information regarding how to set up a web server on the BeagleBone Black.</p></div></div><p>If you have the same configuration as mine, and the <code class="literal">plant_mon.sh</code> script is running, then your <code class="literal">/var/www/</code> directory should look like the following:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@beaglebone:~# ls /var/www/</strong></span>
+<span class="strong"><strong>plant.lock  plant.status  webcam-shot.jpg</strong></span>
+</pre></div><p>These files are created by the monitoring script, and they're, respectively, the lock file, the system's status file, and the last picture taken. Along with these files you also need the Facebook API (so we have to unzip its source code here, as shown previously) and the configuration files <code class="literal">config.php</code> and <code class="literal">setup.php</code>.</p><p>Then, we have to add the <code class="literal">plant.html</code>, <code class="literal">plant.css</code>, and <code class="literal">handler.php</code> files for the the web interface with the <code class="literal">jquery-1.9.1.js</code> file that can be downloaded from <a class="ulink" href="https://code.jquery.com/jquery/">https://code.jquery.com/jquery/</a> by using the browser on the host PC or directly on your BeagleBone Black with the following command line:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@beaglebone:# wget --no-check-certificate https://code.jquery.com/jquery-1.9.1.js</strong></span>
+</pre></div><p>Then, we must <a id="id360" class="indexterm"/>make sure that all files are owned by the system user <code class="literal">www-user</code> in order to allow the web server to read/write them without problems. To do so, we can use the following command:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@beaglebone:# cd /var/www &amp;&amp; chown -R www-data:www-data *</strong></span>
+</pre></div><p>If everything works well, your web server's root directory should look like the following:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@beaglebone:/var/www# ls -l</strong></span>
+<span class="strong"><strong>total 308</strong></span>
+<span class="strong"><strong>-rw-r--r-- 1 www-data www-data    344 Aug 19  2015 config.php</strong></span>
+<span class="strong"><strong>drwxr-xr-x 5 www-data www-data   4096 Aug 18  2015 facebook-php-sdk-v4-5.0-dev</strong></span>
+<span class="strong"><strong>-rw-r--r-- 1 www-data www-data   1846 Aug 26  2015 handler.php</strong></span>
+<span class="strong"><strong>-rw-r--r-- 1 www-data www-data 268381 Oct 24  2014 jquery-1.9.1.js</strong></span>
+<span class="strong"><strong>-rw-r--r-- 1 www-data www-data   2968 Aug 26  2015 plant.html</strong></span>
+<span class="strong"><strong>-rw-rw-rw- 1 www-data www-data      0 Apr 26 01:17 plant.lock</strong></span>
+<span class="strong"><strong>-rw-rw-rw- 1 www-data www-data     95 Apr 26 01:17 plant.status</strong></span>
+<span class="strong"><strong>-rw-r--r-- 1 www-data www-data    183 Aug 24  2015 setup.php</strong></span>
+<span class="strong"><strong>-rw-r--r-- 1 www-data www-data  17583 Apr 26 01:17 webcam-shot.jpg</strong></span>
+</pre></div><p>Now, everything should be in place, so, on my host PC, I pointed my browser to the BeagleBone Black's IP address on the emulated Ethernet line via a USB cable to display the web interface. A screenshot of my test is as follows:</p><div class="mediaobject"><img src="graphics/B00255_07_16.jpg" alt="Final test"/></div><p>Notice that a similar <a id="id361" class="indexterm"/>result can be obtained by using a smartphone or tablet. In fact, if I connect my BeagleBone Black to my LAN and then point my smartphone's browser to the BeagleBone Black IP address, I get what is shown in the following screenshot:</p><div class="mediaobject"><img src="graphics/B00255_07_17.jpg" alt="Final test"/></div><div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="tip99"/>Tip</h3><p>Remember that the IP address of the USB emulated Ethernet is usually <code class="literal">192.168.7.2</code>, while the IP address that the BeagleBone Black gets when it is connected to your LAN may vary according to your LAN settings. It can be retrieved by using the <code class="literal">ifconfig eth0</code> command on a BeagleBone Black's terminal.</p></div></div></div>
+<div class="section" title="Summary"><div class="titlepage"><div><div><h1 class="title"><a id="ch07lvl1sec44"/>Summary</h1></div></div></div><p>This time, we used several sensors to get important data about our lovely plant. Then, we also discovered a simple way to exchange this data between processes by using a normal file. We learned how to use the Facebook PHP API to do a post on a user's timeline by using a simple script.</p><p>In the next chapter, we'll try to implement an intrusion alarm system with motion detection sensors that, in case of alarm, will start taking pictures of the intruders and then send them to the user's e-mail address.</p></div></body></html>

@@ -1,0 +1,419 @@
+<html><head></head><body>
+        <section>
+
+                            <header>
+                    </header><h1 class="header-title" id="calibre_pb_0">Subshells, Signals, and Job Controls</h1>
+                
+            
+            <article>
+                
+<p class="calibre1">Whatever we have seen so far was pretty straightforward. We launched a script that executed some commands, instances, variables, and made something out of it, that is all--one command after the other, one instruction piled on the previous one. This is what we would call a serial execution, one command after the other just like domino tiles: the first coming in and the first being processed; and this brings to mind the concept of the FIFO queue, <strong class="calibre2">First In First Out</strong>.</p>
+<p class="calibre1"><span><span>What if we wanted to process more than one instruction at a time? Well, we cannot do this and it would not be incorrect: a CPU is a serial device and it can process only one instruction at a time. What we use to give us the <em class="calibre20">taste</em> of multitasking is having the CPU switching between an instruction and the other really fast. So, instead of completely processing an instruction before passing on to the other, the CPU will work a bit on the first one, pass it to work a bit on the second, and then again back to the first for a while. It is this back and forth idea that gives us the illusion that our CPU is working on more than one thing at the same time. And then, we have systems with multiprocessors, and we can take advantage of this kind of architecture so that we can distribute processes on different CPU, so they can really be elaborated in parallel.</span></span></p>
+<p class="calibre1"><span><span>Whatever we decide to do, everything starts from an invocation, a leap of faith into a new instance of the main shell so that a new child shell is given birth, and it will be devoted to our tasks. So, first, what is a subshell?</span></span></p>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    </header><h1 class="header-title" id="calibre_pb_0">What is a subshell?</h1>
+                
+            
+            <article>
+                
+<p class="calibre1"><span><span>Let's start with a more basic question. What is a shell? To make it simple, a shell is an interface between the user and the underlying operating system. It can be a command-line interpreter or a graphic interface, but the purpose of a shell is to be an intermediary between the user and the core of the system, allowing the former to access the services offered by the latter. So, for instance, a bash shell gives us a command-line interface access through a Terminal and a series of commands that allows us to communicate with the operating system and make use of its services to perform tasks.</span></span></p>
+<p class="calibre1"><span><span>In a shell, each command is usually executed after the former has concluded its task, but we can change to some extent this behavior leveraging some key concepts: background process, signals, and subshells.</span></span></p>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    </header><h1 class="header-title" id="calibre_pb_0">Background processes</h1>
+                
+            
+            <article>
+                
+<p class="calibre1"><span><span>Let's start with an intuitive definition of a background process, and define it as a process with no interaction with the terminal it is launched from. This practically means that a background process has no interaction with the user and that's it. Technically, we can say that a background process is the one whose process ID group differs from the one of the terminal it has been launched from. We can define a process group as a bunch of processes sharing the same process group ID, which is an identifier allowing the system to manage all the processes as a whole. A process group ID is determined by the process ID of the first process of the group, also called process group leader; each subsequent process in the group will be the process group ID drawn from the process ID of the leader; and each child process is placed in the process group ID of its parent. Similarly, a session is a collection of process groups; and the first process in the session is also the session leader, which is the only process allowed to control a terminal, if any is available. Thus, the process that prepares the login session for the user is also the session leader for all the processes spawned during the "user session", and all the processes will be in a process group under the session. When a user session is closed, the kernel sends a <strong class="calibre2">Signal Hang Up</strong> (<strong class="calibre2">SIGHUP</strong>) signal to the leader of the session holding the terminal foreground process group. This is because when the user closes its interactive session, the connection to the terminal is closed and the foreground processes have no longer a terminal to access to, so they must be killed. That being said, a background process will be barred from reading or writing from the terminal with a<strong class="calibre2"> SIGnal due to TeleType INput</strong> (<strong class="calibre2">SIGTTIN</strong>) in case it attempts to read from it and <strong class="calibre2">SIGnal due to TTY OUtput</strong> (<strong class="calibre2">SIGTTOU</strong>) in case it attempts to write to it.</span></span></p>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    </header><h1 class="header-title" id="calibre_pb_0">Signals</h1>
+                
+            
+            <article>
+                
+<p class="calibre1"><span><span>In the early days of computing, signals were a means to deal with unusual events, and usually, their job was to reset a condition to a default state. Nowadays, with facilities such as job control, signals are used to actually instruct processes on what to do and are now more an interprocess facilities than a reset mechanism, as they were originally conceived. Each signal is associated to an action that must be performed by the process receiving it, so here is a brief list with some of the more interesting signals that the kernel can send to a process:</span></span></p>
+<ul class="calibre12">
+<li class="calibre13"><kbd class="calibre9">SIGCHLD</kbd>: This signal is sent to a parent process when a child terminates or stops.</li>
+<li class="calibre13"><span><span><kbd class="calibre9">SIGCONT</kbd>: This tells the process that has been put on hold by <kbd class="calibre9">SIGSTOP</kbd> or <kbd class="calibre9">SGSTP</kbd> to resume its execution. These three signals are used in job controlling.</span></span></li>
+<li class="calibre13"><span><span><kbd class="calibre9">SIGHUP</kbd>: This signal is sent to a process when its terminal is closed and kills it. It owes its name to the old good times when connections were held over serial line, which hang up due to a line drop. If sent to a daemon, it usually forces them to reload the configuration file and reopen the log file.</span></span></li>
+<li class="calibre13"><span><span><kbd class="calibre9">SIGINT</kbd>: This is the signal given to the process when a user presses <em class="calibre20">Ctrl</em> + <em class="calibre20">C,</em> and it interrupts the process, terminating it. This signal can be ignored by the process.</span></span></li>
+<li class="calibre13"><span><span><kbd class="calibre9">SIGKILL</kbd>: This terminates a process immediately. This cannot be ignored, and the process has to die immediately without closing or saving anything. (kill -9)</span></span></li>
+<li class="calibre13"><span><span><kbd class="calibre9">SIGQUIT</kbd>: When the process receives this signal, it quits performing a core dump. A core dump is a dump, a copy, of the memory used by the process, so we can find in it a lot of useful information such as a processor, registers, flags, data, which are  useful to debug the working state of the process itself.</span></span></li>
+<li class="calibre13"><span><span><kbd class="calibre9">SIGSTOP</kbd>: This signal is sent to stop a process. It cannot be ignored.</span></span></li>
+<li class="calibre13"><span><span><span><span><kbd class="calibre9">SIGTERM</kbd>: It is a termination request. This is the preferable way to kill a process since it allows the process to shut down nicely, releasing the resources and saving state and also killing all the child processes in an orderly way. It can be ignored by the process (kill -15).</span></span></span></span></li>
+<li class="calibre13"><span><span><span><span><kbd class="calibre9">SIGTRAP</kbd>: This is a signal sent to a process when an exception or a trap arises. We already had a glimpse of traps, and we will see more about them now.</span></span></span></span></li>
+<li class="calibre13"><span><span><span><span><kbd class="calibre9">SIGTSTP</kbd>: This is an interactive stop, and it can be sent by the user pressing <em class="calibre20">Ctrl</em>+<em class="calibre20">Z</em>. It can be ignored by the process. The process pauses in its current state.</span></span></span></span></li>
+<li class="calibre13"><span><span><span><span><kbd class="calibre9">SIGTTIN</kbd>: This signal is sent to a background process when it tries to read from the terminal.</span></span></span></span></li>
+<li class="calibre13"><span><span><span><span><kbd class="calibre9">SIGTTOU</kbd>: This signal is sent to a background process when it tries to write to the terminal.</span></span></span></span></li>
+<li class="calibre13"><span><span><span><span><kbd class="calibre9">SIGSEV</kbd>: This is sent to a process when it goes on segmentation fault, and this happens when a process attempts to access a memory location; it is not allowed to access or in a way it is not permitted.</span></span></span></span></li>
+</ul>
+<p class="calibre1"><span><span><span><span>So, we have signals, and we have process groups and sessions and this leads us to Unix job control. What is it? In Unix, we can control what we call jobs, and we are already familiar with those since this is another term to refer to process groups. A job is not a process, it is a group of processes. But what does control mean? Simply, we can suspend, resume, or terminate a job and send signals to it.</span></span></span></span></p>
+<p class="calibre1"><span><span><span><span>When a shell session is started on a terminal, its process group is granted access to it, and it becomes the foreground process group for that terminal. This means that the processes belonging to the foreground group can read and write from the terminal, while the processes belonging to other process groups are barred from accessing the terminal and stopped if they try to. So, from the shell, you can interact with the terminal and perform different actions, for example, retrieve a list of processes and their job ID:</span></span></span></span></p>
+<pre class="codepackt">
+<strong class="calibre2">zarrelli:~$ ps -fj | awk '{print $2 " -&gt; " $4 " -&gt; " $10 }'<br class="title-page-name"/>PID -&gt; PGID -&gt; CMD<br class="title-page-name"/>1422 -&gt; 1422 -&gt; /bin/bash<br class="title-page-name"/>7886 -&gt; 7886 -&gt; ps<br class="title-page-name"/>7887 -&gt; 7886 -&gt; awk</strong>
+</pre>
+<p class="calibre1"><span><span><span><span>As we can see, the <kbd class="calibre9">ps</kbd> and <kbd class="calibre9">awk</kbd> processes have the same process group ID, which is the process ID of the first command in the group, <kbd class="calibre9">ps</kbd>. Now, what about the job control? Let's see how to start a process in the background:</span></span></span></span></p>
+<pre class="codepackt">
+<strong class="calibre2">zarrelli:~$ sleep 10 &amp;<br class="title-page-name"/>[1] 8163</strong>
+</pre>
+<p class="calibre1"><span><span><span><span>The sleep command just waits for the amount of seconds we specify as an argument, but the ampersand is the key; it will put the process in the background. What we get in return is a job number <kbd class="calibre9">[1]</kbd> and a process ID; <kbd class="calibre9">ps</kbd> will show us more details:</span></span></span></span></p>
+<pre class="codepackt">
+<strong class="calibre2">zarrelli:~$ ps -jf<br class="title-page-name"/>UID PID PPID PGID SID C STIME TTY TIME CMD<br class="title-page-name"/>zarrelli 1422 1281 1422 1422 0 08:46 pts/0 00:00:00 <br class="title-page-name"/>/bin/bash<br class="title-page-name"/>zarrelli 8163 1422 8163 1422 0 10:25 pts/0 00:00:00 sleep <br class="title-page-name"/>10<br class="title-page-name"/>zarrelli 8166 1422 8166 1422 0 10:25 pts/0 00:00:00 ps -jf</strong>
+</pre>
+<p class="calibre1"><span><span>Now, let's have a look at this:</span></span></p>
+<pre class="codepackt">
+<strong class="calibre2">zarrelli:~$ (sleep 100 &amp;) ; sleep 20 &amp;<br class="title-page-name"/>[1] 8632<br class="title-page-name"/>zarrelli:~$:~$ ps -jf<br class="title-page-name"/>UID PID PPID PGID SID C STIME TTY TIME CMD<br class="title-page-name"/>zarrelli 1422 1281 1422 1422 0 08:46 pts/0 00:00:00 <br class="title-page-name"/>/bin/bash<br class="title-page-name"/>zarrelli 8631 1 8630 1422 0 10:39 pts/0 00:00:00 sleep <br class="title-page-name"/>100<br class="title-page-name"/>zarrelli 8632 1422 8632 1422 0 10:39 pts/0 00:00:00 sleep <br class="title-page-name"/>20<br class="title-page-name"/>zarrelli 8637 1422 8637 1422 0 10:40 pts/0 00:00:00 ps -jf</strong>
+</pre>
+<p class="calibre1"><span><span>Here, we put one sleep process in the background but used the <kbd class="calibre9">()</kbd> to execute it in the subshell, and it actually was executed in the foreground; but now, the main shell did not report any job or process ID because the child shell could not report back any information to the parent shell. The only job information we received was for the second sleep instruction performed in the parent shell, and interestingly, both the sleep processes have the same group ID.</span></span></p>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    </header><h1 class="header-title" id="calibre_pb_0">Job controls</h1>
+                
+            
+            <article>
+                
+<p class="calibre1"><span><span>So, we have the  job ID, process ID, foreground, and background processes, but how do we control these jobs? We have a bunch of commands available, let's have a look at how to use them:</span></span></p>
+<ul class="calibre12">
+<li class="calibre13"><span><span><strong class="calibre2"><kbd class="calibre9">kill</kbd>:</strong> We can pass the job ID to this command, which will send the <kbd class="calibre9">SIGTERM</kbd> signal to all the processes belonging to the job itself:</span></span></li>
+</ul>
+<pre class="calibre21">
+<strong class="calibre2">zarrelli:~$ sleep 100 &amp;<br class="title-page-name"/>[1] 9909<br class="title-page-name"/>zarrelli:~$ kill %1<br class="title-page-name"/>zarrelli:~$ <br class="title-page-name"/>[1]+ Terminated sleep 100</strong>
+</pre>
+<p class="calibre27">You can also pass to kill a specific signal to send to the process. For instance, <kbd class="calibre9">kill -15</kbd><span> wi</span><span>ll nicely terminate a process with a <kbd class="calibre9">SIGTERM</kbd> signal, and if it refuses to die, </span><span><span><kbd class="calibre9">kill -9</kbd>  </span></span><span><span>will send a <kbd class="calibre9">SIGKILL</kbd>, which will instantly terminate a process.<br class="title-page-name"/>
+Which signals can we send to a process? Either </span></span><kbd class="calibre9"><span><span>kill -l</span></span></kbd><span><span> or</span></span> <span><span> <kbd class="calibre9">cat /usr/include/asm-generic/signal.h</kbd></span></span><span><span> will give us a list of all the signals supported.</span></span></p>
+<ul class="calibre12">
+<li class="calibre13"><span><span><strong class="calibre2"><kbd class="calibre9">killall</kbd>:</strong><span> If we know what is the name of the process, the easiest way to kill it is through the <kbd class="calibre9">killall</kbd> command followed by the name of the process:</span></span></span></li>
+</ul>
+<pre class="calibre21">
+<strong class="calibre2">zarrelli:~$ sleep 100 &amp; <br class="title-page-name"/>[1] 10595<br class="title-page-name"/>zarrelli:~$ killall sleep<br class="title-page-name"/>[1]+ Terminated sleep 10</strong>
+</pre>
+<p class="calibre27"><span><span><span>But <kbd class="calibre9">killall</kbd> has another interesting to use. Let's run the sleep command for four times, each time with a different argument:</span></span></span></p>
+<pre class="calibre21">
+<strong class="calibre2">zarrelli:~$ sleep 100 &amp;<br class="title-page-name"/>[1] 10672<br class="title-page-name"/>zarrelli:~$ sleep 200 &amp;<br class="title-page-name"/>[2] 10689<br class="title-page-name"/>zarrelli:~$ sleep 300 &amp;<br class="title-page-name"/>[3] 10690<br class="title-page-name"/>zarrelli:~$ sleep 400 &amp;<br class="title-page-name"/>[4] 10693</strong>
+</pre>
+<p class="calibre27"><span><span>Now, let's check the list of processes:</span></span></p>
+<pre class="calibre21">
+<strong class="calibre2">zarrelli:~$ ps -jf<br class="title-page-name"/>UID PID PPID PGID SID C STIME TTY TIME CMD<br class="title-page-name"/>zarrelli 1422 1281 1422 1422 0 08:46 pts/0 00:00:00 <br class="title-page-name"/>/bin/bash<br class="title-page-name"/>zarrelli 10672 1422 10672 1422 0 11:16 pts/0 00:00:00 sleep <br class="title-page-name"/>100<br class="title-page-name"/>zarrelli 10689 1422 10689 1422 0 11:16 pts/0 00:00:00 sleep <br class="title-page-name"/>200<br class="title-page-name"/>zarrelli 10690 1422 10690 1422 0 11:16 pts/0 00:00:00 sleep <br class="title-page-name"/>300<br class="title-page-name"/>zarrelli 10693 1422 10693 1422 0 11:16 pts/0 00:00:00 sleep <br class="title-page-name"/>400<br class="title-page-name"/>zarrelli 10699 1422 10699 1422 0 11:16 pts/0 00:00:00 ps -jf</strong>
+</pre>
+<p class="calibre27"><span><span>We can see the four processes: same name and different argument. Now, let's use</span></span> <kbd class="calibre9">killall</kbd> <span><span>giving the process name, sleep, as its argument:</span></span></p>
+<pre class="calibre21">
+<strong class="calibre2">zarrelli:~$ killall sleep<br class="title-page-name"/>[1] Terminated sleep 100<br class="title-page-name"/>[2] Terminated sleep 200<br class="title-page-name"/>[4]+ Terminated sleep 400<br class="title-page-name"/>[3]+ Terminated sleep 300</strong>
+</pre>
+<p class="calibre27"><span><span>All the processes have been killed at once. Quite handy, isn't it? Let's make the last check:</span></span></p>
+<pre class="calibre21">
+<strong class="calibre2">zarrelli:~$ ps -jf<br class="title-page-name"/>UID PID PPID PGID SID C STIME TTY TIME CMD<br class="title-page-name"/>zarrelli 1422 1281 1422 1422 0 08:46 pts/0 00:00:00 <br class="title-page-name"/>/bin/bash<br class="title-page-name"/>zarrelli 10709 1422 10709 1422 0 11:16 pts/0 00:00:00 ps -jf</strong>
+</pre>
+<p class="calibre27"><span><span>No more instances of sleep running now; we killed everything with one single run of <kbd class="calibre9">killall</kbd>.</span></span></p>
+<ul class="calibre12">
+<li class="calibre13"><span><span><strong class="calibre2"><kbd class="calibre9">jobs</kbd>:</strong> This shows the processes running in the background along with their job ID:</span></span></li>
+</ul>
+<pre class="calibre21">
+<strong class="calibre2">zarrelli:~$ sleep 100 &amp;<br class="title-page-name"/>[1] 8892<br class="title-page-name"/>zarrelli:~$ sleep 200 &amp;<br class="title-page-name"/>[2] 8893<br class="title-page-name"/>zarrelli:~$ jobs<br class="title-page-name"/>[1]-  Running sleep                 100 &amp;<br class="title-page-name"/>[2]+  Running sleep                 200 &amp;</strong>
+</pre>
+<ul class="calibre12">
+<li class="calibre13"><span><span><strong class="calibre2"><kbd class="calibre9">fg</kbd>:</strong> This sends a background running job to the foreground. It accepts the job ID as an argument. If no job ID is provided, the current job is affected:</span></span></li>
+</ul>
+<pre class="calibre21">
+<strong class="calibre2">zarrelli@moveaway:~$ sleep 100 &amp;<br class="title-page-name"/>[1] 9045<br class="title-page-name"/>zarrelli@moveaway:~$ fg %1<br class="title-page-name"/>sleep 100</strong>
+</pre>
+<ul class="calibre12">
+<li class="calibre13"><span><span><strong class="calibre2"><kbd class="calibre9">bg</kbd>:</strong> This sends a foreground job to the background. If no job ID is provided, the current job is affected.</span></span></li>
+<li class="calibre13"><span><span><strong class="calibre2"><kbd class="calibre9">suspend</kbd>:</strong> This suspends the shell until a <kbd class="calibre9">SIGCONT</kbd> signal is received.</span></span></li>
+<li class="calibre13"><span><span><strong class="calibre2"><kbd class="calibre9">logout</kbd>:</strong> This logs out from the login shell.</span></span></li>
+<li class="calibre13"><span><span><strong class="calibre2"><kbd class="calibre9">disown</kbd>:</strong> This removes a job from the shell table of active jobs.</span></span></li>
+<li class="calibre13"><span><span><strong class="calibre2"><kbd class="calibre9">wait</kbd>:</strong> This interesting command stops the execution of a script until all the background jobs have terminated or, if passed as an argument, until a job ID or a PID terminates, and returns the exit status of the process it was waiting for.</span></span></li>
+</ul>
+<table class="table">
+<tbody class="calibre6">
+<tr class="calibre7">
+<td class="calibre8">
+<p class="calibre1"><strong class="calibre2">Job ID</strong></p>
+</td>
+<td class="calibre8">
+<p class="calibre1"><strong class="calibre2">Meaning</strong></p>
+</td>
+<td class="calibre8">
+<p class="calibre1"><strong class="calibre2">Example</strong></p>
+</td>
+</tr>
+<tr class="calibre7">
+<td class="calibre8">
+<p class="calibre1"><kbd class="calibre9">%n</kbd></p>
+</td>
+<td class="calibre8">
+<p class="calibre1">Job number</p>
+</td>
+<td class="calibre8">
+<p class="calibre1">Kill %1</p>
+</td>
+</tr>
+<tr class="calibre7">
+<td class="calibre8">
+<p class="calibre1"><kbd class="calibre9">%s</kbd></p>
+</td>
+<td class="calibre8">
+<p class="calibre1">String the command executed starts with</p>
+</td>
+<td class="calibre8">
+<p class="calibre1">sleep 200 &amp;</p>
+<p class="calibre1">[1] 9486</p>
+<p class="calibre1">kill %sl</p>
+<p class="calibre1">[1]+ Terminated sleep 200</p>
+</td>
+</tr>
+<tr class="calibre7">
+<td class="calibre8">
+<p class="calibre1"><kbd class="calibre9">%?s</kbd></p>
+</td>
+<td class="calibre8">
+<p class="calibre1">String the command executed contains</p>
+</td>
+<td class="calibre8">
+<p class="calibre1">sleep 200 &amp;</p>
+<p class="calibre1">[1] 9504</p>
+<p class="calibre1">kill %?ee</p>
+<p class="calibre1">[1]+ Terminated sleep 200</p>
+</td>
+</tr>
+<tr class="calibre7">
+<td class="calibre8">
+<p class="calibre1"><kbd class="calibre9">%%</kbd></p>
+</td>
+<td class="calibre8">
+<p class="calibre1">Last job that has been either stopped in the foreground or started in the background</p>
+</td>
+<td class="calibre8">
+<p class="calibre1">sleep 200 &amp;</p>
+<p class="calibre1">[1] 9536</p>
+<p class="calibre1">kill %%</p>
+<p class="calibre1">[1]+ Terminated sleep 200</p>
+</td>
+</tr>
+<tr class="calibre7">
+<td class="calibre8">
+<p class="calibre1"><kbd class="calibre9">%+</kbd></p>
+</td>
+<td class="calibre8">
+<p class="calibre1">Last job that has been either stopped in foreground or started in the background</p>
+</td>
+<td class="calibre8">
+<p class="calibre1">sleep 200 &amp;</p>
+<p class="calibre1">[1] 9618</p>
+<p class="calibre1">fg %+</p>
+<p class="calibre1">sleep 200</p>
+</td>
+</tr>
+<tr class="calibre7">
+<td class="calibre8">
+<p class="calibre1"><kbd class="calibre9">%-</kbd></p>
+</td>
+<td class="calibre8">
+<p class="calibre1">Last job</p>
+</td>
+<td class="calibre8">
+<p class="calibre1">sleep 200 &amp;</p>
+<p class="calibre1">[1] 9626</p>
+<p class="calibre1">kill %-</p>
+<p class="calibre1">[1]+ Terminated sleep 200</p>
+</td>
+</tr>
+<tr class="calibre7">
+<td class="calibre8">
+<p class="calibre1"><kbd class="calibre9">$!</kbd></p>
+</td>
+<td class="calibre8">
+<p class="calibre1">Last process in the background</p>
+</td>
+<td class="calibre8">
+<p class="calibre1">sleep 200 &amp;</p>
+<p class="calibre1">[1] 9646</p>
+<p class="calibre1">sleep 300 &amp;</p>
+<p class="calibre1">[2] 9647</p>
+<p class="calibre1">sleep 400 &amp;</p>
+<p class="calibre1">[3] 9648</p>
+<p class="calibre1">kill $!</p>
+<p class="calibre1">[3]+ Terminated sleep 400</p>
+</td>
+</tr>
+</tbody>
+</table>
+<p class="calibre1"> </p>
+<ul class="calibre12">
+<li class="calibre13"><span><span><strong class="calibre2"><kbd class="calibre9">times</kbd>:</strong> We saw this command at the opening of this book. It gives us statistics on time elapsed during the execution of a command.</span></span></li>
+<li class="calibre13"><span><span><strong class="calibre2"><kbd class="calibre9">builtin</kbd>:</strong> This execute a builtin command disabling functions and non-builtin commands, which have the same name as the builtin.</span></span></li>
+<li class="calibre13"><span><span><strong class="calibre2"><kbd class="calibre9">command</kbd>:</strong> This disables all the aliases and functions for the specified command:</span></span></li>
+</ul>
+<pre class="calibre21">
+<strong class="calibre2">zarrelli@moveaway:~$ ls<br class="title-page-name"/>Desktop Documents Downloads First session Music Pictures <br class="title-page-name"/>progetti Projects Public Templates tmp Videos<br class="title-page-name"/>[1]- Done sleep 200<br class="title-page-name"/>[2]+ Done sleep 300<br class="title-page-name"/>zarrelli:~$ ls<br class="title-page-name"/>Desktop Documents Downloads First session Music Pictures <br class="title-page-name"/>progetti Projects Public Templates tmp Videos<br class="title-page-name"/>zarrelli:~$ alias ls="ps -jf"<br class="title-page-name"/>zarrelli:~$ ls<br class="title-page-name"/>UID PID PPID PGID SID C STIME TTY TIME CMD<br class="title-page-name"/>zarrelli 1373 1267 1373 1373 0 07:36 pts/0 00:00:00 <br class="title-page-name"/>/bin/bash<br class="title-page-name"/>zarrelli 10738 1373 10738 1373 0 10:17 pts/0 00:00:00 ps -jf<br class="title-page-name"/>zarrelli:~$ command ls<br class="title-page-name"/>Desktop Documents Downloads First session Music Pictures <br class="title-page-name"/>progetti Projects Public Templates tmp Videos<br class="title-page-name"/>zarrelli@moveaway:~$ ls<br class="title-page-name"/>UID PID PPID PGID SID C STIME TTY TIME CMD<br class="title-page-name"/>zarrelli 1373 1267 1373 1373 0 07:36 pts/0 00:00:00 /bin/bash<br class="title-page-name"/>zarrelli 10742 1373 10742 1373 0 10:17 pts/0 00:00:00 ps -jf</strong>
+</pre>
+<ul class="calibre12">
+<li class="calibre13"><span><span><strong class="calibre2"><kbd class="calibre9">enable</kbd>:</strong> This enables or disables the <kbd class="calibre9">-n</kbd> builtin command, so if we have a builtin and an external command, then when invoked, the builtin will be ignored and the external command will be executed. Specifying the -a option will show a list of all the builtins along with their status, while the <kbd class="calibre9">-f</kbd> switch will load a builtin as a shared library module from a compiled object file.</span></span></li>
+<li class="calibre13"><span><span><strong class="calibre2"><kbd class="calibre9">Autoload</kbd>:</strong> This is not enabled by default in Bash and it must be loaded through enabling <kbd class="calibre9">-f</kbd>. It marks a name as a function name and not a builtin or an external command reference. The named function must reside in an external file and it will be loaded from there.</span></span></li>
+</ul>
+<p class="calibre27"><span><span>So, we had a look at the foreground and background processes and at the job controlling commands; now, we can see how to work with subshells and what benefit they can bestow on our scripts.</span></span></p>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    </header><h1 class="header-title" id="calibre_pb_0">Subshells and parallel processing</h1>
+                
+            
+            <article>
+                
+<p class="calibre1"><span><span>We already talked a bit about subshells in the opening chapters of this book; they can be defined as child processes of their main shell. So, a subshell is a command interpreter inside a command interpreter. When does this happen? Well, usually when we run a script, this spawns its own shell and from there executes all the commands listed; but notice this nice detail: an external command, unless invoked using <kbd class="calibre9">exec</kbd>, spawns a subprocess, but a builtin doesn't. And this is the reason why the bultins execution time is faster than the execution time for the corresponding external command, as we saw in the previous pages of this book.</span></span></p>
+<p class="calibre1"><span><span>Well, what can be useful for a subshell? Let's see a small example that will make everything easier:</span></span></p>
+<pre class="codepackt">
+#!/bin/bash<br class="title-page-name"/>echo "This is the main subshell"<br class="title-page-name"/>(echo "And this is the second" ; for i in {1..10} ; do echo $i ; <br class="title-page-name"/>done)
+</pre>
+<p class="calibre1"><span><span>Nothing special. We echo in the first subshell spawned by the script, and then open a subshell from inside the subshell and echo the $i variable using a range between <kbd class="calibre9">1</kbd> and <kbd class="calibre9">10</kbd>:</span></span></p>
+<pre class="codepackt">
+<strong class="calibre2">zarrelli:~$ ./subshell.sh</strong> <br class="title-page-name"/><strong class="calibre2">This is the main subshell</strong><br class="title-page-name"/><strong class="calibre2">And this is the second</strong><br class="title-page-name"/><strong class="calibre2">1</strong><br class="title-page-name"/><strong class="calibre2">2</strong><br class="title-page-name"/><strong class="calibre2">3</strong><br class="title-page-name"/><strong class="calibre2">4</strong><br class="title-page-name"/><strong class="calibre2">5</strong><br class="title-page-name"/><strong class="calibre2">6</strong><br class="title-page-name"/><strong class="calibre2">7</strong><br class="title-page-name"/><strong class="calibre2">8</strong><br class="title-page-name"/><strong class="calibre2">9</strong><br class="title-page-name"/><strong class="calibre2">10</strong>
+</pre>
+<p class="calibre1"><span><span>As I just said, there is nothing really special in this script other than the way we called a subshell using </span></span><kbd class="calibre9">(command_1; command_2; command_n)</kbd>.</p>
+<p class="calibre1"><span><span>Whatever is inside the parentheses is executed in a new subshell isolated from the parent shell since; whatever happens inside the subshell is local to this environment:</span></span></p>
+<pre class="codepackt">
+#!/bin/bash<br class="title-page-name"/>a=10<br class="title-page-name"/>echo "The value of a in the main subshell is $a"<br class="title-page-name"/>(echo "The value of a in the child subshell is $a"; echo "...but <br class="title-page-name"/>now it changes"...; a=20; echo "and now a is $a")<br class="title-page-name"/>echo "But coming back to the main subshell, the value of a has not <br class="title-page-name"/>been altered here since the subshell variables are local, a: $a"
+</pre>
+<p class="calibre1">Now, let's run this piece of code:</p>
+<pre class="codepackt">
+<strong class="calibre2">zarrelli:~$ ./local.sh <br class="title-page-name"/>The value of a in the main subshell is 10<br class="title-page-name"/>The value of a in the child subshell is 10<br class="title-page-name"/>...but now it changes...<br class="title-page-name"/>and now a is 20<br class="title-page-name"/>But coming back to the main subshell, the value of a has not been altered here since the subshell variables are local, a: 10</strong>
+</pre>
+<p class="calibre1"><span><span>As we can see from the example, this is a one-way inheritance from the parent to the child, nothing climbs up the ladder. But it is possible to spawn subshell from inside a subshell, so to have a nesting structure, this is nice; but we could lose track of where we are. It's better to have a handy variable such as <kbd class="calibre9">$BASH_SUBSHELL</kbd> available:</span></span></p>
+<pre class="codepackt">
+#!/bin/bash<br class="title-page-name"/>(<br class="title-page-name"/>echo "Bash nesting level: $BASH_SUBSHELL. Shell PID: $BASHPID"<br class="title-page-name"/>(<br class="title-page-name"/>echo "Bash nesting level: $BASH_SUBSHELL. Shell PID: $BASHPID"<br class="title-page-name"/>(<br class="title-page-name"/>echo "Bash nesting level: $BASH_SUBSHELL. Shell PID: $BASHPID"<br class="title-page-name"/>)<br class="title-page-name"/>)<br class="title-page-name"/>)
+</pre>
+<p class="calibre1"><span><span>Firstly, we wrote the code in this fancy way just to highlight the nested structure of the shells; we can use a more compact notation on a production script. Notice the two variables:</span></span></p>
+<ul class="calibre12">
+<li class="calibre13"><span><span><kbd class="calibre9">$BASH_SUBSHELL</kbd>: This internal variable is available from Bash version 3 and holds the subshell level</span></span></li>
+<li class="calibre13"><span><span><kbd class="calibre9">$BASHPID</kbd>: This holds the process ID of the shell instance</span></span></li>
+</ul>
+<p class="calibre1"><span><span>Let's run the script and have a look at the output:</span></span></p>
+<pre class="codepackt">
+<strong class="calibre2">zarrelli:~$ ./nesting.sh</strong><br class="title-page-name"/><strong class="calibre2">Bash nesting level: 1. Shell PID: 19787<br class="title-page-name"/>Bash nesting level: 2. Shell PID: 19788<br class="title-page-name"/>Bash nesting level: 3. Shell PID: 19789</strong>
+</pre>
+<p class="calibre1"><span><span>Well, we have the subshell levels nicely printed along with the PID of each shell instance, and this shows us that they are actually different processes spawned by each parent shell. We could be tempted to use the internal <kbd class="calibre9">$SHLVL</kbd> variable to keep track of the shell level, but unfortunately this is not affected by the nested shells as the following example highlights:</span></span></p>
+<pre class="codepackt">
+<strong class="calibre2">echo "Bash level: $BASH_SUBSHELL - $SHLVL" ; (echo "Bash level: $BASH_SUBSHELL - $SHLVL"; (echo "Bash level: $BASH_SUBSHELL - <br class="title-page-name"/>$SHLVL")) <br class="title-page-name"/>Bash level: 0 - 1<br class="title-page-name"/>Bash level: 1 - 1<br class="title-page-name"/>Bash level: 2 – 1</strong>
+</pre>
+<p class="calibre1"><span><span>Nice, but what happens when we exit from a nested shell? Time for another example:</span></span></p>
+<pre class="codepackt">
+#!/bin/bash<br class="title-page-name"/>echo "This is the main subshell"<br class="title-page-name"/>(<br class="title-page-name"/>echo "This is the second level subshell";<br class="title-page-name"/>for i in {1..10}; do if (( i==5 )); then exit; else echo $i; fi; <br class="title-page-name"/>done<br class="title-page-name"/>) <br class="title-page-name"/>echo "Out of the second level subshell but still kicking inside <br class="title-page-name"/>the first level!"<br class="title-page-name"/>for i in {1..3}<br class="title-page-name"/>do echo $i<br class="title-page-name"/>done
+</pre>
+<p class="calibre1"><span><span>In the lines of code we spawn an inner subshell counting from <kbd class="calibre9">1</kbd> to <kbd class="calibre9">10</kbd> and printing to the <kbd class="calibre9">stdout</kbd> until we reach <kbd class="calibre9">5</kbd>: in this case we exit the subshell and jump back to the first level. Will the script continue and print the other three numbers? Running it will reveal the answer:</span></span></p>
+<pre class="codepackt">
+<strong class="calibre2">zarrelli:~$ ./exit.sh <br class="title-page-name"/>This is the main subshell<br class="title-page-name"/>This is the second level subshell<br class="title-page-name"/>1<br class="title-page-name"/></strong><span><span><strong class="calibre2">2</strong><br class="title-page-name"/></span></span><strong class="calibre2">3<br class="title-page-name"/>4<br class="title-page-name"/>Out of the second level subshell but still kicking inside the <br class="title-page-name"/>first level!<br class="title-page-name"/></strong><span><span><strong class="calibre2">1</strong><br class="title-page-name"/></span></span><strong class="calibre2">2<br class="title-page-name"/>3</strong>
+</pre>
+<p class="calibre1"><span><span>Yes, the exit call affected the inner subshell only and the rest of the script kept running on the upper level.</span></span></p>
+<p class="calibre1"><span><span>Well, we saw some fancy stuff about subshells, but we  can use them for parallel execution, but how? Just as usual, let's start with a script:</span></span></p>
+<pre class="codepackt">
+#!/bin/bash<br class="title-page-name"/>(while true<br class="title-page-name"/>do<br class="title-page-name"/>  :<br class="title-page-name"/>done)&amp;<br class="title-page-name"/>(for i in {1..3}<br class="title-page-name"/>do<br class="title-page-name"/>  echo "$i"<br class="title-page-name"/>done)
+</pre>
+<p class="calibre1"><span><span>The first thing to notice is the <kbd class="calibre9">&amp;</kbd> character whose job is to put in background the commands or the shells it follows. In this example, the first subshell has an infinite loop, and if we do not send it in the background, it will prevent the second subshell to be spawned and its content executed. But let's see what happens when we send it in the background:</span></span></p>
+<pre class="codepackt">
+<strong class="calibre2">./parallel.sh <br class="title-page-name"/>1<br class="title-page-name"/>2<br class="title-page-name"/>3</strong>
+</pre>
+<p class="calibre1"><span><span>So, the second subshell was correctly spawned and the <kbd class="calibre9">for</kbd> loop executed, but what happened to the first infinite while loop?</span></span></p>
+<pre class="codepackt">
+<strong class="calibre2">ps -fj<br class="title-page-name"/>UID PID PPID PGID SID C STIME TTY TIME CMD<br class="title-page-name"/>zarrelli 17311 1223 17311 17311 0 09:07 pts/0 00:00:01 <br class="title-page-name"/>/bin/bash<br class="title-page-name"/>zarrelli 21843 1 21842 17311 99 10:46 pts/0 00:00:16 <br class="title-page-name"/>/bin/bash ./parallel.sh<br class="title-page-name"/>zarrelli 21863 17311 21863 17311 0 10:47 pts/0 00:00:00 ps -fj</strong>
+</pre>
+<p class="calibre1"><span><span>Well, it is still there running in memory. You can use <kbd class="calibre9">&amp;</kbd> not just for subshells but also for any other command:</span></span></p>
+<pre class="codepackt">
+<strong class="calibre2">zarrelli:~$ ls &amp;<br class="title-page-name"/>[1] 22064<br class="title-page-name"/>zarrelli:~$ exit.sh local.sh nesting.sh parallel.sh sub<br class="title-page-name"/>shell.sh<br class="title-page-name"/>[1]+ Done ls --color=auto</strong>
+</pre>
+<p class="calibre1"><span><span>Do you want the command you issued to run even after you logged off the system? Just run the following command:</span></span></p>
+<pre class="codepackt">
+<strong class="calibre2">nohup command &amp;</strong>
+</pre>
+<p class="calibre1"><span><span>It will run in a subshell in the background, and nohup will catch the <kbd class="calibre9">SIGHUP</kbd> signal that is sent to all the subshells and processes when the main shell is terminated. This way, the subshell and the related command will not be affected by the terminate signal and will continue its execution.</span></span></p>
+<p class="calibre1"><span><span>Going back to subshells, why would you want to send in the background an entire subshell and not single commands or compounds? Think of subshells as containers: tear down a problem in less complex tasks, enclose the latter in subshells, and have them to execute in the background, and you will save time having them executed in parallel.</span></span></p>
+<p class="calibre1"><span><span>We just said parallel, but actually Bash does not optimize the execution of commands and script for a multicore architecture. If we want something more core wise, we can install a nice program called <em class="calibre20">parallel</em>. We will not talk much about this program since it is not really Bash related, but it is a nice tool for the reader to explore, a tool core savy:</span></span></p>
+<pre class="codepackt">
+<strong class="calibre2">zarrelli:~$ parallel --number-of-cpus<br class="title-page-name"/>1<br class="title-page-name"/>zarrelli:~$ parallel --number-of-cores<br class="title-page-name"/>4</strong>
+</pre>
+<p class="calibre1"><span><span>The basic syntax of parallel is quite easy:</span></span></p>
+<pre class="codepackt">
+<strong class="calibre2">parallel command ::: argument_1 argument_2 argument_n</strong>
+</pre>
+<p class="calibre1"><span><span>It is similar to the following example:</span></span></p>
+<pre class="codepackt">
+<strong class="calibre2">zarrelli:~$ parallel echo ::: 1 2 3<br class="title-page-name"/>1<br class="title-page-name"/>2<br class="title-page-name"/>3</strong>
+</pre>
+<p class="calibre1"><span><span>Giving more arguments separated by <kbd class="calibre9">:::</kbd> will cause parallel to pass them to the command in all the combinations possible:</span></span></p>
+<pre class="codepackt">
+<strong class="calibre2">zarrelli:~$ parallel echo ::: 1 2 3 ::: A B C<br class="title-page-name"/>1 A<br class="title-page-name"/>1 B<br class="title-page-name"/>1 C<br class="title-page-name"/>2 A<br class="title-page-name"/>2 B<br class="title-page-name"/>2 C<br class="title-page-name"/>3 A<br class="title-page-name"/>3 B<br class="title-page-name"/>3 C</strong>
+</pre>
+<p class="calibre1"><span><span>The number of jobs executed here is equal to the number of cores available, but we can modify this value with<kbd class="calibre9">-j+n</kbd> to add the <kbd class="calibre9">n</kbd> jobs to the cores. Fire parallel with <kbd class="calibre9">-j0</kbd>, and it will try to execute as many jobs as possible:</span></span></p>
+<pre class="codepackt">
+<strong class="calibre2">zarrelli:~$ parallel --eta --joblog sleep echo {} ::: 1 2 3 4 5 <br class="title-page-name"/>10<br class="title-page-name"/>Computers / CPU cores / Max jobs to run</strong><br class="title-page-name"/><strong class="calibre2">1:local / 4 / 4Computer:jobs running/jobs completed/%of started jobs/Average seconds to complete</strong><br class="title-page-name"/><strong class="calibre2">ETA: 0s Left: 6 AVG: 0.00s local:4/0/100%/0.0s 1<br class="title-page-name"/>ETA: 0s Left: 5 AVG: 0.00s local:4/1/100%/0.0s 2<br class="title-page-name"/>ETA: 0s Left: 4 AVG: 0.00s local:4/2/100%/0.0s 3<br class="title-page-name"/>ETA: 0s Left: 3 AVG: 0.00s local:3/3/100%/0.0s 4<br class="title-page-name"/>ETA: 0s Left: 2 AVG: 0.00s local:2/4/100%/0.0s 5<br class="title-page-name"/>ETA: 0s Left: 1 AVG: 0.00s local:1/5/100%/0.0s 10<br class="title-page-name"/></strong><span><span><strong class="calibre2">ETA: 0s Left: 0 AVG: 0.00s local:0/6/100%/0.0s </strong><br class="title-page-name"/></span></span><strong class="calibre2">zarrelli:~$ parallel -j0 --eta --joblog sleep echo {} ::: 1 2 3 </strong><br class="title-page-name"/><strong class="calibre2">4 5 10</strong><br class="title-page-name"/><strong class="calibre2">Computers / CPU cores / Max jobs to run</strong><br class="title-page-name"/><strong class="calibre2">1:local / 4 / 6<br class="title-page-name"/>Computer:jobs running/jobs completed/%of started jobs/Average se</strong><br class="title-page-name"/><strong class="calibre2">conds to complete</strong><br class="title-page-name"/><strong class="calibre2">ETA: 0s Left: 6 AVG: 0.00s local:6/0/100%/0.0s 1<br class="title-page-name"/>ETA: 0s Left: 5 AVG: 0.00s local:5/1/100%/0.0s 2<br class="title-page-name"/>ETA: 0s Left: 4 AVG: 0.00s local:4/2/100%/0.0s 3<br class="title-page-name"/>ETA: 0s Left: 3 AVG: 0.00s local:3/3/100%/0.0s 4<br class="title-page-name"/>ETA: 0s Left: 2 AVG: 0.00s local:2/4/100%/0.0s 5<br class="title-page-name"/>ETA: 0s Left: 1 AVG: 0.00s local:1/5/100%/0.0s 10<br class="title-page-name"/></strong><span><span><strong class="calibre2">ETA: 0s Left: 0 AVG: 0.00s local:0/6/100%/0.0s</strong> </span></span>
+</pre>
+<p class="calibre1"><span><span>What can we do with parallel? Well, a lot of tricky stuff, but it is left to the reader to try and experiment with this nice utility; I am confident that a lot of new ideas will arise while tinkering with it.</span></span></p>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    </header><h1 class="header-title" id="calibre_pb_0">Summary</h1>
+                
+            
+            <article>
+                
+<p class="calibre1"><span><span>We had a peek into some internals of our Bash, pidfiles, sessions, jobs, and had lots of stuff to play with. We also introduced parallel and subshell. This is probably one of those chapters that requires a bit of practice. Take time to experiment and try whatever comes to our mind to get confident with the job controls and background processes. Now that we had a look at the processes and how to manage them, we will proceed to see how to make them talk to each other and exchange information. Time for IPC!</span></span></p>
+
+
+            </article>
+
+            
+        </section>
+    </body></html>

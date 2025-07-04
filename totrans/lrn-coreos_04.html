@@ -1,0 +1,291 @@
+<html><head></head><body>
+<div id="page" style="height:0pt"/><div class="book" title="Chapter&#xA0;4.&#xA0;Managing Services with User-Defined Constraints" id="SJGS1-31555e2039a14139a7f00b384a5a2dd8"><div class="book"><div class="book"><div class="book"><h1 class="title" id="calibre_pb_0"><a id="ch04" class="calibre1"/>Chapter 4. Managing Services with User-Defined Constraints</h1></div></div></div><p class="calibre9">This chapter takes the CoreOS cluster to the next level by putting constraints on the services so that they run on the required members.</p><p class="calibre9">This chapter covers the following topics:</p><div class="book"><ul class="itemizedlist"><li class="listitem">Pre-defined constraints using metadata</li><li class="listitem">Service-level affinity/anti-affinity</li><li class="listitem">Node-level affinity</li><li class="listitem">High availability </li></ul></div></div>
+
+<div class="book" title="Chapter&#xA0;4.&#xA0;Managing Services with User-Defined Constraints" id="SJGS1-31555e2039a14139a7f00b384a5a2dd8">
+<div class="book" title="Introduction to service constraints"><div class="book"><div class="book"><div class="book"><h1 class="title" id="calibre_pb_1"><a id="ch04lvl1sec24" class="calibre1"/>Introduction to service constraints</h1></div></div></div><p class="calibre9">Not all <a id="id182" class="calibre1"/>cluster members run all the services in a deployment. Some may run the services running business logic, some may run management software, and some may run logging or auditing software, and so on. Hence, it's imperative that cluster management software provides mechanisms to control service deployment so they run only on the members satisfying their properties. We will study the mechanisms provided by CoreOS to control the deployment.</p><p class="calibre9">CoreOS<a id="id183" class="calibre1"/> uses the <code class="email">fleet </code>service to schedule the services on the members with constraints. Unit file configuration options help to target a service on a particular member or members meeting configured properties. In due course, we will also learn to integrate the <code class="email">fleet</code> service into the <code class="email">cloud-config</code> file and auto start a custom service inside a <code class="email">docker</code> container.</p></div></div>
+
+<div id="page" style="height:0pt"/><div class="book" title="Predefined constraints using metadata"><div class="book" id="TI1E2-31555e2039a14139a7f00b384a5a2dd8"><div class="book"><div class="book"><h1 class="title" id="calibre_pb_0"><a id="ch04lvl1sec25" class="calibre1"/>Predefined constraints using metadata</h1></div></div></div><p class="calibre9">This <a id="id184" class="calibre1"/>mechanism enables a service to <a id="id185" class="calibre1"/>be runn on a machine having matching metadata configured in the <code class="email">metadata</code> parameter of the <code class="email">coreos.fleet</code> section. Metadata can be used to describe a member properties such as disk type, region, platform, and special member property like exposed public IPs and so on. Since it is provided as a multiple key-value pair, the flexibility it provides is immense for defining a member.</p><p class="calibre9">The metadata can then also be used to associate services to be run on those members. For instance, we can say that a particular service is supposed to run on members that are running in a particular region and/or having a particular disk type and/or having a particular member type (bare metal, cloud, and so on) and/or having a particular provider (machine vendor, cloud provider, and so on).</p><p class="calibre9">In our example, we will create three members, each having their own metadata, and then bind the service to run on a metadata matching its property. The following is the setup:</p><div class="mediaobject"><img src="../images/00018.jpeg" alt="Predefined constraints using metadata" class="calibre11"/></div><p class="calibre12"> </p><p class="calibre9">The following is the <code class="email">cloud-config</code> file used to create the cluster with services running on their designated members:</p><div class="informalexample"><pre class="programlisting">#cloud-config
+write_files:
+<span class="strong"><strong class="calibre2">  - path: /home/core/example_01.service</strong></span>
+    owner: core:core
+    permissions: 420
+    content: |
+      [Unit]
+      Description=Example
+      After=docker.service
+      Requires=docker.service
+
+<span class="strong"><strong class="calibre2">      [X-Fleet]</strong></span>
+<span class="strong"><strong class="calibre2">      MachineMetadata=host=service_01</strong></span>
+
+      [Service]
+      TimeoutStartSec=0
+      ExecStartPre=-/usr/bin/docker kill sampleserv_01
+      ExecStartPre=-/usr/bin/docker rm sampleserv_01
+      ExecStartPre=/usr/bin/docker pull busybox
+      ExecStart=/usr/bin/docker run --name sampleserv_01 busybox /bin/sh -c "while true; do echo Test Service; sleep 300; done"
+      ExecStop=/usr/bin/docker stop sampleserv_01
+
+<span class="strong"><strong class="calibre2">  - path: /home/core/example_02.service</strong></span>
+    owner: core:core
+    permissions: 420
+    content: |
+      [Unit]
+      Description=Example
+      After=docker.service
+      Requires=docker.service
+
+<span class="strong"><strong class="calibre2">      [X-Fleet]</strong></span>
+<span class="strong"><strong class="calibre2">      MachineMetadata=host=service_02</strong></span>
+
+      [Service]
+      TimeoutStartSec=0
+      ExecStartPre=-/usr/bin/docker kill sampleserv_02
+      ExecStartPre=-/usr/bin/docker rm sampleserv_02
+      ExecStartPre=/usr/bin/docker pull busybox
+      ExecStart=/usr/bin/docker run --name sampleserv_02 busybox /bin/sh -c "while true; do echo Test Service; sleep 300; done"
+      ExecStop=/usr/bin/docker stop sampleserv_02
+
+<span class="strong"><strong class="calibre2">  - path: /home/core/example_03.service</strong></span>
+    owner: core:core
+    permissions: 420
+    content: |
+      [Unit]
+      Description=Example
+      After=docker.service
+      Requires=docker.service
+
+<span class="strong"><strong class="calibre2">      [X-Fleet]</strong></span>
+<span class="strong"><strong class="calibre2">      MachineMetadata=host=service_03</strong></span>
+
+      [Service]
+      TimeoutStartSec=0
+      ExecStartPre=-/usr/bin/docker kill sampleserv_03
+      ExecStartPre=-/usr/bin/docker rm sampleserv_03
+      ExecStartPre=/usr/bin/docker pull busybox
+      ExecStart=/usr/bin/docker run --name sampleserv_03 busybox /bin/sh -c "while true; do echo Test Service; sleep 300; done"
+      ExecStop=/usr/bin/docker stop sampleserv_03
+
+coreos:
+  etcd2:
+    name: core-03
+    advertise-client-urls: http://$public_ipv4:2379
+    initial-advertise-peer-urls: http://$private_ipv4:2380
+    listen-client-urls: http://0.0.0.0:2379,http://0.0.0.0:4001
+    listen-peer-urls: http://$private_ipv4:2380,http://$private_ipv4:7001
+    initial-cluster-token: coreOS-static
+    initial-cluster: core-01=http://172.17.8.101:2380,core-02=http://172.17.8.102:2380,core-03=http://172.17.8.103:2380
+  fleet:
+    public-ip: $public_ipv4
+<span class="strong"><strong class="calibre2">    metadata: host=service_01</strong></span>
+
+  units:
+  - name: etcd2.service
+    command: start
+    enable: true
+<span class="strong"><strong class="calibre2">  - name: fleet.service</strong></span>
+<span class="strong"><strong class="calibre2">    command: start</strong></span>
+<span class="strong"><strong class="calibre2">    enable: true</strong></span>
+  - name: example_fleet_01.service
+    command: start
+    content: |
+      [Service]
+      Type=oneshot
+      ExecStartPre=/bin/sh -c "sleep 10"
+<span class="strong"><strong class="calibre2">      ExecStart=/usr/bin/fleetctl start /home/core/example_01.service</strong></span>
+  - name: example_fleet_02.service
+    command: start
+    content: |
+      [Service]
+      Type=oneshot
+      ExecStartPre=/bin/sh -c "sleep 10"
+<span class="strong"><strong class="calibre2">      ExecStart=/usr/bin/fleetctl start /home/core/example_02.service</strong></span>
+  - name: example_fleet_03.service
+    command: start
+    content: |
+      [Service]
+      Type=oneshot
+      ExecStartPre=/bin/sh -c "sleep 10"
+      ExecStart=/usr/bin/fleetctl start /home/core/example_03.service</pre></div><p class="calibre9">The <code class="email">write_files</code> section is added to generate the unit files for <code class="email">fleet</code>. Three unit files are<a id="id186" class="calibre1"/> created; each service would be<a id="id187" class="calibre1"/> running only one of the members. Each unit file has the <code class="email">X-Fleet</code> section adding a constraint that it should only run on a machine having specific metadata.</p><p class="calibre9">The<code class="email"> fleet</code> section updated to start <code class="email">fleet</code> and specify the IP address used to contact the <code class="email">etcd2</code> service. Additionally, the metadata parameter is added to specify the metadata for the member. Instrumentation is required to generate separate metadata for each of the members. <code class="email">Vagrantfile</code> for the static cluster in <a class="calibre1" title="Chapter 3. Creating Your CoreOS Cluster and Managing the Cluster" href="part0026_split_000.html#OPEK1-31555e2039a14139a7f00b384a5a2dd8">Chapter 3</a>, <span class="strong"><em class="calibre10">Creating Your Coreos Cluster and Managing the Cluster</em></span>, is used as the base file and the highlighted instrumentation is done to modify metadata for each of the members.</p><div class="informalexample"><pre class="programlisting">...
+      if File.exist?(CLOUD_CONFIG_PATH)
+        user_data_specific = "#{CLOUD_CONFIG_PATH}-#{i}"
+        require 'yaml'
+        data = YAML.load(IO.readlines('user-data')[1..-1].join)
+        if data['coreos'].key? 'etcd2'
+          data['coreos']['etcd2']['name'] = vm_name
+        end
+<span class="strong"><strong class="calibre2">        if data['coreos'].key? 'fleet'</strong></span>
+<span class="strong"><strong class="calibre2">          data['coreos']['fleet']['metadata'] = "host=service_%02d" % [i]</strong></span>
+<span class="strong"><strong class="calibre2">        end</strong></span>
+        yaml = YAML.dump(data)
+        File.open(user_data_specific, 'w') { |file| file.write("#cloud-config\n\n#{yaml}") }
+        config.vm.provision :file, :source =&gt; user_data_specific, :destination =&gt; "/tmp/vagrantfile-user-data"
+        config.vm.provision :shell, :inline =&gt; "mv /tmp/vagrantfile-user-data /var/lib/coreos-vagrant/", :privileged =&gt; true
+      end
+...</pre></div><p class="calibre9">The <a id="id188" class="calibre1"/>units section is updated to start the <code class="email">fleet</code> service and wrapper <code class="email">oneshot</code> service to invoke <code class="email">fleetctl</code> upon startup. <code class="email">Fleetctl</code> then <a id="id189" class="calibre1"/>manages the service. The following is the sequence of events:</p><div class="book"><ul class="itemizedlist"><li class="listitem">Unit files for the services <code class="email">/home/core/example_01.service</code>, <code class="email">/home/core/example_02.service</code> and <code class="email">/home/core/example_03.service</code> are created at the time of boot-up. Note that <code class="email">write_files</code> is kept before the <code class="email">coreos</code> section so that the files are created before services are started.</li><li class="listitem">Services are started by <code class="email">systemd</code> running on each member. A sleep of ten seconds is added in the <code class="email">oneshot</code> services <code class="email">example_01.service</code>, <code class="email">example_01.service</code>, and <code class="email">example_01.service</code> to allow initialization of <code class="email">etcd2</code> and the <code class="email">fleetd</code> service before the job is submitted using <code class="email">fleetctl</code>. </li><li class="listitem"><code class="email">Fleetd</code> then coordinates and schedules the services on respective members.</li></ul></div><p class="calibre9">Boot the cluster using <code class="email">Vagrant up</code>. Upon successful boot-up, we can see the members in the cluster and the services running on the members. Note that <code class="email">example_01.service</code> is started on <code class="email">member 01</code> having the metadata <code class="email">service_01</code>, <code class="email">example_02.service</code> is started on <code class="email">member 01</code> having the metadata <code class="email">service_02</code>, and so on:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong class="calibre2">vagrant ssh core-01</strong></span>
+
+<span class="strong"><strong class="calibre2">fleetctl list-units</strong></span>
+<span class="strong"><strong class="calibre2">UNIT                    MACHINE                         ACTIVE  SUB</strong></span>
+<span class="strong"><strong class="calibre2">example_01.service      375bde8b.../172.17.8.101        active  running</strong></span>
+<span class="strong"><strong class="calibre2">example_02.service      2b6184e0.../172.17.8.102        active  running</strong></span>
+<span class="strong"><strong class="calibre2">example_03.service      e59919cc.../172.17.8.103        active  running</strong></span>
+<span class="strong"><strong class="calibre2">fleetctl list-machines</strong></span>
+<span class="strong"><strong class="calibre2">MACHINE         IP              METADATA</strong></span>
+<span class="strong"><strong class="calibre2">2b6184e0...     172.17.8.102    host=service_02</strong></span>
+<span class="strong"><strong class="calibre2">375bde8b...     172.17.8.101    host=service_01</strong></span>
+<span class="strong"><strong class="calibre2">e59919cc...     172.17.8.103    host=service_03</strong></span>
+</pre></div><p class="calibre9">Now, let's modify the <code class="email">cloud-config</code> file to create another deployment where one instance of <code class="email">example.service</code> is running on every member along with respective services <a id="id190" class="calibre1"/>on member 2 and member 3 <a id="id191" class="calibre1"/>as the previous example.</p><div class="mediaobject"><img src="../images/00019.jpeg" alt="Predefined constraints using metadata" class="calibre11"/></div><p class="calibre12"> </p><p class="calibre9">We will now go through the modifications that are required in the <code class="email">cloud-config</code> file prepared earlier.</p><p class="calibre9">The unit files for <code class="email">fleetctl</code> were modified for the first service to create a template unit. A template file helps the creation of multiple units from a single configuration file. While adding a unit, <code class="email">Fleet/systemd</code> looks for the configuration file with an exact name match. If such a file is not found, a filename with the same name  the <code class="email">@</code> character is used. For example, to add the unit <code class="email">common@1</code> file, <code class="email">common@.service</code> will be used.</p><div class="informalexample"><pre class="programlisting">#cloud-config
+write_files:
+<span class="strong"><strong class="calibre2">  - path: /home/core/common@.service</strong></span>
+...</pre></div><p class="calibre9">Additional constraints were added to the section <code class="email">X-Fleet</code>. <code class="email">MachineMetaData</code> was changed to use the disk as <code class="email">ssd</code>. Metadata <code class="email">disk=ssd</code> is also added to all the members using <code class="email">Vagrantfile</code> instrumentation. This makes the service fit for running on all members. The additional constraint <code class="email">Conflicts</code> is added so that only one instance of this service runs on a machine. This constraint means that if a service is already running on the member, other<a id="id192" class="calibre1"/> instances of the<a id="id193" class="calibre1"/> service can't be scheduled on the same machine. Note how the service name is provided with a wildcard to match any of the instance numbers.</p><div class="informalexample"><pre class="programlisting">...
+      [X-Fleet]
+<span class="strong"><strong class="calibre2">      MachineMetadata=disk=ssd</strong></span>
+<span class="strong"><strong class="calibre2">      Conflicts=common@*.service</strong></span>
+...</pre></div><p class="calibre9">The service section of the unit file is updated to be capable of spawning a service for any instance. To refer to the instance string from within the configuration file, we can use <code class="email">%i specifier</code>.<code class="email"> %i</code> gets replaced with the instance number provided during start. This feature was not required to be used in the example but is worth a mention.  </p><div class="informalexample"><pre class="programlisting">...
+
+      [Service]
+      TimeoutStartSec=0
+      ExecStartPre=-/usr/bin/docker kill busybox
+      ExecStartPre=-/usr/bin/docker rm busybox
+      ExecStartPre=/usr/bin/docker pull busybox
+      ExecStart=/usr/bin/docker run --name busybox /bin/sh -c "while true; do echo Test Service; sleep 300; done"
+      ExecStop=/usr/bin/docker stop busybox
+...</pre></div><p class="calibre9">The wrapper service to invoke <code class="email">fleetctl</code> is also updated to start three instances of service:</p><div class="informalexample"><pre class="programlisting">...
+<span class="strong"><strong class="calibre2">  - name: example_fleet1.service</strong></span>
+    command: start
+    content: |
+      [Service]
+      Type=oneshot
+      ExecStartPre=/bin/sh -c "sleep 10"
+<span class="strong"><strong class="calibre2">      ExecStart=/usr/bin/fleetctl start /home/core/common@1.service</strong></span>
+<span class="strong"><strong class="calibre2">  - name: example_fleet2.service</strong></span>
+<span class="strong"><strong class="calibre2">...</strong></span>
+<span class="strong"><strong class="calibre2">      ExecStart=/usr/bin/fleetctl start /home/core/common@2.service</strong></span>
+<span class="strong"><strong class="calibre2">  - name: example_fleet3.service</strong></span>
+<span class="strong"><strong class="calibre2">...</strong></span>
+<span class="strong"><strong class="calibre2">      ExecStart=/usr/bin/fleetctl start /home/core/common@3.service</strong></span>
+  - name: example_fleet_02.service
+...</pre></div><p class="calibre9">
+<code class="email">Vagrantfile</code> was modified with the following instrumentation to add the metadata <code class="email">disk=ssd</code> to all the members:</p><div class="informalexample"><pre class="programlisting">...
+        if data['coreos'].key? 'fleet'
+<span class="strong"><strong class="calibre2">          data['coreos']['fleet']['metadata'] = "host=service_%02d,disk=ssd" % [i]</strong></span>
+        end
+...</pre></div><p class="calibre9">Boot<a id="id194" class="calibre1"/> the cluster using <code class="email">Vagrant up</code>. Upon <a id="id195" class="calibre1"/>successful boot-up, we can see the members in the cluster and the services running on the members. Note that <code class="email">common@.service</code> is running on all the members, whereas <code class="email">example_02.service</code> and <code class="email">example_03.service</code> are only instantiated on respective members.</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong class="calibre2">vagrant ssh core-01</strong></span>
+
+<span class="strong"><strong class="calibre2">fleetctl list-units</strong></span>
+<span class="strong"><strong class="calibre2">UNIT                    MACHINE                         ACTIVE  SUB</strong></span>
+<span class="strong"><strong class="calibre2">common@1.service       344d088c.../172.17.8.102        active  running</strong></span>
+<span class="strong"><strong class="calibre2">common@2.service       a5a4a7e5.../172.17.8.101        active  running</strong></span>
+<span class="strong"><strong class="calibre2">common@3.service       200545ed.../172.17.8.103        active  running</strong></span>
+<span class="strong"><strong class="calibre2">example_02.service      344d088c.../172.17.8.102        active  running</strong></span>
+<span class="strong"><strong class="calibre2">example_03.service      200545ed.../172.17.8.103        active  running</strong></span>
+
+<span class="strong"><strong class="calibre2">fleetctl list-machines</strong></span>
+<span class="strong"><strong class="calibre2">MACHINE         IP              METADATA</strong></span>
+<span class="strong"><strong class="calibre2">200545ed...     172.17.8.103    disk=ssd,host=service_03</strong></span>
+<span class="strong"><strong class="calibre2">344d088c...     172.17.8.102    disk=ssd,host=service_02</strong></span>
+<span class="strong"><strong class="calibre2">a5a4a7e5...     172.17.8.101    disk=ssd,host=service_01</strong></span>
+</pre></div><p class="calibre9">In this example, we also touched upon constraints based on running services on the machine. We will discuss it further in the next section.</p></div>
+
+<div class="book" title="Predefined constraints using metadata">
+<div class="book" title="Service level affinity/anti-affinity"><div class="book"><div class="book"><div class="book"><h2 class="title1" id="calibre_pb_1"><a id="ch04lvl2sec24" class="calibre1"/>Service level affinity/anti-affinity</h2></div></div></div><p class="calibre9">This<a id="id196" class="calibre1"/> mechanism enables clubbing services together, to be run on the same member or vice versa; that is, making sure that if a particular service is running on the member, the current service is not to be scheduled on that machine.</p><p class="calibre9">In the second example for predefined constraints using metadata, we added a constraint, <code class="email">Conflicts</code>, so that only one instance of service is started on a member. Hence, the constraint was added for the self-service name. This can also be added for another service. This ensures that two services don't co-exist in a member. To understand this, we will modify the example slightly so that <code class="email">common@.service</code> doesn't run along with <code class="email">example_02.service</code>.</p><div class="mediaobject"><img src="../images/00020.jpeg" alt="Service level affinity/anti-affinity" class="calibre11"/></div><p class="calibre12"> </p><p class="calibre9">Another <code class="email">Conflicts</code> parameter is added for <code class="email">example_02.server</code> in the unit configuration file of <code class="email">common@.service</code>. Also, the <code class="email">units</code> section of <code class="email">coreos</code> is modified to add an entry for <code class="email">example_fleet_02.service</code> before <code class="email">example_fleet1.service</code>.</p><div class="informalexample"><pre class="programlisting">...
+      [X-Fleet]
+      MachineMetadata=disk=ssd
+      Conflicts=common@*.service
+<span class="strong"><strong class="calibre2">      Conflicts=example_02.service</strong></span>
+...</pre></div><p class="calibre9">Boot the<a id="id197" class="calibre1"/> cluster using <code class="email">Vagrant up</code>. Upon successful boot-up, we can see the members in the cluster and the services running on the members. Note that <code class="email">common@.service</code> is running on all the members except on the member where <code class="email">example_02.service</code> is running.</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong class="calibre2">vagrant ssh core-01</strong></span>
+
+<span class="strong"><strong class="calibre2">fleetctl list-units</strong></span>
+<span class="strong"><strong class="calibre2">UNIT                    MACHINE                         ACTIVE  SUB</strong></span>
+<span class="strong"><strong class="calibre2">common@1.service        60b21422.../172.17.8.101        active  running</strong></span>
+<span class="strong"><strong class="calibre2">common@2.service        c8009511.../172.17.8.103        active  running</strong></span>
+<span class="strong"><strong class="calibre2">example_02.service      103f8f5a.../172.17.8.102        active  running</strong></span>
+<span class="strong"><strong class="calibre2">example_03.service      c8009511.../172.17.8.103        active  running</strong></span>
+
+<span class="strong"><strong class="calibre2">fleetctl list-machines</strong></span>
+<span class="strong"><strong class="calibre2">MACHINE         IP              METADATA</strong></span>
+<span class="strong"><strong class="calibre2">103f8f5a...     172.17.8.102    disk=ssd,host=service_02</strong></span>
+<span class="strong"><strong class="calibre2">60b21422...     172.17.8.101    disk=ssd,host=service_01</strong></span>
+<span class="strong"><strong class="calibre2">c8009511...     172.17.8.103    disk=ssd,host=service_03</strong></span>
+</pre></div><p class="calibre9">Now let's discuss a reverse use case: we want a particular service to run on a member with another service. We will run the common service only where <code class="email">example_02.service</code> is running.</p><div class="mediaobject"><img src="../images/00021.jpeg" alt="Service level affinity/anti-affinity" class="calibre11"/></div><p class="calibre12"> </p><p class="calibre9">The <code class="email">X-Fleet</code> section is<a id="id198" class="calibre1"/> updated with the new parameter <code class="email">MachineOf</code>. This ensures that <code class="email">common@.service</code> only runs along with <code class="email">example_02.service</code>.</p><div class="informalexample"><pre class="programlisting">...
+      [X-Fleet]
+<span class="strong"><strong class="calibre2">      MachineOf=example_02.service</strong></span>
+...</pre></div><p class="calibre9">Boot the cluster using <code class="email">Vagrant up</code>. Upon successful boot-up, we can see the members in the cluster and the services running on the members. Note that <code class="email">common@1.service</code> is running only on the member where <code class="email">example_02.service</code> is running.</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong class="calibre2">vagrant ssh core-01</strong></span>
+
+<span class="strong"><strong class="calibre2">core@core-01 ~ $ fleetctl list-units</strong></span>
+<span class="strong"><strong class="calibre2">UNIT                    MACHINE                         ACTIVE  SUB</strong></span>
+<span class="strong"><strong class="calibre2">common@1.service        d119aafa.../172.17.8.102        active  running</strong></span>
+<span class="strong"><strong class="calibre2">example_02.service      d119aafa.../172.17.8.102        active  running</strong></span>
+<span class="strong"><strong class="calibre2">example_03.service      6f3da0a4.../172.17.8.103        active  running</strong></span>
+<span class="strong"><strong class="calibre2">core@core-01 ~ $</strong></span>
+<span class="strong"><strong class="calibre2">core@core-01 ~ $</strong></span>
+<span class="strong"><strong class="calibre2">core@core-01 ~ $ fleetctl list-machines</strong></span>
+<span class="strong"><strong class="calibre2">MACHINE         IP              METADATA</strong></span>
+<span class="strong"><strong class="calibre2">6f3da0a4...     172.17.8.103    disk=ssd,host=service_03</strong></span>
+<span class="strong"><strong class="calibre2">c88e05ba...     172.17.8.101    disk=ssd,host=service_01</strong></span>
+<span class="strong"><strong class="calibre2">d119aafa...     172.17.8.102    disk=ssd,host=service_02</strong></span>
+</pre></div></div></div>
+
+<div class="book" title="Predefined constraints using metadata">
+<div class="book" title="Node-level affinity"><div class="book"><div class="book"><div class="book"><h2 class="title1" id="calibre_pb_2"><a id="ch04lvl2sec25" class="calibre1"/>Node-level affinity</h2></div></div></div><p class="calibre9">This<a id="id199" class="calibre1"/> mechanism uses the <code class="email">systemd</code> generated machine ID to schedule the services. Upon member installation, <code class="email">systemd</code> generates a machine ID that is the same across subsequent system boots. Node-level affinity ensures the user targets a service onto a member and nowhere else. When thinking about clusters where it's more flexible to schedule a service based on member properties rather than on member identifiers, this mechanism has limited use. Typical use cases can be running a service to collect specific data from a machine, or for testing a service where a new service can be scheduled on a test member for observing the behavior.</p><p class="calibre9">The following is the <code class="email">cloud-config</code> file used to create the cluster. This file also creates a service unit file in the home directory that will be used by fleet to start the service.</p><div class="informalexample"><pre class="programlisting">#cloud-config
+write_files:
+  - path: /home/core/example_test.service
+    owner: core:core
+    permissions: 420
+    content: |
+      [Unit]
+      Description=Example
+      After=docker.service
+      Requires=docker.service
+
+      [X-Fleet]
+      MachineID=dummy
+
+      [Service]
+      TimeoutStartSec=0
+      ExecStartPre=-/usr/bin/docker kill sampleserv_test
+      ExecStartPre=-/usr/bin/docker rm sampleserv_test
+      ExecStartPre=/usr/bin/docker pull busybox
+      ExecStart=/usr/bin/docker run --name sampleserv_test busybox /bin/sh -c "while true; do echo Test Service; sleep 300; done"
+      ExecStop=/usr/bin/docker stop sampleserv_test
+
+...
+
+  units:
+  - name: etcd2.service
+    command: start
+    enable: true
+  - name: fleet.service
+    command: start
+    enable: true</pre></div><p class="calibre9">This <code class="email">cloud-config</code> file serves two main purpose: starting <code class="email">fleetd</code> services and creating the <a id="id200" class="calibre1"/>service file <code class="email">/home/core/example_test.service</code>.</p><p class="calibre9">We will now find the machine IDs of members in the cluster:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong class="calibre2">vagrant ssh core-01</strong></span>
+
+<span class="strong"><strong class="calibre2">core@core-01 ~ $ fleetctl list-machines -l</strong></span>
+<span class="strong"><strong class="calibre2">MACHINE                                 IP              METADATA</strong></span>
+<span class="strong"><strong class="calibre2">41b7574b33b0462c8e311ded39302a19        172.17.8.101    host=service_01</strong></span>
+<span class="strong"><strong class="calibre2">7e481484a52945d3ad369f68d2e46a77        172.17.8.103    host=service_03</strong></span>
+<span class="strong"><strong class="calibre2">f70fc5f45cdc49f99fc47757f6fe5ae6        172.17.8.102    host=service_02</strong></span>
+</pre></div><p class="calibre9">Modify the service file so that the service is instantiated on the machine ID <code class="email">f70fc5f45cdc49f99fc47757f6fe5ae6</code>. This can be any machine ID of your choice. We are not able to automate using Vagrant as machine IDs are not known to us earlier.</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong class="calibre2">core@core-01 ~ $ cat example_test.service</strong></span>
+<span class="strong"><strong class="calibre2">...</strong></span>
+
+<span class="strong"><strong class="calibre2">[X-Fleet]</strong></span>
+<span class="strong"><strong class="calibre2">MachineID=f70fc5f45cdc49f99fc47757f6fe5ae6</strong></span>
+
+<span class="strong"><strong class="calibre2">...</strong></span>
+</pre></div><p class="calibre9">Launch the service and check that it's running on the desired machine:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong class="calibre2">core@core-01 ~ $ /usr/bin/fleetctl start /home/core/example_test.service</strong></span>
+<span class="strong"><strong class="calibre2">Unit example_test.service launched on f70fc5f4.../172.17.8.102</strong></span>
+<span class="strong"><strong class="calibre2">core@core-01 ~ $ fleetctl list-units</strong></span>
+<span class="strong"><strong class="calibre2">UNIT                    MACHINE                         ACTIVE          SUB</strong></span>
+<span class="strong"><strong class="calibre2">example_test.service      f70fc5f4.../172.17.8.102        active      running</strong></span>
+</pre></div></div></div>
+
+<div class="book" title="Predefined constraints using metadata">
+<div class="book" title="High availability"><div class="book"><div class="book"><div class="book"><h2 class="title1" id="calibre_pb_3"><a id="ch04lvl2sec26" class="calibre1"/>High availability</h2></div></div></div><p class="calibre9">There<a id="id201" class="calibre1"/> are two key principles in designing a highly available system. One is to avoid single point of failure; that is, the complete system should not fail when a fault occurs. For example, there should not be a dependency on a single process, interface, and so on. The second principle is how quickly the system can recover in case of failure so that downtime is short.</p><p class="calibre9">
+<code class="email">Fleetd</code> helps design a highly available system by allowing the configuration of multiple instances of the service on different members and not multiple instances on the same member. This means that the failure of a single member doesn't bring down the complete service, but it can still perform the function it's supposed to do with reduced capacity until a recovery happens. Once the member is recovered or another member is started by the orchestration application detecting member failure, fleet will reschedule the service on the new member automatically.</p></div></div>
+<div class="book" title="Summary" id="UGI01-31555e2039a14139a7f00b384a5a2dd8"><div class="book"><div class="book"><div class="book"><h1 class="title" id="calibre_pb_0"><a id="ch04lvl1sec26" class="calibre1"/>Summary</h1></div></div></div><p class="calibre9">In this chapter, we understood service constraints which help to deploy services on suitable members.</p><p class="calibre9">In the next chapter, we will understand more about discovering services running in the CoreOS cluster.</p></div></body></html>

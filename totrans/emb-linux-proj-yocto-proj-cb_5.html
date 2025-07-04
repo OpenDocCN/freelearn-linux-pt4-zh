@@ -1,0 +1,1088 @@
+<html><head></head><body><div class="chapter" title="Chapter&#xA0;5.&#xA0;Debugging, Tracing, and Profiling"><div class="titlepage"><div><div><h1 class="title"><a id="ch05"/>Chapter 5. Debugging, Tracing, and Profiling</h1></div></div></div><p>In this chapter, we will cover the following recipes:</p><div class="itemizedlist"><ul class="itemizedlist"><li class="listitem" style="list-style-type: disc">Analyzing core dumps</li><li class="listitem" style="list-style-type: disc">Native GDB debugging</li><li class="listitem" style="list-style-type: disc">Cross GDB debugging</li><li class="listitem" style="list-style-type: disc">Using strace for application debugging</li><li class="listitem" style="list-style-type: disc">Using the kernel's performance counters</li><li class="listitem" style="list-style-type: disc">Using static kernel tracing</li><li class="listitem" style="list-style-type: disc">Using dynamic kernel tracing</li><li class="listitem" style="list-style-type: disc">Using dynamic kernel events</li><li class="listitem" style="list-style-type: disc">Exploring Yocto's tracing and profiling tools</li><li class="listitem" style="list-style-type: disc">Tracing and profiling with perf</li><li class="listitem" style="list-style-type: disc">Using SystemTap</li><li class="listitem" style="list-style-type: disc">Using OProfile</li><li class="listitem" style="list-style-type: disc">Using LTTng</li><li class="listitem" style="list-style-type: disc">Using blktrace</li></ul></div><div class="section" title="Introduction"><div class="titlepage"><div><div><h1 class="title"><a id="ch05lvl1sec77"/>Introduction</h1></div></div></div><p>Debugging an embedded Linux product is a common task not only during development, but also in deployed production systems.</p><p>Application debugging<a id="id596" class="indexterm"/> in embedded Linux is different from debugging in a traditional embedded device in that we don't have a flat memory model with an operating system and applications sharing the same address space. Instead, we have a virtual memory model with the Linux operating system, sharing the address space and assigning virtual memory areas to running processes.</p><p>With this model, the mechanisms used for kernel and user space debugging differ. For example, the traditional model of using a JTAG-based hardware debugger is useful for kernel debugging, but unless it knows about the user space processes memory mapping, it will not be able to debug user space applications.</p><p>Application debugging <a id="id597" class="indexterm"/>is approached with the use of a user space debugger service. We have seen an example of this methodology in action with the TCF agent used in the Eclipse GDB. The other commonly used agent is the <a id="id598" class="indexterm"/>
+<span class="strong"><strong>gdbserver</strong></span>, which we will use in this chapter.</p><p>Finally we will explore the area of tracing and profiling. Tracing is a low-level logging of frequent system events, and the statistical analysis of these captured traces is called profiling.</p><p>We will use some of the tools embedded Linux and Yocto offer to trace and profile our systems so that they run to their maximum potential.</p></div></div>
+<div class="section" title="Analyzing core dumps"><div class="titlepage"><div><div><h1 class="title"><a id="ch05lvl1sec78"/>Analyzing core dumps</h1></div></div></div><p>Even after<a id="id599" class="indexterm"/> extensive quality assurance testing, embedded systems in-field also fail and need to be debugged. Moreover, often the failure is not something that can be easily reproduced in a laboratory environment, so we are left with production, often hardened system, to debug.</p><p>Assuming we have designed our system with the aforementioned scenario in mind, our first debugging choice is usually to extract as much information about the failing system—for example, by obtaining and analyzing a core dump of the misbehaving processes.</p><div class="section" title="Getting ready"><div class="titlepage"><div><div><h2 class="title"><a id="ch05lvl2sec213"/>Getting ready</h2></div></div></div><p>In the process of debugging embedded Linux systems, we can use the same toolbox as standard Linux systems. One of the tools enables applications to generate into the disk a memory core dump upon crashing. This assumes that we have enough disk space to store the application's entire memory map, and that writing to disk is quick enough that it will not drag the system to a halt.</p><p>Once the memory core dump is generated, we use the host's GDB to analyze the core dump. GDB needs to have debug information available. Debug information can be in the executable itself—for example, when we install the <code class="literal">-dbg</code> version of a package, or we configure our project to not strip binaries—or can be kept in a separate file. To install debug information separately from the executable, we use the <code class="literal">dbg-pkgs</code> feature. By default, this installs the debug information of a package in a <code class="literal">.debug</code> directory in the same location as the executable itself. To add debug information for all packages in a target image, we add the following to our <code class="literal">conf/local.conf</code> configuration file:</p><div class="informalexample"><pre class="programlisting">EXTRA_IMAGE_FEATURES += "dbg-pkgs"</pre></div><p>We can then<a id="id600" class="indexterm"/> build an appropriate toolchain generated to match our filesystem, as we saw in the <span class="emphasis"><em>Preparing and using an SDK</em></span> recipe in <a class="link" href="ch04.html" title="Chapter 4. Application Development">Chapter 4</a>, <span class="emphasis"><em>Application Development</em></span>. The core dump contains build IDs for the executables and libraries in use at the time of the crash, so it's important to match the toolchain and the target image.</p></div><div class="section" title="How to do it..."><div class="titlepage"><div><div><h2 class="title"><a id="ch05lvl2sec214"/>How to do it...</h2></div></div></div><p>We can display the limits of the system-wide resources with the <code class="literal">ulimit</code> tool. We are interested in the core file size, which by default is set to zero to avoid the creation of application core dumps. In our failing system, preferably in a test environment, make your application dump a memory core upon crashing with:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>$ ulimit -c unlimited</strong></span>
+</pre></div><p>You can then verify the change with:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>$ ulimit -a</strong></span>
+<span class="strong"><strong>-f: file size (blocks)             unlimited</strong></span>
+<span class="strong"><strong>-t: cpu time (seconds)             unlimited</strong></span>
+<span class="strong"><strong>-d: data seg size (kb)             unlimited</strong></span>
+<span class="strong"><strong>-s: stack size (kb)                8192</strong></span>
+<span class="strong"><strong>-c: core file size (blocks)        unlimited</strong></span>
+<span class="strong"><strong>-m: resident set size (kb)         unlimited</strong></span>
+<span class="strong"><strong>-l: locked memory (kb)             64</strong></span>
+<span class="strong"><strong>-p: processes                      5489</strong></span>
+<span class="strong"><strong>-n: file descriptors               1024</strong></span>
+<span class="strong"><strong>-v: address space (kb)             unlimited</strong></span>
+<span class="strong"><strong>-w: locks                          unlimited</strong></span>
+<span class="strong"><strong>-e: scheduling priority            0</strong></span>
+<span class="strong"><strong>-r: real-time priority             0</strong></span>
+</pre></div><p>For this example, we will be using the <code class="literal">wvdial</code> application in a real segmentation fault scenario. The purpose is not to debug the application itself but to showcase the methodology used for core dump analysis; so, details regarding the application-specific configuration and system setup are not provided. However, being a real crash, the example is more illustrative.</p><p>To run <code class="literal">wvdial</code> on the target, use the following code:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong># wvdial</strong></span>
+<span class="strong"><strong>--&gt; WvDial: Internet dialer version 1.61</strong></span>
+<span class="strong"><strong>--&gt; Initializing modem.</strong></span>
+<span class="strong"><strong>--&gt; Sending: ATZ</strong></span>
+<span class="strong"><strong>ATZ</strong></span>
+<span class="strong"><strong>OK</strong></span>
+<span class="strong"><strong>--&gt; Sending: ATQ0 V1 E1 S0=0 &amp;C1 &amp;D2 +FCLASS=0</strong></span>
+<span class="strong"><strong>ATQ0 V1 E1 S0=0 &amp;C1 &amp;D2 +FCLASS=0</strong></span>
+<span class="strong"><strong>OK</strong></span>
+<span class="strong"><strong>--&gt; Sending: AT+CGDCONT=1,"IP","internet"</strong></span>
+<span class="strong"><strong>AT+CGDCONT=1,"IP","internet"</strong></span>
+<span class="strong"><strong>OK</strong></span>
+<span class="strong"><strong>--&gt; Modem initialized.</strong></span>
+<span class="strong"><strong>--&gt; Idle Seconds = 3000, disabling automatic reconnect.</strong></span>
+<span class="strong"><strong>Segmentation fault (core dumped)</strong></span>
+</pre></div><p>The application will create a core file in the same folder, which you can then copy to your host system to analyze.</p><div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="tip22"/>Tip</h3><p>You can also simulate a core dump by sending a <code class="literal">SIGQUIT</code> signal to a running process. For example, you could force the sleep command to core dump with a  <code class="literal">SIGQUIT</code> signal as follows:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong> $ ulimit -c unlimited</strong></span>
+<span class="strong"><strong> $ sleep 30 &amp;</strong></span>
+<span class="strong"><strong> $ kill -QUIT &lt;sleep-pid&gt;</strong></span>
+</pre></div></div></div></div><div class="section" title="How it works..."><div class="titlepage"><div><div><h2 class="title"><a id="ch05lvl2sec215"/>How it works...</h2></div></div></div><p>Once in possession of the<a id="id601" class="indexterm"/> core dump, use the cross GDB in the host to load it and get some useful information, such as the backtrace, using the following steps:</p><div class="orderedlist"><ol class="orderedlist arabic"><li class="listitem">First set up the environment in the host:<div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>$ cd /opt/poky/1.7.1/</strong></span>
+<span class="strong"><strong>$ source environment-setup-cortexa9hf-vfp-neon-poky-linux- gnueabi</strong></span>
+</pre></div></li><li class="listitem">You can then start the cross GDB debugger, passing it a debug version of the application. Debug versions are stored in the <code class="literal">sysroot</code> file in the same location as the unstripped binary, but under a <code class="literal">.debug</code> directory.<p>The whole<a id="id602" class="indexterm"/> GDB banner is showed below but will be omitted in future examples.</p><div class="informalexample"><pre class="programlisting">$ arm-poky-linux-gnueabi-gdb /opt/yocto/fsl-community- bsp/wandboard-quad/tmp/work/cortexa9hf-vfp-neon-poky-linux- gnueabi/wvdial/1.61-r0/packages-split/wvdial- dbg/usr/bin/.debug/wvdial core
+GNU gdb (GDB) 7.7.1
+Copyright (C) 2014 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later &lt;http://gnu.org/licenses/gpl.html&gt;
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.  Type "show copying"
+and "show warranty" for details.
+This GDB was configured as "--host=x86_64-pokysdk-linux -- target=arm-poky-linux-gnueabi".
+Type "show configuration" for configuration details.
+For bug reporting instructions, please see:
+&lt;http://www.gnu.org/software/gdb/bugs/&gt;.
+Find the GDB manual and other documentation resources online at:
+&lt;http://www.gnu.org/software/gdb/documentation/&gt;.
+For help, type "help".
+Type "apropos word" to search for commands related to "word"...
+Reading symbols from /opt/yocto/fsl-community-bsp/wandboard- quad/tmp/work/cortexa9hf-vfp-neon-poky-linux- gnueabi/wvdial/1.61-r0/packages-split/wvdial- dbg/usr/bin/.debug/wvdial...done.
+[New LWP 1050]
+
+warning: Could not load shared library symbols for 14 libraries, e.g. /usr/lib/libwvstreams.so.4.6.
+Use the "info sharedlibrary" command to see the complete listing.
+Do you need "set solib-search-path" or "set sysroot"?
+Core was generated by `wvdial'.
+Program terminated with signal SIGSEGV, Segmentation fault.
+#0  0x76d524c4 in ?? ()</pre></div></li><li class="listitem">Now point GDB to<a id="id603" class="indexterm"/> the location of the toolchain's <code class="literal">sysroot</code>:<div class="informalexample"><pre class="programlisting">(gdb) set sysroot /opt/poky/1.7.1/sysroots/cortexa9hf-vfp- neon-poky-linux-gnueabi/
+Reading symbols from /opt/poky/1.7.1/sysroots/cortexa9hf-vfp- neon-poky-linux-gnueabi/usr/lib/libwvstreams.so.4.6...Reading symbols from /opt/poky/1.7.1/sysroots/cortexa9hf-vfp-neon-poky-linux- gnueabi/usr/lib/.debug/libwvstreams.so.4.6...done.
+done.
+Loaded symbols for /opt/poky/1.7.1/sysroots/cortexa9hf-vfp- neon-poky-linux-gnueabi/usr/lib/libwvstreams.so.4.6
+Reading symbols from /opt/poky/1.7.1/sysroots/cortexa9hf-vfp- neon-poky-linux-gnueabi/usr/lib/libwvutils.so.4.6...Reading symbols from /opt/poky/1.7.1/sysroots/cortexa9hf-vfp-neon- poky-linux-gnueabi/usr/lib/.debug/libwvutils.so.4.6...done.
+done.
+[...]
+Loaded symbols for /opt/poky/1.7.1/sysroots/cortexa9hf-vfp- neon-poky-linux-gnueabi/lib/libdl.so.2</pre></div></li><li class="listitem">You can now inquire GDB for the application's backtrace as follows:<div class="informalexample"><pre class="programlisting">(gdb) bt
+#0  0x76d524c4 in WvTaskMan::_stackmaster () at utils/wvtask.cc:416
+#1  0x00000000 in ?? ()</pre></div></li></ol></div></div><div class="section" title="See also"><div class="titlepage"><div><div><h2 class="title"><a id="ch05lvl2sec216"/>See also</h2></div></div></div><div class="itemizedlist"><ul class="itemizedlist"><li class="listitem" style="list-style-type: disc">The usage documentation for GDB<a id="id604" class="indexterm"/> found at <a class="ulink" href="http://www.gnu.org/software/gdb/documentation/">http://www.gnu.org/software/gdb/documentation/</a></li></ul></div></div></div>
+<div class="section" title="Native GDB debugging"><div class="titlepage"><div><div><h1 class="title"><a id="ch05lvl1sec79"/>Native GDB debugging</h1></div></div></div><p>On devices as powerful <a id="id605" class="indexterm"/>as the Wandboard, native debugging is also an option to debug sporadic failures. This recipe will explore the native debugging method.</p><div class="section" title="Getting ready"><div class="titlepage"><div><div><h2 class="title"><a id="ch05lvl2sec217"/>Getting ready</h2></div></div></div><p>For native development and debugging, Yocto offers the <code class="literal">-dev</code> and <code class="literal">-sdk</code> target images. To add developing tools to the <code class="literal">-dev</code> images, we can use the <code class="literal">tools-sdk</code> feature. We also want to install debug information and debug tools, and we do this by adding the <code class="literal">dbg-pkgs</code> and <code class="literal">tools-debug</code> features to our image. For example, for <code class="literal">core-image-minimal-dev</code>, we would add the following to our <code class="literal">conf/local.conf</code> file:</p><div class="informalexample"><pre class="programlisting">EXTRA_IMAGE_FEATURES += "tools-sdk dbg-pkgs tools-debug"</pre></div><p>To prepare a development-ready version of the <code class="literal">core-image-minimal-dev</code> target image, we would execute the following commands:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>$ cd /opt/yocto/fsl-community-bsp/</strong></span>
+<span class="strong"><strong>$ source setup-environment wandboard-quad</strong></span>
+<span class="strong"><strong>$ bitbake core-image-minimal-dev</strong></span>
+</pre></div><p>We will then program the development image to our target.</p></div><div class="section" title="How to do it..."><div class="titlepage"><div><div><h2 class="title"><a id="ch05lvl2sec218"/>How to do it...</h2></div></div></div><p>Once the target has booted, you<a id="id606" class="indexterm"/> can start the <code class="literal">wvdial</code> application through the native GDB using the following steps:</p><div class="orderedlist"><ol class="orderedlist arabic"><li class="listitem">In the target command prompt, start the GDB debugger with the application as argument:<div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>$ gdb wvdial</strong></span>
+</pre></div></li><li class="listitem">Now instruct GDB to run the application:<div class="informalexample"><pre class="programlisting">(gdb) run
+Starting program: /usr/bin/wvdial
+Cannot access memory at address 0x0
+Cannot access memory at address 0x0
+
+Program received signal SIGILL, Illegal instruction.
+0x7698afe8 in ?? () from /lib/libcrypto.so.1.0.0
+(gdb) sharedlibrary libcrypto
+Symbols already loaded for /lib/libcrypto.so.1.0.0</pre></div></li><li class="listitem">Then request to print a backtrace:<div class="informalexample"><pre class="programlisting">(gdb) bt
+#0  0x7698afe8 in ?? () from /lib/libcrypto.so.1.0.0
+#1  0x769878e8 in OPENSSL_cpuid_setup () from /lib/libcrypto.so.1.0.0
+#2  0x76fe715c in ?? () from /lib/ld-linux-armhf.so.3
+Cannot access memory at address 0x48535540</pre></div><p>This is not the same backtrace you got when analyzing the core dump. What is going on here? The clue is on libcrypto, part of the OpenSSL library. OpenSSL probes the capabilities of the system by trying each capability and trapping the illegal instruction errors. So the <code class="literal">SIGILL</code> signal you are seeing during startup is normal and you should instruct GDB to continue.</p></li><li class="listitem">Instruct GDB to continue:<div class="informalexample"><pre class="programlisting">(gdb) c
+Continuing.
+--&gt; WvDial: Internet dialer version 1.61
+--&gt; Initializing modem.
+--&gt; Sending: ATZ
+ATZ
+OK
+--&gt; Sending: ATQ0 V1 E1 S0=0 &amp;C1 &amp;D2 +FCLASS=0
+ATQ0 V1 E1 S0=0 &amp;C1 &amp;D2 +FCLASS=0
+OK
+--&gt; Sending: AT+CGDCONT=1,"IP","internet"
+AT+CGDCONT=1,"IP","internet"
+OK
+--&gt; Modem initialized.
+--&gt; Idle Seconds = 3000, disabling automatic reconnect.
+
+Program received signal SIGSEGV, Segmentation fault.
+0x76db74c4 in WvTaskMan::_stackmaster() () from /usr/lib/libwvbase.so.4.6</pre></div></li></ol></div><p>This result is now compatible with the core dump you saw in the previous recipe.</p></div><div class="section" title="There's more..."><div class="titlepage"><div><div><h2 class="title"><a id="ch05lvl2sec219"/>There's more...</h2></div></div></div><p>When debugging<a id="id607" class="indexterm"/> applications, it is sometimes useful to reduce the level of optimization used by the compiler. This will reduce the application's performance but will facilitate debugging by improving the accuracy of the debug information. You can configure the build system to reduce optimization and add debug information by adding the following line of code to your <code class="literal">conf/local.conf</code> file:</p><div class="informalexample"><pre class="programlisting">DEBUG_BUILD = "1"</pre></div><p>By using this configuration, the optimization is reduced from <code class="literal">FULL_OPTIMIZATION (-O2)</code> to <code class="literal">DEBUG_OPTIMIZATION (-O -fno-omit-frame-pointer)</code>. But sometimes this is not enough, and you may like to build with no optimization. You can achieve this by overriding the <code class="literal">DEBUG_OPTIMIZATION</code> variable<a id="id608" class="indexterm"/> either globally or for a specific recipe.</p></div><div class="section" title="See also"><div class="titlepage"><div><div><h2 class="title"><a id="ch05lvl2sec220"/>See also</h2></div></div></div><div class="itemizedlist"><ul class="itemizedlist"><li class="listitem" style="list-style-type: disc">The example on using a debug-optimized build in the upcoming recipe on <span class="emphasis"><em>Cross GDB debugging</em></span></li></ul></div></div></div>
+<div class="section" title="Cross GDB debugging"><div class="titlepage"><div><div><h1 class="title"><a id="ch05lvl1sec80"/>Cross GDB debugging</h1></div></div></div><p>When we run a cross compiled<a id="id609" class="indexterm"/> GDB in the host, which connects to a native gdbserver running on the target, it is referred to as cross debugging. This is the same scenario we saw in the <span class="emphasis"><em>Using the Eclipse IDE</em></span> recipe earlier, except that Eclipse uses the <a id="id610" class="indexterm"/>
+<span class="strong"><strong>Target Communications Framework</strong></span> (<span class="strong"><strong>TCF</strong></span>). Cross debugging has the advantage of not needing debug information on target images, as they are already available in the host.</p><p>This recipe will show how to use a cross GDB and gdbserver.</p><div class="section" title="Getting ready"><div class="titlepage"><div><div><h2 class="title"><a id="ch05lvl2sec221"/>Getting ready</h2></div></div></div><p>To include gdbserver in your target image, you can use an <code class="literal">-sdk</code> image, or you can add the <code class="literal">tools-debug</code> feature to your image by adding the following to your <code class="literal">conf/local.conf</code> configuration file:</p><div class="informalexample"><pre class="programlisting">EXTRA_IMAGE_FEATURES += "tools-debug"</pre></div><p>So that GDB can access debug information of the shared libraries and executables, add the following to the <code class="literal">conf/local.conf</code> file:</p><div class="informalexample"><pre class="programlisting">EXTRA_IMAGE_FEATURES += "dbg-pkgs"</pre></div><p>The images running on the target and the toolchain's <code class="literal">sysroot</code> need to match. For example, if you are using <code class="literal">core-image-minimal</code> images, the toolchain needs to have been generated in the same project with:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>$ bitbake -c populate_sdk core-image-minimal</strong></span>
+</pre></div><p>This will generate a <code class="literal">sysroot</code> containing debug information for binaries and libraries.</p></div><div class="section" title="How to do it..."><div class="titlepage"><div><div><h2 class="title"><a id="ch05lvl2sec222"/>How to do it...</h2></div></div></div><p>Once the toolchain is installed, you can run the application to be debugged on the target using gdbserver—in this case, <code class="literal">wvdial</code>—in the following steps:</p><div class="orderedlist"><ol class="orderedlist arabic"><li class="listitem">Launch gdbserver with the application to run as argument:<div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong># gdbserver localhost:1234 /usr/bin/wvdial</strong></span>
+<span class="strong"><strong>Process wvdial created; pid = 879</strong></span>
+<span class="strong"><strong>Listening on port 1234</strong></span>
+</pre></div><p>The gdbserver is launched listening on localhost on a random 1234 port and is waiting for a connection from the remote GDB.</p></li><li class="listitem">In the host, you <a id="id611" class="indexterm"/>can now set up the environment using the recently installed toolchain:<div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>$ cd /opt/poky/1.7.1/</strong></span>
+<span class="strong"><strong>$ source environment-setup-cortexa9hf-vfp-neon-poky-linux- gnueabi</strong></span>
+</pre></div><p>You can then launch the cross GDB, passing to it the absolute path to the debug version of the application to debug, which is located in a <code class="literal">.debug</code> directory on the <code class="literal">sysroot</code>:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>$ arm-poky-linux-gnueabi-gdb /opt/poky/1.7.1/sysroots/cortexa9hf-vfp-neon-poky-linux- gnueabi/usr/bin/.debug/wvdial</strong></span>
+<span class="strong"><strong>Reading symbols from /opt/poky/1.7.1/sysroots/cortexa9hf-vfp- neon-poky-linux-gnueabi/usr/bin/.debug/wvdial...done.</strong></span>
+<span class="strong"><strong>(gdb)</strong></span>
+</pre></div></li><li class="listitem">Next configure GDB to consider all files as trusted so that it auto loads whatever it needs:<div class="informalexample"><pre class="programlisting">(gdb) set auto-load safe-path /</pre></div></li><li class="listitem">Also as you know, <code class="literal">wvdial</code> will generate a <code class="literal">SIGILL</code> signal that will interrupt our debugging session, instruct GDB not to stop when that signal is seen:<div class="informalexample"><pre class="programlisting">(gdb) handle SIGILL nostop</pre></div></li><li class="listitem">You can then connect to the remote target on the <code class="literal">1234</code> port with:<div class="informalexample"><pre class="programlisting">(gdb) target remote &lt;target_ip&gt;:1234
+Remote debugging using 192.168.128.6:1234
+Cannot access memory at address 0x0
+0x76fd7b00 in ?? ()</pre></div></li><li class="listitem">The first thing to do is to set <code class="literal">sysroot</code> so that GDB is able to find dynamically loaded libraries:<div class="informalexample"><pre class="programlisting">(gdb) set sysroot /opt/poky/1.7.1/sysroots/cortexa9hf-vfp- neon-poky-linux-gnueabi
+Reading symbols from /opt/poky/1.7.1/sysroots/cortexa9hf- vfp-neon-poky-linux-gnueabi/lib/ld-linux- armhf.so.3...done.
+Loaded symbols for /opt/poky/1.7.1/sysroots/cortexa9hf-vfp- neon-poky-linux-gnueabi/lib/ld-linux-armhf.so.3</pre></div></li><li class="listitem">Type <code class="literal">c</code> to continue <a id="id612" class="indexterm"/>with the program's execution. You will see <code class="literal">wvdial</code> continuing on the target:<div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>--&gt; WvDial: Internet dialer version 1.61</strong></span>
+<span class="strong"><strong>--&gt; Initializing modem.</strong></span>
+<span class="strong"><strong>--&gt; Sending: ATZ</strong></span>
+<span class="strong"><strong>ATZ</strong></span>
+<span class="strong"><strong>OK</strong></span>
+<span class="strong"><strong>--&gt; Sending: ATQ0 V1 E1 S0=0 &amp;C1 &amp;D2 +FCLASS=0</strong></span>
+<span class="strong"><strong>ATQ0 V1 E1 S0=0 &amp;C1 &amp;D2 +FCLASS=0</strong></span>
+<span class="strong"><strong>OK</strong></span>
+<span class="strong"><strong>--&gt; Sending: AT+CGDCONT=1,"IP","internet"</strong></span>
+<span class="strong"><strong>AT+CGDCONT=1,"IP","internet"</strong></span>
+<span class="strong"><strong>OK</strong></span>
+<span class="strong"><strong>--&gt; Modem initialized.</strong></span>
+<span class="strong"><strong>--&gt; Idle Seconds = 3000, disabling automatic reconnect.</strong></span>
+</pre></div></li><li class="listitem">You will then see GDB intercepting a <code class="literal">SIGILL</code> and <code class="literal">SEGSEGV</code> signal on the host:<div class="informalexample"><pre class="programlisting">Program received signal SIGILL, Illegal instruction.
+
+Program received signal SIGSEGV, Segmentation fault.
+0x76dc14c4 in WvTaskMan::_stackmaster () at utils/wvtask.cc:416
+416     utils/wvtask.cc: No such file or directory.</pre></div></li><li class="listitem">You can now ask to see a backtrace:<div class="informalexample"><pre class="programlisting">(gdb) bt
+#0  0x76dc14c4 in WvTaskMan::_stackmaster () at utils/wvtask.cc:416
+#1  0x00000000 in ?? ()</pre></div><p>Although limited, this backtrace could still be useful to debug the application.</p></li></ol></div></div><div class="section" title="How it works..."><div class="titlepage"><div><div><h2 class="title"><a id="ch05lvl2sec223"/>How it works...</h2></div></div></div><p>We see a limited <a id="id613" class="indexterm"/>backtrace because the compiled binaries are not suitable for debugging, as they omit stack frames. To keep information on stack frames, add the following to the <code class="literal">conf/local.conf</code> configuration file:</p><div class="informalexample"><pre class="programlisting">DEBUG_BUILD = "1"</pre></div><p>This changes the compilation flags to debug optimization as follows:</p><div class="informalexample"><pre class="programlisting">DEBUG_OPTIMIZATION = "-O -fno-omit-frame-pointer ${DEBUG_FLAGS} - pipe"</pre></div><p>The <code class="literal">-fno-omit-frame-pointer</code> flag will tell <code class="literal">gcc</code> to keep stack frames. The compiler will also reduce the optimization level to provide a better debugging experience.</p><p>A debug build will also make it possible to trace variables and set breakpoints and watchpoints, as well as other common debugging features.</p><p>After building and installing the target images and toolchain again, you can now follow the same process as in the preceding recipe:</p><div class="orderedlist"><ol class="orderedlist arabic"><li class="listitem">Use the following code for connecting to the remote target:<div class="informalexample"><pre class="programlisting">(gdb) target remote &lt;target_ip&gt;:1234
+Remote debugging using 192.168.128.6:1234
+warning: Unable to find dynamic linker breakpoint function.
+GDB will be unable to debug shared library initializers
+and track explicitly loaded dynamic code.
+Cannot access memory at address 0x0
+0x76fdd800 in ?? ()</pre></div><p>Set the <code class="literal">sysroot</code> as follows:</p><div class="informalexample"><pre class="programlisting">(gdb) set sysroot /opt/poky/1.7.1/sysroots/cortexa9hf-vfp- neon-poky-linux-gnueabi
+Reading symbols from /opt/poky/1.7.1/sysroots/cortexa9hf- vfp-neon-poky-linux-gnueabi/lib/ld-linux- armhf.so.3...done.
+Loaded symbols for /opt/poky/1.7.1/sysroots/cortexa9hf-vfp- neon-poky-linux-gnueabi/lib/ld-linux-armhf.so.3</pre></div></li><li class="listitem">Once you are done with the setup, instruct the program to continue as follows:<div class="informalexample"><pre class="programlisting">(gdb) c
+Continuing.
+
+Program received signal SIGILL, Illegal instruction.
+
+Program received signal SIGABRT, Aborted.
+0x76b28bb4 in __GI_raise (sig=sig@entry=6) at ../sysdeps/unix/sysv/linux/raise.c:55
+55      ../sysdeps/unix/sysv/linux/raise.c: No such file or directory.
+(gdb) bt
+#0  0x76b28bb4 in __GI_raise (sig=sig@entry=6) at ../sysdeps/unix/sysv/linux/raise.c:55
+#1  0x76b2cabc in __GI_abort () at abort.c:89
+#2  0x76decfa8 in __assert_fail (__assertion=0x76df4600 "magic_number == -0x123678",
+    __file=0x1 &lt;error: Cannot access memory at address 0x1&gt;, __line=427,
+    __function=0x76df4584 &lt;WvTaskMan::_stackmaster()::__PRETTY_FUNCTION__&gt; "static void WvTaskMan::_stackmaster()")
+    at utils/wvcrashbase.cc:98
+#3  0x76dc58c8 in WvTaskMan::_stackmaster () at utils/wvtask.cc:427
+Cannot access memory at address 0x123678
+#4  0x00033690 in ?? ()
+Cannot access memory at address 0x123678
+Backtrace stopped: previous frame identical to this frame (corrupt stack?)</pre></div><p>You can now <a id="id614" class="indexterm"/>see a complete backtrace.</p></li></ol></div></div></div>
+<div class="section" title="Using strace for application debugging"><div class="titlepage"><div><div><h1 class="title"><a id="ch05lvl1sec81"/>Using strace for application debugging</h1></div></div></div><p>Debugging does not always involve working with source code. Sometimes it is a change in an external factor that is causing the problem.</p><p>Strace is a tool that is <a id="id615" class="indexterm"/>useful for scenarios where we are looking <a id="id616" class="indexterm"/>for problems outside of the binary itself; for example configuration files, input data, and kernel interfaces. This recipe will explain how to use it.</p><div class="section" title="Getting ready"><div class="titlepage"><div><div><h2 class="title"><a id="ch05lvl2sec224"/>Getting ready</h2></div></div></div><p>To include strace in your system, add the following to your <code class="literal">conf/local.conf</code> file:</p><div class="informalexample"><pre class="programlisting">IMAGE_INSTALL_append = " strace"</pre></div><p>Strace is also part of the <code class="literal">tools-debug</code> image feature, so you can also add it with:</p><div class="informalexample"><pre class="programlisting">EXTRA_IMAGE_FEATURES += "tools-debug"</pre></div><p>Strace is also included in the <code class="literal">-sdk</code> images.</p><p>Before starting, we will also include <code class="literal">pgrep</code>, a process utility that will make our debugging easier by looking up process IDs by name. To do so, add the following to your <code class="literal">conf/local.conf</code> configuration file:</p><div class="informalexample"><pre class="programlisting">IMAGE_INSTALL_append = " procps"</pre></div></div><div class="section" title="How to do it..."><div class="titlepage"><div><div><h2 class="title"><a id="ch05lvl2sec225"/>How to do it...</h2></div></div></div><p>When printing a<a id="id617" class="indexterm"/> system call, strace prints the values passed<a id="id618" class="indexterm"/> to the kernel or returned from the kernel. The verbose option prints more details for some system calls.</p><p>For example, filtering just the <code class="literal">sendto()</code> system calls from a single ping looks as follows:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong># strace -f -t -e sendto /bin/bash -c "ping -c 1 127.0.0.1"</strong></span>
+<span class="strong"><strong>5240  17:18:04 sendto(0, "\10\0;\220x\24\0\0\225m\256\355\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\ 0\0"..., 64, 0, {sa_family=AF_INET, sin_port=htons(0), sin_addr=inet_addr("127.0.0.1")}, 28) = 64</strong></span>
+</pre></div></div><div class="section" title="How it works..."><div class="titlepage"><div><div><h2 class="title"><a id="ch05lvl2sec226"/>How it works...</h2></div></div></div><p>Strace allows the monitoring of system calls of running processes into the Linux kernel. It uses the <code class="literal">ptrace()</code> system call to do so. This means that other programs that use <code class="literal">ptrace()</code>, such as <code class="literal">gdb</code>, will not run simultaneously.</p><p>Strace is a disruptive monitoring tool, and the process being monitored will slow down and create many more context switches. A generic way of running strace on a given program is:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>strace -f -e &lt;filter&gt; -t -s&lt;num&gt; -o &lt;log file&gt;.strace &lt;program&gt;</strong></span>
+</pre></div><p>The arguments are explained below:</p><div class="itemizedlist"><ul class="itemizedlist"><li class="listitem" style="list-style-type: disc"><code class="literal">f</code>: Tells strace to trace all child processes.</li><li class="listitem" style="list-style-type: disc"><code class="literal">e</code>: Filters the output to a selection of comma separated system calls.</li><li class="listitem" style="list-style-type: disc"><code class="literal">t</code>: Prints absolute timestamps. Use <code class="literal">r</code> for timestamps relative to the last syscall, and <code class="literal">T</code> to add the time spent in the syscall.</li><li class="listitem" style="list-style-type: disc"><code class="literal">s</code>: Increases the maximum length of strings from the default of <code class="literal">32</code>.</li><li class="listitem" style="list-style-type: disc"><code class="literal">o</code>: Redirects the output to a file that can then be analyzed offline.</li></ul></div><p>It can also attach to running processes using the following command:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>$ strace -p $( pgrep &lt;program&gt; )</strong></span>
+</pre></div><p>Or several<a id="id619" class="indexterm"/> instances of a process using the following command:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>$ strace $( pgrep &lt;program&gt; | sed 's/^/-p' )</strong></span>
+</pre></div><p>To detach, just press <span class="emphasis"><em>Ctrl</em></span> + <span class="emphasis"><em>C</em></span>.</p></div><div class="section" title="See also"><div class="titlepage"><div><div><h2 class="title"><a id="ch05lvl2sec227"/>See also</h2></div></div></div><div class="itemizedlist"><ul class="itemizedlist"><li class="listitem" style="list-style-type: disc">The corresponding man pages for more information about strace at <a class="ulink" href="http://man7.org/linux/man-pages/man1/strace.1.html">http://man7.org/linux/man-pages/man1/strace.1.html</a></li></ul></div></div></div>
+<div class="section" title="Using the kernel's performance counters"><div class="titlepage"><div><div><h1 class="title"><a id="ch05lvl1sec82"/>Using the kernel's performance counters</h1></div></div></div><p>Hardware performance <a id="id620" class="indexterm"/>counters are perfect for code optimization, especially<a id="id621" class="indexterm"/> in embedded systems with a single workload. They are actively used by a wide range of tracing and profiling tools. This recipe will introduce the Linux performance counters subsystem and show how to use it.</p><div class="section" title="Getting ready"><div class="titlepage"><div><div><h2 class="title"><a id="ch05lvl2sec228"/>Getting ready</h2></div></div></div><p>The <a id="id622" class="indexterm"/>
+<span class="strong"><strong>Linux Kernel Performance Counters Subsystem</strong></span> (<span class="strong"><strong>LPC</strong></span>), commonly known as <code class="literal">linux_perf</code>, is an abstraction interface to different CPU-specific performance measurements. The <code class="literal">perf_events</code> subsystem not only exposes hardware performance counters from the CPU, but also kernel software events using the same API. It also allows the mapping of events to processes, although this has a performance overhead. Further, it provides generalized events which are common across architectures.</p><p>Events can be categorized into three main groups:</p><div class="itemizedlist"><ul class="itemizedlist"><li class="listitem" style="list-style-type: disc"><span class="strong"><strong>Software events</strong></span><a id="id623" class="indexterm"/>: Based on kernel counters, these events are used for <a id="id624" class="indexterm"/>things such as context switches and minor faults tracking.</li><li class="listitem" style="list-style-type: disc"><span class="strong"><strong>Hardware events</strong></span>: These <a id="id625" class="indexterm"/>come from<a id="id626" class="indexterm"/> the processor's CPU <span class="strong"><strong>Performance Monitoring Unit</strong></span> (<span class="strong"><strong>PMU</strong></span>)<a id="id627" class="indexterm"/> and are used to track architecture-specific items, such as the number of cycles, cache misses, and so on. They vary with each processor type.</li><li class="listitem" style="list-style-type: disc"><span class="strong"><strong>Hardware cache events</strong></span>: These are <a id="id628" class="indexterm"/>common hardware events that <a id="id629" class="indexterm"/>will only be available if they actually map to a CPU hardware event.</li></ul></div><p>To know whether <code class="literal">perf_event</code> support is available for your platform, you can check for the existence of the <code class="literal">/proc/sys/kernel/perf_event_paranoid</code> file. This file is also used to restrict access to the performance counters, which by default are set to allow both user and kernel measurement. It can have the following values:</p><div class="itemizedlist"><ul class="itemizedlist"><li class="listitem" style="list-style-type: disc"><code class="literal">2</code>: Only allows user-space measurements</li><li class="listitem" style="list-style-type: disc"><code class="literal">1</code>: Allows both kernel and user measurements (default)</li><li class="listitem" style="list-style-type: disc"><code class="literal">0</code>: Allows access to CPU-specific data but not raw tracepoint samples</li><li class="listitem" style="list-style-type: disc"><code class="literal">-1</code>: No restrictions</li></ul></div><p>The i.MX6 SoC <a id="id630" class="indexterm"/>has a Cortex-A9 CPU which includes a PMU, providing<a id="id631" class="indexterm"/> six counters to gather statistics on the operation of the processor and memory, each one of them able to monitor any of 58 available events.</p><p>You can find a description of the available events in the <span class="emphasis"><em>Cortex-A9 Technical Reference Manual</em></span>.</p><p>The i.MX6 performance counters do not allow exclusive access to just user or just kernel measurements. Also, i.MX6 SoC designers have unfortunately joined the PMU interrupts from all CPU cores, when ideally they should only be handled by the same CPU that raises them. You can start the i.MX6 with just one core, using the <code class="literal">maxcpus=1</code> kernel command-line argument, so that you can still use the <code class="literal">perf_events</code> interface.</p><p>To configure the Linux kernel to boot with one core, stop at the U-Boot prompt and change the <code class="literal">mmcargs</code> environment variable as follows:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>&gt; setenv mmcargs 'setenv bootargs console=${console},${baudrate} root=${mmcroot} ${extra_bootargs}; run videoargs'</strong></span>
+<span class="strong"><strong>&gt; setenv extra_bootargs maxcpus=1</strong></span>
+</pre></div><div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="note30"/>Note</h3><p>The <code class="literal">mmcargs</code> environmental variable<a id="id632" class="indexterm"/> is only used when booting from an MMC device like the microSD card. If the target is booting from another source, such as a network, the corresponding environmental variable will have to be changed. You can dump the whole U-Boot environment with the <code class="literal">printenv</code> U-Boot command, and change the required variable with <code class="literal">setenv</code>.</p></div></div></div><div class="section" title="How to do it..."><div class="titlepage"><div><div><h2 class="title"><a id="ch05lvl2sec229"/>How to do it...</h2></div></div></div><p>The interface introduces a <code class="literal">sys_perf_event_open()</code> syscall, with the counters being started and stopped using <code class="literal">ioctls</code>, and read either with <code class="literal">read()</code> calls or <code class="literal">mmapping</code> samples into circular buffers. The <code class="literal">perf_event_open()</code> syscall is defined as follows:</p><div class="informalexample"><pre class="programlisting">#include &lt;linux/perf_event.h&gt;
+#include &lt;linux/hw_breakpoint.h&gt;
+
+int perf_event_open(struct perf_event_attr *attr,
+                    pid_t pid, int cpu, int group_fd,
+                    unsigned long flags);</pre></div><p>There is no <code class="literal">C</code> library wrapper for it, so it needs to be called using <code class="literal">syscall()</code>.</p></div><div class="section" title="How it works..."><div class="titlepage"><div><div><h2 class="title"><a id="ch05lvl2sec230"/>How it works...</h2></div></div></div><p>Following is an<a id="id633" class="indexterm"/> example, <code class="literal">perf_example.c</code>, program modified from the <code class="literal">perf_event_open</code> man <a id="id634" class="indexterm"/>page to measure instruction count for a <code class="literal">printf</code> call:</p><div class="informalexample"><pre class="programlisting">#include &lt;stdlib.h&gt;
+#include &lt;stdio.h&gt;
+#include &lt;unistd.h&gt;
+#include &lt;string.h&gt;
+#include &lt;sys/ioctl.h&gt;
+#include &lt;linux/perf_event.h&gt;
+#include &lt;asm/unistd.h&gt;
+ 
+static long
+perf_event_open(struct perf_event_attr *hw_event, pid_t pid,
+                int cpu, int group_fd, unsigned long flags)
+{
+    int ret;
+
+    ret = syscall(__NR_perf_event_open, hw_event, pid, cpu,
+                   group_fd, flags);
+    return ret;
+}
+
+int
+main(int argc, char **argv)
+{
+    struct perf_event_attr pe;
+    long long count;
+    int fd;
+
+    memset(&amp;pe, 0, sizeof(struct perf_event_attr));
+    pe.type = PERF_TYPE_HARDWARE;
+    pe.size = sizeof(struct perf_event_attr);
+    pe.config = PERF_COUNT_HW_INSTRUCTIONS;
+    pe.disabled = 1;
+   
+    fd = perf_event_open(&amp;pe, 0, -1, -1, 0);
+    if (fd == -1) {
+       fprintf(stderr, "Error opening leader %llx\n", pe.config);
+       exit(EXIT_FAILURE);
+    }
+
+    ioctl(fd, PERF_EVENT_IOC_RESET, 0);
+    ioctl(fd, PERF_EVENT_IOC_ENABLE, 0);
+
+    printf("Measuring instruction count for this printf\n");
+
+    ioctl(fd, PERF_EVENT_IOC_DISABLE, 0);
+    read(fd, &amp;count, sizeof(long long));
+
+    printf("Used %lld instructions\n", count);
+
+    close(fd);
+
+    return 0;
+}</pre></div><p>For compiling this<a id="id635" class="indexterm"/> program externally, we can use the following <a id="id636" class="indexterm"/>commands:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>$ source /opt/poky/1.7.1/environment-setup-cortexa9hf-vfp-neon-poky- linux-gnueabi</strong></span>
+<span class="strong"><strong>$ ${CC} perf_example.c -o perf_example</strong></span>
+</pre></div><p>After copying the binary to your target, you can then execute it with the help of the following code:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong># ./perf_example</strong></span>
+<span class="strong"><strong>Measuring instruction count for this printf</strong></span>
+<span class="strong"><strong>Used 0 instructions</strong></span>
+</pre></div><p>Obviously, using zero instructions for the <code class="literal">printf()</code> call can't be correct. Looking into possible causes, we find a documented erratum (ERR006259) on i.MX6 processors that states that in order for the PMU to be used, the SoC needs to receive at least 4 JTAG clock cycles after power on reset.</p><p>Rerun the example with the JTAG connected:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong># ./perf_example</strong></span>
+<span class="strong"><strong>Measuring instruction count for this printf</strong></span>
+<span class="strong"><strong>Used 3977 instructions</strong></span>
+</pre></div></div><div class="section" title="There's more..."><div class="titlepage"><div><div><h2 class="title"><a id="ch05lvl2sec231"/>There's more...</h2></div></div></div><p>Even though you can access the <code class="literal">perf_events</code> interface directly as in the preceding example, the recommended way to use it is through a user space application, such as perf, which we will see in the <span class="emphasis"><em>Tracing and profiling with perf</em></span> recipe in this chapter.</p></div><div class="section" title="See also"><div class="titlepage"><div><div><h2 class="title"><a id="ch05lvl2sec232"/>See also</h2></div></div></div><div class="itemizedlist"><ul class="itemizedlist"><li class="listitem" style="list-style-type: disc">The <a id="id637" class="indexterm"/>Technical Reference Manual at <a class="ulink" href="http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.ddi0388f/BEHGGDJC.html">http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.ddi0388f/BEHGGDJC.html</a>for more information about the Cortex-A9 PMU</li></ul></div></div></div>
+<div class="section" title="Using static kernel tracing"><div class="titlepage"><div><div><h1 class="title"><a id="ch05lvl1sec83"/>Using static kernel tracing</h1></div></div></div><p>The Linux kernel is continuously <a id="id638" class="indexterm"/>being instrumented with static probe points called <a id="id639" class="indexterm"/>
+<span class="strong"><strong>tracepoints</strong></span>, which when disabled have a very small overhead. They allow us to record more information than the function tracer we saw in <a class="link" href="ch02.html" title="Chapter 2. The BSP Layer">Chapter 2</a>, <span class="emphasis"><em>The BSP Layer</em></span>. Tracepoints are used by multiple tracing and profiling tools in Yocto.</p><p>This recipe will explain how to use and define static tracepoints independently of user space tools.</p><div class="section" title="Getting ready"><div class="titlepage"><div><div><h2 class="title"><a id="ch05lvl2sec233"/>Getting ready</h2></div></div></div><p>Static tracepoints can be instrumented using custom kernel modules, and also through the event tracing infrastructure. Enabling any of the tracing features in the kernel will create a <code class="literal">/sys/kernel/debug/tracing/</code> directory; for example, the function tracing feature as explained in the <span class="emphasis"><em>Using the kernel function tracing system</em></span> in <a class="link" href="ch02.html" title="Chapter 2. The BSP Layer">Chapter 2</a>, <span class="emphasis"><em>The BSP Layer</em></span>.</p><p>So before continuing with this recipe, you need to configure the function tracing feature in the Linux kernel as explained before.</p></div><div class="section" title="How to do it..."><div class="titlepage"><div><div><h2 class="title"><a id="ch05lvl2sec234"/>How to do it...</h2></div></div></div><p>The static tracing functionality is exposed via the <code class="literal">debugfs</code> filesystem. The functionality offered by the interface includes:</p><div class="itemizedlist"><ul class="itemizedlist"><li class="listitem" style="list-style-type: disc"><span class="strong"><strong>Listing events</strong></span>:<p>You can <a id="id640" class="indexterm"/>see a list of available tracepoints exposed via <code class="literal">sysfs</code> and ordered in subsystem directories with:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong># ls /sys/kernel/debug/tracing/events/</strong></span>
+<span class="strong"><strong>asoc          ftrace        migrate       rcu           spi</strong></span>
+<span class="strong"><strong>block         gpio          module        regmap        sunrpc</strong></span>
+<span class="strong"><strong>cfg80211      header_event  napi          regulator     task</strong></span>
+<span class="strong"><strong>compaction    header_page   net           rpm           timer</strong></span>
+<span class="strong"><strong>drm           irq           oom           sched         udp</strong></span>
+<span class="strong"><strong>enable        jbd           power         scsi          vmscan</strong></span>
+<span class="strong"><strong>ext3          jbd2          printk        signal        workqueue</strong></span>
+<span class="strong"><strong>ext4          kmem          random        skb           writeback</strong></span>
+<span class="strong"><strong>filemap       mac80211      raw_syscalls  sock</strong></span>
+</pre></div><p>Or in the <code class="literal">available_events</code> file with the <code class="literal">&lt;subsystem&gt;:&lt;event&gt;</code> format using the following commands:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>#  grep 'net'  /sys/kernel/debug/tracing/available_events </strong></span>
+<span class="strong"><strong>net:netif_rx</strong></span>
+<span class="strong"><strong>net:netif_receive_skb</strong></span>
+<span class="strong"><strong>net:net_dev_queue</strong></span>
+<span class="strong"><strong>net:net_dev_xmit</strong></span>
+</pre></div></li><li class="listitem" style="list-style-type: disc"><span class="strong"><strong>Describing events</strong></span>:<p>Each <a id="id641" class="indexterm"/>event has a specific printing format that describes the information included in the log event, as follows:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>#cat /sys/kernel/debug/tracing/events/net/netif_receive_skb/format</strong></span>
+<span class="strong"><strong>name: netif_receive_skb</strong></span>
+<span class="strong"><strong>ID: 378</strong></span>
+<span class="strong"><strong>format:</strong></span>
+<span class="strong"><strong>  field:unsigned short common_type;  offset:0;  size:2; signed:0;</strong></span>
+<span class="strong"><strong>  field:unsigned char common_flags;  offset:2;  size:1; signed:0;</strong></span>
+<span class="strong"><strong>  field:unsigned char common_preempt_count;  offset:3; size:1;  signed:0;</strong></span>
+<span class="strong"><strong>  field:int common_pid;  offset:4;  size:4;  signed:1;</strong></span>
+
+<span class="strong"><strong>  field:void * skbaddr;  offset:8;  size:4;  signed:0;</strong></span>
+<span class="strong"><strong>  field:unsigned int len;	offset:12;  size:4;  signed:0;</strong></span>
+<span class="strong"><strong>  field:__data_loc char[] name;	offset:16;  size:4;  signed:0;</strong></span>
+
+<span class="strong"><strong>print fmt: "dev=%s skbaddr=%p len=%u", __get_str(name), REC- &gt;skbaddr, REC-&gt;len</strong></span>
+</pre></div></li><li class="listitem" style="list-style-type: disc"><span class="strong"><strong>Enabling and disabling events</strong></span>:<p>You can <a id="id642" class="indexterm"/>enable or disable events in the following <a id="id643" class="indexterm"/>ways:</p><div class="itemizedlist"><ul class="itemizedlist"><li class="listitem" style="list-style-type: disc">By echoing<a id="id644" class="indexterm"/> 0 or 1 to the event <code class="literal">enable</code> file:<div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong># echo 1 &gt; /sys/kernel/debug/tracing/events/net/netif_receive_skb/enable</strong></span>
+</pre></div></li><li class="listitem" style="list-style-type: disc">By subsystem directory, which will enable or disable all the tracepoints in the directory/subsystem:<div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong># echo 1 &gt; /sys/kernel/debug/tracing/events/net/enable</strong></span>
+</pre></div></li><li class="listitem" style="list-style-type: disc">By echoing the unique tracepoint name into the <code class="literal">set_event</code> file:<div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong># echo netif_receive_skb &gt;&gt; /sys/kernel/debug/tracing/set_event</strong></span>
+</pre></div></li></ul></div><p>Note the append operation <code class="literal">&gt;&gt;</code> is used not to clear events.</p><div class="itemizedlist"><ul class="itemizedlist"><li class="listitem" style="list-style-type: disc">Events can be disabled by appending an exclamation mark to their names:<div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong># echo '!netif_receive_skb' &gt;&gt; /sys/kernel/debug/tracing/set_event</strong></span>
+</pre></div></li><li class="listitem" style="list-style-type: disc">Events can also be enabled/disabled by subsystem:<div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong># echo 'net:*' &gt; /sys/kernel/debug/tracing/set_event</strong></span>
+</pre></div></li><li class="listitem" style="list-style-type: disc">To disable all events:<div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong># echo &gt; /sys/kernel/debug/tracing/set_event</strong></span>
+</pre></div></li></ul></div><p>You can also enable tracepoints from boot by passing a <code class="literal">trace_event=&lt;comma separated event list&gt;</code> kernel command line-argument.</p></li><li class="listitem" style="list-style-type: disc"><span class="strong"><strong>Adding events to the tracing buffer</strong></span>:<p>To see the <a id="id645" class="indexterm"/>tracepoints appear on the tracing buffer, turn tracing on:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong># echo 1 &gt; /sys/kernel/debug/tracing/tracing_on</strong></span>
+</pre></div><p>Tracepoint events are integrated into the <code class="literal">ftrace</code> subsystem so that if you enable a tracepoint, when a tracer is running, it will show up in the trace. Take a look at the following commands:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong># cd /sys/kernel/debug/tracing</strong></span>
+<span class="strong"><strong># echo 1 &gt; events/net/netif_receive_skb/enable</strong></span>
+<span class="strong"><strong># echo netif_receive_skb &gt; set_ftrace_filter</strong></span>
+<span class="strong"><strong># echo function &gt; current_tracer</strong></span>
+<span class="strong"><strong># cat trace</strong></span>
+<span class="strong"><strong>          &lt;idle&gt;-0     [000] ..s2  1858.542206: netif_receive_skb &lt;-napi_gro_receive</strong></span>
+<span class="strong"><strong>          &lt;idle&gt;-0     [000] ..s2  1858.542214: netif_receive_skb: dev=eth0 skbaddr=dcb5bd80 len=168</strong></span>
+</pre></div></li></ul></div></div><div class="section" title="How it works..."><div class="titlepage"><div><div><h2 class="title"><a id="ch05lvl2sec235"/>How it works...</h2></div></div></div><p>A tracepoint<a id="id646" class="indexterm"/> is inserted using the <code class="literal">TRACE_EVENT</code> macro. It inserts a callback in the kernel source that gets called with the tracepoint parameters as arguments. Tracepoints added with the <code class="literal">TRACE_EVENT</code> macro allow <code class="literal">ftrace</code> or any other tracer to use them. The callback inserts the trace at the calling tracer's ring buffer.</p><p>To insert a new tracepoint into the Linux kernel, define a new header file with a special format. By default, tracepoint kernel files are located in <code class="literal">include/trace/events</code>, but the kernel has functionality so that the header files can be located in a different path. This is useful when defining a tracepoint in a kernel module.</p><p>To use the tracepoint, the header file must be included in any file that inserts the tracepoint, and a single C file must define <code class="literal">CREATE_TRACE_POINT</code>. For example, to extend the <code class="literal">hello world</code> Linux kernel module we saw in a previous chapter with a tracepoint, add the following code to <code class="literal">meta-bsp-custom/recipes-kernel/hello-world-tracepoint/files/hello_world.c</code>:</p><div class="informalexample"><pre class="programlisting">#include &lt;linux/module.h&gt;
+#include "linux/timer.h"
+<span class="strong"><strong>#define CREATE_TRACE_POINTS</strong></span>
+<span class="strong"><strong>#include "trace.h"</strong></span>
+
+static struct timer_list hello_timer;
+
+void hello_timer_callback(unsigned long data)
+{
+        char a[] = "Hello";
+        char b[] = "World";
+        printk("%s %s\n",a,b);
+      /* Insert the static tracepoint */
+<span class="strong"><strong>        trace_log_dbg(a, b);</strong></span>
+      /* Trigger the timer again in 8 seconds */
+        mod_timer(&amp;hello_timer, jiffies + msecs_to_jiffies(8000));
+}
+
+static int hello_world_init(void)
+{
+      /* Setup a timer to fire in 2 seconds */
+        setup_timer(&amp;hello_timer, hello_timer_callback, 0);
+        mod_timer(&amp;hello_timer, jiffies + msecs_to_jiffies(2000));
+        return 0;
+}
+
+static void hello_world_exit(void)
+{
+      /* Delete the timer */
+        del_timer(&amp;hello_timer);
+}
+
+module_init(hello_world_init);
+module_exit(hello_world_exit);
+
+MODULE_LICENSE("GPL v2");</pre></div><p>The tracepoint <a id="id647" class="indexterm"/>header file in <code class="literal">meta-bsp-custom/recipes-kernel/hello-world-tracepoint/files/trace.h</code> would be:</p><div class="informalexample"><pre class="programlisting">#undef TRACE_SYSTEM
+#define TRACE_SYSTEM log_dbg
+
+#if !defined(_HELLOWORLD_TRACE) || defined(TRACE_HEADER_MULTI_READ)
+#define _HELLOWORLD_TRACE
+
+#include &lt;linux/tracepoint.h&gt;
+
+TRACE_EVENT(log_dbg,
+            TP_PROTO(char *a, char *b),
+            TP_ARGS(a, b),
+            TP_STRUCT__entry(
+                    __string(a, a)
+                    __string(b, b)),
+            TP_fast_assign(
+                    __assign_str(a, a);
+                    __assign_str(b, b);),
+            TP_printk("log_dbg: a %s b %s",
+                      __get_str(a), __get_str(b))
+        );
+#endif
+
+/* This part must be outside protection */
+#undef TRACE_INCLUDE_PATH
+#undef TRACE_INCLUDE_FILE
+#define TRACE_INCLUDE_PATH .
+#define TRACE_INCLUDE_FILE trace
+#include &lt;trace/define_trace.h&gt;</pre></div><p>And the<a id="id648" class="indexterm"/> module's <code class="literal">Makefile</code> file in <code class="literal">meta-bsp-custom/recipes-kernel/hello-world-tracepoint/files/Makefile</code> would look as follows:</p><div class="informalexample"><pre class="programlisting">obj-m   := hello_world.o
+<span class="strong"><strong>CFLAGS_hello_world.o    += -I$(src)</strong></span>
+
+SRC := $(shell pwd)
+
+all:
+        $(MAKE) -C "$(KERNEL_SRC)" M="$(SRC)"
+
+modules_install:
+        $(MAKE) -C "$(KERNEL_SRC)" M="$(SRC)" modules_install
+
+clean:
+        rm -f *.o *~ core .depend .*.cmd *.ko *.mod.c
+        rm -f Module.markers Module.symvers modules.order
+        rm -rf .tmp_versions Modules.symvers</pre></div><p>Note the highlighted line that includes the current folder in the search path for <code class="literal">include</code> files.</p><p>We can now build the module externally, as we saw in the <span class="emphasis"><em>Building external kernel modules</em></span> recipe in <a class="link" href="ch02.html" title="Chapter 2. The BSP Layer">Chapter 2</a>, <span class="emphasis"><em>The BSP Layer</em></span>. The corresponding Yocto recipe is included in the source that accompanies the book. Here is the code for the same:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>$ cd /opt/yocto/fsl-community-bsp/sources/meta-bsp-custom/recipes- kernel/hello-world-tracepoint/files/</strong></span>
+<span class="strong"><strong>$ source /opt/poky/1.7.1/environment-setup-cortexa9hf-vfp-neon-poky- linux-gnueabi</strong></span>
+<span class="strong"><strong>$ KERNEL_SRC=/opt/yocto/linux-wandboard make</strong></span>
+</pre></div><p>After copying <a id="id649" class="indexterm"/>the resulting <code class="literal">hello_world.ko</code> module to the Wandboard's root filesystem, you can load it with:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong># insmod hello_world.ko</strong></span>
+<span class="strong"><strong>Hello World</strong></span>
+</pre></div><p>You can now see a new <code class="literal">log_dbg</code> directory inside <code class="literal">/sys/kernel/debug/tracing/events</code>, which contains a <code class="literal">log_dbg</code> event tracepoint with the following format:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong># cat /sys/kernel/debug/tracing/events/log_dbg/log_dbg/format</strong></span>
+<span class="strong"><strong>name: log_dbg</strong></span>
+<span class="strong"><strong>ID: 622</strong></span>
+<span class="strong"><strong>format:</strong></span>
+<span class="strong"><strong>        field:unsigned short common_type;       offset:0;       size:2; signed:0;</strong></span>
+<span class="strong"><strong>        field:unsigned char common_flags;       offset:2;       size:1; signed:0;</strong></span>
+<span class="strong"><strong>        field:unsigned char common_preempt_count;       offset:3;    size:1; signed:0;</strong></span>
+<span class="strong"><strong>        field:int common_pid;   offset:4;       size:4; signed:1;</strong></span>
+
+<span class="strong"><strong>        field:__data_loc char[] a;      offset:8;       size:4; signed:0;</strong></span>
+<span class="strong"><strong>        field:__data_loc char[] b;      offset:12;      size:4; signed:0;</strong></span>
+
+<span class="strong"><strong>print fmt: "log_dbg: a %s b %s", __get_str(a), __get_str(b)</strong></span>
+</pre></div><p>You can then enable the function tracer on the <code class="literal">hello_timer_callback</code> function:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong># cd /sys/kernel/debug/tracing</strong></span>
+<span class="strong"><strong># echo 1 &gt; events/log_dbg/log_dbg/enable</strong></span>
+<span class="strong"><strong># echo 1 &gt; /sys/kernel/debug/tracing/tracing_on</strong></span>
+<span class="strong"><strong># cat trace</strong></span>
+<span class="strong"><strong>          &lt;idle&gt;-0     [000] ..s2    57.425040: log_dbg: log_dbg: a Hello b World</strong></span>
+</pre></div></div><div class="section" title="There's more..."><div class="titlepage"><div><div><h2 class="title"><a id="ch05lvl2sec236"/>There's more...</h2></div></div></div><p>Static tracepoints can also be filtered. When an event matches a filter set, it is kept, otherwise it is discarded. Events without filters are always kept.</p><p>For example, to set a matching filter for the <code class="literal">log_dbg</code> event inserted in the preceding code,  you could match either the <code class="literal">a</code> or <code class="literal">b</code> variables:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong># echo "a == \"Hello\"" &gt; /sys/kernel/debug/tracing/events/log_dbg/log_dbg/filter</strong></span>
+</pre></div></div><div class="section" title="See also"><div class="titlepage"><div><div><h2 class="title"><a id="ch05lvl2sec237"/>See also</h2></div></div></div><div class="itemizedlist"><ul class="itemizedlist"><li class="listitem" style="list-style-type: disc">The Linux kernel documentation<a id="id650" class="indexterm"/> at <a class="ulink" href="https://git.kernel.org/cgit/linux/kernel/git/torvalds/linux.git/plain/Documentation/trace/events.txt">https://git.kernel.org/cgit/linux/kernel/git/torvalds/linux.git/plain/Documentation/trace/events.txt</a> for more information regarding static tracepoints events</li><li class="listitem" style="list-style-type: disc">The <span class="emphasis"><em>Using the TRACE_EVENT() macro</em></span> article <a id="id651" class="indexterm"/>series by Steven Rostedt at <a class="ulink" href="http://lwn.net/Articles/379903/">http://lwn.net/Articles/379903/</a></li></ul></div></div></div>
+<div class="section" title="Using dynamic kernel tracing"><div class="titlepage"><div><div><h1 class="title"><a id="ch05lvl1sec84"/>Using dynamic kernel tracing</h1></div></div></div><p><code class="literal">kprobes</code> is <a id="id652" class="indexterm"/>a kernel debugging <a id="id653" class="indexterm"/>facility that allows us to dynamically break into almost any kernel function (except <code class="literal">kprobe</code> itself) to collect debugging and profiling information non-disruptively. Some architectures keep an array of blacklisted functions, which cannot be probed using <code class="literal">kprobe</code>, but on ARM the list is empty.</p><p>Because <code class="literal">kprobes</code> can be used to change a function's data and registers, it should only be used in development environments.</p><p>There are three types of probes:</p><div class="itemizedlist"><ul class="itemizedlist"><li class="listitem" style="list-style-type: disc"><code class="literal">kprobes</code>: This is the <a id="id654" class="indexterm"/>kernel probe which can be inserted into any<a id="id655" class="indexterm"/> location with more than one <code class="literal">kprobe</code> added at a single location, if needed.</li><li class="listitem" style="list-style-type: disc"><code class="literal">jprobe</code>: This is the<a id="id656" class="indexterm"/> jumper probe inserted at the entry point of a kernel <a id="id657" class="indexterm"/>function to provide access to its arguments. Only one <code class="literal">jprobe</code> may be added at a given location.</li><li class="listitem" style="list-style-type: disc"><code class="literal">kretprobe</code>: This is the<a id="id658" class="indexterm"/> return probe which triggers on a<a id="id659" class="indexterm"/> function return. Also, only one <code class="literal">kretprobe</code> may be added to the same location.</li></ul></div><p>They are packaged into a kernel module, with the <code class="literal">init</code> function registering the probes and the <code class="literal">exit</code> function unregistering them.</p><p>This recipe will explain how to use all types of dynamic probes.</p><div class="section" title="Getting ready"><div class="titlepage"><div><div><h2 class="title"><a id="ch05lvl2sec238"/>Getting ready</h2></div></div></div><p>To configure the Linux kernel with <code class="literal">kprobes</code> support, you need to:</p><div class="itemizedlist"><ul class="itemizedlist"><li class="listitem" style="list-style-type: disc">Define the <code class="literal">CONFIG_KPROBES</code> configuration variable</li><li class="listitem" style="list-style-type: disc">Define <code class="literal">CONFIG_MODULES</code> and <code class="literal">CONFIG_MODULE_UNLOAD</code> so that modules can be used to register probes</li><li class="listitem" style="list-style-type: disc">Define <code class="literal">CONFIG_KALLSYMS</code> and <code class="literal">CONFIG_KALLSYMS_ALL</code> (recommended) so that kernel symbols can be looked up</li><li class="listitem" style="list-style-type: disc">Optionally, define<a id="id660" class="indexterm"/> the <code class="literal">CONFIG_DEBUG_INFO</code> configuration variable so that probes can be inserted in the middle of functions as offsets from the entry point. To find the insertion point, you can use <code class="literal">objdump</code>, as seen in the following excerpt for the <code class="literal">do_sys_open</code> function:<div class="informalexample"><pre class="programlisting">arm-poky-linux-gnueabi-objdump -d -l vmlinux | grep do_sys_open
+8010bfa8 &lt;do_sys_open&gt;:
+do_sys_open():
+8010c034:       0a000036        beq     8010c114 &lt;do_sys_open+0x16c&gt;
+8010c044:       1a000031        bne     8010c110 &lt;do_sys_open+0x168&gt;</pre></div><p>The <code class="literal">kprobes</code> API is defined in the <code class="literal">kprobes.h</code> file and includes registration/unregistration and enabling/disabling functions for the three types of probes as follows:</p><div class="informalexample"><pre class="programlisting">#include &lt;linux/kprobes.h&gt;
+int register_kprobe(struct kprobe *kp);
+int register_jprobe(struct jprobe *jp)
+int register_kretprobe(struct kretprobe *rp);
+
+void unregister_kprobe(struct kprobe *kp);
+void unregister_jprobe(struct jprobe *jp);
+void unregister_kretprobe(struct kretprobe *rp);</pre></div><p>By default, a <code class="literal">kprobe</code> probe is enabled when registering, except when the <code class="literal">KPROBE_FLAG_DISABLED</code> flag is passed. The following function definitions enable or disable the probe:</p><div class="informalexample"><pre class="programlisting">int disable_kprobe(struct kprobe *kp);
+int disable_kretprobe(struct kretprobe *rp);
+int disable_jprobe(struct jprobe *jp);
+
+int enable_kprobe(struct kprobe *kp);
+int enable_kretprobe(struct kretprobe *rp);
+int enable_jprobe(struct jprobe *jp);</pre></div><p>The registered <code class="literal">kprobe</code> probes can be listed through <code class="literal">debugfs</code>:</p><div class="informalexample"><pre class="programlisting">$ cat /sys/kernel/debug/kprobes/list</pre></div><p>They can globally be enabled or disabled with:</p><div class="informalexample"><pre class="programlisting">$ echo 0/1 &gt; /sys/kernel/debug/kprobes/enabled</pre></div></li></ul></div></div><div class="section" title="How to do it..."><div class="titlepage"><div><div><h2 class="title"><a id="ch05lvl2sec239"/>How to do it...</h2></div></div></div><p>On registration, the <code class="literal">kprobe</code> probe places a breakpoint (or jump, if optimized) instruction at the start of the <a id="id661" class="indexterm"/>probed instruction. When the breakpoint is hit, a trap occurs, the registers are saved, and control passes to <code class="literal">kprobes</code>, which calls the pre-handler. It then single steps the breakpoint and calls the post-handler. If a fault occurs, the fault handler is called. Handlers can be NULL if desired.</p><p>A <code class="literal">kprobe</code> probe can be inserted either in a function symbol or into an address, using the offset field, but not in both.</p><div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="note31"/>Note</h3><p>On occasions, <code class="literal">kprobe</code> will still be too intrusive to debug certain problems, as it slows the functions and may affect scheduling and be problematic when called from interrupt context.</p></div></div><p>For example, to place a <code class="literal">kprobe</code> probe in the open syscall, we would use the <code class="literal">meta-bsp-custom/recipes-kernel/open-kprobe/files/kprobe_open.c</code> custom module:</p><div class="informalexample"><pre class="programlisting">#include &lt;linux/kernel.h&gt;
+#include &lt;linux/module.h&gt;
+#include &lt;linux/kprobes.h&gt;
+
+static struct kprobe kp = {
+  .symbol_name  = "do_sys_open",
+};
+
+static int handler_pre(struct kprobe *p, struct pt_regs *regs)
+{
+  pr_info("pre_handler: p-&gt;addr = 0x%p, lr = 0x%lx,"
+    " sp = 0x%lx\n",
+  p-&gt;addr, regs-&gt;ARM_lr, regs-&gt;ARM_sp);
+
+  /* A dump_stack() here will give a stack backtrace */
+  return 0;
+}
+
+static void handler_post(struct kprobe *p, struct pt_regs *regs,
+      unsigned long flags)
+{
+  pr_info("post_handler: p-&gt;addr = 0x%p, status = 0x%lx\n",
+    p-&gt;addr, regs-&gt;ARM_cpsr);
+}
+
+static int handler_fault(struct kprobe *p, struct pt_regs *regs, int trapnr)
+{
+  pr_info("fault_handler: p-&gt;addr = 0x%p, trap #%dn",
+    p-&gt;addr, trapnr);
+  /* Return 0 because we don't handle the fault. */
+  return 0;
+}
+
+static int kprobe_init(void)
+{
+  int ret;
+  kp.pre_handler = handler_pre;
+  kp.post_handler = handler_post;
+  kp.fault_handler = handler_fault;
+
+  ret = register_kprobe(&amp;kp);
+  if (ret &lt; 0) {
+    pr_err("register_kprobe failed, returned %d\n", ret);
+    return ret;
+  }
+  pr_info("Planted kprobe at %p\n", kp.addr);
+  return 0;
+}
+
+static void kprobe_exit(void)
+{
+  unregister_kprobe(&amp;kp);
+  pr_info("kprobe at %p unregistered\n", kp.addr);
+}
+ 
+module_init(kprobe_init)
+module_exit(kprobe_exit)
+MODULE_LICENSE("GPL");</pre></div><p>We compile<a id="id662" class="indexterm"/> it with a Yocto recipe, as explained in the <span class="emphasis"><em>Building external kernel modules</em></span> recipe in <a class="link" href="ch02.html" title="Chapter 2. The BSP Layer">Chapter 2</a>, <span class="emphasis"><em>The BSP Layer</em></span>. Here is the code for the <code class="literal">meta-bsp-custom/recipes-kernel/open-kprobe/open-kprobe.bb</code> Yocto recipe file:</p><div class="informalexample"><pre class="programlisting">SUMMARY = "kprobe on do_sys_open kernel module."
+LICENSE = "GPLv2"
+LIC_FILES_CHKSUM = "file://${COMMON_LICENSE_DIR}/GPL- 2.0;md5=801f80980d171dd6425610833a22dbe6"
+
+inherit module
+
+PV = "0.1"
+
+SRC_URI = " \
+    file://kprobe_open.c \
+    file://Makefile \
+"
+
+S = "${WORKDIR}"</pre></div><p>With the <code class="literal">Makefile</code> file in <code class="literal">meta-bsp-custom/recipes-kernel/open-kprobe/files/Makefile</code> being:</p><div class="informalexample"><pre class="programlisting">obj-m  := kprobe_open.o
+
+SRC := $(shell pwd)
+
+all:
+  $(MAKE) -C "$(KERNEL_SRC)" M="$(SRC)"
+
+modules_install:
+  $(MAKE) -C "$(KERNEL_SRC)" M="$(SRC)" modules_install
+
+clean:
+  rm -f *.o *~ core .depend .*.cmd *.ko *.mod.c
+  rm -f Module.markers Module.symvers modules.order
+  rm -rf .tmp_versions Modules.symvers</pre></div><p>Copy it to a target running the same kernel it has been linked against, and load it with the following:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>$ insmod kprobe_open.ko</strong></span>
+<span class="strong"><strong>Planted kprobe at 8010da84</strong></span>
+</pre></div><p>We can now<a id="id663" class="indexterm"/> see the handlers printing in the console when a file is opened:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>pre_handler: p-&gt;addr = 0x8010da84, lr = 0x8010dc34, sp = 0xdca75f98</strong></span>
+<span class="strong"><strong>post_handler: p-&gt;addr = 0x8010da84, status = 0x80070013</strong></span>
+</pre></div></div><div class="section" title="There's more..."><div class="titlepage"><div><div><h2 class="title"><a id="ch05lvl2sec240"/>There's more...</h2></div></div></div><p>A <code class="literal">jprobe</code> probe<a id="id664" class="indexterm"/> is implemented with a <code class="literal">kprobe</code>. It sets a breakpoint at the given symbol or address (but it must be the first instruction of a function), and makes a copy of a portion of the stack. When hit, it then jumps to the handler with the same registers and stack as the probed function. The handler must have the same argument list and return type as the probed function, and call <code class="literal">jprobe_return()</code> before returning to pass the control back to <code class="literal">kprobes</code>. Then the original stack and CPU state are restored and the probed function is called.</p><p>Following is an example of a <code class="literal">jprobe</code> in the open syscall in the <code class="literal">meta-bsp-custom/recipes-kernel/open-jprobe/files/jprobe_open.c</code> file:</p><div class="informalexample"><pre class="programlisting">#include &lt;linux/kernel.h&gt;
+#include &lt;linux/module.h&gt;
+#include &lt;linux/kprobes.h&gt;
+static long jdo_sys_open(int dfd, const char __user *filename, int flags, umode_t mode)
+{
+  pr_info("jprobe: dfd = 0x%x, filename = 0xs "
+    "flags = 0x%x mode umode %x\n", dfd, filename, flags, mode);
+
+  /* Always end with a call to jprobe_return(). */
+  jprobe_return();
+  return 0;
+}
+
+static struct jprobe my_jprobe = {
+  .entry        = jdo_sys_open,
+  .kp = {
+    .symbol_name  = "do_sys_open",
+  },
+};
+
+static int jprobe_init(void)
+{
+  int ret;
+
+  ret = register_jprobe(&amp;my_jprobe);
+  if (ret &lt; 0) {
+    pr_err("register_jprobe failed, returned %d\n", ret);
+    return -1;
+  }
+  pr_info("Planted jprobe at %p, handler addr %p\n",
+        my_jprobe.kp.addr, my_jprobe.entry);
+  return 0;
+}
+
+static void jprobe_exit(void)
+{
+  unregister_jprobe(&amp;my_jprobe);
+  pr_info("jprobe at %p unregistered\n", my_jprobe.kp.addr);
+}
+
+module_init(jprobe_init)
+module_exit(jprobe_exit)
+MODULE_LICENSE("GPL");</pre></div><p>A <code class="literal">kretprobe</code> probe<a id="id665" class="indexterm"/> sets a <code class="literal">kprobe</code> at the given symbol or function address which when hit, replaces the return address with a trampoline, usually a nop instruction, where <code class="literal">kprobe</code> is registered. When the probed function returns, the <code class="literal">kprobe</code> probe on the trampoline is hit, calling the return handler and setting back the original return address before resuming execution.</p><p>Following is an example of a <code class="literal">kretprobe</code> probe in the open syscall in the <code class="literal">meta-bsp-custom/recipes-kernel/open-kretprobe/files/kretprobe_open.c</code> file:</p><div class="informalexample"><pre class="programlisting">#include &lt;linux/kernel.h&gt;
+#include &lt;linux/module.h&gt;
+#include &lt;linux/kprobes.h&gt;
+#include &lt;linux/ktime.h&gt;
+#include &lt;linux/limits.h&gt;
+#include &lt;linux/sched.h&gt;
+
+/* per-instance private data */
+struct my_data {
+  ktime_t entry_stamp;
+};
+
+static int entry_handler(struct kretprobe_instance *ri, struct pt_regs *regs)
+{
+  struct my_data *data;
+
+  if (!current-&gt;mm)
+    return 1;  /* Skip kernel threads */
+
+  data = (struct my_data *)ri-&gt;data;
+  data-&gt;entry_stamp = ktime_get();
+  return 0;
+}
+
+static int ret_handler(struct kretprobe_instance *ri, struct pt_regs *regs)
+{
+  int retval = regs_return_value(regs);
+  struct my_data *data = (struct my_data *)ri-&gt;data;
+  s64 delta;
+  ktime_t now;
+
+  now = ktime_get();
+  delta = ktime_to_ns(ktime_sub(now, data-&gt;entry_stamp));
+  pr_info("returned %d and took %lld ns to execute\n",
+        retval, (long long)delta);
+  return 0;
+}
+
+static struct kretprobe my_kretprobe = {
+  .handler    = ret_handler,
+  .entry_handler    = entry_handler,
+  .data_size    = sizeof(struct my_data),
+  <span class="strong"><strong>.maxactive    = 20,</strong></span>
+};
+
+static int kretprobe_init(void)
+{
+  int ret;
+
+  my_kretprobe.kp.symbol_name = "do_sys_open";
+  ret = register_kretprobe(&amp;my_kretprobe);
+  if (ret &lt; 0) {
+    pr_err("register_kretprobe failed, returned %d\n",
+        ret);
+    return -1;
+}
+  pr_info("Planted return probe at %s: %p\n",
+  my_kretprobe.kp.symbol_name,            my_kretprobe.kp.addr);
+  return 0;
+}
+
+static void kretprobe_exit(void)
+{
+  unregister_kretprobe(&amp;my_kretprobe);
+  pr_info("kretprobe at %p unregistered\n",
+      my_kretprobe.kp.addr);
+
+  /* nmissed &gt; 0 suggests that maxactive was set too low. */
+  pr_info("Missed probing %d instances of %s\n",
+    my_kretprobe.nmissed, my_kretprobe.kp.symbol_name);
+}
+
+module_init(kretprobe_init)
+module_exit(kretprobe_exit)
+MODULE_LICENSE("GPL");</pre></div><p>The highlighted <code class="literal">maxactive</code> variable is the number of reserved storage for return addresses in the <code class="literal">kretprobe</code> probe, and by default, it is the number of CPUs (or twice the number of CPUs in preemptive systems with a maximum of 10). If <code class="literal">maxactive</code> is too low, some probes will be missed.</p><p>The complete examples, including Yocto recipes, can be found in the source that accompanies the book.</p></div><div class="section" title="See also"><div class="titlepage"><div><div><h2 class="title"><a id="ch05lvl2sec241"/>See also</h2></div></div></div><div class="itemizedlist"><ul class="itemizedlist"><li class="listitem" style="list-style-type: disc">The kprobes documentation on the Linux kernel<a id="id666" class="indexterm"/> at <a class="ulink" href="https://git.kernel.org/cgit/linux/kernel/git/torvalds/linux.git/tree/Documentation/kprobes.txt">https://git.kernel.org/cgit/linux/kernel/git/torvalds/linux.git/tree/Documentation/kprobes.txt</a></li></ul></div></div></div>
+<div class="section" title="Using dynamic kernel events"><div class="titlepage"><div><div><h1 class="title"><a id="ch05lvl1sec85"/>Using dynamic kernel events</h1></div></div></div><p>Although dynamic tracing<a id="id667" class="indexterm"/> is a very useful feature, custom kernel modules is not a user-friendly interface. Fortunately, the Linux kernel has been extended with the support of <code class="literal">kprobe</code> events, which allow us to set <code class="literal">kprobes</code> probes using a <code class="literal">debugfs</code> interface.</p><div class="section" title="Getting ready"><div class="titlepage"><div><div><h2 class="title"><a id="ch05lvl2sec242"/>Getting ready</h2></div></div></div><p>To make use of this feature, we need to configure our kernel with the <code class="literal">CONFIG_KPROBE_EVENT</code> configuration variable.</p></div><div class="section" title="How to do it..."><div class="titlepage"><div><div><h2 class="title"><a id="ch05lvl2sec243"/>How to do it...</h2></div></div></div><p>The <code class="literal">debugfs</code> interface adds probes via the <code class="literal">/sys/kernel/debug/tracing/kprobe_events</code> file. For example, to add a <code class="literal">kprobe</code> called <code class="literal">example_probe</code> to the <code class="literal">do_sys_open</code> function, you can execute the following command:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong># echo 'p:example_probe do_sys_open dfd=%r0 filename=%r1 flags=%r2 mode=%r3' &gt; /sys/kernel/debug/tracing/kprobe_events</strong></span>
+</pre></div><p>The probe will print the function's argument list, according to the function's declaration arguments as seen in the funcion's definition below:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>long do_sys_open(int dfd, const char __user *filename, int flags, umode_t mode);</strong></span>
+</pre></div><p>You can then manage <code class="literal">kprobes</code> through the sysfs as follows:</p><div class="itemizedlist"><ul class="itemizedlist"><li class="listitem" style="list-style-type: disc">To see all the registered probes:<div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong># cat /sys/kernel/debug/tracing/kprobe_events</strong></span>
+<span class="strong"><strong>p:kprobes/example_probe do_sys_open dfd=%r0 filename=%r1 flags=%r2 mode=%r3</strong></span>
+</pre></div></li><li class="listitem" style="list-style-type: disc">To print the probe format:<div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong># cat /sys/kernel/debug/tracing/events/kprobes/example_probe/format</strong></span>
+<span class="strong"><strong>name: example_probe</strong></span>
+<span class="strong"><strong>ID: 1235</strong></span>
+<span class="strong"><strong>format:</strong></span>
+<span class="strong"><strong>        field:unsigned short common_type;       offset:0;      size:2; signed:0;</strong></span>
+<span class="strong"><strong>        field:unsigned char common_flags;       offset:2;      size:1; signed:0;</strong></span>
+<span class="strong"><strong>        field:unsigned char common_preempt_count;       offset:3;       size:1; signed:0;</strong></span>
+<span class="strong"><strong>        field:int common_pid;   offset:4;       size:4; signed:1;</strong></span>
+<span class="strong"><strong>        field:unsigned long __probe_ip; offset:8;       size:4; signed:0;</strong></span>
+<span class="strong"><strong>        field:u32 dfd;  offset:12;      size:4; signed:0;</strong></span>
+<span class="strong"><strong>        field:u32 filename;     offset:16;      size:4; signed:0;</strong></span>
+<span class="strong"><strong>        field:u32 flags;        offset:20;      size:4; signed:0;</strong></span>
+<span class="strong"><strong>        field:u32 mode; offset:24;      size:4; signed:0;</strong></span>
+<span class="strong"><strong>print fmt: "(%lx) dfd=%lx filename=%lx flags=%lx mode=%lx", REC-&gt;__probe_ip, REC-&gt;dfd, REC-&gt;filename, REC-&gt;flags, REC- &gt;mode</strong></span>
+</pre></div></li><li class="listitem" style="list-style-type: disc">To enable the probe use the following command:<div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong># echo 1 &gt; /sys/kernel/debug/tracing/events/kprobes/example_probe/enable</strong></span>
+</pre></div></li><li class="listitem" style="list-style-type: disc">To see the <a id="id668" class="indexterm"/>probe output on either the <code class="literal">trace</code> or <code class="literal">trace_pipe</code> files:<div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong># cat /sys/kernel/debug/tracing/trace</strong></span>
+<span class="strong"><strong># tracer: nop</strong></span>
+<span class="strong"><strong>#</strong></span>
+<span class="strong"><strong># entries-in-buffer/entries-written: 59/59   #P:4</strong></span>
+<span class="strong"><strong>#</strong></span>
+<span class="strong"><strong>#                              _-----=&gt; irqs-off</strong></span>
+<span class="strong"><strong>#                             / _----=&gt; need-resched</strong></span>
+<span class="strong"><strong>#                            | / _---=&gt; hardirq/softirq</strong></span>
+<span class="strong"><strong>#                            || / _--=&gt; preempt-depth</strong></span>
+<span class="strong"><strong>#                            ||| /     delay</strong></span>
+<span class="strong"><strong>#           TASK-PID   CPU#  ||||    TIMESTAMP  FUNCTION</strong></span>
+<span class="strong"><strong>#              | |       |   ||||       |         |</strong></span>
+<span class="strong"><strong>              sh-737   [000] d...  1610.378856: example_probe: (do_sys_open+0x0/0x184) dfd=ffffff9c filename=f88488 flags=20241 mode=16</strong></span>
+<span class="strong"><strong>              sh-737   [000] d...  1660.888921: example_probe: (do_sys_open+0x0/0x184) dfd=ffffff9c filename=f88a88 flags=20241 mode=16</strong></span>
+</pre></div></li><li class="listitem" style="list-style-type: disc">To clear the probe (after disabling it):<div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong># echo '-:example_probe' &gt;&gt; /sys/kernel/debug/tracing/kprobe_events</strong></span>
+</pre></div></li><li class="listitem" style="list-style-type: disc">To clear all probes:<div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong># echo &gt; /sys/kernel/debug/tracing/kprobe_events</strong></span>
+</pre></div></li><li class="listitem" style="list-style-type: disc">To check the number of hit and missed events:<div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong># cat /sys/kernel/debug/tracing/kprobe_profile</strong></span>
+<span class="strong"><strong>example_probe                             78               0</strong></span>
+</pre></div><p>With the format being as follows:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>&lt;event name&gt; &lt;hits&gt; &lt;miss-hits&gt;</strong></span>
+</pre></div></li></ul></div></div><div class="section" title="How it works..."><div class="titlepage"><div><div><h2 class="title"><a id="ch05lvl2sec244"/>How it works...</h2></div></div></div><p>To set a probe<a id="id669" class="indexterm"/> we use the following syntax:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>&lt;type&gt;:&lt;event name&gt; &lt;symbol&gt; &lt;fetch arguments&gt;</strong></span>
+</pre></div><p>Let's explain each of the mentioned parameters:</p><div class="itemizedlist"><ul class="itemizedlist"><li class="listitem" style="list-style-type: disc"><code class="literal">type</code>: This is either <code class="literal">p</code> for <code class="literal">kprobe</code> or <code class="literal">r</code> for a return probe.</li><li class="listitem" style="list-style-type: disc"><code class="literal">event name</code>: This is optional and has the format <code class="literal">&lt;group/event&gt;</code>. If the group name is omitted, it defaults to <code class="literal">kprobes</code>, and if the event name is omitted, it is autogenerated based on the symbol. When an event name is given, it adds a directory under <code class="literal">/sys/kernel/debug/tracing/events/kprobes/</code> with the following content:<div class="itemizedlist"><ul class="itemizedlist"><li class="listitem" style="list-style-type: disc"><code class="literal">id</code>: This is the ID of the probe event</li><li class="listitem" style="list-style-type: disc"><code class="literal">filter</code>: This specifies user filtering rules</li><li class="listitem" style="list-style-type: disc"><code class="literal">format</code>: This is the format of the probe event</li><li class="listitem" style="list-style-type: disc"><code class="literal">enabled</code>: This is used to enable or disable the probe event</li></ul></div></li><li class="listitem" style="list-style-type: disc"><code class="literal">symbol</code>: This is either the symbol name plus an optional offset or the memory address where the probe is to be inserted.</li><li class="listitem" style="list-style-type: disc"><code class="literal">fetch arguments</code>: These are optional and represent the information to extract with a maximum of 128 arguments. They have the following format:<div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>&lt;name&gt;=&lt;offset&gt;(&lt;argument&gt;):&lt;type&gt;</strong></span>
+</pre></div><p>Lets explain each of the mentioned parameters:</p><div class="itemizedlist"><ul class="itemizedlist"><li class="listitem" style="list-style-type: disc"><code class="literal">name</code>: This sets the argument name</li><li class="listitem" style="list-style-type: disc"><code class="literal">offset</code>: This adds an offset to the address argument</li><li class="listitem" style="list-style-type: disc"><code class="literal">argument</code>: This can be of the following format:<p><code class="literal">%&lt;register&gt;</code>: This fetches the specified register. For ARM these are:</p><p><code class="literal">r0 to r10</code></p><p><code class="literal">fp</code></p><p><code class="literal">ip</code></p><p><code class="literal">sp</code></p><p><code class="literal">lr</code></p><p><code class="literal">pc</code></p><p><code class="literal">cpsr</code></p><p><code class="literal">ORIG_r0</code></p></li></ul></div><p><code class="literal">@&lt;address&gt;</code>: This fetches the memory at the specified kernel address</p><p><code class="literal">@&lt;symbol&gt;&lt;offset&gt;</code>: This fetches the memory at the specified symbol and optional offset</p><p><code class="literal">$stack</code>: This fetches the stack address</p><p><code class="literal">$stack&lt;N&gt;</code>: This fetches the <span class="emphasis"><em>n</em></span>th entry of the stack</p><p>And for return probes we have:</p><p><code class="literal">$retval</code>: This fetches the return value</p><div class="itemizedlist"><ul class="itemizedlist"><li class="listitem" style="list-style-type: disc"><code class="literal">type</code>: This one sets the argument type used by <code class="literal">kprobe</code> to access the memory from the following options:<p>u8,u16,u32,u64, for unsigned types</p><p>s8,s16,s32,s64, for signed types</p><p>string, for null terminated strings</p><p>bitfield, with the<a id="id670" class="indexterm"/> following format:</p><div class="informalexample"><pre class="programlisting">b&lt;bit-width&gt;@&lt;bit-offset&gt;/&lt;container-size&gt;</pre></div></li></ul></div></li></ul></div></div><div class="section" title="There's more..."><div class="titlepage"><div><div><h2 class="title"><a id="ch05lvl2sec245"/>There's more...</h2></div></div></div><p>Current versions of the Linux kernel (from v3.14 onwards) also have support for user space probe events (uprobes), with a similar interface to the one for the <code class="literal">kprobes</code> events.</p></div></div>
+<div class="section" title="Exploring Yocto's tracing and profiling tools"><div class="titlepage"><div><div><h1 class="title"><a id="ch05lvl1sec86"/>Exploring Yocto's tracing and profiling tools</h1></div></div></div><p>Tracing and profiling tools are <a id="id671" class="indexterm"/>used to increase the performance, efficiency, and quality <a id="id672" class="indexterm"/>of both, applications and systems. User space tracing and profiling tools make use of performance counters and static and dynamic tracing functionality that the Linux kernel offers, as we have seen in the previous recipes.</p><div class="section" title="Getting ready"><div class="titlepage"><div><div><h2 class="title"><a id="ch05lvl2sec246"/>Getting ready</h2></div></div></div><p>Tracing enables us to log an application's activity so that its behavior can be analyzed, optimized, and corrected.</p><p>Yocto offers several tracing tools including:</p><div class="itemizedlist"><ul class="itemizedlist"><li class="listitem" style="list-style-type: disc"><span class="strong"><strong>trace-cmd</strong></span>: This is a <a id="id673" class="indexterm"/>command line interface to the <code class="literal">ftrace</code> kernel subsystem, and<a id="id674" class="indexterm"/> <span class="strong"><strong>kernelshark</strong></span>, a graphical interface to <a id="id675" class="indexterm"/>trace-cmd.</li><li class="listitem" style="list-style-type: disc"><span class="strong"><strong>perf</strong></span>: This is a<a id="id676" class="indexterm"/> tool that originated in the Linux kernel as a command line interface <a id="id677" class="indexterm"/>to its performance counter events subsystem. It has since then expanded and added several other tracing mechanisms.</li><li class="listitem" style="list-style-type: disc"><span class="strong"><strong>blktrace</strong></span>: This is a<a id="id678" class="indexterm"/> tool that provides information about the block layer <a id="id679" class="indexterm"/>input/output.</li><li class="listitem" style="list-style-type: disc"><span class="strong"><strong>Linux Trace Toolkit Next Generation</strong></span> (<span class="strong"><strong>LTTng</strong></span>): This is a <a id="id680" class="indexterm"/>tool that allows for correlated <a id="id681" class="indexterm"/>tracing of the Linux kernel, applications, and libraries. Yocto also includes <a id="id682" class="indexterm"/><span class="strong"><strong>babeltrace</strong></span>, a tool to translate the traces into human readable logs.</li><li class="listitem" style="list-style-type: disc"><span class="strong"><strong>SystemTap</strong></span>: This is<a id="id683" class="indexterm"/> a <a id="id684" class="indexterm"/>tool to dynamically instrument the Linux kernel.</li></ul></div><p>Profiling refers to a group of techniques used to measure an application's consumed resources and the time taken to execute an application. The data is then used to improve the application's performance and optimize it. Some of the aforementioned tools such as perf and SystemTap have evolved to become powerful tracing and profiling tools.</p><p>Apart from the enlisted tracing tools, which can also be used for profiling, Yocto offers several other profiling tools:</p><div class="itemizedlist"><ul class="itemizedlist"><li class="listitem" style="list-style-type: disc"><span class="strong"><strong>OProfile</strong></span>: This is a <a id="id685" class="indexterm"/>statistical profiler for Linux that profiles all running code <a id="id686" class="indexterm"/>with low overhead.</li><li class="listitem" style="list-style-type: disc"><span class="strong"><strong>Powertop</strong></span>: This is a <a id="id687" class="indexterm"/>tool used to analyze the system's power<a id="id688" class="indexterm"/> consumption and power management.</li><li class="listitem" style="list-style-type: disc"><span class="strong"><strong>Latencytop</strong></span>: This<a id="id689" class="indexterm"/> is a<a id="id690" class="indexterm"/> tool used to analyze system latencies.</li><li class="listitem" style="list-style-type: disc"><span class="strong"><strong>Sysprof</strong></span>: This<a id="id691" class="indexterm"/> tool is <a id="id692" class="indexterm"/>included for Intel architectures on X11 graphical images. It does not work on ARM architectures.</li></ul></div></div><div class="section" title="How to do it..."><div class="titlepage"><div><div><h2 class="title"><a id="ch05lvl2sec247"/>How to do it...</h2></div></div></div><p>These tools can be added to your target image either individually or with the <code class="literal">tools-profile</code> feature. To use the tools, we also need to include debug information in our applications. To this extent we should use the <code class="literal">-dbg</code> version of the packages, or better, configure Yocto so that debug information is generated with the <code class="literal">dbg-pkgs</code> image feature. To add both features to your images, add the following to your project's <code class="literal">conf/local.conf</code> file:</p><div class="informalexample"><pre class="programlisting">EXTRA_IMAGE_FEATURES = "tools-profile dbg-pkgs"</pre></div><p>The <code class="literal">-sdk</code> version of target images already adds these features.</p></div><div class="section" title="There's more..."><div class="titlepage"><div><div><h2 class="title"><a id="ch05lvl2sec248"/>There's more...</h2></div></div></div><p>Apart from these tools, Yocto also offers the standard monitoring tools available on a Linux system. Some examples are:</p><div class="itemizedlist"><ul class="itemizedlist"><li class="listitem" style="list-style-type: disc"><span class="strong"><strong>htop</strong></span>: This <a id="id693" class="indexterm"/>tool is available in the <code class="literal">meta-oe</code> layer and provides process<a id="id694" class="indexterm"/> monitoring.</li><li class="listitem" style="list-style-type: disc"><span class="strong"><strong>iotop</strong></span>: This <a id="id695" class="indexterm"/>tool is also included in the <code class="literal">meta-oe</code> layer and <a id="id696" class="indexterm"/>provides block device I/O statistics by process.</li><li class="listitem" style="list-style-type: disc"><span class="strong"><strong>procps</strong></span>: This <a id="id697" class="indexterm"/>one is available in Poky and includes the following <a id="id698" class="indexterm"/>tools:<div class="itemizedlist"><ul class="itemizedlist"><li class="listitem" style="list-style-type: disc"><span class="strong"><strong>ps</strong></span>: This <a id="id699" class="indexterm"/>tool <a id="id700" class="indexterm"/>is used to list and provide process statuses.</li><li class="listitem" style="list-style-type: disc"><span class="strong"><strong>vmstat</strong></span>: This <a id="id701" class="indexterm"/>is used for virtual memory<a id="id702" class="indexterm"/> statistics.</li><li class="listitem" style="list-style-type: disc"><span class="strong"><strong>uptime</strong></span>: This is <a id="id703" class="indexterm"/>useful for load averages <a id="id704" class="indexterm"/>monitoring.</li><li class="listitem" style="list-style-type: disc"><span class="strong"><strong>free</strong></span>: This is used <a id="id705" class="indexterm"/>for memory usage monitoring. Remember <a id="id706" class="indexterm"/>to take kernel caches into account.</li><li class="listitem" style="list-style-type: disc"><span class="strong"><strong>slabtop</strong></span>: This one <a id="id707" class="indexterm"/>provides memory usage statistics for <a id="id708" class="indexterm"/>the kernel slab allocator.</li></ul></div></li><li class="listitem" style="list-style-type: disc"><span class="strong"><strong>sysstat</strong></span>: This is<a id="id709" class="indexterm"/> available in Poky and contains, among others, the following <a id="id710" class="indexterm"/>tools:<div class="itemizedlist"><ul class="itemizedlist"><li class="listitem" style="list-style-type: disc"><span class="strong"><strong>pidstat</strong></span>: This is <a id="id711" class="indexterm"/>another <a id="id712" class="indexterm"/>option for process statistics.</li><li class="listitem" style="list-style-type: disc"><span class="strong"><strong>iostat</strong></span>: This <a id="id713" class="indexterm"/>one <a id="id714" class="indexterm"/>provides block I/O statistics.</li><li class="listitem" style="list-style-type: disc"><span class="strong"><strong>mpstat</strong></span>: This <a id="id715" class="indexterm"/>tool <a id="id716" class="indexterm"/>provides multi-processor statistics.</li></ul></div></li></ul></div><p>And Yocto also offers the following network tools:</p><div class="itemizedlist"><ul class="itemizedlist"><li class="listitem" style="list-style-type: disc"><span class="strong"><strong>tcpdump</strong></span>: This <a id="id717" class="indexterm"/>networking tool is included in the <code class="literal">meta-networking</code> <a id="id718" class="indexterm"/>layer in <code class="literal">meta-openembedded</code>. It captures and analyzes network traffic.</li><li class="listitem" style="list-style-type: disc"><span class="strong"><strong>netstat</strong></span>: This is <a id="id719" class="indexterm"/>part of the <code class="literal">net-tools</code> package in Poky. It <a id="id720" class="indexterm"/>provides network protocol statistics.</li><li class="listitem" style="list-style-type: disc"><span class="strong"><strong>ss</strong></span>: This <a id="id721" class="indexterm"/>tool is included in the <code class="literal">iproute2</code> package in Poky. It provides <a id="id722" class="indexterm"/>sockets statistics.</li></ul></div></div></div>
+<div class="section" title="Tracing and profiling with perf"><div class="titlepage"><div><div><h1 class="title"><a id="ch05lvl1sec87"/>Tracing and profiling with perf</h1></div></div></div><p>The perf Linux tool can<a id="id723" class="indexterm"/> instrument the Linux kernel with both hardware and software<a id="id724" class="indexterm"/> performance counter events as well as static and dynamic kernel trace points. For this, it uses the kernel functionality we have seen in previous recipes, providing a common interface to all of them.</p><p>This tool can be used to debug, troubleshoot, optimize, and measure applications, workloads, or the full system, which covers the processor, kernel, and applications. Perf is probably the most complete of the tracing and profiling tools available for a Linux system.</p><div class="section" title="Getting ready"><div class="titlepage"><div><div><h2 class="title"><a id="ch05lvl2sec249"/>Getting ready</h2></div></div></div><p>The perf source is part of the Linux kernel. To include perf in your system, add the following to your <code class="literal">conf/local.conf</code> file:</p><div class="informalexample"><pre class="programlisting">IMAGE_INSTALL_append = " perf"</pre></div><p>Perf is also part of the <code class="literal">tools-profile</code> image feature, so you can also add it with the following:</p><div class="informalexample"><pre class="programlisting">EXTRA_IMAGE_FEATURES += "tools-profile"</pre></div><p>Perf is also included in the <code class="literal">-sdk</code> images.</p><p>To take the maximum advantage of this tool, we need to have symbols both in user space applications and libraries, as well as the Linux kernel. For this, we need to avoid stripping binaries by adding the following to the <code class="literal">conf/local.conf</code> configuration file:</p><div class="informalexample"><pre class="programlisting">INHIBIT_PACKAGE_STRIP = "1"</pre></div><p>Also, adding the debug information of the applications by adding the following is recommended:</p><div class="informalexample"><pre class="programlisting">EXTRA_IMAGE_FEATURES += "dbg-pkgs"</pre></div><p>By default, the debug information is placed in a <code class="literal">.debug</code> directory in the same location as the binary it corresponds to. But perf needs a central location to look for all debug information. So, to configure our debug information with a structure that perf understands, we also need the following in our <code class="literal">conf/local.conf</code> configuration file:</p><div class="informalexample"><pre class="programlisting">PACKAGE_DEBUG_SPLIT_STYLE = 'debug-file-directory'</pre></div><p>Finally, configure the Linux kernel with the <code class="literal">CONFIG_DEBUG_INFO</code> configuration variable to include debug information, <code class="literal">CONFIG_KALLSYMS</code> to add debug symbols into the kernel, and <code class="literal">CONFIG_FRAME_POINTER</code> to be able to see complete stack traces.</p><div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="note32"/>Note</h3><p>As we saw in the <span class="emphasis"><em>Using the kernel's performance counters</em></span> recipe, we will also need to pass <code class="literal">maxcpus=1</code> (or <code class="literal">maxcpus=0</code> to disable SMP) to the Linux kernel in order to use the i.MX6 PMU, due to the sharing of the PMU interrupt between all cores. Also, in order to use the PMU on i.MX6 processors, the SoC needs to receive at least 4 JTAG clock cycles after power on reset. This is documented in the errata number <span class="emphasis"><em>ERR006259</em></span>.</p></div></div><p>At the time of<a id="id725" class="indexterm"/> writing, the <code class="literal">meta-fsl-arm</code> layer for Yocto 1.7 disables some of perf features. To be able to follow the upcoming examples, remove the following line from the <code class="literal">meta-fsl-arm</code> layer's <code class="literal">/opt/yocto/fsl-community-bsp/sources/meta-fsl-arm/conf/machine/include/imx-base.inc</code> file:</p><div class="informalexample"><pre class="programlisting">-PERF_FEATURES_ENABLE = ""</pre></div><p>Newer Yocto <a id="id726" class="indexterm"/>releases will include this by default.</p></div><div class="section" title="How to do it..."><div class="titlepage"><div><div><h2 class="title"><a id="ch05lvl2sec250"/>How to do it...</h2></div></div></div><p>Perf can be used to provide a default set of event statistics for a particular workload with:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong># perf stat &lt;command&gt;</strong></span>
+</pre></div><p>For example, a single ping will provide the following output:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong># perf stat ping -c 1 192.168.1.1</strong></span>
+<span class="strong"><strong>PING 192.168.1.1 (192.168.1.1): 56 data bytes</strong></span>
+<span class="strong"><strong>64 bytes from 192.168.1.1: seq=0 ttl=64 time=6.489 ms</strong></span>
+
+<span class="strong"><strong>--- 192.168.1.1 ping statistics ---</strong></span>
+<span class="strong"><strong>1 packets transmitted, 1 packets received, 0% packet loss</strong></span>
+<span class="strong"><strong>round-trip min/avg/max = 6.489/6.489/6.489 ms</strong></span>
+
+<span class="strong"><strong> Performance counter stats for 'ping -c 1 192.168.1.1':</strong></span>
+
+<span class="strong"><strong>          8.984333 task-clock                #    0.360 CPUs utilized</strong></span>
+<span class="strong"><strong>                15 context-switches          #    0.002 M/sec</strong></span>
+<span class="strong"><strong>                 0 cpu-migrations            #    0.000 K/sec</strong></span>
+<span class="strong"><strong>               140 page-faults               #    0.016 M/sec</strong></span>
+<span class="strong"><strong>           3433188 cycles                    #    0.382 GHz</strong></span>
+<span class="strong"><strong>            123948 stalled-cycles-frontend   #    3.61% frontend cycles idle   </strong></span>
+<span class="strong"><strong>            418329 stalled-cycles-backend    #   12.18% backend  cycles idle   </strong></span>
+<span class="strong"><strong>            234497 instructions              #    0.07  insns per cycle        </strong></span>
+<span class="strong"><strong>                                             #    1.78  stalled cycles per insn</strong></span>
+<span class="strong"><strong>             22649 branches                  #    2.521 M/sec</strong></span>
+<span class="strong"><strong>              8123 branch-misses             #   35.86% of all branches        </strong></span>
+
+<span class="strong"><strong>       0.024962333 seconds time elapsed</strong></span>
+</pre></div><p>If we are only interested in a particular set of events, we can specify the events we want to output information from using the <code class="literal">-e</code> option.</p><p>We can also sample data and store it so that it can be later analyzed:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong># perf record &lt;command&gt;</strong></span>
+</pre></div><p>Better still, we can add stack backtraces with the <code class="literal">-g</code> option:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong># perf record -g -- ping -c 1 192.168.1.1</strong></span>
+</pre></div><p>The result will be<a id="id727" class="indexterm"/> stored on a <code class="literal">perf.data</code> file which we would then analyze with:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong># perf report</strong></span>
+</pre></div><p>Its output can be<a id="id728" class="indexterm"/> seen in the following screenshot:</p><div class="mediaobject"><img src="graphics/5186OS_05_01.jpg" alt="How to do it..."/></div><p>The functions order may be customized with the <code class="literal">--sort</code> option.</p><p>We can see how perf has resolved both user space and kernel symbols. Perf will read kernel symbols from the Linux kernel ELF file under <code class="literal">/boot</code>. If it is stored in a non-standard location, we can optionally pass its location with a <code class="literal">-k</code> option. If it does not find it, it will fall back to using <code class="literal">/proc/kallsyms</code>, where the Linux kernel exports the kernel symbols to user space when built with the <code class="literal">CONFIG_KALLSYMS</code> configuration variable.</p><div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="note33"/>Note</h3><p>If a perf report is not showing kernel symbols, it may be because the ELF file does not match the running kernel. You can try to rename it and see if using <code class="literal">/proc/kallsyms</code> works.</p><p>Also, to obtain complete backtraces, applications need to be compiled with debug optimization by using the <code class="literal">DEBUG_BUILD</code> configuration variable, as we saw earlier in this chapter.</p></div></div><p>By default, Perf uses a<a id="id729" class="indexterm"/> <span class="strong"><strong>newt</strong></span> interface (TUI) that needs the <code class="literal">expand</code> utility, part of <a id="id730" class="indexterm"/>coreutils. If coreutils is not included in your root filesystem, you<a id="id731" class="indexterm"/> can ask for a text-only output with:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong># perf report –stdio</strong></span>
+</pre></div><p>After executing the preceding command we get the following output:</p><div class="mediaobject"><img src="graphics/5186OS_05_03.jpg" alt="How to do it..."/></div><p>We can see all the functions called with the following columns:</p><div class="itemizedlist"><ul class="itemizedlist"><li class="listitem" style="list-style-type: disc"><span class="strong"><strong>Overhead</strong></span>: This represents the percentage of the sampling data corresponding to that function.</li><li class="listitem" style="list-style-type: disc"><span class="strong"><strong>Command</strong></span>: This refers to the name of the command passed to the perf record.</li><li class="listitem" style="list-style-type: disc"><span class="strong"><strong>Shared Object</strong></span>: This represents the ELF image name (<code class="literal">kernel.kallsyms</code> will appear for the kernel).</li><li class="listitem" style="list-style-type: disc"><span class="strong"><strong>Privilege Level</strong></span>: It has the following modes:<div class="itemizedlist"><ul class="itemizedlist"><li class="listitem" style="list-style-type: disc">for user mode</li><li class="listitem" style="list-style-type: disc"><code class="literal">k</code> for kernel mode</li><li class="listitem" style="list-style-type: disc"><code class="literal">g</code> for virtualized guest kernel</li><li class="listitem" style="list-style-type: disc"><code class="literal">u</code> for virtualized host user space</li><li class="listitem" style="list-style-type: disc"><code class="literal">H</code> for hypervisor</li></ul></div></li><li class="listitem" style="list-style-type: disc"><span class="strong"><strong>Symbol</strong></span>: This is the resolved symbol name.</li></ul></div><p>In the TUI interface, we <a id="id732" class="indexterm"/>can press enter on a function name to access a sub-menu, which <a id="id733" class="indexterm"/>will give us the following output:</p><div class="mediaobject"><img src="graphics/5186OS_05_04.jpg" alt="How to do it..."/></div><p>From this we can, for example, annotate the code as shown in the following screenshot:</p><div class="mediaobject"><img src="graphics/5186OS_05_05.jpg" alt="How to do it..."/></div><p>If using text mode, we can<a id="id734" class="indexterm"/> also get annotated output with:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong># perf annotate -d &lt;command&gt;</strong></span>
+</pre></div><p>Perf can also do system-wide <a id="id735" class="indexterm"/>profiling instead of focusing on a specific workload. For example, to monitor the system for five seconds, we would execute the following command:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong># perf stat -a sleep 5</strong></span>
+<span class="strong"><strong>Performance counter stats for 'sleep 5':</strong></span>
+<span class="strong"><strong>       5006.660002 task-clock                #    1.000 CPUs utilized[100.00%]</strong></span>
+<span class="strong"><strong>               324 context-switches          #    0.065 K/sec [100.00%]</strong></span>
+<span class="strong"><strong>                 0 cpu-migrations            #    0.000 K/sec [100.00%]</strong></span>
+<span class="strong"><strong>               126 page-faults               #    0.025 K/sec</strong></span>
+<span class="strong"><strong>          12200175 cycles                    #    0.002 GHz [100.00%]</strong></span>
+<span class="strong"><strong>           2844703 stalled-cycles-frontend   #   23.32% frontend cycles idle    [100.00%]</strong></span>
+<span class="strong"><strong>           9152564 stalled-cycles-backend    #   75.02% backend  cycles idle    [100.00%]</strong></span>
+<span class="strong"><strong>           4645466 instructions              #    0.38  insns per cycle        </strong></span>
+<span class="strong"><strong>                                             #    1.97  stalled cycles per insn [100.00%]</strong></span>
+<span class="strong"><strong>            479051 branches                  #    0.096 M/sec [100.00%]</strong></span>
+<span class="strong"><strong>            222903 branch-misses             #   46.53% of all branches        </strong></span>
+
+<span class="strong"><strong>       5.006115001 seconds time elapsed</strong></span>
+</pre></div><p>Or to sample the system for five seconds, we will execute the following command:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong># perf record -a -g -- sleep 5</strong></span>
+</pre></div><p>When using system-wide measurements the command is just used as measurement duration. For this, the <code class="literal">sleep</code> command will not consume extra cycles.</p></div><div class="section" title="How it works..."><div class="titlepage"><div><div><h2 class="title"><a id="ch05lvl2sec251"/>How it works...</h2></div></div></div><p>The perf tool provides statistics<a id="id736" class="indexterm"/> for both user and kernel events occurring in the system. It <a id="id737" class="indexterm"/>can instrument in two modes:</p><div class="itemizedlist"><ul class="itemizedlist"><li class="listitem" style="list-style-type: disc"><span class="strong"><strong>Event counting</strong></span> (<code class="literal">perf stat</code>): This <a id="id738" class="indexterm"/>counts events in kernel context and prints statistics at the end. It has the least overhead.</li><li class="listitem" style="list-style-type: disc"><span class="strong"><strong>Event sampling</strong></span> (<code class="literal">perf record</code>): This <a id="id739" class="indexterm"/>writes the gathered data to a file at a given sampling period. The data can then be read as profiling (<code class="literal">perf report</code>) or trace data (<code class="literal">perf script</code>). Gathering data to a file can be resource intensive and the file can quickly grow in size.</li></ul></div><p>By default, perf counts events for all the threads in the given command, including child processes, until the command finishes or is interrupted.</p><p>A generic way to run perf is as follows:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>perf stat|record [-e &lt;comma separated event list&gt; --filter '&lt;expr&gt;'] [-o &lt;filename&gt;] [--] &lt;command&gt; [&lt;arguments&gt;]</strong></span>
+</pre></div><p>Let's explain the preceding code in detail:</p><div class="itemizedlist"><ul class="itemizedlist"><li class="listitem" style="list-style-type: disc"><code class="literal">e</code>: This specifies an event list to use instead of the default set of events. An event filter can also be specified, with its syntax explained in the Linux kernel source documentation at <code class="literal">Documentation/trace/events.txt</code>.</li><li class="listitem" style="list-style-type: disc"><code class="literal">o</code>: This specifies the output file name, by default <code class="literal">perf.data</code>.</li><li class="listitem" style="list-style-type: disc"><code class="literal">--</code>: This is used as a separator when the command needs arguments.</li></ul></div><p>It can also start or <a id="id740" class="indexterm"/>sample a running process by passing the <code class="literal">-p &lt;pid&gt;</code> option.</p><p>We can obtain a list of <a id="id741" class="indexterm"/>all available events by executing the following command:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong># perf list</strong></span>
+</pre></div><p>Or on a specific subsystem with the following command:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong># perf list '&lt;subsystem&gt;:*'</strong></span>
+</pre></div><p>You can also access raw PMU events directly by using the <code class="literal">r&lt;event&gt;</code> event, for example, to read the data cache misses on an ARM core:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong># perf stat -e r3 sleep 5</strong></span>
+</pre></div><p>Unless specified, the perf record will sample hardware events at an average rate of 1000 Hz, but the rate can be modified with the <code class="literal">-F &lt;freq&gt;</code> argument. Tracepoints will be counted on each occurrence.</p><div class="section" title="Reading tracing data"><div class="titlepage"><div><div><h3 class="title"><a id="ch05lvl3sec66"/>Reading tracing data</h3></div></div></div><p>Perf records samples <a id="id742" class="indexterm"/>and stores tracing data in a file. The raw timestamped<a id="id743" class="indexterm"/> trace data can be seen with:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong># perf script</strong></span>
+</pre></div><p>After executing the command we get the following output:</p><div class="mediaobject"><img src="graphics/5186OS_05_06.jpg" alt="Reading tracing data"/></div><p>As we have seen, we <a id="id744" class="indexterm"/>can use a perf report to look at the sampled data formatted<a id="id745" class="indexterm"/> for profiling analysis, but we can also generate python scripts that we can then modify to change the way the data is presented, by running the following line of code:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong># perf script -g python</strong></span>
+</pre></div><p>This will generate a <code class="literal">perf-script.py</code> script that looks as follows:</p><div class="mediaobject"><img src="graphics/5186OS_05_07.jpg" alt="Reading tracing data"/></div><p>To run the script, use the following command:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong># perf script -s perf-script.py</strong></span>
+</pre></div><p>You need to install the <code class="literal">perf-python</code> package in our target image. You can add this to your image with:</p><div class="informalexample"><pre class="programlisting">IMAGE_INSTALL_append = " perf-python"</pre></div><p>Now you will get a <a id="id746" class="indexterm"/>similar output as with the <code class="literal">perf</code> script earlier. But now you<a id="id747" class="indexterm"/> can modify the print statements in the python code to post process the sampled data to your specific needs.</p></div></div><div class="section" title="There's more..."><div class="titlepage"><div><div><h2 class="title"><a id="ch05lvl2sec252"/>There's more...</h2></div></div></div><p>Perf can use dynamic events<a id="id748" class="indexterm"/> to extend the event list to any location where <code class="literal">kprobe</code> can be placed. For this, configure the kernel for <code class="literal">kprobe</code> and <code class="literal">uprobe</code> support (if available), as seen in the <span class="emphasis"><em>Using dynamic kernel events</em></span> recipe earlier.</p><p>To add a probe point in a specific function execute the following command:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong># perf probe --add "tcp_sendmsg"</strong></span>
+<span class="strong"><strong>Added new event:</strong></span>
+<span class="strong"><strong>  probe:tcp_sendmsg    (on tcp_sendmsg)</strong></span>
+</pre></div><p>You can now use it in all perf tools, such as profiling the download of a file:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong># perf record -e probe:tcp_sendmsg -a -g -- wget http://downloads.yoctoproject.org/releases/yocto/yocto- 1.7.1/RELEASENOTES</strong></span>
+<span class="strong"><strong>Connecting to downloads.yoctoproject.org (198.145.29.10:80)</strong></span>
+<span class="strong"><strong>RELEASENOTES         100% |**************************************************************************************| 11924   0:00:00 ETA</strong></span>
+<span class="strong"><strong>[ perf record: Woken up 1 times to write data ]</strong></span>
+<span class="strong"><strong>[ perf record: Captured and wrote 0.025 MB perf.data (~1074 samples) ]</strong></span>
+</pre></div><p>And you can view the profiling data executing the following command:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong># perf report</strong></span>
+</pre></div><p>And then you get the following output:</p><div class="mediaobject"><img src="graphics/5186OS_05_08.jpg" alt="There's more..."/></div><div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="note34"/>Note</h3><p>You may need to<a id="id749" class="indexterm"/> configure DNS servers in your target for the <code class="literal">wget</code> command as seen in the preceding code to work. To use Google's public DNS servers, you can add the following to your <code class="literal">/etc/resolv.conf</code> file:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>nameserver 8.8.8.8</strong></span>
+<span class="strong"><strong>nameserver 8.8.4.4</strong></span>
+</pre></div></div></div><p>You can then delete the probe with:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong># perf probe --del tcp_sendmsg</strong></span>
+<span class="strong"><strong>/sys/kernel/debug//tracing/uprobe_events file does not exist - please rebuild kernel with CONFIG_UPROBE_EVENT.</strong></span>
+<span class="strong"><strong>Removed event: probe:tcp_sendmsg</strong></span>
+</pre></div><div class="section" title="Profile charts"><div class="titlepage"><div><div><h3 class="title"><a id="ch05lvl3sec67"/>Profile charts</h3></div></div></div><p>System behavior can be visualized using a<a id="id750" class="indexterm"/> perf timechart. To gather data, run:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong># perf timechart record -- &lt;command&gt; &lt;arguments&gt;</strong></span>
+</pre></div><p>And to turn it into an <code class="literal">svg</code> file use the following command:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong># perf timechart</strong></span>
+</pre></div></div><div class="section" title="Using perf as strace substitute"><div class="titlepage"><div><div><h3 class="title"><a id="ch05lvl3sec68"/>Using perf as strace substitute</h3></div></div></div><p>Perf can be used as an <a id="id751" class="indexterm"/>alternative to strace but with much less overhead<a id="id752" class="indexterm"/> with the following syntax:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong># perf trace record &lt;command&gt;</strong></span>
+</pre></div><p>However, the Yocto recipe for perf does not currently build this support. We can see the missing library in the compilation log:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>Makefile:681: No libaudit.h found, disables 'trace' tool, please install audit-libs-devel or libaudit-dev</strong></span>
+</pre></div></div></div><div class="section" title="See also"><div class="titlepage"><div><div><h2 class="title"><a id="ch05lvl2sec253"/>See also</h2></div></div></div><div class="itemizedlist"><ul class="itemizedlist"><li class="listitem" style="list-style-type: disc">A list of the available ARM i.MX6 PMU events<a id="id753" class="indexterm"/> at <a class="ulink" href="http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.ddi0388f/BEHGGDJC.html">http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.ddi0388f/BEHGGDJC.html</a></li><li class="listitem" style="list-style-type: disc">An extended tutorial in the<a id="id754" class="indexterm"/> use of perf at <a class="ulink" href="https://perf.wiki.kernel.org/index.php/Tutorial">https://perf.wiki.kernel.org/index.php/Tutorial</a></li><li class="listitem" style="list-style-type: disc">Some advanced examples at Brendan Gregg's perf site <a class="ulink" href="http://www.brendangregg.com/perf.html">http://www.brendangregg.com/perf.html</a></li></ul></div></div></div>
+<div class="section" title="Using SystemTap"><div class="titlepage"><div><div><h1 class="title"><a id="ch05lvl1sec88"/>Using SystemTap</h1></div></div></div><p>SystemTap<a id="id755" class="indexterm"/> is a GPLv2 licensed system wide tool that allows you to gather tracing and profiling data from a running Linux system. The user writes a <code class="literal">systemtap</code> script, which is then compiled into a Linux kernel module linked against the same kernel source it is going to run under.</p><p>The script sets events and handlers, which are called by the kernel module on the specified events triggering. For this, it uses the <code class="literal">kprobes</code> and <code class="literal">uprobes</code> (if available) interfaces in the kernel, as we saw in the <span class="emphasis"><em>Using dynamic kernel events</em></span> recipe before.</p><div class="section" title="Getting ready"><div class="titlepage"><div><div><h2 class="title"><a id="ch05lvl2sec254"/>Getting ready</h2></div></div></div><p>To use SystemTap, we need to add<a id="id756" class="indexterm"/> it to our target image either by adding it specifically, as in:</p><div class="informalexample"><pre class="programlisting">IMAGE_INSTALL_append = " systemtap"</pre></div><p>We can also add it by using the <code class="literal">tools-profile</code> image feature, or an <code class="literal">-sdk</code> image.</p><p>We will also need an SSH server running on the target. This is already available on the <code class="literal">-sdk</code> image; otherwise we can add one to our image with the following:</p><div class="informalexample"><pre class="programlisting">EXTRA_IMAGE_FEATURES += "ssh-server-openssh"</pre></div><p>We will also need to compile the kernel with the <code class="literal">CONFIG_DEBUG_INFO</code> configuration variable to include debug information, as well as performance events counters and <code class="literal">kprobes</code> as explained in previous recipes.</p></div><div class="section" title="How to do it..."><div class="titlepage"><div><div><h2 class="title"><a id="ch05lvl2sec255"/>How to do it...</h2></div></div></div><p>To use systemtap on a<a id="id757" class="indexterm"/> Yocto system, we need to run the crosstap utility in the host, passing it the <code class="literal">systemtap</code> script to run. For example, to run the <code class="literal">sys_open.stp</code> sample script, we can run the following code:</p><div class="informalexample"><pre class="programlisting">probe begin
+{
+        print("Monitoring starts\n")
+        printf("%6s %6s %16s\n", "UID", "PID", "NAME");
+}
+
+probe kernel.function("sys_open")
+{
+          printf("%6d %6d %16s\n", uid(), pid(), execname());
+}
+
+probe timer.s(60)
+{
+        print("Monitoring ends\n")
+        exit()
+}</pre></div><p>We would run the following commands:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>$ source setup-environment wandboard-quad</strong></span>
+<span class="strong"><strong>$ crosstap root@&lt;target_ip&gt; sys_open.stp</strong></span>
+</pre></div><p>Yocto does not support running scripts on the target, as that would require building modules on the target, and that is untested.</p></div><div class="section" title="How it works..."><div class="titlepage"><div><div><h2 class="title"><a id="ch05lvl2sec256"/>How it works...</h2></div></div></div><p>SystemTap scripts are written with its own C/awk like language. They enable us to trace events by instrumenting the kernel code at different locations, such as:</p><div class="itemizedlist"><ul class="itemizedlist"><li class="listitem" style="list-style-type: disc">Beginning and end of SystemTap sessions</li><li class="listitem" style="list-style-type: disc">Entry, return, or specific offset of kernel and user space functions</li><li class="listitem" style="list-style-type: disc">Timer events</li><li class="listitem" style="list-style-type: disc">Performance hardware counter events</li></ul></div><p>They also enable us to extract data, such as:</p><div class="itemizedlist"><ul class="itemizedlist"><li class="listitem" style="list-style-type: disc">Thread, process, or user ID</li><li class="listitem" style="list-style-type: disc">Current CPU</li><li class="listitem" style="list-style-type: disc">Process name</li><li class="listitem" style="list-style-type: disc">Time</li><li class="listitem" style="list-style-type: disc">Local variables</li><li class="listitem" style="list-style-type: disc">Kernel and user space backtraces</li></ul></div><p>Additionally, SystemTap <a id="id758" class="indexterm"/>also offers the ability to analyze the gathered data, and for different probes to work together. SystemTap includes a wide selection of example scripts and a framework for creating script libraries that can be shared. These tapsets are installed by default and can be extended by the user's own scripts. When a symbol is not defined in a script, SystemTap will search the tapset library for it.</p></div><div class="section" title="See also"><div class="titlepage"><div><div><h2 class="title"><a id="ch05lvl2sec257"/>See also</h2></div></div></div><div class="itemizedlist"><ul class="itemizedlist"><li class="listitem" style="list-style-type: disc">The tapset<a id="id759" class="indexterm"/> reference at <a class="ulink" href="https://sourceware.org/systemtap/tapsets/">https://sourceware.org/systemtap/tapsets/</a></li><li class="listitem" style="list-style-type: disc">All examples included in the source at <a class="ulink" href="https://sourceware.org/systemtap/examples/">https://sourceware.org/systemtap/examples/</a></li><li class="listitem" style="list-style-type: disc">A reference to the systemtap scripting language<a id="id760" class="indexterm"/> at <a class="ulink" href="https://sourceware.org/systemtap/langref/">https://sourceware.org/systemtap/langref/</a></li></ul></div></div></div>
+<div class="section" title="Using OProfile"><div class="titlepage"><div><div><h1 class="title"><a id="ch05lvl1sec89"/>Using OProfile</h1></div></div></div><p>OProfile<a id="id761" class="indexterm"/> is a statistical profiler released under the GNU GPL license. The version included in the Yocto 1.7 release is a system-wide profiler, which uses the legacy profiling mode with a kernel module to sample hardware performance counters data and a user space daemon to write them to a file. More recent Yocto releases use newer versions that use the performance events subsystem, which we introduced in the <span class="emphasis"><em>Using the kernel's performance counters</em></span> recipe, so they are able to profile processes and workloads as well.</p><p>The version<a id="id762" class="indexterm"/> included in Yocto 1.7 consists of a kernel module, a user space daemon to collect sample data, and several profiling tools to analyze captured data.</p><p>This recipe will focus on the OProfile version included in the 1.7 Yocto release.</p><div class="section" title="Getting ready"><div class="titlepage"><div><div><h2 class="title"><a id="ch05lvl2sec258"/>Getting ready</h2></div></div></div><p>To include OProfile in your system, add the following to your <code class="literal">conf/local.conf</code> file:</p><div class="informalexample"><pre class="programlisting"> IMAGE_INSTALL_append += " oprofile"</pre></div><p>OProfile is also part of the <code class="literal">tools-profile</code> image feature, so you can also add it with:</p><div class="informalexample"><pre class="programlisting">EXTRA_IMAGE_FEATURES += "tools-profile"</pre></div><p>OProfile is also included in the <code class="literal">-sdk</code> images.</p><p>OProfile does<a id="id763" class="indexterm"/> not need debugging symbols in applications unless annotated results are needed. For callgraph analysis, the binaries must have stack frames information so they should be build with debug optimization by setting the <code class="literal">DEBUG_BUILD</code> variable in the <code class="literal">conf/local.conf</code> file:</p><div class="informalexample"><pre class="programlisting">DEBUG_BUILD = "1"</pre></div><p>To build the kernel driver, configure the Linux kernel with profiling support, <code class="literal">CONFIG_PROFILING</code>, and the <code class="literal">CONFIG_OPROFILE</code> configuration variable to build the OProfile module.</p><p>OProfile uses the hardware counters support in the SoC, but it can also work on a timer-based mode. To work with the timer-based model, you need to pass the <code class="literal">oprofile.timer=1</code> kernel argument to the Linux kernel, or load the OProfile module with:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong># modprobe oprofile timer=1</strong></span>
+</pre></div><div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="note35"/>Note</h3><p>Because OProfile relies on the i.MX6 performance counters, we still need to boot with <code class="literal">maxcpus=1</code> for it to work. This restricts the profiling in i.MX6 SoCs to one core.</p></div></div></div><div class="section" title="How to do it..."><div class="titlepage"><div><div><h2 class="title"><a id="ch05lvl2sec259"/>How to do it...</h2></div></div></div><p>To profile a single ping, start a profiling session as follows:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong># opcontrol --start --vmlinux=/boot/vmlinux --callgraph 5</strong></span>
+<span class="strong"><strong>Using 2.6+ OProfile kernel interface.</strong></span>
+<span class="strong"><strong>Reading module info.</strong></span>
+<span class="strong"><strong>Using log file /var/lib/oprofile/samples/oprofiled.log</strong></span>
+<span class="strong"><strong>Daemon started.</strong></span>
+<span class="strong"><strong>Profiler running.</strong></span>
+</pre></div><p>Then run the workload to profile, for example, a single ping:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong># ping -c 1 192.168.1.1</strong></span>
+<span class="strong"><strong>PING 192.168.1.1 (192.168.1.1): 56 data bytes</strong></span>
+<span class="strong"><strong>64 bytes from 192.168.1.1: seq=0 ttl=64 time=5.421 ms</strong></span>
+
+<span class="strong"><strong>--- 192.168.1.1 ping statistics ---</strong></span>
+<span class="strong"><strong>1 packets transmitted, 1 packets received, 0% packet loss</strong></span>
+<span class="strong"><strong>round-trip min/avg/max = 5.421/5.421/5.421 ms</strong></span>
+</pre></div><p>And stop <a id="id764" class="indexterm"/>collecting data with:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong> # opcontrol --stop</strong></span>
+</pre></div><div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="tip23"/>Tip</h3><p>We will get a parsing error if the kernel image name contains special characters. To avoid it, we can use a symbolic link as follows:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong># ln -s /boot/vmlinux-3.10.17-1.0.2- wandboard+gbe8d6872b5eb /boot/vmlinux</strong></span>
+</pre></div><p>Also, if you see the following error:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>Count 100000 for event CPU_CYCLES is below the minimum 1500000</strong></span>
+</pre></div><p>You will need to change the reset count of the <code class="literal">CPU_CYCLES</code> event to that minimum, with:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong># opcontrol --setup --event=CPU_CYCLES:1500000</strong></span>
+</pre></div></div></div><p>You can then view the collected data with:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong># opreport -f</strong></span>
+<span class="strong"><strong>Using /var/lib/oprofile/samples/ for samples directory.</strong></span>
+<span class="strong"><strong>CPU: ARM Cortex-A9, speed 996000 MHz (estimated)</strong></span>
+<span class="strong"><strong>Counted CPU_CYCLES events (CPU cycle) with a unit mask of 0x00 (No unit mask) count 1500000</strong></span>
+<span class="strong"><strong>CPU_CYCLES:150...|</strong></span>
+<span class="strong"><strong>  samples|      %|</strong></span>
+<span class="strong"><strong>------------------</strong></span>
+<span class="strong"><strong>      401 83.0228 /boot/vmlinux-3.10.17-1.0.2-wandboard+gbe8d6872b5eb</strong></span>
+<span class="strong"><strong>       31  6.4182 /bin/bash</strong></span>
+<span class="strong"><strong>       28  5.7971 /lib/libc-2.20.so</strong></span>
+<span class="strong"><strong>       18  3.7267 /lib/ld-2.20.so</strong></span>
+<span class="strong"><strong>        3  0.6211 /usr/bin/oprofiled</strong></span>
+<span class="strong"><strong>        1  0.2070 /usr/bin/ophelp</strong></span>
+<span class="strong"><strong>        1  0.2070 /usr/sbin/sshd</strong></span>
+</pre></div><p>And an excerpt for output with callgraph and symbols is as follows:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong># opreport -cl</strong></span>
+<span class="strong"><strong>Using /var/lib/oprofile/samples/ for samples directory.</strong></span>
+<span class="strong"><strong>warning: [heap] (tgid:790 range:0x3db000-0x4bc000) could not be found.</strong></span>
+<span class="strong"><strong>warning: [stack] (tgid:785 range:0x7ee11000-0x7ee32000) could not be found.</strong></span>
+<span class="strong"><strong>CPU: ARM Cortex-A9, speed 996000 MHz (estimated)</strong></span>
+<span class="strong"><strong>Counted CPU_CYCLES events (CPU cycle) with a unit mask of 0x00 (No unit mask) count 1500000</strong></span>
+<span class="strong"><strong>samples  %        app name                 symbol name</strong></span>
+<span class="strong"><strong>-------------------------------------------------------------------------------</strong></span>
+<span class="strong"><strong>  102      48.8038  vmlinux-3.10.17-1.0.2-wandboard+gbe8d6872b5eb __do_softirq</strong></span>
+<span class="strong"><strong>  107      51.1962  vmlinux-3.10.17-1.0.2-wandboard+gbe8d6872b5eb do_softirq</strong></span>
+<span class="strong"><strong>102      21.1180  vmlinux-3.10.17-1.0.2-wandboard+gbe8d6872b5eb __do_softirq</strong></span>
+<span class="strong"><strong>  102      47.4419  vmlinux-3.10.17-1.0.2-wandboard+gbe8d6872b5eb __do_softirq</strong></span>
+<span class="strong"><strong>  102      47.4419  vmlinux-3.10.17-1.0.2-wandboard+gbe8d6872b5eb __do_softirq [self]</strong></span>
+<span class="strong"><strong>  7         3.2558  vmlinux-3.10.17-1.0.2-wandboard+gbe8d6872b5eb net_rx_action</strong></span>
+<span class="strong"><strong>  4         1.8605  vmlinux-3.10.17-1.0.2-wandboard+gbe8d6872b5eb run_timer_softirq</strong></span>
+<span class="strong"><strong>--------------------------------------------------------------------- ----------</strong></span>
+<span class="strong"><strong>31        6.4182  bash                     /bin/bash</strong></span>
+</pre></div></div><div class="section" title="How it works..."><div class="titlepage"><div><div><h2 class="title"><a id="ch05lvl2sec260"/>How it works...</h2></div></div></div><p>The OProfile<a id="id765" class="indexterm"/> daemon records data continuously, accumulating data from multiple runs. Use the <code class="literal">--start</code> and <code class="literal">--stop</code> options to start and stop accumulating new data. If you want to start collecting data from scratch, use the <code class="literal">--reset</code> option first.</p><p>Before running a profiling session, you need to configure the OProfile daemon to run with or without kernel profiling. Specifying the kernel profiling option is the only compulsory configuration variable.</p><p>In order to configure the OProfile daemon, stop it first (if running) with the <code class="literal">--shutdown</code> option. The <code class="literal">--stop</code> option will only stop data collection, but will not kill the daemon.</p><p>To configure OProfile without kernel profiling you execute the following command:</p><div class="informalexample"><pre class="programlisting">opcontrol --no-vmlinux &lt;options&gt;</pre></div><p>And to configure the kernel profiling, we can run the following command:</p><div class="informalexample"><pre class="programlisting">opcontrol --vmlinux=/boot/path/to/vmlinux &lt;options&gt;</pre></div><p>Both of these will <a id="id766" class="indexterm"/>configure the daemon and load the OProfile kernel module, if needed. Some common options are:</p><div class="itemizedlist"><ul class="itemizedlist"><li class="listitem" style="list-style-type: disc"><code class="literal">--separate=&lt;type&gt;</code>: This controls how the profiled data is separated into different files, with type being:<div class="itemizedlist"><ul class="itemizedlist"><li class="listitem" style="list-style-type: disc"><span class="strong"><strong>none</strong></span>: This does not separate profiles.</li><li class="listitem" style="list-style-type: disc"><span class="strong"><strong>library</strong></span>: This separates shared libraries profiles per application. The sample file name will include the name of library and the executable.</li><li class="listitem" style="list-style-type: disc"><span class="strong"><strong>kernel</strong></span>: This adds kernel profiling.</li><li class="listitem" style="list-style-type: disc"><span class="strong"><strong>thread</strong></span>: This adds per thread profiles.</li><li class="listitem" style="list-style-type: disc"><span class="strong"><strong>cpu</strong></span>: This adds per CPU profiles.</li><li class="listitem" style="list-style-type: disc"><span class="strong"><strong>all</strong></span>: This does all of the above.</li></ul></div></li><li class="listitem" style="list-style-type: disc"><code class="literal">--callgrah=&lt;depth&gt;</code>: This logs called and calling functions as well as the time spent in functions.</li></ul></div><p>Once the daemon is configured, you can start a profiling session.</p><p>To check the current configuration, you execute:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong># opcontrol --status</strong></span>
+<span class="strong"><strong>Daemon not running</strong></span>
+<span class="strong"><strong>Session-dir: /var/lib/oprofile</strong></span>
+<span class="strong"><strong>Separate options: library kernel</strong></span>
+<span class="strong"><strong>vmlinux file: /boot/vmlinux</strong></span>
+<span class="strong"><strong>Image filter: none</strong></span>
+<span class="strong"><strong>Call-graph depth: 5</strong></span>
+</pre></div><p>The sampled data is stored in the <code class="literal">/var/lib/oprofile/samples/</code> directory.</p><p>We can then analyze the collected data with:</p><div class="informalexample"><pre class="programlisting">opreport &lt;options&gt;</pre></div><p>Some useful options include:</p><div class="itemizedlist"><ul class="itemizedlist"><li class="listitem" style="list-style-type: disc"><code class="literal">-c</code>: This shows callgraph information, if available.</li><li class="listitem" style="list-style-type: disc"><code class="literal">-g</code>: This shows the source file and line number for each symbol.</li><li class="listitem" style="list-style-type: disc"><code class="literal">-f</code>: This shows full object paths.</li><li class="listitem" style="list-style-type: disc"><code class="literal">-o</code>: This provides the output to the specified file instead of <code class="literal">stdout</code>.</li></ul></div><p>OProfile mounts a pseudo filesystem in <code class="literal">/dev/oprofile</code> which is used to report and receive configuration from user space. It also contains a character device node used to pass sampled data <a id="id767" class="indexterm"/>from the kernel module to the user space daemon.</p></div><div class="section" title="There's more..."><div class="titlepage"><div><div><h2 class="title"><a id="ch05lvl2sec261"/>There's more...</h2></div></div></div><p>Yocto includes a graphical user interface for OProfile that can be run in the host. However, it is not part of Poky and needs to be downloaded and installed separately.</p><p>Refer to the <code class="literal">oprofileui</code> repository<a id="id768" class="indexterm"/> at <a class="ulink" href="https://git.yoctoproject.org/cgit/cgit.cgi/oprofileui/">https://git.yoctoproject.org/cgit/cgit.cgi/oprofileui/</a> for a README with instructions, or to the <span class="emphasis"><em>Yocto Project's Profiling and Tracing Manual</em></span> at <a class="ulink" href="http://www.yoctoproject.org/docs/1.7.1/profile-manual/profile-manual.html">http://www.yoctoproject.org/docs/1.7.1/profile-manual/profile-manual.html</a>.</p></div><div class="section" title="See also"><div class="titlepage"><div><div><h2 class="title"><a id="ch05lvl2sec262"/>See also</h2></div></div></div><div class="itemizedlist"><ul class="itemizedlist"><li class="listitem" style="list-style-type: disc">The project's home page for more information about OProfile<a id="id769" class="indexterm"/> at <a class="ulink" href="http://oprofile.sourceforge.net/news/">http://oprofile.sourceforge.net/news/</a></li></ul></div></div></div>
+<div class="section" title="Using LTTng"><div class="titlepage"><div><div><h1 class="title"><a id="ch05lvl1sec90"/>Using LTTng</h1></div></div></div><p>LTTng is<a id="id770" class="indexterm"/> a set of dual licensed GPLv2 and LGPL tracing and profiling tools for both applications and kernel. It produces binary trace files in the production optimized<a id="id771" class="indexterm"/> <span class="strong"><strong>Compact Trace Format</strong></span> (<span class="strong"><strong>CTF</strong></span>), which can then be analyzed by tools, such as <a id="id772" class="indexterm"/>
+<span class="strong"><strong>babeltrace</strong></span>.</p><div class="section" title="Getting ready"><div class="titlepage"><div><div><h2 class="title"><a id="ch05lvl2sec263"/>Getting ready</h2></div></div></div><p>To include the<a id="id773" class="indexterm"/> different LTTng tools in your system, add the following to your <code class="literal">conf/local.conf</code> file:</p><div class="informalexample"><pre class="programlisting">IMAGE_INSTALL_append = " lttng-tools lttng-modules lttng-ust"</pre></div><p>They are also part of the <code class="literal">tools-profile</code> image feature, so you can also add them with:</p><div class="informalexample"><pre class="programlisting">EXTRA_IMAGE_FEATURES += "tools-profile"</pre></div><p>These are also included in the <code class="literal">-sdk</code> images.</p><div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="tip26"/>Tip</h3><p>At the time of writing, Yocto 1.7 excludes <code class="literal">lttng-modules</code> from the <code class="literal">tools-profile</code> feature and <code class="literal">sdk</code> images for ARM; so they have to be added manually.</p></div></div><p>The LTTng command-line tool is the main user interface to LTTng. It can be used to trace both the Linux kernel—using the kernel tracing interfaces we have seen in previous recipes—as well as instrumented user space applications.</p></div><div class="section" title="How to do it..."><div class="titlepage"><div><div><h2 class="title"><a id="ch05lvl2sec264"/>How to do it...</h2></div></div></div><p>A kernel profiling session workflow<a id="id774" class="indexterm"/> is as <a id="id775" class="indexterm"/>follows:</p><div class="orderedlist"><ol class="orderedlist arabic"><li class="listitem">Create a profiling session with:<div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong># lttng create test-session</strong></span>
+<span class="strong"><strong>Session test-session created.</strong></span>
+<span class="strong"><strong>Traces will be written in /home/root/lttng-traces/test- session-20150117-174945</strong></span>
+</pre></div></li><li class="listitem">Enable the events you want to trace with:<div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong># lttng enable-event --kernel sched_switch,sched_process_fork</strong></span>
+<span class="strong"><strong>Warning: No tracing group detected</strong></span>
+<span class="strong"><strong>Kernel event sched_switch created in channel channel0</strong></span>
+<span class="strong"><strong>Kernel event sched_process_fork created in channel channel0</strong></span>
+</pre></div><p>You can get a list of the available kernel events with:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong># lttng list --kernel</strong></span>
+</pre></div><p>This corresponds to the static tracepoint events available in the Linux kernel.</p></li><li class="listitem">Now, you are ready to start sampling profiling data:<div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong># lttng start</strong></span>
+<span class="strong"><strong>Tracing started for session test-session</strong></span>
+</pre></div></li><li class="listitem">Run the workload you want to profile:<div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong># ping -c 1 192.168.1.1</strong></span>
+</pre></div></li><li class="listitem">When the command finishes or is interrupted, stop the gathering of profiling data:<div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong># lttng stop</strong></span>
+<span class="strong"><strong>Waiting for data availability.</strong></span>
+<span class="strong"><strong>Tracing stopped for session test-session</strong></span>
+</pre></div></li><li class="listitem">Finally, destroy the profiling session using the following command. Note that this keeps the tracing data and only destroys the session.<div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong># lttng destroy</strong></span>
+<span class="strong"><strong>Session test-session destroyed</strong></span>
+</pre></div></li><li class="listitem">To view the profiling data so that it is readable by humans, start <code class="literal">babeltrace</code> with:<div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong># babeltrace /home/root/lttng-traces/test-session-20150117- 174945</strong></span>
+</pre></div></li></ol></div><p>The profiling<a id="id776" class="indexterm"/> data can also be copied to the host to be analyzed.</p><p>User space applications and libraries need to be instrumented so that they can be profiled. This is done by linking them with the <code class="literal">liblttng-ust</code> library.</p><p>Applications can then make use of the <code class="literal">tracef</code> function call, which has the same format as <code class="literal">printf()</code>, to output traces. For example, to instrument the example <code class="literal">helloworld.c</code> application we saw in previous chapters, modify the source in <code class="literal">meta-custom/recipes-example/helloworld/helloworld-1.0/helloworld.c</code> as follows:</p><div class="informalexample"><pre class="programlisting">#include &lt;stdio.h&gt;
+<span class="strong"><strong>#include &lt;lttng/tracef.h&gt;</strong></span>
+
+main(void)
+{
+    printf("Hello World");
+    <span class="strong"><strong>tracef("I said: %s", "Hello World");</strong></span>
+}</pre></div><p>Modify its Yocto recipe in <code class="literal">meta-custom/recipes-example/helloworld/helloworld_1.0.bb</code> as follows:</p><div class="informalexample"><pre class="programlisting">DESCRIPTION = "Simple helloworld application"
+SECTION = "examples"
+LICENSE = "MIT"
+LIC_FILES_CHKSUM = "file://${COMMON_LICENSE_DIR}/MIT;md5=0835ade698e0bcf8506ecda2f7b4 f302"
+
+
+SRC_URI = "file://helloworld.c"
+DEPENDS = "lttng-ust"
+
+S = "${WORKDIR}"
+ 
+do_compile() {
+             ${CC} helloworld.c -llttng-ust -o helloworld
+}
+
+do_install() {
+             install -d ${D}${bindir}
+             install -m 0755 helloworld ${D}${bindir}
+}</pre></div><p>Then build the <a id="id777" class="indexterm"/>package, copy it to the target, and start a profiling session as follows:</p><div class="orderedlist"><ol class="orderedlist arabic"><li class="listitem">Create a profiling session by executing the following command:<div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong># lttng create test-user-session</strong></span>
+<span class="strong"><strong>Session test-user-session created.</strong></span>
+<span class="strong"><strong>Traces will be written in /home/root/lttng-traces/test-user- session-20150117-185731</strong></span>
+</pre></div></li><li class="listitem">Enable the events you want to profile—in this case, all the user space events:<div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong># lttng enable-event -u -a</strong></span>
+<span class="strong"><strong>Warning: No tracing group detected</strong></span>
+<span class="strong"><strong>All UST events are enabled in channel channel0</strong></span>
+</pre></div></li><li class="listitem">Start to gather profiling data:<div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong># lttng start</strong></span>
+<span class="strong"><strong>Tracing started for session test-user-session</strong></span>
+</pre></div></li><li class="listitem">Run the workload—in this case, the instrumented hello world example program:<div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong># helloworld</strong></span>
+<span class="strong"><strong>Hello World</strong></span>
+</pre></div></li><li class="listitem">Once it finishes, stop gathering data:<div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong># lttng stop</strong></span>
+<span class="strong"><strong>Waiting for data availability.</strong></span>
+<span class="strong"><strong>Tracing stopped for session test-user-session</strong></span>
+</pre></div></li><li class="listitem">Without destroying the session, you can start <code class="literal">babeltrace</code> executing:<div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong># lttng view</strong></span>
+<span class="strong"><strong>[18:58:22.625557512] (+0.001278334) wandboard-quad lttng_ust_tracef:event: { cpu_id = 0 }, { _msg_length = 19, msg = "I said: Hello World" }</strong></span>
+</pre></div></li><li class="listitem">Finally, you can destroy the profiling session:<div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong># lttng destroy test-user-session</strong></span>
+<span class="strong"><strong>Session test-user-session destroyed</strong></span>
+</pre></div></li></ol></div></div><div class="section" title="How it works..."><div class="titlepage"><div><div><h2 class="title"><a id="ch05lvl2sec265"/>How it works...</h2></div></div></div><p>Kernel tracing is <a id="id778" class="indexterm"/>done using the tracing functionalities available in the Linux kernel, as we have seen in previous recipes. For the following examples to work, the Linux kernel must be configured appropriately as seen in the corresponding recipes earlier.</p><p>LTTng provides a common user interface to control some of the kernel tracing features we saw previously, such as the following:</p><div class="itemizedlist"><ul class="itemizedlist"><li class="listitem" style="list-style-type: disc"><span class="strong"><strong>Static</strong></span><a id="id779" class="indexterm"/><span class="strong"><strong> tracepoint events</strong></span>:<p>You can enable specific static tracepoint events with:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong># lttng enable-event &lt;comma separated event list&gt; -k</strong></span>
+</pre></div><p>You can enable all tracepoints with:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong># lttng enable-event -a -k --tracepoint</strong></span>
+</pre></div><p>You can also enable all syscalls with:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong># lttng enable-event -a -k --syscall</strong></span>
+</pre></div><p>You can enable all tracepoints and syscalls with:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong># lttng enable-event -a -k</strong></span>
+</pre></div></li><li class="listitem" style="list-style-type: disc"><span class="strong"><strong>Dynamic </strong></span><a id="id780" class="indexterm"/><span class="strong"><strong>tracepoint events</strong></span>:<p>You can also add dynamic tracepoints with:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong># lttng enable-event &lt;probe_name&gt; -k --probe &lt;symbol&gt;+&lt;offset&gt;</strong></span>
+</pre></div><p>You can also add them with:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong># lttng enable-event &lt;probe_name&gt; -k --probe &lt;address&gt;</strong></span>
+</pre></div></li><li class="listitem" style="list-style-type: disc"><span class="strong"><strong>Function </strong></span><a id="id781" class="indexterm"/><span class="strong"><strong>tracing</strong></span>:<p>You can also use the function tracing kernel functionality with:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong># lttng enable-event &lt;probe_name&gt; -k --function &lt;symbol&gt;</strong></span>
+</pre></div></li><li class="listitem" style="list-style-type: disc"><span class="strong"><strong>Performance</strong></span><a id="id782" class="indexterm"/><span class="strong"><strong> counter events:</strong></span><p>And the hardware performance counters, for example for the CPU cycles, with the following command:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong># lttng add-context -t perf:cpu:cpu-cycles -k</strong></span>
+</pre></div><p>Use the <code class="literal">add-context --help</code> option to list further context options and perf counters.</p></li></ul></div><div class="section" title="Extending application profiling"><div class="titlepage"><div><div><h3 class="title"><a id="ch05lvl3sec69"/>Extending application profiling</h3></div></div></div><p>Further applications <a id="id783" class="indexterm"/>tracing flexibility can be achieved with the <code class="literal">tracepoint()</code> call by writing a template file (<code class="literal">.tp</code>), and using the <code class="literal">lttng-gen-tp</code> script along with the source file. This generates an object file that can then be linked to your application.</p><p>At the time of writing, Yocto has no standard way to cross-instrument user space applications, but it can be done natively using an <code class="literal">-sdk</code> image, or adding the following image features to the <code class="literal">conf/local.conf</code> file:</p><div class="informalexample"><pre class="programlisting">EXTRA_IMAGE_FEATURES += "tools-sdk dev-pkgs"</pre></div><p>For example, define a tracepoint <code class="literal">hw.tp</code> file as follows:</p><div class="informalexample"><pre class="programlisting">TRACEPOINT_EVENT(
+    hello_world_trace_provider,
+    hw_tracepoint,
+    TP_ARGS(
+        int, my_integer_arg,
+        char*, my_string_arg
+    ),
+    TP_FIELDS(
+        ctf_string(my_string_field, my_string_arg)
+        ctf_integer(int, my_integer_field, my_integer_arg)
+    )
+)</pre></div><p>Pass this through the <code class="literal">lttng-gen-tp</code> tool to obtain <code class="literal">hw.c</code>, <code class="literal">hw.h</code>, and <code class="literal">hw.o</code> files:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong># lttng-gen-tp hw.tp</strong></span>
+</pre></div><div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="tip27"/>Tip</h3><p>Note that the <code class="literal">lttng-gen-tp</code> tool is not installed with the <code class="literal">lttng-ust</code> package, but with the <code class="literal">lttng-ust-bin</code> package. This has to be added to be the target image, for example, by adding the following in your <code class="literal">conf/local.conf</code> file:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>IMAGE_INSTALL_append = " lttng-ust-bin"</strong></span>
+</pre></div></div></div><p>You can now add the <code class="literal">hw.h</code> header file to your helloworld application that is in the <code class="literal">helloworld.c</code> file and use the <code class="literal">tracepoint()</code> call as follows:</p><div class="informalexample"><pre class="programlisting">#include &lt;stdio.h&gt;
+<span class="strong"><strong>#include "hw.h"</strong></span>
+ 
+main(void)
+{
+    printf("Hello World");
+    <span class="strong"><strong>tracepoint(hello_world_trace_provider,  hw_tracepoint, 1, "I said: Hello World");</strong></span>
+}</pre></div><p>Now link your application with the native <code class="literal">gcc</code> as follows:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong># gcc -o hw helloworld.c hw.o -llttng-ust -ldl</strong></span>
+</pre></div><div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="tip28"/>Tip</h3><p>Note that in order to use <code class="literal">gcc</code> on the target, we need to build one of the <code class="literal">-sdk</code> images, or add some extra features to our image, such as:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>EXTRA_IMAGE_FEATURES = "tools-sdk dev-pkgs"</strong></span>
+</pre></div></div></div><p>To profile your <a id="id784" class="indexterm"/>application, do the following:</p><div class="orderedlist"><ol class="orderedlist arabic"><li class="listitem">Create a profiling session:<div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong># lttng create test-session</strong></span>
+<span class="strong"><strong>Spawning a session daemon</strong></span>
+<span class="strong"><strong>Warning: No tracing group detected</strong></span>
+<span class="strong"><strong>Session test-session created.</strong></span>
+<span class="strong"><strong>Traces will be written in /home/root/lttng-traces/test- session-20150117-195930</strong></span>
+</pre></div></li><li class="listitem">Enable the specific event you want to profile:<div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong># lttng enable-event --userspace hello_world_trace_provider:hw_tracepoint</strong></span>
+<span class="strong"><strong>Warning: No tracing group detected</strong></span>
+<span class="strong"><strong>UST event hello_world_trace_provider:hw_tracepoint created in channel channel0</strong></span>
+</pre></div></li><li class="listitem">Start gathering profiling data:<div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong># lttng start</strong></span>
+<span class="strong"><strong>Tracing started for session test-session</strong></span>
+</pre></div></li><li class="listitem">Run the workload to profile—in this case the helloworld application:<div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>#./hw</strong></span>
+<span class="strong"><strong>Hello World</strong></span>
+</pre></div></li><li class="listitem">Stop gathering data:<div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong># lttng stop</strong></span>
+</pre></div></li><li class="listitem">Now start <code class="literal">babeltrace</code> with:<div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong># lttng view</strong></span>
+<span class="strong"><strong>[20:00:43.537630037] (+?.?????????) wandboard-quad hello_world_trace_provider:hw_tracepoint: { cpu_id = 0 }, { my_string_field = "I said: Hello World", my_integer_field = 1 }</strong></span>
+</pre></div></li><li class="listitem">Finally, destroy the profiling session:<div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong># lttng destroy test-session</strong></span>
+</pre></div></li></ol></div></div></div><div class="section" title="There's more..."><div class="titlepage"><div><div><h2 class="title"><a id="ch05lvl2sec266"/>There's more...</h2></div></div></div><p>You can also use the Trace Compass application or Eclipse plugin to analyze the traces<a id="id785" class="indexterm"/> in the host by visiting <a class="ulink" href="http://projects.eclipse.org/projects/tools.tracecompass/downloads">http://projects.eclipse.org/projects/tools.tracecompass/downloads</a>. A stable release was not yet available at the time of writing.</p></div><div class="section" title="See also"><div class="titlepage"><div><div><h2 class="title"><a id="ch05lvl2sec267"/>See also</h2></div></div></div><div class="itemizedlist"><ul class="itemizedlist"><li class="listitem" style="list-style-type: disc">Details on using LTTng<a id="id786" class="indexterm"/> at <a class="ulink" href="http://lttng.org/docs/">http://lttng.org/docs/</a></li><li class="listitem" style="list-style-type: disc">Details about the instrumenting of C applications<a id="id787" class="indexterm"/> at <a class="ulink" href="http://lttng.org/docs/#doc-c-application">http://lttng.org/docs/#doc-c-application</a></li><li class="listitem" style="list-style-type: disc">A <code class="literal">tracepoint()</code> example in<a id="id788" class="indexterm"/> the <code class="literal">lttng-ust</code> source at <a class="ulink" href="http://git.lttng.org/?p=lttng-ust.git;a=tree;f=tests/hello;h=4ae310caf62a8321a253fa84a04982edab52829c;hb=HEAD">http://git.lttng.org/?p=lttng-ust.git;a=tree;f=tests/hello;h=4ae310caf62a8321a253fa84a04982edab52829c;hb=HEAD</a></li></ul></div></div></div>
+<div class="section" title="Using blktrace"><div class="titlepage"><div><div><h1 class="title"><a id="ch05lvl1sec91"/>Using blktrace</h1></div></div></div><p>There are a few <a id="id789" class="indexterm"/>tools available to perform block devices I/O monitoring and profiling.</p><p>Starting with <code class="literal">iotop</code> which we mentioned in the <span class="emphasis"><em>Exploring Yocto's tracing and profiling tools</em></span> recipe, which gives a general idea of the throughput on a system and a particular process. Or <code class="literal">iostat</code>, which provides many more statistics regarding CPU usage and device utilization, but does not provide per process details. And finally <code class="literal">blktrace</code> that is a GPLv2 licensed tool which monitors specific block devices I/O at a low level, and can also compute <a id="id790" class="indexterm"/>
+<span class="strong"><strong>I/O operations per second</strong></span> (<span class="strong"><strong>IOPS</strong></span>).</p><p>This recipe will explain how to use <code class="literal">blktrace</code> to trace block devices and <code class="literal">blkparse</code>, to convert the traces into human readable format.</p><div class="section" title="Getting ready"><div class="titlepage"><div><div><h2 class="title"><a id="ch05lvl2sec268"/>Getting ready</h2></div></div></div><p>To use <code class="literal">blktrace</code> and <code class="literal">blkparse</code>, you can add them to the target image by adding it specifically, as in:</p><div class="informalexample"><pre class="programlisting">IMAGE_INSTALL_append = " blktrace"</pre></div><p>Alternately, you can also <a id="id791" class="indexterm"/>use  the <code class="literal">tools-profile</code> image feature, or an <code class="literal">-sdk</code> image.</p><p>You will also need to configure the Linux kernel with <code class="literal">CONFIG_FTRACE</code> and <code class="literal">CONFIG_BLK_DEV_IO_TRACE</code> to be able to trace block I/O actions.</p><p>When profiling a block device, it is important to minimize the effect of the tracing on the results; for example, not storing the tracing data on the block device being profiled.</p><p>There are several ways to achieve this:</p><div class="itemizedlist"><ul class="itemizedlist"><li class="listitem" style="list-style-type: disc">Running the trace from a different block device.</li><li class="listitem" style="list-style-type: disc">Running the trace from a RAM-based <code class="literal">tmpfs</code> device (such as <code class="literal">/var/volatile</code>). Running from a memory-based device will limit the amount of tracing data that can be stored though.</li><li class="listitem" style="list-style-type: disc">Running the trace from a network-mounted filesystem.</li><li class="listitem" style="list-style-type: disc">Running the trace over the network.</li></ul></div><p>Also, the filesystem being used in the block device to profile is an important factor, as filesystem features such as journalism will distort the I/O statistics. Flash filesystems, even if they are presented to user space as block devices, cannot be profiled with <code class="literal">blktrace</code>.</p></div><div class="section" title="How to do it..."><div class="titlepage"><div><div><h2 class="title"><a id="ch05lvl2sec269"/>How to do it...</h2></div></div></div><p>Let's imagine you want to profile the I/O for the microSD card device on the Wandboard. By booting the system from the network, as seen in the <span class="emphasis"><em>Configuring network booting for a development setup</em></span> recipe from <a class="link" href="ch01.html" title="Chapter 1. The Build System">Chapter 1</a>, <span class="emphasis"><em>The Build System</em></span>, you can avoid unnecessary access to the device by the system.</p><p>For this example, we will mount as an ext2 partition to avoid journalism, but other tweaks may be needed for effective profiling of a specific workload:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong># mount -t ext2 /dev/mmcblk0p2 /mnt</strong></span>
+<span class="strong"><strong>EXT2-fs (mmcblk0p2): warning: mounting ext3 filesystem as ext2</strong></span>
+<span class="strong"><strong>EXT2-fs (mmcblk0p2): warning: mounting unchecked fs, running e2fsck is recommended</strong></span>
+</pre></div><p>The workflow to profile a specific workload is as follows:</p><div class="orderedlist"><ol class="orderedlist arabic"><li class="listitem">Start <code class="literal">blktrace</code> to gather tracing data on the <code class="literal">/dev/mmcblk0</code> device with:<div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong># blktrace /dev/mmcblk0</strong></span>
+</pre></div></li><li class="listitem">Start the workload to profile, for example, the creation of a 10 KB file. Open an SSH connection to the target and execute:<div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong># dd if=/dev/urandom of=/mnt/home/root/random-10k-file bs=1k count=10 conv=fsync</strong></span>
+<span class="strong"><strong>10+0 records in</strong></span>
+<span class="strong"><strong>10+0 records out</strong></span>
+<span class="strong"><strong>10240 bytes (10 kB) copied, 0.00585167 s, 1.7 MB/s</strong></span>
+</pre></div></li><li class="listitem">Stop the profiling on the console with <span class="emphasis"><em>Ctrl</em></span> + <span class="emphasis"><em>C</em></span>. This will create a file in the same directory called <code class="literal">mmcblk0.blktrace.0</code> . You will see the following output:<div class="informalexample"><pre class="programlisting">^C=== mmcblk0 ===
+  CPU  0:                   30 events,        2 KiB data
+<span class="strong"><strong>  Total:                    30 events (dropped 0),        2 KiB data</strong></span>
+</pre></div><p>Some useful <a id="id792" class="indexterm"/>options for <code class="literal">blktrace</code> are:</p><div class="itemizedlist"><ul class="itemizedlist"><li class="listitem" style="list-style-type: disc"><code class="literal">-w</code>: This is used to <a id="id793" class="indexterm"/>run only for the specified number of seconds</li><li class="listitem" style="list-style-type: disc"><code class="literal">-a</code>: This adds a mask to the current file, where the masks can be:<div class="itemizedlist"><ul class="itemizedlist"><li class="listitem" style="list-style-type: disc"><code class="literal">barrier</code>: This refers to the barrier attribute</li><li class="listitem" style="list-style-type: disc"><code class="literal">complete</code>: This refers to an operation completed by the driver</li><li class="listitem" style="list-style-type: disc"><code class="literal">fs</code>: These are the FS requests</li><li class="listitem" style="list-style-type: disc"><code class="literal">issue</code>: This option refers to operations issued to the driver</li><li class="listitem" style="list-style-type: disc"><code class="literal">pc</code>: This refers to packet command events</li><li class="listitem" style="list-style-type: disc"><code class="literal">queue</code>: This option represents queue operations</li><li class="listitem" style="list-style-type: disc"><code class="literal">read</code>: This refers to read traces</li><li class="listitem" style="list-style-type: disc"><code class="literal">requeue</code>: This is used for requeue operations</li><li class="listitem" style="list-style-type: disc"><code class="literal">sync</code>: This represents synchronous attributes</li><li class="listitem" style="list-style-type: disc"><code class="literal">write</code>: This refers to write traces</li></ul></div></li></ul></div></li></ol></div></div><div class="section" title="How it works..."><div class="titlepage"><div><div><h2 class="title"><a id="ch05lvl2sec270"/>How it works...</h2></div></div></div><p>Once you have gathered the tracing data, you can process it with <code class="literal">blkparse</code> as follows:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong># blkparse mmcblk0</strong></span>
+</pre></div><p>This provides an <code class="literal">stdout</code> <a id="id794" class="indexterm"/>output for all the gathered data, and a final summary, as follows:</p><div class="informalexample"><pre class="programlisting">Input file mmcblk0.blktrace.0 added
+179,0    0        1     0.000000000   521  A   W 1138688 + 8 &lt;- (179,2) 1114112
+179,0    0        2     0.000003666   521  Q   W 1138688 + 8 [kworker/u8:0]
+179,0    0        3     0.000025333   521  G   W 1138688 + 8 [kworker/u8:0]
+179,0    0        4     0.000031000   521  P   N [kworker/u8:0]
+179,0    0        5     0.000044666   521  I   W 1138688 + 8 [kworker/u8:0]
+179,0    0        0     0.000056666     0  m   N cfq519A  insert_request
+179,0    0        0     0.000063000     0  m   N cfq519A  add_to_rr
+179,0    0        6     0.000081000   521  U   N [kworker/u8:0] 1
+179,0    0        0     0.000121000     0  m   N cfq workload slice:6
+179,0    0        0     0.000132666     0  m   N cfq519A  set_active wl_class:0 wl_type:0
+179,0    0        0     0.000141333     0  m   N cfq519A  Not idling. st-&gt;count:1
+179,0    0        0     0.000150000     0  m   N cfq519A  fifo=  (null)
+179,0    0        0     0.000156000     0  m   N cfq519A  dispatch_insert
+179,0    0        0     0.000167666     0  m   N cfq519A  dispatched a request
+179,0    0        0     0.000175000     0  m   N cfq519A  activate rq, drv=1
+179,0    0        7     0.000181333    83  D   W 1138688 + 8 [mmcqd/2]
+179,0    0        8     0.735417000    83  C   W 1138688 + 8 [0]
+179,0    0        0     0.739904333     0  m   N cfq519A  complete rqnoidle 0
+179,0    0        0     0.739910000     0  m   N cfq519A  set_slice=4
+179,0    0        0     0.739912000     0  m   N cfq schedule dispatch
+CPU0 (mmcblk0):
+ Reads Queued:           0,        0KiB  Writes Queued:1,4KiB
+ Read Dispatches:        0,        0KiB  Write Dispatches:1,4KiB
+ Reads Requeued:         0               Writes Requeued:0
+ Reads Completed:        0,        0KiB  Writes Completed:1,4KiB
+ Read Merges:            0,        0KiB  Write Merges:0,0KiB
+ Read depth:             0               Write depth:1
+ IO unplugs:             1               Timer unplugs:0
+
+Throughput (R/W): 0KiB/s / 5KiB/s
+Events (mmcblk0): 20 entries
+Skips: 0 forward (0 -   0.0%)</pre></div><p>The output format <a id="id795" class="indexterm"/>from <code class="literal">blkparse</code> is:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>179,0    0        7     0.000181333    83  D   W 1138688 + 8 [mmcqd/2]</strong></span>
+</pre></div><p>This corresponds to:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>&lt;mayor,minor&gt; &lt;cpu&gt; &lt;seq_nr&gt; &lt;timestamp&gt; &lt;pid&gt; &lt;actions&gt; &lt;rwbs&gt; &lt;start block&gt; + &lt;nr of blocks&gt; &lt;command&gt;</strong></span>
+</pre></div><p>The columns correspond to:</p><div class="itemizedlist"><ul class="itemizedlist"><li class="listitem" style="list-style-type: disc"><code class="literal">A</code>: I/O remapped to a different device</li><li class="listitem" style="list-style-type: disc"><code class="literal">B</code>: I/O bounced</li><li class="listitem" style="list-style-type: disc"><code class="literal">C</code>: I/O completed</li><li class="listitem" style="list-style-type: disc"><code class="literal">D</code>: I/O issued to driver</li><li class="listitem" style="list-style-type: disc"><code class="literal">F</code>: I/O front merged with request on queue</li><li class="listitem" style="list-style-type: disc"><code class="literal">G</code>: Get request</li><li class="listitem" style="list-style-type: disc"><code class="literal">I</code>: I/O inserted into request queue</li><li class="listitem" style="list-style-type: disc"><code class="literal">M</code>: I/O back merged with request on queue</li><li class="listitem" style="list-style-type: disc"><code class="literal">P</code>: Plug request</li><li class="listitem" style="list-style-type: disc"><code class="literal">Q</code>: I/O handled by request queue code</li><li class="listitem" style="list-style-type: disc"><code class="literal">S</code>: Sleep request</li><li class="listitem" style="list-style-type: disc"><code class="literal">T</code>: Unplug due to timeout</li><li class="listitem" style="list-style-type: disc"><code class="literal">U</code>: Unplug request</li><li class="listitem" style="list-style-type: disc"><code class="literal">X</code>: Split</li></ul></div><p>The RWBS field corresponds to:</p><div class="itemizedlist"><ul class="itemizedlist"><li class="listitem" style="list-style-type: disc"><code class="literal">R</code>: Read</li><li class="listitem" style="list-style-type: disc"><code class="literal">W</code>: Write</li><li class="listitem" style="list-style-type: disc"><code class="literal">B</code>: Barrier</li><li class="listitem" style="list-style-type: disc"><code class="literal">S</code>: Synchronous</li></ul></div><p>Another way of tracing non-disruptively is using live monitoring, that is, piping the output of <code class="literal">blktrace</code> to <code class="literal">blkparse</code> directly without writing anything to disk, as follows:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong># blktrace /dev/mmcblk0 -o - | blkparse -i -</strong></span>
+</pre></div><p>This can also be done in just one line:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong># btrace /dev/mmcblk0</strong></span>
+</pre></div></div><div class="section" title="There's more..."><div class="titlepage"><div><div><h2 class="title"><a id="ch05lvl2sec271"/>There's more...</h2></div></div></div><p>The <code class="literal">blktrace</code> command can<a id="id796" class="indexterm"/> also send the tracing data over the network so that it is stored on a different device.</p><p>For this, start <code class="literal">blktrace</code> on the target system as follows:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong># blktrace -l /dev/mmcblk0</strong></span>
+</pre></div><p>And on another device, run another instance as follows:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>$ blktrace -d /dev/mmcblk0 -h &lt;target_ip&gt;</strong></span>
+</pre></div><p>Back to the target, you can now execute the specific workload you want to trace:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong># dd if=/dev/urandom of=/mnt/home/root/random-10k-file bs=1k count=10 conv=fsync</strong></span>
+<span class="strong"><strong>10+0 records in</strong></span>
+<span class="strong"><strong>10+0 records out</strong></span>
+<span class="strong"><strong>10240 bytes (10 kB) copied, 0.00585167 s, 1.7 MB/s</strong></span>
+</pre></div><p>Once it finishes, interrupt the remote <code class="literal">blktrace</code> with <span class="emphasis"><em>Ctrl</em></span> + <span class="emphasis"><em>C</em></span>. A summary will be printed at both the target and the host.</p><p>You can now run <code class="literal">blkparse</code> to process the gathered data.</p></div></div></body></html>

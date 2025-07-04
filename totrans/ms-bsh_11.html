@@ -1,0 +1,618 @@
+<html><head></head><body>
+        <section>
+
+                            <header>
+                    </header><h1 class="header-title" id="calibre_pb_0">Living as a Daemon</h1>
+                
+            
+            <article>
+                
+<p class="calibre1">In the journey that we had through the pages of this book, we saw lots of fun stuff, played with processes, sent signals, put things in the background, and wrote complex scripts. Everything done so far has one goal: to make us get the best from our Bash, have it working for us in repetitive tasks, and use built-ins, loops, and external commands to ease our everyday life as a power user. There are some times, though, when we need our scripts getting to work on a long run, maybe staying active indefinitely, so just running it as a normal program would not fit our need. We have to sweep through the obscure path of life as a daemon.</p>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    </header><h1 class="header-title" id="calibre_pb_0">What is a daemon?</h1>
+                
+            
+            <article>
+                
+<p class="calibre1"><span><span>Well, what makes a daemon different from a normal program? We usually want to use a daemon to get some of the following features:</span></span></p>
+<ul class="calibre12">
+<li class="calibre13">Runs indefinitely</li>
+<li class="calibre13">Offers a service</li>
+<li class="calibre13">Survives even if the calling session ends</li>
+<li class="calibre13">Does not lock a terminal</li>
+<li class="calibre13">Does not lock the any subdirectory</li>
+</ul>
+<p class="calibre1"><span><span>That is, more or less, what a daemon as we know it does. Imagine the SSHD daemon, FTPD, or Apache:</span></span></p>
+<ul class="calibre12">
+<li class="calibre13"><span><span>Runs in the background</span></span></li>
+<li class="calibre13"><span><span>Offers a service you interact with a socket</span></span></li>
+<li class="calibre13"><span><span>Can be started or stopped but no further direct interaction from the command line</span></span></li>
+<li class="calibre13"><span><span>Available when you log in and still there when you log off</span></span></li>
+<li class="calibre13"><span><span>They run in background</span></span></li>
+</ul>
+<p class="calibre1"><span><span>You actually have no idea on how they can do all of this.</span></span></p>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    </header><h1 class="header-title" id="calibre_pb_0">DEMO</h1>
+                
+            
+            <article>
+                
+<p class="calibre1"><span><span>So, how could we turn one of our scripts into a daemon? One first attempt could be using </span></span><span><span><kbd class="calibre9">&amp;</kbd><span>. The trailing ampersand is a Bash built-in which instructs the shell to run the command in the background inside a subshell. Once the command is executed, the shell does not wait for it to finish but returns a code <kbd class="calibre9">0</kbd>, which means successful, and proceeds further in any other commands that are to be executed:</span></span></span></p>
+<pre class="codepackt">
+<strong class="calibre2">zarrelli:~$ ls -lah &amp; ps -jf<br class="title-page-name"/></strong><strong class="calibre2">[1] 13704<br class="title-page-name"/></strong><strong class="calibre2">total 48K<br class="title-page-name"/></strong><strong class="calibre2">drwxr-xr-x 4 zarrelli zarrelli 4.0K Apr 12 14:12 .<br class="title-page-name"/></strong><strong class="calibre2">drwxr-xr-x 4 zarrelli zarrelli 4.0K Apr 12 19:37 ..<br class="title-page-name"/></strong><strong class="calibre2">-rw-r--r-- 1 zarrelli zarrelli 11 Apr 10 09:20 controller<br class="title-page-name"/></strong><strong class="calibre2">-rwxr--r-- 1 zarrelli zarrelli 121 Apr 11 18:30 coproc.sh<br class="title-page-name"/></strong><strong class="calibre2">-rwxr--r-- 1 zarrelli zarrelli 961 Apr 11 12:19 environment.sh<br class="title-page-name"/></strong><strong class="calibre2">-rwxr--r-- 1 zarrelli zarrelli 382 Apr 11 10:08 looping.sh<br class="title-page-name"/></strong><strong class="calibre2">-rw-r--r-- 1 zarrelli zarrelli 0 Apr 10 09:20 myfile.txt<br class="title-page-name"/></strong><strong class="calibre2">-rw-r--r-- 1 zarrelli zarrelli 122 Apr 10 09:20 myfile.txt.tgz<br class="title-page-name"/></strong><strong class="calibre2">-rw-r--r-- 1 zarrelli zarrelli 367 Apr 12 14:12 my_index.html<br class="title-page-name"/></strong><strong class="calibre2">prw-r--r-- 1 zarrelli zarrelli 0 Apr 9 13:05 mypipefile<br class="title-page-name"/></strong><strong class="calibre2">-rwxr--r-- 1 zarrelli zarrelli 223 Apr 9 12:44 pipe.sh<br class="title-page-name"/></strong><strong class="calibre2">drwxr-xr-x 2 zarrelli zarrelli 4.0K Apr 10 12:20 test 1<br class="title-page-name"/></strong><strong class="calibre2">drwxr-xr-x 2 zarrelli zarrelli 4.0K Apr 10 12:20 test 2<br class="title-page-name"/></strong><strong class="calibre2">-rw-r--r-- 1 zarrelli zarrelli 29 Apr 12 12:06 testfile.txt<br class="title-page-name"/></strong><strong class="calibre2">UID PID PPID PGID SID C STIME TTY TIME CMD<br class="title-page-name"/></strong><strong class="calibre2">zarrelli 1385 1272 1385 1385 0 08:14 pts/0 00:00:00 /bin/bash<br class="title-page-name"/></strong><strong class="calibre2">zarrelli 13705 1385 13705 1385 0 10:55 pts/0 00:00:00 ps -jf<br class="title-page-name"/></strong><strong class="calibre2">[1]+ Done ls --color=auto -lah </strong>
+</pre>
+<p class="calibre1"><span><span><span>What we saw in the example is that the shell executed the first <kbd class="calibre9">ls</kbd> command and gave us back this:</span></span></span></p>
+<pre class="codepackt">
+<strong class="calibre2">[1] The job number<br class="title-page-name"/></strong><strong class="calibre2">13704 The process ID</strong>
+</pre>
+<p class="calibre1"><span><span><span>But then, it did not wait for the <kbd class="calibre9">ls</kbd> process to complete its job; it just forked it in a subshell and proceeded to execute the <kbd class="calibre9">ps</kbd> command. For our experiments, let's create an empty shell and a script with an infinite loop, which actually does nothing:</span></span></span></p>
+<pre class="codepackt">
+#!/bin/bash<br class="title-page-name"/>while true<br class="title-page-name"/>do<br class="title-page-name"/>:<br class="title-page-name"/>done
+</pre>
+<p class="calibre1"><span><span><span>Nothing special, the only thing interesting here is that once launched, the script will execute until we stop it. Now, let's run it:</span></span></span></p>
+<pre class="codepackt">
+<strong class="calibre2">zarrelli:~$ ./while.sh </strong>
+</pre>
+<p class="calibre1"><span><span><span>Well, we said it does nothing, but it actually does something: it gets hold of your terminal and will not give it back to you until it is terminated or sent into the background. So, here we have two options:</span></span></span></p>
+<p class="calibre1"><span><span><span><em class="calibre20">Ctrl </em>+ <em class="calibre20">C</em> sends a <kbd class="calibre9">SIGKILL</kbd> signal to the process and terminates it:</span></span></span></p>
+<pre class="codepackt">
+<strong class="calibre2">zarrelli:~$ ./while.sh <br class="title-page-name"/></strong><strong class="calibre2">^C</strong>
+</pre>
+<p class="calibre1"><span><span><span><em class="calibre20">Ctrl</em>+<em class="calibre20">Z </em>sends <kbd class="calibre9">SIGTSTP</kbd>, which suspends its execution:</span></span></span></p>
+<pre class="codepackt">
+<strong class="calibre2">zarrelli:~$ ./while.sh <br class="title-page-name"/></strong><strong class="calibre2">^Z<br class="title-page-name"/></strong><strong class="calibre2">[1]+ Stopped ./while.sh</strong>
+</pre>
+<p class="calibre1"><span><span><span>Once suspended, we can put the job in the background using its job ID, in our case <kbd class="calibre9">[1]</kbd>:</span></span></span></p>
+<pre class="codepackt">
+<strong class="calibre2">zarrelli:~$ bg %1<br class="title-page-name"/></strong><strong class="calibre2">[1]+ ./while.sh &amp;</strong>
+</pre>
+<p class="calibre1"><span><span><span>If now we check the status of the job, it will be this:</span></span></span></p>
+<pre class="codepackt">
+<strong class="calibre2">zarrelli:~$ jobs<br class="title-page-name"/></strong><strong class="calibre2">[1]+ Running ./while.sh &amp;</strong>
+</pre>
+<p class="calibre1"><span><span><span>We can see that the script is no longer stopped, but it is actually running in the background. At this point, you may have forgotten what was the PID of the subshell running the script, or you just do not know that there is a quick way to recall it, since it is stored in the <kbd class="calibre9">$!</kbd> variable:</span></span></span></p>
+<pre class="codepackt">
+<strong class="calibre2">zarrelli:~$ echo $!<br class="title-page-name"/></strong><strong class="calibre2">18672</strong>
+</pre>
+<p class="calibre1"><span><span>Now, let's bring the process into the foreground:</span></span></p>
+<pre class="codepackt">
+<strong class="calibre2">zarrelli:~$ fg %1<br class="title-page-name"/></strong><strong class="calibre2">./while.sh</strong>
+</pre>
+<p class="calibre1"><span><span><span>Kill it since it got hold of the terminal once again:</span></span></span></p>
+<pre class="codepackt">
+<strong class="calibre2">zarrelli:~$ ./while.sh <br class="title-page-name"/></strong><strong class="calibre2">^C</strong>
+</pre>
+<p class="calibre1"><span><span>Let's see what happens if we run multiple instances of the script directly in the background using the ampersand:</span></span></p>
+<pre class="codepackt">
+<strong class="calibre2">zarrelli:~$ ./while.sh &amp; ./while.sh &amp; ./while.sh &amp;<br class="title-page-name"/></strong><strong class="calibre2">[1] 20167<br class="title-page-name"/></strong><strong class="calibre2">[2] 20168<br class="title-page-name"/></strong><strong class="calibre2">[3] 20169</strong>
+</pre>
+<p class="calibre1"><span><span>So, all of them are in the background with their own job ID:</span></span></p>
+<pre class="codepackt">
+<strong class="calibre2">zarrelli:~$ jobs<br class="title-page-name"/></strong><strong class="calibre2">[1] Running ./while.sh &amp;<br class="title-page-name"/></strong><strong class="calibre2">[2]- Running ./while.sh &amp;<br class="title-page-name"/></strong><strong class="calibre2">[3]+ Running ./while.sh &amp;</strong>
+</pre>
+<p class="calibre1"><span><span>There is something new in the output of jobs and those are  <kbd class="calibre9">–</kbd> and <kbd class="calibre9">+</kbd> characters, which are close to the job ID:</span></span></p>
+<ul class="calibre12">
+<li class="calibre13"><span><span><kbd class="calibre9">+</kbd>: This identifies the job that <kbd class="calibre9">fg</kbd> or <kbd class="calibre9">bg</kbd> will work on by default</span></span></li>
+<li class="calibre13"><span><span><kbd class="calibre9">-</kbd>: This identifies the job that would be the default if the current default job exited.</span></span></li>
+</ul>
+<p class="calibre1"><span><span>Let's make a test. First, check the status of the jobs:</span></span></p>
+<pre class="codepackt">
+<strong class="calibre2">zarrelli:~$ jobs<br class="title-page-name"/></strong><strong class="calibre2">[1] Running ./while.sh &amp;<br class="title-page-name"/></strong><strong class="calibre2">[2]- Running ./while.sh &amp;<br class="title-page-name"/></strong><strong class="calibre2">[3]+ Running ./while.sh &amp;</strong>
+</pre>
+<p class="calibre1"><span><span>All of them are running in the background. Let's recall in the foreground the default one:</span></span></p>
+<pre class="codepackt">
+<strong class="calibre2">zarrelli:~$ fg<br class="title-page-name"/></strong><strong class="calibre2">./while.sh</strong>
+</pre>
+<p class="calibre1"><span><span>Now, let's suspend it with <em class="calibre20">Ctrl</em>+<em class="calibre20">Z:</em></span></span></p>
+<pre class="codepackt">
+<strong class="calibre2">./while.sh<br class="title-page-name"/></strong><strong class="calibre2">^Z<br class="title-page-name"/></strong><strong class="calibre2">[3]+ Stopped ./while.sh</strong>
+</pre>
+<p class="calibre1"><span><span>So, we just gave the <kbd class="calibre9">fg</kbd> command without an argument; and as expected, the job with ID <kbd class="calibre9">3</kbd> and the <kbd class="calibre9">+</kbd> trailing character was pulled into the foreground. Now, let's check the status of the jobs:</span></span></p>
+<pre class="codepackt">
+<strong class="calibre2">zarrelli:~$ jobs<br class="title-page-name"/></strong><strong class="calibre2">[1] Running ./while.sh &amp;<br class="title-page-name"/></strong><strong class="calibre2">[2]- Running ./while.sh &amp;<br class="title-page-name"/></strong><strong class="calibre2">[3]+ Stopped ./while.sh</strong>
+</pre>
+<p class="calibre1"><span><span>The third job is stopped, but we can see the <kbd class="calibre9">+</kbd> character. Let's recall the default job to the foreground again, and then stop it:</span></span></p>
+<pre class="codepackt">
+<strong class="calibre2">zarrelli:~$ fg<br class="title-page-name"/></strong><strong class="calibre2">./while.sh<br class="title-page-name"/></strong><strong class="calibre2">^Z<br class="title-page-name"/></strong><strong class="calibre2">[3]+ Stopped ./while.sh</strong>
+</pre>
+<p class="calibre1"><span><span>Again, the third job is the default one because it never died, it just got suspended. So, time to gracefully kill it:</span></span></p>
+<pre class="codepackt">
+<strong class="calibre2">zarrelli:~$ kill -15 %3<br class="title-page-name"/></strong><strong class="calibre2">[3]+ Terminated ./while.sh</strong>
+</pre>
+<p class="calibre1"><span><span>Let's have a look at the status of the job now that we killed the default one:</span></span></p>
+<pre class="codepackt">
+<strong class="calibre2">zarrelli:~$ jobs<br class="title-page-name"/></strong><strong class="calibre2">[1]- Running ./while.sh &amp;<br class="title-page-name"/></strong><strong class="calibre2">[2]+ Running ./while.sh &amp;</strong>
+</pre>
+<p class="calibre1"><span><span>That's it, the job ID number <kbd class="calibre9">2</kbd> is now the default one, and the number <kbd class="calibre9">1</kbd> is the second in the line.</span></span></p>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    </header><h1 class="header-title" id="calibre_pb_0">nohup</h1>
+                
+            
+            <article>
+                
+<p class="calibre1"><span><span><span>nohup is a <strong class="calibre2">Portable Operating System Interface</strong> (<strong class="calibre2">POSIX</strong>) command that prevents the process given as an argument from receiving the <strong class="calibre2">Hangup (HUP)</strong> signal. If we run a script preceding it with nohup, it will be shielded by the HUP signal sent to all the processes when the interactive session closes. If the standard output is a terminal, nohup appends it to the <kbd class="calibre9">nohup.out</kbd> file in the local directory and if it is not possible in the user's home directory while the standard error is redirected to the <kbd class="calibre9">stdout</kbd>. So something as follows:</span></span></span></p>
+<pre class="codepackt">
+<strong class="calibre2">zarrelli:~$ nohup ./while.sh &amp;<br class="title-page-name"/></strong><strong class="calibre2">[1] 14247<br class="title-page-name"/>nohup: ignoring input and appending output to 'nohup.out'</strong>
+</pre>
+<p class="calibre1"><span><span>The script is running in the background as <kbd class="calibre9">jobs</kbd> correctly reports:</span></span></p>
+<pre class="codepackt">
+<strong class="calibre2">zarrelli:~$ jobs<br class="title-page-name"/></strong><strong class="calibre2">[1]+ Running nohup ./while.sh &amp;</strong>
+</pre>
+<p class="calibre1"><span><span><span>So, the script is detached and <kbd class="calibre9">stdout</kbd> is redirected to the <kbd class="calibre9">nohup.out</kbd> file while<kbd class="calibre9">stdin</kbd> is ignored:</span></span></span></p>
+<pre class="codepackt">
+<strong class="calibre2">zarrelli:~$ ls -lah<br class="title-page-name"/></strong><strong class="calibre2">total 12K<br class="title-page-name"/></strong><strong class="calibre2">drwxr-xr-x 2 zarrelli zarrelli 4.0K Apr 13 14:35 .<br class="title-page-name"/></strong><strong class="calibre2">drwxr-xr-x 4 zarrelli zarrelli 4.0K Apr 13 14:32 ..<br class="title-page-name"/></strong><strong class="calibre2">-rw------- 1 zarrelli zarrelli 0 Apr 13 14:35 nohup.out<br class="title-page-name"/></strong><strong class="calibre2">-rwxr--r-- 1 zarrelli zarrelli 35 Apr 13 11:06 while.sh</strong>
+</pre>
+<p class="calibre1"><span><span><span>Now, let's exit our interactive session using </span></span></span><kbd class="calibre9"><span><span>exit </span></span></kbd><span><span><span>and recreate a new session. We just have to open a new terminal and give the <kbd class="calibre9">jobs</kbd> command:</span></span></span></p>
+<pre class="codepackt">
+<strong class="calibre2">zarrelli:~$ jobs</strong>
+</pre>
+<p class="calibre1"><span><span><span>Nothing, no jobs were listed. Why? Is the process still there? Let's have a look:</span></span></span></p>
+<pre class="codepackt">
+<strong class="calibre2">zarrelli:~$ ps ax | grep while<br class="title-page-name"/></strong><strong class="calibre2">14247 ? R 8:49 /bin/bash ./while.sh<br class="title-page-name"/></strong><strong class="calibre2">14839 pts/0 S+ 0:00 grep while</strong>
+</pre>
+<p class="calibre1"><span><span><span>The script is still running and <kbd class="calibre9">PID</kbd> is the same, so why don't we see it in the job list? Because we closed the old shell and opened a new one; and so the old job list, related to the old shell, got destroyed. This is desirable since without having a job ID, the shell cannot control the process and interfere with it directly. Then, have a look at the second field of the process listing:</span></span></span></p>
+<pre class="codepackt">
+<strong class="calibre2">14247 ? R 8:49 /bin/bash ./while.sh<br class="title-page-name"/></strong><strong class="calibre2">14839 pts/0 S+ 0:00 grep while</strong>
+</pre>
+<p class="calibre1"><span><span><span><span>While <kbd class="calibre9">grep</kbd> has a terminal associated <kbd class="calibre9">pts/0</kbd>, the <kbd class="calibre9">while</kbd> script runs without any terminal associated, so we see <kbd class="calibre9">?</kbd> and that is what we wanted from the beginning. Before proceeding, let's clean up, killing the script:</span></span></span></span></p>
+<pre class="codepackt">
+<strong class="calibre2">zarrelli:~$ kill 14247</strong>
+</pre>
+<p class="calibre1"><span><span>Nice, everything is clear, simple, and easy, isn't it? No. Sometimes we just fire an application on a remote server through SSH. We use <kbd class="calibre9">nohup</kbd> and <kbd class="calibre9">&amp;</kbd> to detach completely from the terminal, and shield it from the HUP signal on session closure; and then when we try to log off, our connection just hangs indefinitely. What happened? Why does everything seem to hang? This behavior is due to the OpenSSH server that handles the SSH connections: before closing the connection, OpenSSH waits to read the <strong class="calibre2">end-of-file (eof)</strong> on the pipes connected to <kbd class="calibre9">stdout</kbd> and <kbd class="calibre9">stderr</kbd> of the process ran by the user. The issue here is related to how a file returns an eof in Unix, and it does so when all the references to it have been closed. But when you run a process in the background of the shell you are working on over an SSH connection, the process gets the standard references to <kbd class="calibre9">stdout</kbd> and <kbd class="calibre9">stderr</kbd> of the shell it runs in. When you then close the shell, the OpenSSH server loses these references, because the shell has now died and so it will never see any eof coming from those. So, it will hang the connection indefinitely. So, how to prevent this? Actually either manually closing the process once it has been launched and before logging out or redirecting the references to the standard streams (<kbd class="calibre9">stdin</kbd>, <kbd class="calibre9">stdout</kbd>, <kbd class="calibre9">stderr</kbd>) when launching it:</span></span></p>
+<pre class="codepackt">
+<strong class="calibre2">nohup command &gt; foo.out 2&gt; foo.err &lt; /dev/null &amp;</strong>
+</pre>
+<p class="calibre1"><span><span>Unfortunately, not even redirecting sometimes works since OpenSSH is quite sensitive to a bunch of causes and circumstances and will not send any HUP to the processes.</span></span></p>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    </header><h1 class="header-title" id="calibre_pb_0">disown</h1>
+                
+            
+            <article>
+                
+<p class="calibre1"><span><span>What if we run a process and then want to keep it alive even after the interactive shell has been closed? Let's recall what happens when a shell exits: before exiting, it sends <kbd class="calibre9">SIGHUP</kbd> to all the jobs running. If a job is in stop state, the shell will send it a <kbd class="calibre9">SIGCONT</kbd> signal to resume it so that it can receive the <kbd class="calibre9">SIGHUP</kbd> signal and gracefully die. To accomplish this task, the shell browses through a table where it keeps all the jobs, and here is the trick. Let's start a script in the background a few times:</span></span></p>
+<pre class="codepackt">
+<strong class="calibre2">zarrelli:~$ ./while.sh &amp; ./while.sh &amp; ./while.sh &amp;<br class="title-page-name"/></strong><strong class="calibre2">[1] 8944<br class="title-page-name"/></strong><strong class="calibre2">[2] 8945<br class="title-page-name"/></strong><strong class="calibre2">[3] 8946</strong>
+</pre>
+<p class="calibre1"><span><span>Now let's have a look at the shell job table:</span></span></p>
+<pre class="codepackt">
+<strong class="calibre2">zarrelli:~$ jobs<br class="title-page-name"/></strong><strong class="calibre2">[1] Running ./while.sh &amp;<br class="title-page-name"/></strong><strong class="calibre2">[2]- Running ./while.sh &amp;<br class="title-page-name"/></strong><strong class="calibre2">[3]+ Running ./while.sh &amp;</strong>
+</pre>
+<p class="calibre1"><span><span>We can see all three processes running as we expected. Now do the fun stuff:</span></span></p>
+<pre class="codepackt">
+<strong class="calibre2">zarrelli:~$ disown %2</strong>
+</pre>
+<p class="calibre1"><span><span>What just happened to the job with ID <kbd class="calibre9">2</kbd>?</span></span></p>
+<pre class="codepackt">
+<strong class="calibre2">zarrelli:~$ jobs<br class="title-page-name"/></strong><strong class="calibre2">[1]- Running ./while.sh &amp;<br class="title-page-name"/></strong><strong class="calibre2">[3]+ Running ./while.sh &amp;</strong>
+</pre>
+<p class="calibre1"><span><span>Well, it disappeared from the job table but it's still there:</span></span></p>
+<pre class="codepackt">
+<strong class="calibre2">zarrelli:~$ ps -p 8945<br class="title-page-name"/></strong><strong class="calibre2">PID TTY TIME CMD<br class="title-page-name"/></strong><strong class="calibre2">8945 pts/0 00:05:18 while.sh</strong>
+</pre>
+<p class="calibre1"><span><span>The <kbd class="calibre9">ps</kbd> command followed by <kbd class="calibre9">-p</kbd> and <kbd class="calibre9">pid</kbd> just shows us a process selecting it on <kbd class="calibre9">PID</kbd>. It just showed that our disowned job is still up and running. So, with <kbd class="calibre9">disown</kbd> , we just removed a job from the shell job list; and thus, when the shell exits, it will not send to this job the <kbd class="calibre9">SIGHUP</kbd> signal it would send if no <kbd class="calibre9">disown</kbd> was given. We can actually go even further:</span></span></p>
+<pre class="codepackt">
+<strong class="calibre2">zarrelli:~$ disown -h %1<br class="title-page-name"/></strong><strong class="calibre2">zarrelli:~$ jobs<br class="title-page-name"/></strong><strong class="calibre2">[1]- Running ./while.sh &amp;<br class="title-page-name"/></strong><strong class="calibre2">[3]+ Running ./while.sh &amp;</strong>
+</pre>
+<p class="calibre1"><span><span>The job is still there but has been marked not to receive a <kbd class="calibre9">SIGHUP</kbd> signal from the shell when the latter exits. Optionally, you can run <kbd class="calibre9">disown</kbd> with no <kbd class="calibre9">ID</kbd> and <kbd class="calibre9">-a</kbd> so that it removes or marks all the IDs in the job table. No ID and <kbd class="calibre9">-r</kbd> will restrict the operations to only the running jobs.</span></span></p>
+<p class="calibre1"><span>Are the background processes not being killed after your interactive shell is closed? Let's check this:</span></p>
+<pre class="codepackt">
+<strong class="calibre2">shopt | grep huponexit</strong>
+</pre>
+<p class="calibre1"><span><kbd class="calibre9">huponexit</kbd> is set to off. This can be the reason why the background processes are not being killed on shell exit. We can temporarily set it on with this:</span></p>
+<pre class="codepackt">
+<strong class="calibre2">shopt -s huponexit; shopt | grep huponexit</strong>
+</pre>
+<p class="calibre1"><span>To make it permanent, set it in <span><span><span><kbd class="calibre9">~/.bashrc</kbd> or <kbd class="calibre9">/etc/bashrc</kbd> with </span></span></span></span><kbd class="calibre9"><span>shopt -s huponexit.</span></kbd></p>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    </header><h1 class="header-title" id="calibre_pb_0">Double fork and setsid</h1>
+                
+            
+            <article>
+                
+<p class="calibre1"><span><span>There are a couple of methods to daemonize a process, maybe less popular but really interesting ones; and these are the <strong class="calibre2">double fork</strong> and <strong class="calibre2">setsid</strong>.</span></span></p>
+<p class="calibre1"><span><span>Double fork is the way a process is usually daemonized and implies a fork, a duplication of the parent process to create a child one. In the case of double forking applied to daemonization, the parent process forks off a child process, then terminates it. Then, the child process forks its own child process and terminates. So, at the end of the chain, the two parent processes die and only the grandchild is alive and running but as a daemon. The reason for this resides in how a controlling terminal for a session is allocated since the child processes that are forked inherit the controlling terminal from their parent process.</span></span></p>
+<p class="calibre1"><span><span>In an interactive session, the shell is the first processed to be executed, so it is the controlling process for the terminal and the session leader from which all forked processes in the session inherit their controlling terminal. Forking and killing the parent processes gives us an orphan process, which is automatically reparented to <kbd class="calibre9">init</kbd>, so it becomes the child of the main process of the system. All of this is to prevent the child process from being a session leader and acquiring a controlling terminal; and this is the reason why we double fork and kill the parent twice: we want to make the child process an orphan so that the system, to prevent it from becoming a zombie process, will reparent it to <kbd class="calibre9">init</kbd>. Since it is is not the first process in its pipeline, it cannot become a session leader and acquire the controlling terminal. So, the child process is then moved to a different session and has no hold on the controlling terminal, going effectively daemon.</span></span></p>
+<p class="calibre1"><span><span>Let's have a look and start our script in the background:</span></span></p>
+<pre class="codepackt">
+<strong class="calibre2">zarrelli:~$ ./while.sh &amp;<br class="title-page-name"/></strong><strong class="calibre2">[1] 17460</strong>
+</pre>
+<p class="calibre1"><span><span>And have a look at the IDs:</span></span></p>
+<pre class="codepackt">
+<strong class="calibre2">zarrelli:~$ ps -Ho pid,ppid,pgid,tpgid,sess,args<br class="title-page-name"/></strong><strong class="calibre2">PID PPID PGID TPGID SESS COMMAND<br class="title-page-name"/></strong><strong class="calibre2">10355 1401 10355 17515 10355 /bin/bash<br class="title-page-name"/></strong><strong class="calibre2">17460 10355 17460 17515 10355 /bin/bash ./while.sh<br class="title-page-name"/></strong><strong class="calibre2">17515 10355 17515 17515 10355 ps -Ho pid,ppid,pgid,tpgid,sess,args</strong>
+</pre>
+<p class="calibre1"><span><span>The session ID is the same as the shell from which it forked, but it has its own process group ID and the <strong class="calibre2">Parent Process ID</strong> (<strong class="calibre2">PPID</strong>)<strong class="calibre2"> </strong>equal to its parent process ID. Let's see where the script places itself in the process tree:</span></span></p>
+<pre class="codepackt">
+<strong class="calibre2">zarrelli:~$ pstree | grep -B3 while<br class="title-page-name"/></strong><strong class="calibre2">| `-{gmain}<br class="title-page-name"/></strong><strong class="calibre2">|-login---bash-+-grep<br class="title-page-name"/></strong><strong class="calibre2">| |-pstree<br class="title-page-name"/></strong><strong class="calibre2">| `-while.sh</strong>
+</pre>
+<p class="calibre1"><span><span>As expected, it is nested inside the login session, so it is part of this session. Now, let's double fork:</span></span></p>
+<pre class="codepackt">
+<strong class="calibre2">zarrelli:~$ (./while.sh &amp;) &amp;<br class="title-page-name"/></strong><strong class="calibre2">[1] 17846</strong>
+</pre>
+<p class="calibre1"><span><span>Have a look at the process:</span></span></p>
+<pre class="codepackt">
+<strong class="calibre2">zarrelli:~$ ps -Ho pid,ppid,pgid,tpgid,sess,args<br class="title-page-name"/></strong><strong class="calibre2">PID PPID PGID TPGID SESS COMMAND<br class="title-page-name"/></strong><strong class="calibre2">10355 1401 10355 17970 10355 /bin/bash<br class="title-page-name"/></strong><strong class="calibre2">17970 10355 17970 17970 10355 ps -Ho pid,ppid,pgid,tpgid,sess,args<br class="title-page-name"/></strong><strong class="calibre2">17847 1 17846 17970 10355 /bin/bash ./while.sh</strong>
+</pre>
+<p class="calibre1"><span><span>The PPID of the shell executing <kbd class="calibre9">while</kbd> is now really interesting; it took the value of <kbd class="calibre9">1</kbd>. This means that his parent process is no longer the shell spawned at the login session but the <kbd class="calibre9">init</kbd> process. But notice, it still shares the same session ID and the same terminal. We can double-check with <kbd class="calibre9">pstree</kbd>:</span></span></p>
+<pre class="codepackt">
+<strong class="calibre2">zarrelli:~$ pstree | grep -B3 while<br class="title-page-name"/></strong><strong class="calibre2">| `-{probing-thread}<br class="title-page-name"/></strong><strong class="calibre2">|-upowerd-+-{gdbus}<br class="title-page-name"/></strong><strong class="calibre2">| `-{gmain}<br class="title-page-name"/></strong><strong class="calibre2">|-while.sh</strong>
+</pre>
+<p class="calibre1"><span><span>We do not have any nesting since we are directly reparented at the first level to <kbd class="calibre9">init</kbd>.</span></span></p>
+<p class="calibre1"><span><span>With <kbd class="calibre9">setsid</kbd>, we get a slightly different outcome. Whenever a process which is not the process group leader calls <kbd class="calibre9">setsid</kbd> , this creates a new session and makes the calling process the session leader, the process group leader of a newly created process group, and deprives it of a controlling terminal. <span><span>So, we essentially come up with a new session that holds a new process group and only one process, the calling process. Both the session and process group ID are set to the calling process ID. We want to daemonize a process but there is a drawback, we do not have any output unless we redirect to a file:</span></span></span></span></p>
+<pre class="codepackt">
+<strong class="calibre2">setsid command &gt; file.log</strong>
+</pre>
+<p class="calibre1"><span><span><span><span>Let's demonize our script:</span></span></span></span></p>
+<pre class="codepackt">
+<strong class="calibre2">zarrelli:~$ setsid ./while.sh<br class="title-page-name"/></strong><strong class="calibre2">zarrelli:~$ ps -e -Ho pid,ppid,pgid,tpgid,sess,args | grep while<br class="title-page-name"/></strong><strong class="calibre2">22853 10355 22852 22852 10355 grep while<br class="title-page-name"/></strong><strong class="calibre2">22572 1 22572 -1 22572 /bin/bash ./while.sh</strong>
+</pre>
+<p class="calibre1"><span><span><span><span>This time, we had to use the <kbd class="calibre9">-e</kbd> option of <kbd class="calibre9">ps</kbd> to show all the processes and the <kbd class="calibre9">grep</kbd> to while, because <kbd class="calibre9">ps</kbd>, by default, shows only the processes with the same effect user ID as the current user and with the same terminal. In this case, we changed the terminal, so it would not show up. Finally, let's have a look at <kbd class="calibre9">pstree</kbd>:</span></span></span></span></p>
+<pre class="codepackt">
+<strong class="calibre2">zarrelli:~$ pstree | grep -B3 while<br class="title-page-name"/></strong><strong class="calibre2">| `-{probing-thread}<br class="title-page-name"/></strong><strong class="calibre2">|-upowerd-+-{gdbus}<br class="title-page-name"/></strong><strong class="calibre2">| `-{gmain}<br class="title-page-name"/></strong><strong class="calibre2">|-while.sh</strong>
+</pre>
+<p class="calibre1"><span><span>As we would expect, since the <kbd class="calibre9">PPID</kbd> is <kbd class="calibre9">1</kbd>, we see a nesting on the first level. The process, in our case the shell, executing the script is reparented to <kbd class="calibre9">init</kbd> without any controlling terminal.</span></span></p>
+<p class="calibre1"><span><span>Now that we have examined a few methods on how to effectively put a process in the background and shield it from a session closure, we can proceed further, having a look at how we can actually write scripts that demonize themselves, going in the background and working without user interaction. Well, there would be some workaround such as using utilities: a screen and a terminal multiplexer, which allow you to detach a session from a terminal so that the process can keep running even if user logs out. Anyway, this is not our goal, we are not reviewing external tools but trying to sort out the best from our Bash, so the next paragraph will dwell a bit on the different methods to have Bash to demonize our scripts.</span></span></p>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    </header><h1 class="header-title" id="calibre_pb_0">Becoming a daemon</h1>
+                
+            
+            <article>
+                
+<p class="calibre1"><span><span>A life as a daemon is not an easy life and requires a lot of gruesome deaths of parent processes.</span></span></p>
+<p class="calibre1"><span><span>The first thing needed for a process to become a daemon is to fork as a new process so the parent can exit, and the the prompt is returned to the invoking shell. This ensures that the new process is not a process group leader, since a process group leader cannot create a new session calling <kbd class="calibre9">setsid</kbd>. So, the new child process can now be promoted to process group leader and session leader by calling <kbd class="calibre9">setsid</kbd>. So far, the new session has no controlling terminal, and so does the new child. So, we fork again to be sure that the session and group leader can exit. Now, the grandchild is not a session, so the terminal it is going to open cannot be its controlling terminal. This is how things work in the hard life of a Linux process; if it is not a session leader, the terminal it is going to open is not the controlling terminal for the calling process.</span></span></p>
+<p class="calibre1"><span><span>Now, the process is detached from a controlling terminal but we still have an issue: it is locking the directory it has been called from, so if we tried to unmount it, we'd fail. The next step is to have the process change its working directory to <kbd class="calibre9">/</kbd> , the root directory of the filesystem (<kbd class="calibre9">chdir</kbd> <kbd class="calibre9">/</kbd>), or to any directory holding the files the process requires to be able to run. We are almost there. A good practice is to set <kbd class="calibre9">umask 0</kbd> for the process, so we reset <kbd class="calibre9">umask</kbd>. The process could have inherited and will create files with the permissions granted by the <kbd class="calibre9">open()</kbd> call. We are almost there; the next step for the process is to close the standard file descriptors (<kbd class="calibre9">stdin</kbd>, <kbd class="calibre9">stdout</kbd>, <kbd class="calibre9">stderr</kbd>) inherited from the parent process and open a new set.</span></span></p>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    </header><h1 class="header-title" id="calibre_pb_0">Trapping a daemon</h1>
+                
+            
+            <article>
+                
+<p class="calibre1"><span><span>Before giving yourselves to the black magic of creating a daemon, you should learn how to shield it from any signals that can doom it to death. As we saw in the previous chapters, if a process dies, it could leave a mess behind since it had no time to clean <em class="calibre20">the house</em>. Scary, but we can do something to prevent all this: using traps that will help us deal with the signal and create more robust and well functioning scripts. In our case, the <kbd class="calibre9">trap</kbd> built-in will be handy to keep an eye on how our script behaves, since it is a signal handler that modifies how a process reacts to a signal. The general syntax of trap is here:</span></span></p>
+<pre class="codepackt">
+<strong class="calibre2">trap commands signal_list</strong>
+</pre>
+<p class="calibre1"><span><span>With commands being a list that can be executed, functions included, upon receiving a signal. We already saw some of the signals and their numeric values, but trap can use some keywords for the most common ones, as listed in the following table:</span></span></p>
+<table class="table">
+<tbody class="calibre6">
+<tr class="calibre7">
+<td class="calibre8">
+<p class="calibre1"><strong class="calibre2">Signal</strong></p>
+</td>
+<td class="calibre8">
+<p class="calibre1"><strong class="calibre2">Numeric value</strong></p>
+</td>
+<td class="calibre8"/>
+</tr>
+<tr class="calibre7">
+<td class="calibre8">
+<p class="calibre1"><kbd class="calibre9">HUP</kbd></p>
+</td>
+<td class="calibre8">
+<p class="calibre1"><kbd class="calibre9">1</kbd></p>
+</td>
+<td class="calibre8">
+<p class="calibre1">Hang up. Means that the controlling terminal exited.</p>
+</td>
+</tr>
+<tr class="calibre7">
+<td class="calibre8">
+<p class="calibre1"><kbd class="calibre9">INT</kbd></p>
+</td>
+<td class="calibre8">
+<p class="calibre1"><kbd class="calibre9">2</kbd></p>
+</td>
+<td class="calibre8">
+<p class="calibre1">Interrupt, it happens when <em class="calibre20">Ctrl</em> + <em class="calibre20">C</em> is pressed.</p>
+</td>
+</tr>
+<tr class="calibre7">
+<td class="calibre8">
+<p class="calibre1"><kbd class="calibre9">QUIT</kbd></p>
+</td>
+<td class="calibre8">
+<p class="calibre1"><kbd class="calibre9">3</kbd></p>
+</td>
+<td class="calibre8">
+<p class="calibre1">Quit.</p>
+</td>
+</tr>
+<tr class="calibre7">
+<td class="calibre8">
+<p class="calibre1"><kbd class="calibre9">KILL</kbd></p>
+</td>
+<td class="calibre8">
+<p class="calibre1"><kbd class="calibre9">9</kbd></p>
+</td>
+<td class="calibre8">
+<p class="calibre1">This is an untrappable signal. Upon receiving, the process has to exit.</p>
+</td>
+</tr>
+<tr class="calibre7">
+<td class="calibre8">
+<p class="calibre1"><kbd class="calibre9">TERM</kbd></p>
+</td>
+<td class="calibre8">
+<p class="calibre1"><kbd class="calibre9">15</kbd></p>
+</td>
+<td class="calibre8">
+<p class="calibre1">Terminate, is the default kill signal, can be handled, otherwise the process exits gracefully.</p>
+</td>
+</tr>
+<tr class="calibre7">
+<td class="calibre8">
+<p class="calibre1"><kbd class="calibre9">EXIT</kbd></p>
+</td>
+<td class="calibre8">
+<p class="calibre1"><kbd class="calibre9">0</kbd></p>
+</td>
+<td class="calibre8">
+<p class="calibre1">An exit trap is raised on exit.</p>
+</td>
+</tr>
+</tbody>
+</table>
+<p class="calibre1"> </p>
+<p class="calibre1"><span><span>You can specify one or more signals per single trap, and you can also reset a trap to its default behavior using the </span></span><span><span>trap called <kbd class="calibre9">– signal</kbd>. <br class="title-page-name"/></span></span><span>Signals, how many of them? Who can remember all of them? No one but the <kbd class="calibre9">kill</kbd> command:</span></p>
+<pre class="codepackt">
+<strong class="calibre2">zarrelli:~$ kill -l<br class="title-page-name"/></strong><strong class="calibre2">1) SIGHUP 2) SIGINT 3) SIGQUIT 4) SIGILL 5) SIGTRAP<br class="title-page-name"/></strong><strong class="calibre2">6) SIGABRT 7) SIGBUS 8) SIGFPE 9) SIGKILL 10) SIGUSR1<br class="title-page-name"/></strong><strong class="calibre2">11) SIGSEGV 12) SIGUSR2 13) SIGPIPE 14) SIGALRM 15) SIGTERM<br class="title-page-name"/></strong><strong class="calibre2">16) SIGSTKFLT 17) SIGCHLD 18) SIGCONT 19) SIGSTOP 20) SIGTSTP<br class="title-page-name"/></strong><strong class="calibre2">21) SIGTTIN 22) SIGTTOU 23) SIGURG 24) SIGXCPU 25) SIGXFSZ<br class="title-page-name"/></strong><strong class="calibre2">26) SIGVTALRM 27) SIGPROF 28) SIGWINCH 29) SIGIO 30) SIGPWR<br class="title-page-name"/></strong><strong class="calibre2">31) SIGSYS 34) SIGRTMIN 35) SIGRTMIN+1 36) SIGRTMIN+2 37) SIGRTMIN+3<br class="title-page-name"/></strong><strong class="calibre2">38) SIGRTMIN+4 39) SIGRTMIN+5 40) SIGRTMIN+6 41) SIGRTMIN+7 <br class="title-page-name"/>42) SIGRTMIN+8 </strong><strong class="calibre2">43) SIGRTMIN+9 44) SIGRTMIN+10 45) SIGRTMIN+11 <br class="title-page-name"/>46) SIGRTMIN+12 47) SIGRTMIN+13 </strong><strong class="calibre2">48) SIGRTMIN+14 49) SIGRTMIN+15 50) SIGRTMAX-14 51) SIGRTMAX-13 52) SIGRTMAX-12 </strong><strong class="calibre2">53) SIGRTMAX-11 54) SIGRTMAX-10 55) SIGRTMAX-9 56) SIGRTMAX-8 57) SIGRTMAX-7 </strong><strong class="calibre2">58) SIGRTMAX-6 59) SIGRTMAX-5 60) SIGRTMAX-4 61) SIGRTMAX-3 62) SIGRTMAX-2<br class="title-page-name"/></strong><strong class="calibre2">63) SIGRTMAX-1 64) SIGRTMAX </strong>
+</pre>
+<p class="calibre1"><span><span>Now, let's see how to use a trap for a clean exit with this little example:</span></span></p>
+<pre class="codepackt">
+#!/bin/bash<br class="title-page-name"/>x=0<br class="title-page-name"/>while true<br class="title-page-name"/>do<br class="title-page-name"/>for i in {1..1000}<br class="title-page-name"/>do<br class="title-page-name"/>x="$i"<br class="title-page-name"/>if (( x == 500 ))<br class="title-page-name"/>then<br class="title-page-name"/>echo "The value of x is: $x" &gt;&gt; write.log<br class="title-page-name"/>fi<br class="title-page-name"/>done<br class="title-page-name"/>done
+</pre>
+<p class="calibre1"><span><span>This script features an infinite <kbd class="calibre9">while</kbd> loop, which hosts a nested <kbd class="calibre9">for</kbd> loop, running through a range between <kbd class="calibre9">1</kbd> and <kbd class="calibre9">1000</kbd>. When the value of <kbd class="calibre9">x</kbd> reaches <kbd class="calibre9">500</kbd> , it prints a message on the <kbd class="calibre9">write.log</kbd> file. Upon exit, the inner loop is relaunched, but the outer structure is an infinite loop and will keep running indefinitely. Let's run it and after a few seconds, let's issue a <em class="calibre20">Ctrl </em>+ <em class="calibre20">C</em>:</span></span></p>
+<pre class="codepackt">
+<strong class="calibre2">zarrelli:~$ ./write.sh <br class="title-page-name"/></strong><strong class="calibre2">^C</strong>
+</pre>
+<p class="calibre1"><span>So, we had the terminal locked by our script that was running in the foreground, and to regain control, we had to issue a <kbd class="calibre9">kill -15</kbd> , a <em class="calibre20">TERM</em> signal, by pressing <em class="calibre20">Ctrl</em>+<em class="calibre20">C</em>. Let's have a look at the directory:</span></p>
+<pre class="codepackt">
+<strong class="calibre2">zarrelli:~$ ls -lh<br class="title-page-name"/></strong><strong class="calibre2">total 28K<br class="title-page-name"/></strong><strong class="calibre2">-rw-r--r-- 1 zarrelli zarrelli 20 Apr 16 07:54 open<br class="title-page-name"/></strong><strong class="calibre2">-rwxr--r-- 1 zarrelli zarrelli 193 Apr 16 13:27 test.sh<br class="title-page-name"/></strong><strong class="calibre2">-rwxr--r-- 1 zarrelli zarrelli 35 Apr 16 11:54 while.sh<br class="title-page-name"/></strong><strong class="calibre2">-rw-r--r-- 1 zarrelli zarrelli 5.2K Apr 16 13:32 write.log<br class="title-page-name"/></strong><strong class="calibre2">-rwxr-xr-x 1 zarrelli zarrelli 152 Apr 16 13:05 write.sh<br class="title-page-name"/></strong><strong class="calibre2">-rwxr-xr-x 1 zarrelli zarrelli 293 Apr 16 13:28 write-term.sh</strong>
+</pre>
+<p class="calibre1"><span><span>It seems that the log was left behind:</span></span></p>
+<pre class="codepackt">
+<strong class="calibre2">zarrelli:~$ tail -5 write.log <br class="title-page-name"/></strong><strong class="calibre2">The value of x is: 500<br class="title-page-name"/></strong><strong class="calibre2">The value of x is: 500<br class="title-page-name"/></strong><strong class="calibre2">The value of x is: 500<br class="title-page-name"/></strong><strong class="calibre2">The value of x is: 500<br class="title-page-name"/></strong><strong class="calibre2">The value of x is: 500</strong>
+</pre>
+<p class="calibre1"><span><span>Yes, it is actually our log filled with the message we set up. Being a log, it is not so bad if it is left behind, but what if this were a temporary file? Would we want to litter the filesystem with temp files each time the script exits because of a term or another signal? Let's improve it creating a cleanup function:</span></span></p>
+<pre class="codepackt">
+<strong class="calibre2">clean_exit()<br class="title-page-name"/></strong><strong class="calibre2">{<br class="title-page-name"/></strong><strong class="calibre2">echo "ouch, we received a iINT signal. Outta here but first a bit of cleaning"<br class="title-page-name"/></strong><strong class="calibre2">rm write.log<br class="title-page-name"/></strong><strong class="calibre2">exit 0<br class="title-page-name"/></strong><strong class="calibre2">}</strong>
+</pre>
+<p class="calibre1"><span><span>Once invoked, this function will echo a meaningful message on <kbd class="calibre9">stdout</kbd>, delete the <kbd class="calibre9">write.log</kbd> file, and exit with a successful status. The last bit is the actual signal handler:</span></span></p>
+<pre class="codepackt">
+<strong class="calibre2">trap 'clean_exit' INT</strong>
+</pre>
+<p class="calibre1"><span><span>That is all, let's run the script and give a <em class="calibre20">Ctrl</em>+<em class="calibre20">C</em> after a while:</span></span></p>
+<pre class="codepackt">
+<strong class="calibre2">zarrelli:~$ ./write-term.sh <br class="title-page-name"/></strong><strong class="calibre2">^Couch, we received a INT signal. Outta here but first a bit of cleaning</strong>
+</pre>
+<p class="calibre1"><span><span>It seems it worked; let's have a look at the filesystem:</span></span></p>
+<pre class="codepackt">
+<strong class="calibre2">zarrelli:~$ ls -lh<br class="title-page-name"/></strong><strong class="calibre2">ttotal 20K<br class="title-page-name"/></strong><strong class="calibre2">-rw-r--r-- 1 zarrelli zarrelli 20 Apr 16 07:54 open<br class="title-page-name"/></strong><strong class="calibre2">-rwxr--r-- 1 zarrelli zarrelli 193 Apr 16 13:27 test.sh<br class="title-page-name"/></strong><strong class="calibre2">-rwxr--r-- 1 zarrelli zarrelli 35 Apr 16 11:54 while.sh<br class="title-page-name"/></strong><strong class="calibre2">-rwxr-xr-x 1 zarrelli zarrelli 152 Apr 16 13:05 write.sh<br class="title-page-name"/></strong><strong class="calibre2">-rwxr-xr-x 1 zarrelli zarrelli 293 Apr 16 13:28 write-term.sh</strong>
+</pre>
+<p class="calibre1"><span><span>Clean, <kbd class="calibre9">write.log</kbd> has been cleaned upon exit. This is the expected and desired behavior. We can also go further, shielding the process from a signal so that is essentially ignored. Let's add the following line to our script:</span></span></p>
+<pre class="codepackt">
+<strong class="calibre2">trap ‘' TERM</strong>
+</pre>
+<p class="calibre1"><span><span>Now, let's execute the script in the background:</span></span></p>
+<pre class="codepackt">
+<strong class="calibre2">zarrelli:~$ ./write-term.sh &amp;<br class="title-page-name"/></strong><strong class="calibre2">[1] 16831</strong>
+</pre>
+<p class="calibre1"><span><span>Well, since we are going to deal with daemons, we do not have to fear killing innocent processes:</span></span></p>
+<pre class="codepackt">
+<strong class="calibre2">zarrelli:~$ kill 16831</strong>
+</pre>
+<p class="calibre1"><span><span>Haha! We killed you!</span></span></p>
+<pre class="codepackt">
+<strong class="calibre2">zarrelli:~$ jobs<br class="title-page-name"/></strong><strong class="calibre2">[1]+ Running ./write-term.sh &amp;</strong>
+</pre>
+<p class="calibre1"><span><span>Ahem, we have to reconsider our statement. It seems that our trap worked very well. In fact, a trap with a signal but with just <kbd class="calibre9">‘'</kbd> as argument simply lets the signal be ignored. Well, we have other means of destruction, as we can invoke <kbd class="calibre9">INT</kbd>:</span></span></p>
+<pre class="codepackt">
+<strong class="calibre2">zarrelli:~$ kill -INT 16831<br class="title-page-name"/></strong><strong class="calibre2">zarrelli:~$ ouch, we received a INT signal. Outta here but first a bit of cleaning<br class="title-page-name"/><br class="title-page-name"/></strong><strong class="calibre2">[1]+ Done ./write-term.sh</strong>
+</pre>
+<p class="calibre1"><span><span>Finally, we exited the script in an orderly manner, no logs left behind:</span></span></p>
+<pre class="codepackt">
+<strong class="calibre2">zarrelli:~$ ls -lh<br class="title-page-name"/></strong><strong class="calibre2">total 16K<br class="title-page-name"/></strong><strong class="calibre2">-rw-r--r-- 1 zarrelli zarrelli 20 Apr 16 07:54 open<br class="title-page-name"/></strong><strong class="calibre2">-rwxr--r-- 1 zarrelli zarrelli 35 Apr 16 11:54 while.sh<br class="title-page-name"/></strong><strong class="calibre2">-rwxr-xr-x 1 zarrelli zarrelli 152 Apr 16 13:05 write.sh<br class="title-page-name"/></strong><strong class="calibre2">-rwxr-xr-x 1 zarrelli zarrelli 307 Apr 16 13:39 write-term.sh</strong>
+</pre>
+<p class="calibre1"><span><span>The filesystem is clean, no <kbd class="calibre9">write.log</kbd> left on it. Now, let's see a tricky use of a trap adding a few bits to our script. Let's start with </span></span><span><span><kbd class="calibre9">y=0</kbd> </span></span><span><span>placed at the very opening of the script, followed by a slightly revised loop:</span></span></p>
+<pre class="codepackt">
+<strong class="calibre2">for i in {1..3}<br class="title-page-name"/></strong><strong class="calibre2">do<br class="title-page-name"/></strong><strong class="calibre2">if (( x == 3 ))</strong><strong class="calibre2"><br class="title-page-name"/></strong><strong class="calibre2">then<br class="title-page-name"/></strong><strong class="calibre2">y="$x"<br class="title-page-name"/>echo "The value of x is: $x" &gt;&gt; write.log<br class="title-page-name"/></strong><strong class="calibre2">fi<br class="title-page-name"/></strong><strong class="calibre2">trap 'echo "The value of \$y is \"${y}\""' DEBUG<br class="title-page-name"/></strong><strong class="calibre2">done</strong>
+</pre>
+<p class="calibre1"><span><span>Now, let's run the script:</span></span></p>
+<pre class="codepackt">
+<strong class="calibre2">zarrelli:~$ ./write-debug.sh <br class="title-page-name"/></strong><strong class="calibre2">The value of $y is "0"<br class="title-page-name"/>The value of $y is "0"<br class="title-page-name"/>The value of $y is "0"<br class="title-page-name"/>The value of $y is "0"<br class="title-page-name"/>The value of $y is "0"<br class="title-page-name"/>The value of $y is "0"<br class="title-page-name"/>The value of $y is "0"<br class="title-page-name"/>The value of $y is "0"<br class="title-page-name"/>The value of $y is "3"<br class="title-page-name"/>The value of $y is "3"</strong>
+</pre>
+<div class="packt_infobox"><span class="calibre30">If a signal is received while Bash is waiting for a command to complete, the trap will be executed only after the command is over with its execution. If the built-in</span> <kbd class="calibre28">wait</kbd> <span class="calibre30">is used, it will return immediately upon receiving a signal for which a <kbd class="calibre28">trap</kbd> is set and the <kbd class="calibre28">trap</kbd> itself gets executed. Notice that a <kbd class="calibre28">trap</kbd> usually exits with a status of</span> 0, <span class="calibre30">but, in this case, the value of the</span> exit <span class="calibre30">status will be higher than</span> 128<span class="calibre30">.</span></div>
+<p class="calibre1"><span><span>Each time a command is executed, the value of the variable is printed as we can see, debugging the script with the <kbd class="calibre9">-x</kbd> option added to the Bash:</span></span></p>
+<pre class="codepackt">
+<strong class="calibre2">zarrelli:~$ /bin/bash -x ./write-debug.sh <br class="title-page-name"/></strong><strong class="calibre2">+ y=0<br class="title-page-name"/>+ trap clean_exit INT<br class="title-page-name"/>+ trap '' TERM<br class="title-page-name"/>+ for i in {1..3}<br class="title-page-name"/>+ x=1<br class="title-page-name"/>+ (( x == 3 ))<br class="title-page-name"/>+ trap 'echo "The value of \$y is \"${y}\""' DEBUG<br class="title-page-name"/>+ for i in {1..3}<br class="title-page-name"/>++ echo 'The value of $y is "0"'<br class="title-page-name"/>The value of $y is "0"<br class="title-page-name"/>++ echo 'The value of $y is "0"'<br class="title-page-name"/>The value of $y is "0"<br class="title-page-name"/>+ x=2<br class="title-page-name"/>++ echo 'The value of $y is "0"'<br class="title-page-name"/>The value of $y is "0"<br class="title-page-name"/>+ (( x == 3 ))<br class="title-page-name"/>++ echo 'The value of $y is "0"'<br class="title-page-name"/>The value of $y is "0"<br class="title-page-name"/>+ trap 'echo "The value of \$y is \"${y}\""' DEBUG<br class="title-page-name"/>+ for i in {1..3}<br class="title-page-name"/>++ echo 'The value of $y is "0"'<br class="title-page-name"/>The value of $y is "0"<br class="title-page-name"/>++ echo 'The value of $y is "0"'<br class="title-page-name"/>The value of $y is "0"<br class="title-page-name"/>+ x=3<br class="title-page-name"/>++ echo 'The value of $y is "0"'<br class="title-page-name"/>The value of $y is "0"<br class="title-page-name"/>+ (( x == 3 ))<br class="title-page-name"/>++ echo 'The value of $y is "0"'<br class="title-page-name"/>The value of $y is "0"<br class="title-page-name"/>+ y=3<br class="title-page-name"/>++ echo 'The value of $y is "3"'<br class="title-page-name"/>The value of $y is "3"<br class="title-page-name"/>+ echo 'The value of x is: 3'<br class="title-page-name"/>++ echo 'The value of $y is "3"'<br class="title-page-name"/>The value of $y is "3"<br class="title-page-name"/>+ trap 'echo "The value of \$y is \"${y}\""' DEBUG</strong>
+</pre>
+<p class="calibre1"><span><span>Move around the <kbd class="calibre9">trap</kbd> line and see how much info you can gather by modifying it to suit your needs. So, play for a while and have fun preparing for the the final touch of magic.</span></span></p>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    </header><h1 class="header-title" id="calibre_pb_0">Going dark with the daemon</h1>
+                
+            
+            <article>
+                
+<p class="calibre1"><span><span>Do you think doing daemons is a complex task? Yes it is, unless you use a nice utility called <em class="calibre20">daemon</em>. The task of this program is to daemonize other commands or script in a simple and neat way. Does this utility take any shortcuts? No, it just goes through all the steps we have already seen to detach a process from the controlling terminal, putting it in background, starting a new session, clearing the umask, and closing the old file descriptors. Well, doing it by ourselves in Bash coding will be quite a difficult task. This program makes everything straightforward, nothing to take care of manually. But there is a drawback: this is not a standard utility and must be installed by the user. Not a big issue indeed since many distributions such as Debian or Red Hat have a package for this utility.</span></span></p>
+<p class="calibre1"><span><span>Time to try this utility out, so let's take our <kbd class="calibre9">write.sh</kbd> script and daemonize it:</span></span></p>
+<pre class="codepackt">
+<strong class="calibre2">root:# daemon -r /root/write.sh</strong>
+</pre>
+<p class="calibre1"><span><span>We just called the daemon program, passing the full path to our script and the <kbd class="calibre9">-r</kbd> option that will respawn it in case it gets stopped. Let's see what happens on our system:</span></span></p>
+<pre class="codepackt">
+<strong class="calibre2">root:# ps -Heo tty,pid,ppid,pgid,tpgid,sess,args | grep write<br class="title-page-name"/></strong><strong class="calibre2">pts/0 2458 2298 2457 2457 2298 grep write<br class="title-page-name"/></strong><strong class="calibre2">? 2455 1 2454 -1 2454 daemon -r /root/write.sh<br class="title-page-name"/></strong><strong class="calibre2">? 2456 2455 2454 -1 2454 /bin/bash /root/write.sh</strong>
+</pre>
+<p class="calibre1"><span><span>Great, our script has no controlling terminal; it is running in background and writing its log file into the root directory of our filesystem. Now, let's kill it with the <kbd class="calibre9">-9</kbd> option, as no process can ignore it:</span></span></p>
+<pre class="codepackt">
+<strong class="calibre2">root:# kill -9 2456</strong>
+</pre>
+<p class="calibre1"><span><span>So we killed the process; let's verify it:</span></span></p>
+<pre class="codepackt">
+<strong class="calibre2">root:# ps -Heo tty,pid,ppid,pgid,tpgid,sess,args | grep write<br class="title-page-name"/></strong><strong class="calibre2">pts/0 2461 2298 2460 2460 2298 grep write<br class="title-page-name"/></strong><strong class="calibre2">? 2455 1 2454 -1 2454 daemon -r /root/write.sh<br class="title-page-name"/></strong><strong class="calibre2">? 2459 2455 2454 -1 2454 /bin/bash /root/write.sh</strong>
+</pre>
+<p class="calibre1"><span><span>The script is there. We actually killed its process but the <kbd class="calibre9">-r</kbd> option for daemon forced it to respawn the script; and here we are, our daemon is up and running even though we killed it. If we really want to read it, we must first kill the daemon program then the script process:</span></span></p>
+<pre class="codepackt">
+<strong class="calibre2">root:# kill -9 2455 2459<br class="title-page-name"/></strong><strong class="calibre2">root:# ps -Heo tty,pid,ppid,pgid,tpgid,sess,args | grep write<br class="title-page-name"/></strong><strong class="calibre2">pts/0 2481 2298 2480 2480 2298 grep write</strong>
+</pre>
+<p class="calibre1"><span><span>This is the easiest way to run daemon, which has quite a bunch of options. For instance, let's say we want to run the script as user <kbd class="calibre9">zarrelli</kbd> and have it change the directory to a subdir:</span></span></p>
+<pre class="codepackt">
+<strong class="calibre2">root:# daemon -D /home/zarrelli/tmp/ -u zarrelli /home/zarrelli/write.sh</strong>
+</pre>
+<p class="calibre1"><span><span>With <kbd class="calibre9">-D</kbd>, we gave a new target for <kbd class="calibre9">chdir</kbd> while <kbd class="calibre9">-u</kbd> gives the process a new running user as we can see from <kbd class="calibre9">ps</kbd>:</span></span></p>
+<pre class="codepackt">
+<strong class="calibre2">root:# ps -Heo user,tty,pid,ppid,pgid,args | grep write<br class="title-page-name"/></strong><strong class="calibre2">zarrelli ? 2607 1 2606 daemon -D /home/zarrelli/tmp/ -u zarrelli /home/zarrelli/write.sh<br class="title-page-name"/></strong><strong class="calibre2">zarrelli ? 2608 2607 2606 /bin/bash /home/zarrelli/write.sh</strong>
+</pre>
+<p class="calibre1"><span><span>As expected, the newly created log files belong to the user called <kbd class="calibre9">zarrelli</kbd>:</span></span></p>
+<pre class="codepackt">
+<strong class="calibre2">root:# ls -lah /home/zarrelli/tmp/<br class="title-page-name"/></strong><strong class="calibre2">total 780K<br class="title-page-name"/></strong><strong class="calibre2">drwxr-xr-x 2 zarrelli zarrelli 4.0K Apr 17 04:45 .<br class="title-page-name"/></strong><strong class="calibre2">drwxr-xr-x 3 zarrelli zarrelli 4.0K Apr 17 04:43 ..<br class="title-page-name"/></strong><strong class="calibre2">-rw-r--r-- 1 zarrelli zarrelli 769K Apr 17 04:50 write.log</strong>
+</pre>
+<p class="calibre1"><span><span>Simple, but probably we want a service that runs at the startup of the system and stops when it shuts down. So, why not use <kbd class="calibre9">systemd</kbd> for our purposes?  First step, we create the </span></span><span><span><kbd class="calibre9">/etc/systemd/system/writing.service</kbd> file.</span></span></p>
+<p class="calibre1"><span><span>We are going to create a basic unit for a <kbd class="calibre9">systemd</kbd> managed service, so let's write the following unit configuration lines inside the file:</span></span></p>
+<pre class="codepackt">
+<strong class="calibre2">[Unit]<br class="title-page-name"/></strong><strong class="calibre2">Description=Write.sh Daemon<br class="title-page-name"/></strong><strong class="calibre2">After=syslog.target<br class="title-page-name"/></strong><strong class="calibre2">[Service]<br class="title-page-name"/></strong><strong class="calibre2">ExecStart=/root/write.sh <br class="title-page-name"/></strong><strong class="calibre2">Type=simple<br class="title-page-name"/></strong><strong class="calibre2">[Install]<br class="title-page-name"/></strong><strong class="calibre2">WantedBy=default.target</strong>
+</pre>
+<p class="calibre1"><span><span>Nothing special here; depending on what kind of script we are going to demonize, we can choose our after target. A network script needs to be run after the network is up, so <kbd class="calibre9">network.target</kbd> is more appropriate here. We could just want to add some logging function, so we gave <kbd class="calibre9">syslog.target</kbd>. We could also give multiple target, so it really depends on what we are going to demonize. Under <kbd class="calibre9">[Service]</kbd> , we just point out the script executable and, more importantly, the type of execution: since our script will run indefinitely, it will never exit. So we need to specify the <em class="calibre20">simple</em> startup style so that <kbd class="calibre9">systemd</kbd> will execute the script and move on without waiting for it to exit like in the <em class="calibre20">fork</em> style. The rest is quite straightforward, so let's save the file and give the appropriate permission to it: </span></span></p>
+<pre class="codepackt">
+<strong class="calibre2">root:# chmod 664 /etc/systemd/system/writing.service</strong>
+</pre>
+<p class="calibre1"><span><span>Now, time to enable the service:</span></span></p>
+<pre class="codepackt">
+<strong class="calibre2">root:# systemctl enable writing.service</strong>
+</pre>
+<p class="calibre1"><span><span>Create a symlink from <kbd class="calibre9">/etc/systemd/system/default.target.wants/writing.service</kbd> to <kbd class="calibre9">/etc/systemd/system/writing.service</kbd>.</span></span></p>
+<p class="calibre1"><span><span>Reloading the <kbd class="calibre9">systemd</kbd> daemon will help to have the new service recognized:</span></span></p>
+<pre class="codepackt">
+<strong class="calibre2">root:# systemctl daemon-reload</strong>
+</pre>
+<p class="calibre1"><span><span>Well, we are ready for the first execution of our service:</span></span></p>
+<pre class="codepackt">
+<strong class="calibre2">root:# systemctl start writing</strong>
+</pre>
+<p class="calibre1"><span><span>No output here, but since this service is managed by <kbd class="calibre9">systemd</kbd> , we can ask the latter what is going on:</span></span></p>
+<pre class="codepackt">
+<strong class="calibre2">root:# systemctl status writing<br class="title-page-name"/></strong><strong class="calibre2">writing.service - Write.sh Daemon<br class="title-page-name"/></strong><strong class="calibre2">Loaded: loaded (/etc/systemd/system/writing.service; enabled)<br class="title-page-name"/></strong><strong class="calibre2">Active: active (running) since Mon 2017-04-17 06:20:25 EDT; 57s ago<br class="title-page-name"/></strong><strong class="calibre2">Main PID: 1582 (write.sh)<br class="title-page-name"/></strong><strong class="calibre2">CGroup: /system.slice/writing.service<br class="title-page-name"/></strong><strong class="calibre2">└─1582 /bin/bash /root/write.sh<br class="title-page-name"/></strong><strong class="calibre2">Apr 17 06:20:25 spoton systemd[1]: Started Write.sh Daemon.</strong>
+</pre>
+<p class="calibre1"><span><span>The script is running; let's make some other checks:</span></span></p>
+<pre class="codepackt">
+<strong class="calibre2">root:# ls -lah /write.log <br class="title-page-name"/></strong><strong class="calibre2">-rw-r--r-- 1 root root 469K Apr 17 06:23 /write.log</strong>
+</pre>
+<p class="calibre1"><span><span>The <kbd class="calibre9">log</kbd> file is there, filling up; now let's check the terminal:</span></span></p>
+<pre class="codepackt">
+<strong class="calibre2">root:# ps -Heo user,tty,pid,ppid,pgid,args | grep write<br class="title-page-name"/></strong><strong class="calibre2">root pts/0 1605 1048 1604 grep write<br class="title-page-name"/></strong><strong class="calibre2">root ? 1582 1 1582 /bin/bash /root/write.sh</strong>
+</pre>
+<p class="calibre1"><span><span>Here it is, without an associated controlling terminal. Last bit, we have to stop the daemon when we do not want it to run:</span></span></p>
+<pre class="codepackt">
+<strong class="calibre2">root:# systemctl stop writing<br class="title-page-name"/></strong><strong class="calibre2">No output so let's verify:<br class="title-page-name"/></strong><strong class="calibre2">root:# systemctl status writing<br class="title-page-name"/></strong><strong class="calibre2">writing.service - Write.sh Daemon<br class="title-page-name"/></strong><strong class="calibre2">Loaded: loaded (/etc/systemd/system/writing.service; enabled)<br class="title-page-name"/></strong><strong class="calibre2">Active: inactive (dead) since Mon 2017-04-17 06:25:51 EDT; 3s ago<br class="title-page-name"/></strong><strong class="calibre2">Process: 1582 ExecStart=/root/write.sh (code=killed, signal=TERM)<br class="title-page-name"/></strong><strong class="calibre2">Main PID: 1582 (code=killed, signal=TERM)<br class="title-page-name"/></strong><strong class="calibre2">Apr 17 06:20:25 spoton systemd[1]: Started Write.sh Daemon.<br class="title-page-name"/></strong><strong class="calibre2">Apr 17 06:25:51 spoton systemd[1]: Stopping Write.sh Daemon...<br class="title-page-name"/></strong><strong class="calibre2">Apr 17 06:25:51 spoton systemd[1]: Stopped Write.sh Daemon.</strong>
+</pre>
+<p class="calibre1"><span><span>Finally, if we do not want our daemon to be managed by <kbd class="calibre9">systemd</kbd> anymore, we can just unlink it:</span></span></p>
+<pre class="codepackt">
+<strong class="calibre2">root:# systemctl disable writing.service<br class="title-page-name"/></strong><strong class="calibre2">Removed symlink /etc/systemd/system/default.target.wants/writing.service.</strong>
+</pre>
+<p class="calibre1"><span><span>Now, restart <kbd class="calibre9">systemd</kbd> daemon:</span></span></p>
+<pre class="codepackt">
+<strong class="calibre2">root:# systemctl daemon-reload
+</strong>
+</pre>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    </header><h1 class="header-title" id="calibre_pb_0">Summary</h1>
+                
+            
+            <article>
+                
+<p class="calibre1"><span><span>In this chapter, we had a look at how to set a process in the background and have it survive to our logouts and to most of the signal we could send to it. Next step was how to daemonize a process and how to make a system managed service out of it thanks to systemd. Is that all? Well, no. With a bit of creativity, we can assemble the bits and bricks we were given and create our own daemonized scripts and services, so this could be a nice homework during some rainy days.</span></span></p>
+<p class="calibre1"><span><span>We are now leaving daemons and moving onto something more related to system administration tasks, and we will see how to use some easy, powerful utilities and services to customize the environment we are working in and how to make it reasonably safe with little efforts.</span></span></p>
+
+
+            </article>
+
+            
+        </section>
+    </body></html>

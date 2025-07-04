@@ -1,0 +1,389 @@
+<html><head></head><body><div class="chapter" title="Chapter&#xA0;6.&#xA0;Baby Room Sentinel"><div class="titlepage"><div><div><h1 class="title"><a id="ch06"/>Chapter 6. Baby Room Sentinel</h1></div></div></div><p>In this chapter, we're going to show a possible implementation of a <a id="id250" class="indexterm"/>baby room sentinel capable of monitoring the room by detecting whether our baby is crying or if the baby is breathing during sleep. Also, as a special feature, the system will be able to measure the baby's temperature with a contactless temperature sensor.</p><p>We'll see several kinds of sensor, such as pressure, sound, and temperature. Also, regarding the temperature sensors, we'll see an interesting infrared version that is useful to measure surface temperature without touching it. Additionally, we'll provide our prototype of a nice, tiny LCD screen in order to see what's going on in the baby's room.</p><div class="section" title="The basics of functioning"><div class="titlepage"><div><div><h1 class="title"><a id="ch06lvl1sec35"/>The basics of functioning</h1></div></div></div><p>When we <a id="id251" class="indexterm"/>have a baby, it's quite normal to buy different devices to check when the baby cries or has a fever, or if the baby is still breathing during sleep. So, in this chapter, we'll try to implement several smart sensors to detect these states of danger using our BeagleBone Black and some special sensors.</p><div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="tip74"/>Tip</h3><p>Warning! <span class="emphasis"><em>Let me remind that this project is a prototype and it cannot be used as a personal safety application!</em></span> It's simply a study of a possible implementation of a baby room sentinel device.</p><p>
+<span class="emphasis"><em>Neither the author of this book nor Packt Publishing recommends or endorses that this product be used alone or as a component in any personal safety applications.</em></span> The reader is warned about the fact that these sensors and controls do not include the self-checking redundant circuitry needed for such use.</p><p>
+<span class="emphasis"><em>Neither the author of this book nor Packt Publishing will be held liable for unauthorized use of this prototype. The users can use this device at their own risk!</em></span>
+</p></div></div><p>To detect when the baby is crying, we can use a sound detector, as we did in the previous chapter; but this time, we should elaborate the input signal a bit more in order to effectively detect whether the baby is really crying or not. By looking at the following screenshot, we <a id="id252" class="indexterm"/>can see a simple 40 seconds plot of an audio signal of a crying baby (sample time is <span class="emphasis"><em>Ts=0.01 s=10ms</em></span>):</p><div class="mediaobject"><img src="graphics/B00255_06_01.jpg" alt="The basics of functioning"/></div><p>In red is the raw audio signal, while in yellow is the average of that signal over a 5 second window over the current time, that is, the yellow signal is the average value of all collected audio samples in the last 5 seconds.</p><p>As already <a id="id253" class="indexterm"/>stated, the sampling time <span class="emphasis"><em>Ts</em></span> is <span class="emphasis"><em>10ms</em></span>, which is not suitable for an audio recording but is enough for our purposes. In fact, we can see that by using the average value represented by the yellow line, we can detect if the baby is crying by just using a suitable threshold.</p><p>Regarding the breathing, the problem is quite similar; in fact, we can suppose that, more or less, normal breathing during sleep may vary from 12 to 16 breaths per minute, that is, a frequency range from 0.26 Hz to 0.2 Hz. However, this time the average level of the signal is not useful, but we can use its amplitude in a suitable timing window instead. To better explain the concept, consider the following screenshot:</p><div class="mediaobject"><img src="graphics/B00255_06_02.jpg" alt="The basics of functioning"/></div><p>The red color is the raw pressure signal, while the yellow color is the average of that signal over a 5 second window up to the current time. As stated previously, the yellow signal is just the average value of all collected audio samples in the last 5 seconds (sampling time is still <span class="emphasis"><em>Ts=10 ms</em></span>). The blue color is the amplitude of the pressure signal computed as the difference between the maximum and the minimum value found <a id="id254" class="indexterm"/>in the considered temporal window, that is, this time, we find the <span class="strong"><strong>maximum value</strong></span> (<span class="strong"><strong>Vmax</strong></span>) and the <span class="strong"><strong>minimum value</strong></span> (<span class="strong"><strong>Vmin</strong></span>) of <a id="id255" class="indexterm"/>the collected audio samples in the last 5 seconds each time, and we compute the difference between Vmax and Vmin.</p><p>In the first 8 <a id="id256" class="indexterm"/>seconds of the preceding plot, the output is near to 0 since there is nothing on the sensor. Then, around <span class="emphasis"><em>T = 8</em></span> seconds, a baby has been put on the sensor, so it starts to return higher values, as expected. In this situation, both the average and the amplitude of the input signal have grown and they reach (more or less) some stable values. However, the important thing to highlight is when the baby stops breathing (Don't worry! No baby stopped breathing during this test! It's just a simulation.). When the baby stops breathing (this happened near T = <span class="strong"><strong>38</strong></span> seconds), the pressure sensor still detects something, and both the average and the amplitude decrease; but it's the pressure's amplitude that does the biggest jump! As you can see in the preceding screenshot, while the average moves from <span class="strong"><strong>700</strong></span> to <span class="strong"><strong>450</strong></span>, the amplitude moves from <span class="strong"><strong>700</strong></span> to <span class="strong"><strong>10</strong></span>.</p><p>For our prototype, we can use the pressure amplitude to detect the baby's breath, and the pressure average to detect if a baby is present or not. The user should notice that both average and amplitude calculations can be done at the same time by using a C function like the following one:</p><div class="informalexample"><pre class="programlisting">void extract(int arr[], size_t n, int *avg, int *min, int *max)
+{
+        int i;
+        float sum = 0;
+
+        if (min)
+                *min = 4096;
+        if (max)
+                *max = 0;
+        for (i = 0; i &lt; n; i++) {
+                sum += ((float) arr[i]) / ((float) n);
+                if (min)
+                        *min = min(*min, arr[i]);
+                if (max)
+                        *max = max(*max, arr[i]);
+        }
+        *avg = (int) sum;
+}</pre></div><p>The <code class="literal">extract()</code>function gets the <code class="literal">arr</code> array holding the pressure data and, by using a single <code class="literal">for</code> loop, it can do both calculations in parallel.</p><p>Regarding the pressure sensor, we have to take into account that it cannot work well if it is not properly put into a box with a special mechanism suitable to detect breath. In the following screenshot, I show a possible implementation of such a box:</p><div class="mediaobject"><img src="graphics/B00255_06_03.jpg" alt="The basics of functioning"/></div><p>The box <a id="id257" class="indexterm"/>should be put under the baby near the back, and attention should be paid to ensure that the upper side is in the right position to capture the movement of the lungs. The top of the box (moving surface) can move up and down, thanks to the springs, and it can detect pressure due to the movement of the baby's lungs with the pin that impinges on the pressure sensor, conveying the pressure.</p><p>Now, the last thing to take care of is the digital thermometer to measure the body temperature level. For this purpose, we can use a normal temperature sensor, but since we're talking about babies, we'd like to use a contactless temperature sensor. These special sensors are capable to measure an object's temperature without touching it by using the infrared rays that a surface emits and that are in the <span class="emphasis"><em>field-of-view</em></span> of the sensor. So, when there is nothing in front of the sensor, we can detect the environmental temperature, but when we approach a surface, we can detect the temperature of that surface without actually touching it!</p><p>The following screenshot shows a suitable zone to aim the sensor at in order to measure the baby's temperature:</p><div class="mediaobject"><img src="graphics/B00255_06_04.jpg" alt="The basics of functioning"/></div></div></div>
+<div class="section" title="Setting up the hardware"><div class="titlepage"><div><div><h1 class="title"><a id="ch06lvl1sec36"/>Setting up the hardware</h1></div></div></div><p>In this project, we <a id="id258" class="indexterm"/>are going to use two analog sensors, a digital sensor, and a tiny LCD to implement a little GUI. The analog sensors are connected to two different ADCs, while the digital sensor (the contactless temperature sensor) uses an I<sup>2</sup>C bus to communicate with the BeagleBone Black. Lastly, the tiny LCD is connected to our BeagleBone Black board by an SPI bus and some GPIOs.</p><p>Regarding the <a id="id259" class="indexterm"/>alarm devices to alert the parents, we can use a normal buzzer or a more sophisticated SMS gateway, or both. But in any case, the connections of these devices can be retrieved from the preceding chapters, so, due to lack of space, I'm not going to add any of them in this chapter. The reader can try to implement both the hardware and software by themselves as an exercise.</p><div class="section" title="Setting up the contactless temperature sensor"><div class="titlepage"><div><div><h2 class="title"><a id="ch06lvl2sec50"/>Setting up the contactless temperature sensor</h2></div></div></div><p>The <a id="id260" class="indexterm"/>contactless temperature sensor used in this prototype is shown in the following screenshot:</p><div class="mediaobject"><img src="graphics/B00255_06_05.jpg" alt="Setting up the contactless temperature sensor"/></div><div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="note53"/>Note</h3><p>The devices can be purchased from <a class="ulink" href="http://www.cosino.io/product/contactless-temperature-sensor">http://www.cosino.io/product/contactless-temperature-sensor</a>, or found by surfing the Internet.</p><p>The user guide of this device is available at <a class="ulink" href="https://www.sparkfun.com/datasheets/Sensors/Temperature/SEN-09570-datasheet-3901090614M005.pdf">https://www.sparkfun.com/datasheets/Sensors/Temperature/SEN-09570-datasheet-3901090614M005.pdf</a>.</p></div></div><p>This device is really interesting since it's capable of measuring the temperature of an object without touching it! In reality, it is an infrared thermometer with a 17-bit resolution in wide temperature ranges: –40°C to 85°C for ambient temperature and –70°C to 382.2°C for an object's temperature.</p><p>The measured value is the average temperature of all objects in the <span class="emphasis"><em>field-of-view</em></span> of the sensor, so it's quite obvious that we can use it to measure the environmental temperature as well as body temperature. We simply need to place the sensor near our body, and there we have it!.</p><p>Another important feature of this sensor is that it is a digital device, that is, data can be retrieved by using a digital connection, which is immune to disturbances from the environment, even over (relatively) long distances. So, we can consider to put it on a handpiece for more practical usage.</p><p>The bus available for this device is the I<sup>2</sup>C bus, and the necessary connections are reported in the following table:</p><div class="informaltable"><table border="1"><colgroup><col style="text-align: left"/><col style="text-align: left"/></colgroup><thead><tr><th style="text-align: left" valign="bottom">
+<p>Pin</p>
+</th><th style="text-align: left" valign="bottom">
+<p>Temperature sensor pin</p>
+</th></tr></thead><tbody><tr><td style="text-align: left" valign="top">
+<p>P9.4 - <span class="strong"><strong>VCC</strong></span>
+</p>
+</td><td style="text-align: left" valign="top">
+<p>3 - <span class="strong"><strong>VDD</strong></span>
+</p>
+</td></tr><tr><td style="text-align: left" valign="top">
+<p>P9.17 - <span class="strong"><strong>SCL</strong></span>
+</p>
+</td><td style="text-align: left" valign="top">
+<p>1 - <span class="strong"><strong>SCL</strong></span>
+</p>
+</td></tr><tr><td style="text-align: left" valign="top">
+<p>P9.18 - <span class="strong"><strong>SDA</strong></span>
+</p>
+</td><td style="text-align: left" valign="top">
+<p>2 - <span class="strong"><strong>SDA</strong></span>
+</p>
+</td></tr><tr><td style="text-align: left" valign="top">
+<p>P9.2 - <span class="strong"><strong>GND</strong></span>
+</p>
+</td><td style="text-align: left" valign="top">
+<p>3 - <span class="strong"><strong>Vss</strong></span>
+</p>
+</td></tr></tbody></table></div><p>For completeness, the device's pins mapping is shown in the following diagram:</p><div class="mediaobject"><img src="graphics/B00255_06_06.jpg" alt="Setting up the contactless temperature sensor"/></div><p>Now, if <a id="id261" class="indexterm"/>everything has been properly connected, we can activate the I<sup>2</sup>C bus with the following command:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@beaglebone:~# echo BB-I2C1 &gt; /sys/devices/bone_capemgr.9/slots</strong></span>
+</pre></div><p>Then, by using the <code class="literal">i2cdetect</code> command, we should get something as follows:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@beaglebone:~# i2cdetect -y -r 2</strong></span>
+<span class="strong"><strong>     0  1  2  3  4  5  6  7  8  9  a  b  c  d  e  f</strong></span>
+<span class="strong"><strong>00:          -- -- -- -- -- -- -- -- -- -- -- -- --</strong></span>
+<span class="strong"><strong>10: -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --</strong></span>
+<span class="strong"><strong>20: -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --</strong></span>
+<span class="strong"><strong>30: -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --</strong></span>
+<span class="strong"><strong>40: -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --</strong></span>
+<span class="strong"><strong>50: -- -- -- -- -- -- -- -- -- -- 5a -- -- -- -- --</strong></span>
+<span class="strong"><strong>60: -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --</strong></span>
+<span class="strong"><strong>70: -- -- -- -- -- -- -- --                         </strong></span>
+</pre></div><p>Here, we can see that a device at address <code class="literal">0x5a</code> has answered.</p><div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="tip75"/>Tip</h3><p>Note that you may get a different address. In this case, all the following commands must be modified accordingly.</p></div></div><p>By looking <a id="id262" class="indexterm"/>at the datasheet, we discover that the temperature can be retrieved by reading at the device location <code class="literal">0x07</code>. So, by using the <code class="literal">i2cget</code> command, we can do the following:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@beaglebone:~# i2cget -y 2 0x5a 0x07 wp</strong></span>
+<span class="strong"><strong>0x3bab</strong></span>
+</pre></div><p>The output value can now be converted in <span class="strong"><strong>degrees Celsius</strong></span> (<span class="strong"><strong>°C</strong></span>) by multiplying it by 0.02 after converting it in a decimal value. So, we can use the following command:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@beaglebone:~# echo "$(printf "ibase=16; %X\n" $(i2cget -y 2 0x5a 0x07 wp) | bc) * 0.02 - 273.15" | bc</strong></span>
+<span class="strong"><strong>32.11</strong></span>
+</pre></div><p>To better understand what we do with the preceding command, let me explain it by using a list of equivalent (and more readable) commands starting with the following one where, by using <code class="literal">i2cget</code>, we get the data from the sensor and store it in the <code class="literal">v_hex</code> variable:</p><div class="informalexample"><pre class="programlisting">v_hex=$(i2cget -y 2 0x5a 0x07 wp)</pre></div><p>Then, we convert the hexadecimal value to a decimal one and store it in the <code class="literal">v_dec</code> variable by using the <code class="literal">bc</code> command as follows:</p><div class="informalexample"><pre class="programlisting">v_dec=$(printf "ibase=16; %X\n" $v_hex | bc)</pre></div><p>In the end, we simply multiply the decimal value held in the <code class="literal">v_dec</code> variable by 0.02 to get the temperature in <span class="strong"><strong>degrees Kelvin</strong></span> (<span class="strong"><strong>°K</strong></span>). Then, we subtract the value 273.15 to get it in °C:</p><div class="informalexample"><pre class="programlisting">echo "$v_dec * 0.02 - 273.15" | bc</pre></div><p>Now, to measure body temperature, we simply need to aim the sensor at our head, near the temple, and execute the following command. I get the following output:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@beaglebone:~# echo "$(printf "ibase=16; %X\n" $(i2cget -y 2 0x5a 0x07 wp) | bc) * 0.02 - 273.15" | bc</strong></span>
+<span class="strong"><strong>34.97</strong></span>
+</pre></div><p>Great, I'm <a id="id263" class="indexterm"/>not ill!</p><div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="note54"/>Note</h3><p>The reader can take a look at the book <span class="emphasis"><em>BeagleBone Essentials</em></span>, <span class="emphasis"><em>Packt Publishing</em></span>, written by the author of this book, in order to get more information regarding how to activate and use the I<sup>2</sup>C buses available on the system.</p></div></div></div><div class="section" title="Setting up the pressure sensor"><div class="titlepage"><div><div><h2 class="title"><a id="ch06lvl2sec51"/>Setting up the pressure sensor</h2></div></div></div><p>A pressure sensor is <a id="id264" class="indexterm"/>shown in the following image:</p><div class="mediaobject"><img src="graphics/B00255_06_07.jpg" alt="Setting up the pressure sensor"/></div><div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="note55"/>Note</h3><p>The devices <a id="id265" class="indexterm"/>can be purchased from <a class="ulink" href="http://www.cosino.io/product/pressure-sensor">http://www.cosino.io/product/pressure-sensor</a>, or by surfing the Internet.</p><p>The user guide of this device is available at <a class="ulink" href="https://www.pololu.com/file/download/fsr_datasheet.pdf?file_id=0J383">https://www.pololu.com/file/download/fsr_datasheet.pdf?file_id=0J383</a>.</p></div></div><p>This device can detect (and measure) a force acting on its active surface. In simple words, it can report pressure intensity by varying its internal resistance. From the datasheet, we can see that this resistance may vary from over 1 MΩ, when no force is present, to few hundred Ohms when a force is applied.</p><p>By remembering that the BeagleBone Black's ADC inputs must be limited to 1.8V, we can use the circuitry shown in the following diagram to safely read from this sensor (see <a class="link" href="ch02.html" title="Chapter 2. Ultrasonic Parking Assistant">Chapter 2</a>, <span class="emphasis"><em>Ultrasonic Parking Assistant</em></span>):</p><div class="mediaobject"><img src="graphics/B00255_06_08.jpg" alt="Setting up the pressure sensor"/></div><p>In the preceding diagram, <span class="emphasis"><em>R=6.8 KΩ</em></span> and <span class="strong"><strong>Rp</strong></span> are the pressure sensor's internal resistors, which are represented by a variable resistor.</p><div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="tip76"/>Tip</h3><p>Note that the preceding circuitry not only connects the sensor to the BeagleBone Black's ADC input pin, but also prevents the input voltage on that pin from going lower than the critical value of 1.8V! The V<sub>ADCin</sub> voltage is given by the following formula:</p><p>
+<span class="emphasis"><em>V<sub>ADCin</sub> = R / (R + Rp + R) * Vcc = R / (2R + Rp) * Vcc</em></span>
+</p><p>Now, we know that <span class="emphasis"><em>Vcc</em></span> is 3.3V, so, even in case that the <span class="emphasis"><em>Rp</em></span> value drops to 0 Ω, the <span class="emphasis"><em>V<sub>ADCin</sub></em></span> is equal to Vcc/2, that is, 1.65V, which is a safe value for the BeagleBone Black's ADCs.</p></div></div><p>This sensor must <a id="id266" class="indexterm"/>be connected to the BeagleBone Black at the <span class="emphasis"><em>AIN1</em></span> input pin, which is labeled <span class="emphasis"><em>P9.40</em></span>, while the other end must be connected to the resistor R, as shown in the preceding circuitry diagram.</p><p>Now, to check all connections, we can enable the BeagleBone Black's ADCs by using the following command:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@beaglebone:~# echo cape-bone-iio &gt; /sys/devices/bone_capemgr.9/slots</strong></span>
+</pre></div><div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="note56"/>Note</h3><p>These settings can be done by using the <code class="literal">bin/load_firmware.sh</code> script in the book's example code repository, as follows:</p><div class="informalexample"><pre class="programlisting">root@beaglebone:~# ./load_firmware.sh adc</pre></div></div></div><p>Then, we <a id="id267" class="indexterm"/>can read the pressure on the sensor with the following command:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@beaglebone:~# cat /sys/devices/ocp.3/helper.12/AIN1</strong></span>
+<span class="strong"><strong>2</strong></span>
+</pre></div><p>The preceding value is due to the fact that there is nothing on the sensor; but if we simply try to put a finger on it and then reread the sensor, we get the following result:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@beaglebone:~# cat /sys/devices/ocp.3/helper.12/AIN1</strong></span>
+<span class="strong"><strong>982</strong></span>
+</pre></div><p>So, the higher the pressure on the sensor, the higher the returned value.</p></div><div class="section" title="Setting up the sound detector"><div class="titlepage"><div><div><h2 class="title"><a id="ch06lvl2sec52"/>Setting up the sound detector</h2></div></div></div><p>The sound <a id="id268" class="indexterm"/>detector is the same as the one used in <a class="link" href="ch05.html" title="Chapter 5. WhatsApp Laundry Room Monitor">Chapter 5</a>, <span class="emphasis"><em>WhatsApp Laundry Room Monitor</em></span>, so you can take a look at the <span class="emphasis"><em>Setting up the hardware</em></span> section in the same chapter to see how to set up and test this device. However, for the sake of completeness, some basic information about it is provided again, and it's shown in the following image:</p><div class="mediaobject"><img src="graphics/B00255_06_09.jpg" alt="Setting up the sound detector"/></div><div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="note57"/>Note</h3><p>The devices can be purchased from <a class="ulink" href="http://www.cosino.io/product/sound-detector">http://www.cosino.io/product/sound-detector</a>, or by surfing the Internet.</p><p>The board is based on the amplifier LMV324, with the datasheet available at <a class="ulink" href="http://dlnmh9ip6v2uc.cloudfront.net/datasheets/Sensors/Sound/LMV324.pdf">http://dlnmh9ip6v2uc.cloudfront.net/datasheets/Sensors/Sound/LMV324.pdf</a>, while the board's schematic is available at <a class="ulink" href="http://dlnmh9ip6v2uc.cloudfront.net/datasheets/Sensors/Sound/sound-detector.pdf">http://dlnmh9ip6v2uc.cloudfront.net/datasheets/Sensors/Sound/sound-detector.pdf</a>.</p></div></div><p>The connections <a id="id269" class="indexterm"/>are in the following table:</p><div class="informaltable"><table border="1"><colgroup><col style="text-align: left"/><col style="text-align: left"/></colgroup><thead><tr><th style="text-align: left" valign="bottom">
+<p>Pin</p>
+</th><th style="text-align: left" valign="bottom">
+<p>Sound sensor</p>
+</th></tr></thead><tbody><tr><td style="text-align: left" valign="top">
+<p>P9.4 - VCC</p>
+</td><td style="text-align: left" valign="top">
+<p>VCC</p>
+</td></tr><tr><td style="text-align: left" valign="top">
+<p>P9.39 - AIN0</p>
+</td><td style="text-align: left" valign="top">
+<p>R @ENVELOPE</p>
+</td></tr><tr><td style="text-align: left" valign="top">
+<p>P9.3 - GND</p>
+</td><td style="text-align: left" valign="top">
+<p>GND</p>
+</td></tr></tbody></table></div><div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="tip77"/>Tip</h3><p>Remember that the ADCs input must be limited to 1.8V, so we must scale the sensor's output voltage by a factor of two, as described in the previous chapter.</p></div></div><p>Now, to check all connections, we can use the following command:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@beaglebone:~# cat /sys/devices/ocp.3/helper.12/AIN0</strong></span>
+<span class="strong"><strong>24</strong></span>
+</pre></div><p>If you try to speak while you rerun the command, you should get a higher value, as follows:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@beaglebone:~# cat /sys/devices/ocp.3/helper.12/AIN0</strong></span>
+<span class="strong"><strong>201</strong></span>
+</pre></div><p>So, the higher the environmental sound, the higher the returned value.</p></div><div class="section" title="Connecting the tiny LCD"><div class="titlepage"><div><div><h2 class="title"><a id="ch06lvl2sec53"/>Connecting the tiny LCD</h2></div></div></div><p>The tiny LCD <a id="id270" class="indexterm"/>used in this chapter is shown in the following image:</p><div class="mediaobject"><img src="graphics/B00255_06_10.jpg" alt="Connecting the tiny LCD"/></div><div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="note58"/>Note</h3><p>The device <a id="id271" class="indexterm"/>can be purchased from <a class="ulink" href="http://www.cosino.io/product/color-tft-lcd-1-8-160x128">http://www.cosino.io/product/color-tft-lcd-1-8-160x128</a>, or by surfing the Internet.</p><p>The LCD is based on the ST7735R chip, which has its datasheet at <a class="ulink" href=" https://www.adafruit.com/datasheets/ST7735R_V0.2.pdf">https://www.adafruit.com/datasheets/ST7735R_V0.2.pdf</a>.</p></div></div><p>As stated previously, to <a id="id272" class="indexterm"/>connect the LCD, we must use an SPI bus and some GPIOs available in the BeagleBone Black's expansion connectors. The following table shows the electrical connections between the BeagleBone Black's pins and the LCD pins:</p><div class="informaltable"><table border="1"><colgroup><col style="text-align: left"/><col style="text-align: left"/></colgroup><thead><tr><th style="text-align: left" valign="bottom">
+<p>Pin</p>
+</th><th style="text-align: left" valign="bottom">
+<p>LCD pin</p>
+</th></tr></thead><tbody><tr><td style="text-align: left" valign="top">
+<p>P9.4 - Vcc</p>
+</td><td style="text-align: left" valign="top">
+<p>9 - Vcc</p>
+</td></tr><tr><td style="text-align: left" valign="top">
+<p>P9.29 - MISO</p>
+</td><td style="text-align: left" valign="top">
+<p>Not connected</p>
+</td></tr><tr><td style="text-align: left" valign="top">
+<p>P9.30 - MOSI</p>
+</td><td style="text-align: left" valign="top">
+<p>4 - MOSI</p>
+</td></tr><tr><td style="text-align: left" valign="top">
+<p>P9.31 - SCLK</p>
+</td><td style="text-align: left" valign="top">
+<p>3 - SCK</p>
+</td></tr><tr><td style="text-align: left" valign="top">
+<p>P9.28 - SS0</p>
+</td><td style="text-align: left" valign="top">
+<p>5 - TFT_CS</p>
+</td></tr><tr><td style="text-align: left" valign="top">
+<p>P9.25</p>
+</td><td style="text-align: left" valign="top">
+<p>7 – D/C</p>
+</td></tr><tr><td style="text-align: left" valign="top">
+<p>P9.27</p>
+</td><td style="text-align: left" valign="top">
+<p>8 - RESET</p>
+</td></tr><tr><td style="text-align: left" valign="top">
+<p>P8.19</p>
+</td><td style="text-align: left" valign="top">
+<p>1 - LITE</p>
+</td></tr><tr><td style="text-align: left" valign="top">
+<p>P9.2 - GND</p>
+</td><td style="text-align: left" valign="top">
+<p>10 - GND</p>
+</td></tr></tbody></table></div><p>To enable the device, we can use a driver that should already be available on your system. To verify it, just use the following command:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@beaglebone:~# zcat /proc/config.gz | grep -i st7735</strong></span>
+<span class="strong"><strong>CONFIG_FB_ST7735=y</strong></span>
+</pre></div><p>In my kernel configuration, the driver is statically linked into the kernel, but it's okay to have it as a module. In this case, the output should be something like the following output:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>CONFIG_FB_ST7735=m</strong></span>
+</pre></div><p>After <a id="id273" class="indexterm"/>checking the driver, we also need a proper DTS file to set up the kernel. Instead of writing a new one from scratch, I got a suitable DTS file from the following URL by using the <code class="literal">wget</code> command:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@beaglebone:~# wget https://raw.githubusercontent.com/beagleboard/devicetree-source/master/arch/arm/boot/dts/cape-bone-adafruit-lcd-00A0.dts</strong></span>
+</pre></div><p>After the download, we need only to compile the preceding DTS file by using the following command:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@beaglebone:~# dtc -O dtb -o /lib/firmware/cape-bone-lcd-00A0.dtbo -b 0 -@ cape-bone-adafruit-lcd-00A0.dts</strong></span>
+</pre></div><p>Now, we can enable the LCD by using the usual <code class="literal">echo</code> command:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@beaglebone:~# echo cape-bone-lcd &gt; /sys/devices/bone_capemgr.9/slots</strong></span>
+</pre></div><div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="tip78"/>Tip</h3><p>If we get the following error then we have to disable the HDMI support:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>-bash: echo: write error: File exists</strong></span>
+</pre></div></div></div><div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="tip79"/>Tip</h3><p>This can be done by editing the u-boot settings in the <code class="literal">/boot/uboot/uEnv.txt</code> file and then enabling the following line by uncommenting it:</p><div class="informalexample"><pre class="programlisting">optargs=capemgr.disable_partno=BB-BONELT-HDMI,BB-BONELT-HDMIN</pre></div><p>Note that on some BeagleBone Black versions, you may find the <code class="literal">uEnv.txt</code> file under the <code class="literal">/boot</code> directory instead, and the u-boot setting to modify it is as follows:</p><div class="informalexample"><pre class="programlisting">cape_disable=capemgr.disable_partno=BB-BONELT-HDMI,BB-BONELT-HDMIN</pre></div><p>Then, we only have to reboot the system. Now, if everything is done correctly, we should be able to execute the preceding command without errors.</p></div></div><p>If everything works well, the BeagleBone Black should enable a colored framebuffer device 32 x 26 characters wide represented in the user space by the <span class="strong"><strong>/dev/fb0</strong></span> device.</p><div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="note59"/>Note</h3><p>The reader can take a look at the book <span class="emphasis"><em>BeagleBone Essentials</em></span>, <span class="emphasis"><em>Packt Publishing</em></span>, written by the author of this book, in order to get more information regarding how to activate and use the SPI buses available on the system, how to recompile a kernel driver, and to have a brief description of the DTS file.</p></div></div><p>As a final <a id="id274" class="indexterm"/>note, the reader should remember that we can print strings on the LCD by using the following command:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@beaglebone:~# echo "Testing string" &gt; /dev/tty0</strong></span>
+</pre></div><p>Here, the <code class="literal">/dev/tty0</code> device is the one connected to the terminal running on the <code class="literal">/dev/fb0</code> framebuffer.</p></div><div class="section" title="The final picture"><div class="titlepage"><div><div><h2 class="title"><a id="ch06lvl2sec54"/>The final picture</h2></div></div></div><p>The following image <a id="id275" class="indexterm"/>shows the prototype I made to implement this project and test the software:</p><div class="mediaobject"><img src="graphics/B00255_06_11.jpg" alt="The final picture"/></div><p>Note that the contactless temperature sensor has been connected to the board by using a flat cable in order to easily move it to measure the temperature of different objects.</p></div></div>
+<div class="section" title="Setting up the software"><div class="titlepage"><div><div><h1 class="title"><a id="ch06lvl1sec37"/>Setting up the software</h1></div></div></div><p>In this project, we're going <a id="id276" class="indexterm"/>to show a trick to exchange data between two processes in a very simple manner. At the beginning of the chapter, it was mentioned that the ADCs must be sampled at 100Hz, but we don't need to be so fast to render a simple interface on the external LCD. In fact, a reasonable updating frequency for the user interface can be 1Hz (once per second.) So, to keep the code simple, we implement our device by using two different processes running at different frequencies that exchange data with each other instead of using a single process.</p><p>Simply speaking, if we realize a <a id="id277" class="indexterm"/>program called <code class="literal">adc</code> that reads the data from the ADCs at 100Hz and then prints its output on the <code class="literal">stdout</code> stream (standard output) at 1Hz, we can redirect such output to another program called <code class="literal">lcd.sh</code> that reads the data from its <code class="literal">stdin</code> stream (standard input) at 1Hz and then draws the user interface accordingly.</p><p>The data flow is unidirectional. Program <code class="literal">adc</code> reads data from the ADC and, after its elaboration stage, sends its output to <code class="literal">lcd.sh</code> that manages the LCD. This special functioning is very well represented by a Unix <span class="emphasis"><em>pipe</em></span> as follows:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@beaglebone:~# ./adc | ./lcd.sh</strong></span>
+</pre></div><p>The reader should also notice that the timing for the interface is generated by the <code class="literal">adc</code> program simply printing its output at well-defined intervals, without any other timing mechanisms, into the <code class="literal">lcd.sh</code> program. So, let's see how we can do that.</p><div class="section" title="The ADC manager"><div class="titlepage"><div><div><h2 class="title"><a id="ch06lvl2sec55"/>The ADC manager</h2></div></div></div><p>As stated previously, to <a id="id278" class="indexterm"/>correctly manage and analyze the ADC's input signals, we need a low jitter and fine-grained sampling time. It has already been mentioned that having <span class="emphasis"><em>Ts=10 ms</em></span> as the sampling time would be enough for our purposes, so let's see how we can get it!</p><p>In <a class="link" href="ch05.html" title="Chapter 5. WhatsApp Laundry Room Monitor">Chapter 5</a>, <span class="emphasis"><em>WhatsApp Laundry Room Monitor</em></span>, we used a simple Bash script to read from the ADC; but for that prototype, the signal frequency was so low that the implemented solution was really reliable. Now we have to do something more elaborate. This time, we're going to use a C program to read data from the ADCs, as shown in the following code snippet:</p><div class="informalexample"><pre class="programlisting">#define SYSFS_PRESSURE  "/sys/devices/ocp.3/helper.12/AIN1"
+#define HZ              100
+#define DELAY_US        (1000000 / HZ)
+
+   /* Start sampling the ADC */
+   while (1) {
+      ret = clock_gettime(CLOCK_MONOTONIC_RAW, &amp;t0);
+      EXIT_ON(ret &lt; 0);
+
+      /* Read the ADC */
+      fd = open(SYSFS_PRESSURE, O_RDONLY);
+      EXIT_ON(fd &lt; 0);
+      ret = read(fd, ch, 5);
+      EXIT_ON(ret &lt; 1);
+      close(fd);
+      ret = sscanf(ch, "%d", &amp;val);
+      EXIT_ON(ret != 1);
+
+      printf("%ld.%06ld %d\n", t0.tv_sec, t0.tv_nsec / 1000, val);
+
+      /* Calculate the delay to sleep to the next period */
+      ret = clock_gettime(CLOCK_MONOTONIC_RAW, &amp;t);
+      EXIT_ON(ret &lt; 0);
+      delay_us = DELAY_US - difftime_us(&amp;t0, &amp;t);
+      EXIT_ON(delay_us &lt; 0);
+      usleep(delay_us);
+   }</pre></div><div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="note60"/>Note</h3><p>The complete code can be found in the <code class="literal">chapter_06/adc_simple.c</code> file in the book's example code repository.</p><p>The code can be compiled directly on the BeagleBone Black by using the <code class="literal">make</code> command.</p></div></div><p>The code <a id="id279" class="indexterm"/>functioning is simple. First, we get the current time with the <code class="literal">clock_gettime()</code> function. Then, we read the data from the ADC by accessing it from the <code class="literal">sysfs</code> interface. And, at the end, we compute the amount of time to sleep for before reaching the new active period.</p><p>By running the preceding code, we get the following output:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@beaglebone:~/chapter_06# ./adc_simple</strong></span>
+<span class="strong"><strong>317330.142227 0</strong></span>
+<span class="strong"><strong>317330.153381 10</strong></span>
+<span class="strong"><strong>317330.163604 7</strong></span>
+<span class="strong"><strong>317330.174134 10</strong></span>
+<span class="strong"><strong>317330.184298 5</strong></span>
+<span class="strong"><strong>317330.194473 10</strong></span>
+<span class="strong"><strong>317330.204696 7</strong></span>
+<span class="strong"><strong>317330.214955 7</strong></span>
+<span class="strong"><strong>317330.225119 13</strong></span>
+<span class="strong"><strong>317330.235331 10</strong></span>
+<span class="strong"><strong>317330.245558 1</strong></span>
+<span class="strong"><strong>317330.255714 10</strong></span>
+<span class="strong"><strong>317330.265858 10</strong></span>
+<span class="strong"><strong>317330.276034 10</strong></span>
+<span class="strong"><strong>317330.286186 7</strong></span>
+<span class="strong"><strong>317330.296346 7</strong></span>
+<span class="strong"><strong>317330.306500 9</strong></span>
+<span class="strong"><strong>317330.316646 8</strong></span>
+<span class="strong"><strong>317330.326924 0</strong></span>
+<span class="strong"><strong>...</strong></span>
+</pre></div><p>As we notice <a id="id280" class="indexterm"/>from the preceding output, the program is quite precise; but if we use a simple <code class="literal">awk</code> script to compute the minimum, maximum, and average <code class="literal">jitter</code> value over 1,000 samples, we discover that the program is not so precise:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@beaglebone:~# ./adc_simple | awk -v T=0.01 -v N=1000 -f jitter.awk</strong></span>
+<span class="strong"><strong>avg=0.000255 min=0.000078 max=0.012252</strong></span>
+</pre></div><div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="note61"/>Note</h3><p>The <code class="literal">awk</code> script file <code class="literal">jitter.awk</code> can be found in the <code class="literal">chapter_06/jitter.awk</code> file in the book's example code repository.</p></div></div><p>The average and the minimum values are acceptable, but the maximum one is really high. Moreover, sometimes the following may happen:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@beaglebone:~/chapter_06# ./adc_simple</strong></span>
+<span class="strong"><strong>319111.158747 0</strong></span>
+<span class="strong"><strong>319111.168981 8</strong></span>
+<span class="strong"><strong>319111.179131 9</strong></span>
+<span class="strong"><strong>319111.189269 10</strong></span>
+<span class="strong"><strong>319111.199439 10</strong></span>
+<span class="strong"><strong>319111.209586 11</strong></span>
+<span class="strong"><strong>…</strong></span>
+<span class="strong"><strong>319113.140526 0</strong></span>
+<span class="strong"><strong>adc_simple.c[  65]: main: fatal error in main() at line 65</strong></span>
+</pre></div><p>This error happens when the delay computed in the following lines becomes negative:</p><div class="informalexample"><pre class="programlisting">        delay_us = DELAY_US - difftime_us(&amp;t0, &amp;t);
+        EXIT_ON(delay_us &lt; 0);</pre></div><p>If the system is <a id="id281" class="indexterm"/>too slow in scheduling the process at the beginning of the period, it may happen that we do not have enough time to complete our task! This is due to the fact that we are not using a real-time system and we have no guarantees of correct scheduling.</p><p>However, we can try to resolve this problem with some tricks. The Linux kernel is not real time, but it has some facilities that may help us in realizing an acceptable compromise. In fact, the system allows us to use different schedulers to manage the processes running on the BeagleBone Black. In particular, we can use the <code class="literal">chrt</code> command to manipulate the real-time schedule attributes of a process and then to set the <span class="strong"><strong>FIFO scheduler</strong></span> that may help us to reduce the <code class="literal">jitter</code> value and the scheduling delay error. If we rerun the preceding test using the <code class="literal">chrt</code> command as follows, we get a different result:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@beaglebone:~# chrt -f 99 ./adc_simple | awk -v T=0.01 -v N=1000 -f jitter.awk</strong></span>
+<span class="strong"><strong>avg=0.000102 min=0.000022 max=0.000781</strong></span>
+</pre></div><p>Also, the scheduling delay error disappears!</p><div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="tip82"/>Tip</h3><p>Note that even using the <code class="literal">chrt</code> command, the Linux kernel is not real time anyway, so nobody can guarantee that everything will go well forever! To make the system reliable, we have to add some recovery code in case something goes wrong.</p></div></div><p>Considering what was just explained, a possible implementation of the ADC manager is reported in the following code snippet:</p><div class="informalexample"><pre class="programlisting">   /* Set stdout line buffered */
+   setlinebuf(stdout);
+
+   /* Do a dummy read to init the data buffers */
+   c = read_adc(SYSFS_SOUND);
+   for (snd_idx = 0; snd_idx &lt; ARRAY_SIZE(snd); snd_idx++)
+      snd[snd_idx] = c;
+   c = read_adc(SYSFS_PRESSURE);
+   for (prs_idx = 0; prs_idx &lt; ARRAY_SIZE(prs); prs_idx++)
+      prs[prs_idx] = c;
+
+   /* Set FIFO scheduling */
+   param.sched_priority = 99;
+   ret = sched_setscheduler(getpid(), SCHED_FIFO, &amp;param);
+   EXIT_ON(ret &lt; 0);
+
+   /* Start sampling the ADC */
+   snd_idx = prs_idx = 0;
+   ret = clock_gettime(CLOCK_MONOTONIC_RAW, &amp;t);
+   EXIT_ON(ret &lt; 0);
+   while (1) {
+      ret = clock_gettime(CLOCK_MONOTONIC_RAW, &amp;t0);
+      EXIT_ON(ret &lt; 0);
+
+      /* Read the data from the ADCs */
+      snd[snd_idx] = read_adc(SYSFS_SOUND);
+      prs[prs_idx] = read_adc(SYSFS_PRESSURE);
+
+      /* Extract informations from buffered data */
+      extract(snd, ARRAY_SIZE(snd), &amp;snd_avg, NULL, NULL);
+      extract(prs, ARRAY_SIZE(prs), &amp;prs_avg, &amp;prs_min, &amp;prs_max);
+      dbg("%ld.%06ld prs:%d min=%d max=%d snd:%d", t0.tv_sec, t0.tv_nsec / 1000, prs[prs_idx], prs_min, prs_max, snd[snd_idx]);
+
+      /* We have to output the pressure data each second,
+      * that is every HZ ticks.
+      * Also we have to read the sound level...
+      */
+      if (ticks++ == 0)
+         printf("%d %d %d\n", prs_avg, prs_max - prs_min, snd_avg);
+         ticks %= HZ;
+
+         /* Calculate the delay to sleep to the next period */
+         ret = clock_gettime(CLOCK_MONOTONIC_RAW, &amp;t);
+         EXIT_ON(ret &lt; 0);
+         delay_us = DELAY_US - difftime_us(&amp;t0, &amp;t);
+         EXIT_ON(delay_us &lt; 0);
+         usleep(delay_us);
+
+         /* Move the index */
+         prs_idx++;
+         prs_idx %= ARRAY_SIZE(prs);
+         snd_idx++;
+         snd_idx %= ARRAY_SIZE(snd);
+   }</pre></div><div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="note62"/>Note</h3><p>The complete code can be found in the <code class="literal">chapter_06/adc.c</code> file in the book's example code repository.</p></div></div><p>The <code class="literal">setlinebuf()</code> function is <a id="id282" class="indexterm"/>needed to force an output at each printed line, while the <code class="literal">sched_setscheduler()</code> function is used to enable the FIFO scheduler (as the <code class="literal">chrt</code> command does). The code is quite similar to before except the fact that we use the <code class="literal">extract()</code> function (mentioned at the beginning of this chapter) to calculate the average, minimum, and maximum values of the input data as requested. Note that the program prints its output once per second, thanks to the <code class="literal">ticks</code> variable.</p><p>If executed, the program will then print several lines, one per second, reporting the pressure average value, the pressure signal amplitude, and the sound average value, as follows:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@beaglebone:~# ./adc</strong></span>
+<span class="strong"><strong>0 16 20</strong></span>
+<span class="strong"><strong>0 19 21</strong></span>
+<span class="strong"><strong>1 21 21</strong></span>
+<span class="strong"><strong>2 22 23</strong></span>
+<span class="strong"><strong>3 22 23</strong></span>
+<span class="strong"><strong>4 22 24</strong></span>
+<span class="strong"><strong>...</strong></span>
+</pre></div><p>All this data is taken as inputs by the <code class="literal">lcd.sh</code> process described in the following section.</p><div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="note63"/>Note</h3><p>Note that the BeagleBone Black's ADCs have a continuous mode function that can be used to reach a higher sampling rate, but I didn't use it in this project due to the fact that it's not strictly needed nor supported on all kernels.</p><p>The curious <a id="id283" class="indexterm"/>reader can get further information about this topic at <a class="ulink" href="http://processors.wiki.ti.com/index.php/AM335x_ADC_Driver's_Guide">http://processors.wiki.ti.com/index.php/AM335x_ADC_Driver's_Guide</a>.</p></div></div></div><div class="section" title="The LCD manager"><div class="titlepage"><div><div><h2 class="title"><a id="ch06lvl2sec56"/>The LCD manager</h2></div></div></div><p>The program <a id="id284" class="indexterm"/>that manages the LCD is a simple Bash script that uses some tricks to realize a fancy rendering of the collected data.</p><p>As stated previously, this program runs each second, thanks to the ADC manager that sends its output periodically to the <code class="literal">lcd.sh</code> program. A simple functioning of this program can be represented by the following meta-code:</p><div class="informalexample"><pre class="programlisting">while true ; do
+   wait_for_data_from_ADC
+   render_data_to_LCD
+done</pre></div><p>That's all! The other complexities are only related to how we wish to implement the user interface.</p><p>Regarding this issue, I decided to use a really simple solution: some terminal <span class="strong"><strong>escape sequences</strong></span> to <a id="id285" class="indexterm"/>manage the colors, and the <code class="literal">figlet</code> program to <span class="emphasis"><em>draw</em></span> big fonts. Escape sequences are used to easily print some characters on the screen with specified colors by using the <code class="literal">echo</code> command, as follows:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@beaglebone:~# echo -e "\e[31mRED TEXT\e[39m"</strong></span>
+<span class="strong"><strong>RED TEXT</strong></span>
+</pre></div><p>The <code class="literal">\e[31m</code> sequence sets the red color, while the <code class="literal">\e[39m</code> sequence resets the default one.</p><div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="note64"/>Note</h3><p>For further information <a id="id286" class="indexterm"/>regarding these sequences, a good starting point is available at <a class="ulink" href="https://en.wikipedia.org/wiki/ANSI_escape_code">https://en.wikipedia.org/wiki/ANSI_escape_code</a>.</p></div></div><p>The <code class="literal">figlet</code> program <a id="id287" class="indexterm"/>is a tool that can be used to simulate printing big fonts on a terminal, a kind of ASCII art. To install it, we can use the following command:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@beaglebone:~# aptitude install figlet</strong></span>
+</pre></div><p>Then, its usage is very simple, as shown in the following example:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@beaglebone:~# figlet "simple string"</strong></span>
+<span class="strong"><strong>     _                 _            _        _             </strong></span>
+<span class="strong"><strong> ___(_)_ __ ___  _ __ | | ___   ___| |_ _ __(_)_ __   __ _</strong></span>
+<span class="strong"><strong>/ __| | '_ ` _ \| '_ \| |/ _ \ / __| __| '__| | '_ \ / _` |</strong></span>
+<span class="strong"><strong>\__ \ | | | | | | |_) | |  __/ \__ \ |_| |  | | | | | (_| |</strong></span>
+<span class="strong"><strong>|___/_|_| |_| |_| .__/|_|\___| |___/\__|_|  |_|_| |_|\__, |</strong></span>
+<span class="strong"><strong>                |_|                                  |___/</strong></span>
+</pre></div><p>For our user interface <a id="id288" class="indexterm"/>implementation, I used some special option arguments that I'm not going to explain here due to lack of space, but a curious reader can take a look at man pages of <code class="literal">figlet</code> for further information.</p><p>After this brief introduction, it's time to show a snippet of the main code of the <code class="literal">lcd.sh</code> program:</p><div class="informalexample"><pre class="programlisting"># Ok, do the job
+clear_scr
+
+tick=1
+while true ; do
+   # Read the temperature from the sensor and convert it in C
+   t=$(i2cget -y 2 0x5a 0x07 wp)
+   t=$(hex2dec $t)
+   t=$(echo "$t * 0.02 - 273.15" | bc)
+
+   # Read the pressure and sound data from the " adc" tool
+   read -u 0 v b s
+
+   # Draw the GUI
+
+   # Check for a minimum pressure, otherwise drop to 0 sound and
+   # pressure data in order to not enable any alarm
+   if [ $v -lt $PRS_AVG ] ; then
+      s=0
+      b=0
+      enabled="false"
+   else
+      enabled="true"
+   fi
+
+   # Rewrite the screen
+   goto_xy 0 0
+
+   echo -en "[${CH_PULSE:$tick:1}] "
+   echo -e "${FC_LIGHT_MAGENTA}BBB - BABY SENTINEL${FC_DEFAULT}\n"
+
+   echo -en "TEMPERATURE (C):"
+   if (( $(bc &lt;&lt;&lt; "$t &gt; 37.00") == 1 )) ; then
+      echo -e "$FC_RED"
+      t_alrm="true"
+   else
+      echo -e "$FC_GREEN"
+      t_alrm="false"
+   fi
+   figlet -f small -W -r -w 32 "$t"
+   echo -e "$FC_DEFAULT"
+
+   echo -en "SOUND LEVEL:"
+   if $enabled &amp;&amp; [ $s -gt $SND_AVG ] ; then
+      echo -e "$FC_RED"
+      s_alrm="true"
+   else
+      echo -e "$FC_DEFAULT"
+      s_alrm="false"
+   fi
+   figlet -f small -W -r -w 32 "$s"
+
+   echo -en "BREATH LEVEL:"
+   if $enabled &amp;&amp; [ $b -lt $PRS_AMP ] ; then
+      echo -e "$FC_RED"
+      b_alrm="true"
+   else
+      echo -e "$FC_DEFAULT"
+      b_alrm="false"
+   fi
+   figlet -f small -W -r -w 32 "$b"
+   echo -en "${ES_CLEAR_LN}${FC_LIGHT_RED}ALARMS: ${FC_DEFAULT}"
+   $t_alrm &amp;&amp; echo -en "${BC_RED}TEMP. "
+   $s_alrm &amp;&amp; echo -en "${BC_RED}SOUND "
+   $b_alrm &amp;&amp; echo -en "${BC_RED}BREATH "
+   echo -e "${BC_DEFAULT}"
+
+   # Print some debugging messages if requested
+   dbg "$(printf "t=%0.2f v=% 4d b=% 4d s=% 4d" $t $v $b $s)"
+   dbg "PRS_AVG=$PRS_AVG PRS_AMP=$PRS_AMP SND_AVG=$SND_AVG"
+
+   tick=$(( ($tick + 1) % ${#CH_PULSE} ))
+done</pre></div><div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="note65"/>Note</h3><p>The complete code can be found in the <code class="literal">chapter_06/lcd.sh</code> file in the book's example code repository.</p></div></div><p>From the <a id="id289" class="indexterm"/>beginning of the <code class="literal">while</code> loop until the <code class="literal">read</code> statement, we simply collect the data. Then, the code following the <code class="literal">Draw the GUI</code> comment is just to render the user interface. Note that the line with the <code class="literal">read</code> command will wait until an input line arrives from the <code class="literal">stdin</code> stream, that is, from the <code class="literal">adc</code> program.</p><p>To test it via <code class="literal">SSH</code> in a normal terminal of our host system, simulating the LCD, we can execute the following command to reduce the size of the terminal's windows to 32x26 characters, which is the size of the terminal on LCD:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@beaglebone:~# echo -e '\e[8;26;32t'</strong></span>
+</pre></div><div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="tip83"/>Tip</h3><p>Note that the preceding command is just another escape sequence.</p></div></div><p>Then, we can execute the program, as follows:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@beaglebone:~# ./adc | ./lcd.sh</strong></span>
+</pre></div><p>The output is as shown in the following screenshot:</p><div class="mediaobject"><img src="graphics/B00255_06_12.jpg" alt="The LCD manager"/></div></div></div>
+<div class="section" title="Final test"><div class="titlepage"><div><div><h1 class="title"><a id="ch06lvl1sec38"/>Final test</h1></div></div></div><p>To test the <a id="id290" class="indexterm"/>prototype, I used some tricks to simulate the baby: I got the crying sound on the Internet and simply reproduced it with an audio player. Regarding the breath, I used doll, manually pressurizing its chest in time with my breathing. I admit it's not the best test, but my children are too big to help me in these experiments!</p><p>To set up all peripherals and drivers, we can use <code class="literal">SYSINIT.sh</code>, as in the following command:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@beaglebone:~# ./SYSINIT.sh</strong></span>
+<span class="strong"><strong>done!</strong></span>
+</pre></div><div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="note66"/>Note</h3><p>This command can be found in the <code class="literal">chapter_06/SYSINIT.sh</code> file in the book's example code repository.</p></div></div><p>Then, I executed both the <code class="literal">adc</code> and <code class="literal">lcd.sh</code> programs by using the following command line in order to send all outputs to the terminal that runs on the tiny LCD:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>root@beaglebone:~# ./adc | ./lcd.sh &gt; /dev/tty0</strong></span>
+</pre></div><div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="tip84"/>Tip</h3><p>Note that on the <a id="id291" class="indexterm"/>first framebuffer device, we have at least one terminal defined by default, which is referred to by the <code class="literal">/dev/tty0</code> device.</p></div></div></div>
+<div class="section" title="Summary"><div class="titlepage"><div><div><h1 class="title"><a id="ch06lvl1sec39"/>Summary</h1></div></div></div><p>In this chapter, we discovered a more reliable and precise way to get access to the BeagleBone Black's ADCs and learned how we can get access to an I<sup>2</sup>C device by using a raw access to the bus. This was done in order to be able to manage a pressure sensor and a contactless temperature sensor. Also, we discovered how to connect a tiny LCD via the SPI bus to our BeagleBone Black board to add a little user interface.</p><p>In the next chapter, we'll try to implement a plant monitor to measure what happens to our beloved plants! Also, we will discover how we can periodically take some pictures and then publish them on a Facebook account.</p></div></body></html>

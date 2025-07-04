@@ -1,0 +1,1435 @@
+<html><head></head><body>
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">Monitoring and Backup of KVM Virtual Machines</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">In this chapter, we are going to cover the following topics:</p>
+<ul class="calibre16">
+<li class="calibre17">Resource usage collection with libvirt</li>
+<li class="calibre17">Monitoring KVM instances with Sensu</li>
+<li class="calibre17">Simple KVM backups with tar and rsync</li>
+<li class="calibre17">Creating snapshots</li>
+<li class="calibre17">Listing snapshots</li>
+<li class="calibre17">Inspecting snapshots</li>
+<li class="calibre17">Editing snapshots</li>
+<li class="calibre17">Reverting snapshots</li>
+<li class="calibre17">Deleting snapshots</li>
+</ul>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">Introduction</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">It goes without saying that monitoring and backing up of production KVM instances is important in order to meet uptime <strong class="calibre4">Service-Level Agreements</strong> (<strong class="calibre4">SLAs</strong>) and to satisfy high-availability and performance requirements. Monitoring and backing up of virtual machines is not very different from monitoring and backing up of physical servers. In some cases, it's even more convenient to back up a single image file for VM or create a snapshot, rather than the filesystem of an OS running on a physical server.</p>
+<p class="calibre3">In this chapter, we are going to see examples on how to gather resource usage metrics for live KVM instances and how to monitor the resource usage and alert on predefined thresholds with tools such as Sensu. Following this, we are going to focus on different ways of backing up KVM guests using tools such as <kbd class="calibre13">rsync</kbd>, and creating and managing snapshots with the help of the <kbd class="calibre13">virsh</kbd> command.</p>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">Resource usage collection with libvirt</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">The first step in monitoring virtual machines is to get familiar with the tools to collect metrics on the subsystems we would like to later alert on. In this recipe, we are going to focus on CPU, memory, and block device utilization of the KVM guests. We are also going to learn how to use the QEMU monitoring socket and the QEMU guest agent.</p>
+<p class="calibre3">Libvirt exposes a set of calls that the <kbd class="calibre13">virsh</kbd> command leverages to gather resource usage information on the specified guest/domain. We are going to monitor and alert on the information collected here in the <em class="calibre22">Monitoring KVM instances with Sensu</em> recipe later in this chapter.</p>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">Getting ready</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">For this recipe, we are going to need the following:</p>
+<ul class="calibre16">
+<li class="calibre17">A server with libvirt installed and configured</li>
+<li class="calibre17">A running KVM instance</li>
+</ul>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">How to do it...</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">To collect various resource usage information for a running instance or the hypervisor host, perform the following:</p>
+<ol class="calibre18">
+<li value="1" class="calibre17">Obtain information on the hypervisor CPU utilization:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# virsh nodecpustats --percent</strong><br class="calibre7"/><strong class="calibre4">usage: 0.0%</strong><br class="calibre7"/><strong class="calibre4">user: 0.0%</strong><br class="calibre7"/><strong class="calibre4">system: 0.0%</strong><br class="calibre7"/><strong class="calibre4">idle: 100.0%</strong><br class="calibre7"/><strong class="calibre4">iowait: 0.0%</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@kvm:~#</strong>
+</pre>
+<ol start="2" class="calibre18">
+<li value="2" class="calibre17">Collect information on the hypervisor memory utilization:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# virsh nodememstats</strong><br class="calibre7"/><strong class="calibre4">total : 131918328 KiB</strong><br class="calibre7"/><strong class="calibre4">free : 103633700 KiB</strong><br class="calibre7"/><strong class="calibre4">buffers: 195532 KiB</strong><br class="calibre7"/><strong class="calibre4">cached : 25874840 KiB</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@kvm:~#</strong>
+</pre>
+<ol start="3" class="calibre18">
+<li value="3" class="calibre17">Check the state of a KVM instance:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# virsh domstate kvm1</strong><br class="calibre7"/><strong class="calibre4">running</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@kvm:~#</strong>
+</pre>
+<ol start="4" class="calibre18">
+<li value="4" class="calibre17">Get a number of assigned virtual CPUs (vCPU) for a KVM instance:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# virsh vcpucount --current kvm1 --live</strong><br class="calibre7"/><strong class="calibre4">1</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@kvm:~#</strong>
+</pre>
+<ol start="5" class="calibre18">
+<li value="5" class="calibre17">Collect detailed information about the virtual CPU for a guest:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# virsh vcpuinfo kvm1</strong><br class="calibre7"/><strong class="calibre4">VCPU: 0</strong><br class="calibre7"/><strong class="calibre4">CPU: 29</strong><br class="calibre7"/><strong class="calibre4">State: running</strong><br class="calibre7"/><strong class="calibre4">CPU time: 118.8s</strong><br class="calibre7"/><strong class="calibre4">CPU Affinity: yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@kvm:~#</strong>
+</pre>
+<ol start="6" class="calibre18">
+<li value="6" class="calibre17">Gather information about the vCPU timers for the guest VM:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# virsh cpu-stats --total kvm1</strong><br class="calibre7"/><strong class="calibre4">Total:</strong><br class="calibre7"/><strong class="calibre4">cpu_time 175.003045493 seconds</strong><br class="calibre7"/><strong class="calibre4">user_time 2.610000000 seconds</strong><br class="calibre7"/><strong class="calibre4">system_time 7.510000000 seconds</strong><br class="calibre7"/><strong class="calibre4"><br class="calibre7"/>root@kvm:~#</strong>
+</pre>
+<ol start="7" class="calibre18">
+<li value="7" class="calibre17">Collect general information about the VM:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# virsh dominfo kvm1</strong><br class="calibre7"/><strong class="calibre4">Id: 30</strong><br class="calibre7"/><strong class="calibre4">Name: kvm1</strong><br class="calibre7"/><strong class="calibre4">UUID: bd167199-c1c4-de7e-4996-43a7f197e565<br class="calibre7"/></strong><strong class="calibre4">OS Type: hvm</strong><br class="calibre7"/><strong class="calibre4">State: running</strong><br class="calibre7"/><strong class="calibre4">CPU(s): 1</strong><br class="calibre7"/><strong class="calibre4">CPU time: 175.6s<br class="calibre7"/></strong><strong class="calibre4">Max memory: 1048576 KiB</strong><br class="calibre7"/><strong class="calibre4">Used memory: 1048576 KiB</strong><br class="calibre7"/><strong class="calibre4">Persistent: yes</strong><br class="calibre7"/><strong class="calibre4">Autostart: disable<br class="calibre7"/></strong><strong class="calibre4">Managed save: no</strong><br class="calibre7"/><strong class="calibre4">Security model: none</strong><br class="calibre7"/><strong class="calibre4">Security DOI: 0</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@kvm:~#</strong>
+</pre>
+<ol start="8" class="calibre18">
+<li value="8" class="calibre17">Collect the memory utilization for the VM:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# virsh dommemstat --live kvm1</strong><br class="calibre7"/><strong class="calibre4">actual 1048576</strong><br class="calibre7"/><strong class="calibre4">swap_in 0</strong><br class="calibre7"/><strong class="calibre4">rss 252684</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@kvm:~#</strong>
+</pre>
+<ol start="9" class="calibre18">
+<li value="9" class="calibre17">Get information about the block devices associated with the KVM instance:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# virsh domblklist kvm1</strong><br class="calibre7"/><strong class="calibre4">Target Source</strong><br class="calibre7"/><strong class="calibre4">------------------------------------------------</strong><br class="calibre7"/><strong class="calibre4">hda /var/lib/libvirt/images/kvm1.img</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@kvm:~#</strong>
+</pre>
+<ol start="10" class="calibre18">
+<li value="10" class="calibre17">Obtain size information on the block device for the VM:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# virsh domblkinfo --device hda kvm1</strong><br class="calibre7"/><strong class="calibre4">Capacity: 8589934592</strong><br class="calibre7"/><strong class="calibre4">Allocation: 2012381184</strong><br class="calibre7"/><strong class="calibre4">Physical: 2012381184</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@kvm:~#</strong>
+</pre>
+<ol start="11" class="calibre18">
+<li value="11" class="calibre17">Get any block device errors for the KVM instance:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# virsh domblkerror kvm1</strong><br class="calibre7"/><strong class="calibre4">No errors found</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@kvm:~#</strong>
+</pre>
+<ol start="12" class="calibre18">
+<li value="12" class="calibre17">Print block device statistic for a KVM guest:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# virsh domblkstat --device hda --human kvm1</strong><br class="calibre7"/><strong class="calibre4">Device: hda</strong><br class="calibre7"/><strong class="calibre4">number of read operations: 42053</strong><br class="calibre7"/><strong class="calibre4">number of bytes read: 106145280</strong><br class="calibre7"/><strong class="calibre4">number of write operations: 10648</strong><br class="calibre7"/><strong class="calibre4">number of bytes written: 96768000</strong><br class="calibre7"/><strong class="calibre4">number of flush operations: 4044</strong><br class="calibre7"/><strong class="calibre4">total duration of reads (ns): 833974071</strong><br class="calibre7"/><strong class="calibre4">total duration of writes (ns): 1180545967</strong><br class="calibre7"/><strong class="calibre4">total duration of flushes (ns): 3458623200</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@kvm:~#</strong>
+</pre>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">How it works...</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">In this recipe, we collect various hypervisor and guest resource utilization information from the host OS. In later recipes, we will use that information in a monitoring system to alert and trigger actions based on set criteria and thresholds. Let's go through the steps we performed earlier in more detail.</p>
+<p class="calibre3">We start by collecting information about the CPU utilization on the hypervisor/host OS in step 1. We then proceed to gather the memory utilization on the physical host in step 2. Note that we can also use other Linux commands to do this instead of <kbd class="calibre13">virsh</kbd>, but it helps demonstrate the concept.</p>
+<p class="calibre3">Monitoring the state of a KVM instance is important in case the VM terminates unexpectedly or does not start automatically after a server reboot. In step 3, we obtain the current state of the virtual machine.</p>
+<p class="calibre3">In steps 4, 5, and 6, we collect information about the virtual CPU of the guest. We can see the number of assigned CPUs along with other useful information, such as the time the CPU spends running kernel and userspace code.</p>
+<p class="calibre3">In step 7, we collect more general information about the virtual machine; of notable interest is the total and used amount of memory that we can set alerting thresholds on.</p>
+<p class="calibre3">In step 8, we get information about the memory utilization of the KVM instance. We can see the total, swap, and resident memory usage in the output.</p>
+<p class="calibre3">In step 9, we list the block devices attached to the virtual machine, and we use that in step 10 to get information about its capacity. If there are any errors associated with the block device, the output of the command in step 11 will show that, which we can use to trigger monitoring alerts.</p>
+<p class="calibre3">Monitoring the performance of a block device attached to a KVM instance can be done using the output of the command in step 12.</p>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">There's more...</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">When we create a virtual machine with libvirt, the QEMU process that is started exposes a monitoring socket that we can connect to and collect information about the guest.</p>
+<p class="calibre3">Let's see how that looks for the KVM instance we've been using:</p>
+<ol class="calibre18">
+<li value="1" class="calibre17"><span>Get the process information for the guest instance:</span></li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# pgrep -lfa kvm1</strong><br class="calibre7"/><strong class="calibre4">32332 /usr/bin/qemu-system-x86_64 -name kvm1 -S -machine pc-            i440fx-trusty,accel=kvm,usb=off -m 1024 -realtime mlock=off -smp    1,sockets=1,cores=1,threads=1 -uuid bd167199-c1c4-de7e-4996-43a7f197e565 -no-user-config -nodefaults -chardev socket,id=charmonitor,path=/var/lib/libvirt/qemu/kvm1.monitor,server,nowait -mon chardev=charmonitor,id=monitor,mode=control -rtc base=utc -no-shutdown -boot strict=on -device piix3-usb-uhci,id=usb,bus=pci.0,addr=0x1.0x2 -drive file=/var/lib/libvirt/images/kvm1.img,if=none,id=drive-ide0-0-0,format=raw -device ide-hd,bus=ide.0,unit=0,drive=drive-ide0-0-0,id=ide0-0-0,bootindex=1 -netdev tap,fd=24,id=hostnet0 -device rtl8139,netdev=hostnet0,id=net0,mac=52:54:00:55:9b:d6,bus=pci.0,addr=0x3 -chardev pty,id=charserial0 -device isa-serial,chardev=charserial0,id=serial0 -vnc 146.20.141.158:0 -device cirrus-vga,id=video0,bus=pci.0,addr=0x2 -device virtio-balloon-pci,id=balloon0,bus=pci.0,addr=0x4</strong><br class="calibre7"/><strong class="calibre4">root@kvm:~#</strong>
+</pre>
+<p class="calibre31">Notice from the preceding output the <kbd class="calibre13"><em class="calibre22">-</em>chardev socket,id=charmonitor,path=/var/lib/libvirt/qemu/kvm1.monitor</kbd> and the <kbd class="calibre13">-mon chardev=charmonitor,id=monitor,mode=control</kbd> parameters passed to the QEMU process.</p>
+<ol start="2" class="calibre18">
+<li value="2" class="calibre17">We can access this socket in two ways, either by connecting to it using tools such as <kbd class="calibre13">nc</kbd> and <kbd class="calibre13">socat</kbd> or with the <kbd class="calibre13">virsh</kbd> command, as follows:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# virsh qemu-monitor-command kvm1 --hmp "info"</strong><br class="calibre7"/><strong class="calibre4">info balloon -- show balloon information</strong><br class="calibre7"/><strong class="calibre4">info block [-v] [device] -- show info of one block device or all block devices (and details of images with -v option)</strong><br class="calibre7"/><strong class="calibre4">info block-jobs -- show progress of ongoing block device operations</strong><br class="calibre7"/><strong class="calibre4">info blockstats -- show block device statistics</strong><br class="calibre7"/><strong class="calibre4">info capture -- show capture information</strong><br class="calibre7"/><strong class="calibre4">info chardev -- show the character devices</strong><br class="calibre7"/><strong class="calibre4">info cpus -- show infos for each CPU</strong><br class="calibre7"/><strong class="calibre4">info cpustats -- show CPU statistics</strong><br class="calibre7"/><strong class="calibre4">info history -- show the command line history</strong><br class="calibre7"/><strong class="calibre4">info irq -- show the interrupts statistics (if available)</strong><br class="calibre7"/><strong class="calibre4">info jit -- show dynamic compiler info</strong><br class="calibre7"/><strong class="calibre4">info kvm -- show KVM information</strong><br class="calibre7"/><strong class="calibre4">info mem -- show the active virtual memory mappings</strong><br class="calibre7"/><strong class="calibre4">info mice -- show which guest mouse is receiving events</strong><br class="calibre7"/><strong class="calibre4">info migrate -- show migration status</strong><br class="calibre7"/><strong class="calibre4">info migrate_cache_size -- show current migration xbzrle cache size</strong><br class="calibre7"/><strong class="calibre4">info migrate_capabilities -- show current migration capabilities</strong><br class="calibre7"/><strong class="calibre4">info mtree -- show memory tree</strong><br class="calibre7"/><strong class="calibre4">info name -- show the current VM name</strong><br class="calibre7"/><strong class="calibre4">info network -- show the network state</strong><br class="calibre7"/><strong class="calibre4">info numa -- show NUMA information</strong><br class="calibre7"/><strong class="calibre4">info pci -- show PCI info</strong><br class="calibre7"/><strong class="calibre4">info pcmcia -- show guest PCMCIA status</strong><br class="calibre7"/><strong class="calibre4">info pic -- show i8259 (PIC) state</strong><br class="calibre7"/><strong class="calibre4">info profile -- show profiling information</strong><br class="calibre7"/><strong class="calibre4">info qdm -- show qdev device model list</strong><br class="calibre7"/><strong class="calibre4">info qtree -- show device tree</strong><br class="calibre7"/><strong class="calibre4">info registers -- show the cpu registers</strong><br class="calibre7"/><strong class="calibre4">info roms -- show roms</strong><br class="calibre7"/><strong class="calibre4">info snapshots -- show the currently saved VM snapshots</strong><br class="calibre7"/><strong class="calibre4">info spice -- show the spice server status</strong><br class="calibre7"/><strong class="calibre4">info status -- show the current VM status (running|paused)</strong><br class="calibre7"/><strong class="calibre4">info tlb -- show virtual to physical memory mappings</strong><br class="calibre7"/><strong class="calibre4">info tpm -- show the TPM device</strong><br class="calibre7"/><strong class="calibre4">info trace-events -- show available trace-events &amp; their state</strong><br class="calibre7"/><strong class="calibre4">info usb -- show guest USB devices</strong><br class="calibre7"/><strong class="calibre4">info usbhost -- show host USB devices</strong><br class="calibre7"/><strong class="calibre4">info usernet -- show user network stack connection states</strong><br class="calibre7"/><strong class="calibre4">info uuid -- show the current VM UUID</strong><br class="calibre7"/><strong class="calibre4">info version -- show the version of QEMU</strong><br class="calibre7"/><strong class="calibre4">info vnc -- show the vnc server status</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@kvm:~#</strong>
+</pre>
+<ol start="3" class="calibre18">
+<li value="3" class="calibre17">To obtain information about the network interface of the KVM instance, we can run the following code:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# virsh qemu-monitor-command kvm1 --hmp "info network"</strong><br class="calibre7"/><strong class="calibre4">net0: index=0,type=nic,model=rtl8139,macaddr=52:54:00:55:9b:d6</strong><br class="calibre7"/><strong class="calibre4"> \ hostnet0: index=0,type=tap,fd=24</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@kvm:~#</strong>
+</pre>
+<p class="calibre32">QEMU provides a guest agent daemon that can be started inside the KVM instance and then can be connected to from the host OS. We can collect additional data or update certain settings for the virtual machine directly from the host.</p>
+<p class="calibre32">Let's see an example of installing and using the QEMU guest agent:</p>
+<div class="calibre35">
+<ol class="calibre18">
+<li value="1" class="calibre17"><span>Create the required directory that will contain the communication socket between libvirt on the host and the guest agent running inside the KVM guest:</span></li>
+</ol>
+</div>
+<pre class="calibre28">
+<strong class="calibre4">            root@kvm:~# mkdir -p /var/lib/libvirt/qemu/channel/target</strong><br class="calibre7"/><strong class="calibre4">            root@kvm:~# chown libvirt-qemu:kvm   <br class="calibre7"/>            /var/lib/libvirt/qemu/channel/ -R</strong><br class="calibre7"/><strong class="calibre4">            root@kvm:~#</strong>
+</pre>
+<div class="calibre35">
+<ol start="2" class="calibre18">
+<li value="2" class="calibre17">Edit the configuration for the running VM and add the following definition under the <kbd class="calibre13">&lt;devices&gt;</kbd> section:</li>
+</ol>
+</div>
+<pre class="calibre36">
+<strong class="calibre4">root@kvm:~# virsh edit kvm1</strong><br class="calibre7"/><strong class="calibre4">...</strong><br class="calibre7"/><strong class="calibre4"> &lt;devices&gt;</strong><br class="calibre7"/><strong class="calibre4">   ...</strong><br class="calibre7"/><strong class="calibre4">   &lt;channel type='unix'&gt;</strong><br class="calibre7"/><strong class="calibre4">     &lt;source mode='bind' path='/var/lib/libvirt/qemu/channel/target/kvm1.org.qemu.guest_agent.0'/&gt;</strong><br class="calibre7"/><strong class="calibre4">     &lt;target type='virtio' name='org.qemu.guest_agent.0'/&gt;</strong><br class="calibre7"/><strong class="calibre4">     &lt;alias name='channel0'/&gt;</strong><br class="calibre7"/><strong class="calibre4">     &lt;address type='virtio-serial' controller='0' bus='0' port='1'/&gt;</strong><br class="calibre7"/><strong class="calibre4">   &lt;/channel&gt;</strong><br class="calibre7"/><strong class="calibre4">   ...</strong><br class="calibre7"/><strong class="calibre4"> &lt;/devices&gt;</strong><br class="calibre7"/><strong class="calibre4">...</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">Domain kvm1 XML configuration edited.</strong><br class="calibre7"/><strong class="calibre4">root@kvm:~#</strong>
+</pre>
+<div class="calibre35">
+<ol start="3" class="calibre18">
+<li value="3" class="calibre17">Restart the KVM instance:</li>
+</ol>
+</div>
+<pre class="calibre25">
+<strong class="calibre4">        root@kvm:~# virsh destroy kvm1</strong><br class="calibre7"/><strong class="calibre4">        Domain kvm1 destroyed</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">        root@kvm:~# virsh start kvm1</strong><br class="calibre7"/><strong class="calibre4">        Domain kvm1 started</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">        root@kvm:~#</strong>
+</pre>
+<div class="calibre35">
+<ol start="4" class="calibre18">
+<li value="4" class="calibre17">Connect to the VM and install and start the QEMU guest agent, as follows:</li>
+</ol>
+</div>
+<pre class="calibre36">
+<strong class="calibre4">root@kvm:~# virsh console kvm1</strong><br class="calibre7"/><strong class="calibre4">Connected to domain kvm1</strong><br class="calibre7"/><strong class="calibre4">Escape character is ^]</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@debian:~# apt update &amp;&amp; apt install qemu-guest-agent</strong><br class="calibre7"/><strong class="calibre4">...</strong><br class="calibre7"/><strong class="calibre4">root@debian:~# service qemu-guest-agent start</strong><br class="calibre7"/><strong class="calibre4">root@debian:~# service qemu-guest-agent status</strong><br class="calibre7"/><strong class="calibre4">● qemu-guest-agent.service - LSB: QEMU Guest Agent startup script</strong><br class="calibre7"/><strong class="calibre4"> Loaded: loaded (/etc/init.d/qemu-guest-agent)</strong><br class="calibre7"/><strong class="calibre4"> Active: active (running) since Wed 2017-04-19 14:44:08 CDT; 33min ago</strong><br class="calibre7"/><strong class="calibre4"> Process: 397 ExecStart=/etc/init.d/qemu-guest-agent start (code=exited, status=0/SUCCESS)</strong><br class="calibre7"/><strong class="calibre4"> CGroup: /system.slice/qemu-guest-agent.service</strong><br class="calibre7"/><strong class="calibre4"> └─425 /usr/sbin/qemu-ga --daemonize -m virtio-serial -p /dev/virti...</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">Apr 19 14:44:08 debian systemd[1]: Starting LSB: QEMU Guest Agent startup s.....</strong><br class="calibre7"/><strong class="calibre4">Apr 19 14:44:08 debian systemd[1]: Started LSB: QEMU Guest Agent startup script.</strong><br class="calibre7"/><strong class="calibre4">Hint: Some lines were ellipsized, use -l to show in full.</strong><br class="calibre7"/><strong class="calibre4">root@debian:~#</strong>
+</pre>
+<div class="calibre35">
+<ol start="5" class="calibre18">
+<li value="5" class="calibre17">Back on the host, we can see the new socket file:</li>
+</ol>
+</div>
+<pre class="calibre36">
+<strong class="calibre4">root@kvm:~# ls -la /var/lib/libvirt/qemu/channel/target/</strong><br class="calibre7"/><strong class="calibre4">total 8</strong><br class="calibre7"/><strong class="calibre4">drwxr-xr-x 2 libvirt-qemu kvm 4096 Apr 19 19:43 .</strong><br class="calibre7"/><strong class="calibre4">drwxr-xr-x 3 libvirt-qemu kvm 4096 Apr 19 19:43 ..</strong><br class="calibre7"/><strong class="calibre4">srwxr-xr-x 1 libvirt-qemu kvm 0 Apr 19 19:43 kvm1.org.qemu.guest_agent.0</strong><br class="calibre7"/><strong class="calibre4">root@kvm:~#</strong>
+</pre>
+<div class="calibre35">
+<ol start="6" class="calibre18">
+<li value="6" class="calibre17">Let's connect to the guest agent from the host and list the available commands that the guest agent accepts:</li>
+</ol>
+</div>
+<pre class="calibre36">
+<strong class="calibre4">root@kvm:~# virsh qemu-agent-command kvm1 --pretty --cmd '{"execute": "guest-info"}'</strong><br class="calibre7"/><strong class="calibre4">{</strong><br class="calibre7"/><strong class="calibre4"> "return": {</strong><br class="calibre7"/><strong class="calibre4">   "version": "2.1.2",</strong><br class="calibre7"/><strong class="calibre4">   "supported_commands": [</strong><br class="calibre7"/><strong class="calibre4">     {</strong><br class="calibre7"/><strong class="calibre4">       "enabled": true,</strong><br class="calibre7"/><strong class="calibre4">       "name": "guest-set-vcpus",</strong><br class="calibre7"/><strong class="calibre4">       "success-response": true</strong><br class="calibre7"/><strong class="calibre4">     },</strong><br class="calibre7"/><strong class="calibre4">     {</strong><br class="calibre7"/><strong class="calibre4">       "enabled": true,</strong><br class="calibre7"/><strong class="calibre4">       "name": "guest-get-vcpus",</strong><br class="calibre7"/><strong class="calibre4">       "success-response": true</strong><br class="calibre7"/><strong class="calibre4">     },</strong><br class="calibre7"/><strong class="calibre4">     {</strong><br class="calibre7"/><strong class="calibre4">       "enabled": true,</strong><br class="calibre7"/><strong class="calibre4">       "name": "guest-network-get-interfaces",</strong><br class="calibre7"/><strong class="calibre4">       "success-response": true</strong><br class="calibre7"/><strong class="calibre4">     },</strong><br class="calibre7"/><strong class="calibre4">     ...</strong><br class="calibre7"/><strong class="calibre4">   ]</strong><br class="calibre7"/><strong class="calibre4"> }</strong><br class="calibre7"/><strong class="calibre4">}</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@kvm:~#</strong>
+</pre>
+<div class="calibre35">
+<ol start="7" class="calibre18">
+<li value="7" class="calibre17">Get information about the guest vCPU by running the following code:</li>
+</ol>
+</div>
+<pre class="calibre36">
+<strong class="calibre4">root@kvm:~# virsh qemu-agent-command kvm1 --pretty --cmd '{"execute": "guest-get-vcpus"}'</strong><br class="calibre7"/><strong class="calibre4">{</strong><br class="calibre7"/><strong class="calibre4"> "return": [</strong><br class="calibre7"/><strong class="calibre4">   {</strong><br class="calibre7"/><strong class="calibre4">     "online": true,</strong><br class="calibre7"/><strong class="calibre4">     "can-offline": false,</strong><br class="calibre7"/><strong class="calibre4">     "logical-id": 0</strong><br class="calibre7"/><strong class="calibre4">   }</strong><br class="calibre7"/><strong class="calibre4"> ]</strong><br class="calibre7"/><strong class="calibre4">}</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@kvm:~#</strong>
+</pre>
+<p class="calibre37">Using the monitoring and guest agent sockets provides an additional way of collecting more information about the running virtual machines on the libvirt host that we can later add as monitoring checks.</p>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">Monitoring KVM instances with Sensu</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">Sensu is a complete monitoring solution that uses the client-server model; the server publishes checks in a message queue provided by the Rabbitmq service. The clients/agents subscribe to topics in the queue and execute the specified checks on the host they run on. State and historical data is stored in a Redis server.</p>
+<p class="calibre3">In this recipe, we are going to install the Sensu server, Rabbitmq message queue, and the Redis server on one host, write a simple monitoring check using the information we obtained from the <em class="calibre22">Resource usage collection with libvirt</em> recipe earlier, and install the Sensu agent inside the KVM guest.</p>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">Getting ready</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">For this recipe, we are going to need the following:</p>
+<ul class="calibre16">
+<li class="calibre17">A Linux host with libvirt installed and running</li>
+<li class="calibre17">A KVM instance running on the libvirt host</li>
+<li class="calibre17">Network connectivity between the KVM instance and the libvirt host</li>
+</ul>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">How to do it...</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">To set up a new Sensu deployment and define various monitoring checks, perform the following steps:</p>
+<ol class="calibre18">
+<li value="1" class="calibre17"><span>Install the Redis server and ensure that it is responding to requests:</span></li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# apt-get install -y redis-server</strong><br class="calibre7"/><strong class="calibre4">...</strong><br class="calibre7"/><strong class="calibre4">root@kvm:~# redis-cli ping</strong><br class="calibre7"/><strong class="calibre4">PONG</strong><br class="calibre7"/><strong class="calibre4">root@kvm:~#</strong>
+</pre>
+<ol start="2" class="calibre18">
+<li value="2" class="calibre17">Install the Rabbitmq server:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# apt-get install -y rabbitmq-server</strong><br class="calibre7"/><strong class="calibre4">...</strong><br class="calibre7"/><strong class="calibre4">root@kvm:~#</strong>
+</pre>
+<ol start="3" class="calibre18">
+<li value="3" class="calibre17">Create the virtual host the Sensu agents will subscribe to and the credentials and permissions for the Rabbitmq clients:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# rabbitmqctl add_vhost /sensu</strong><br class="calibre7"/><strong class="calibre4">Creating vhost "/sensu" ...</strong><br class="calibre7"/><strong class="calibre4">...done.</strong><br class="calibre7"/><strong class="calibre4">root@kvm:~# rabbitmqctl add_user sensu secret</strong><br class="calibre7"/><strong class="calibre4">Creating user "sensu" ...</strong><br class="calibre7"/><strong class="calibre4">...done.</strong><br class="calibre7"/><strong class="calibre4">root@kvm:~# rabbitmqctl set_permissions -p /sensu sensu ".*" ".*" ".*"</strong><br class="calibre7"/><strong class="calibre4">Setting permissions for user "sensu" in vhost "/sensu" ...</strong><br class="calibre7"/><strong class="calibre4">...done.</strong><br class="calibre7"/><strong class="calibre4">root@kvm:~#</strong>
+</pre>
+<ol start="4" class="calibre18">
+<li value="4" class="calibre17"><span>A</span>dd the Sensu upstream repository and its key and then install the Sensu package:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# wget -q https://sensu.global.ssl.fastly.net/apt/pubkey.gpg -O- | apt-key add -</strong><br class="calibre7"/><strong class="calibre4">OK</strong><br class="calibre7"/><strong class="calibre4">root@kvm:~# echo "deb https://sensu.global.ssl.fastly.net/apt sensu main" | tee /etc/apt/sources.list.d/sensu.list</strong><br class="calibre7"/><strong class="calibre4">deb https://sensu.global.ssl.fastly.net/apt sensu main</strong><br class="calibre7"/><strong class="calibre4">root@kvm:~# apt-get update</strong><br class="calibre7"/><strong class="calibre4">...</strong><br class="calibre7"/><strong class="calibre4">root@kvm:~# apt-get install -y sensu</strong><br class="calibre7"/><strong class="calibre4">...</strong><br class="calibre7"/><strong class="calibre4">root@kvm:~#</strong> 
+</pre>
+<ol start="5" class="calibre18">
+<li value="5" class="calibre17">Sensu uses JSON-based configuration files for its configuration. Create the Sensu API configuration file:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:/etc/sensu/conf.d# cat api.json</strong><br class="calibre7"/><strong class="calibre4">{</strong><br class="calibre7"/><strong class="calibre4"> "api": {</strong><br class="calibre7"/><strong class="calibre4">   "host": "localhost",</strong><br class="calibre7"/><strong class="calibre4">   "bind": "0.0.0.0",</strong><br class="calibre7"/><strong class="calibre4">   "port": 4567</strong><br class="calibre7"/><strong class="calibre4"> }</strong><br class="calibre7"/><strong class="calibre4">}</strong><br class="calibre7"/><strong class="calibre4">root@kvm:/etc/sensu/conf.d#</strong>
+</pre>
+<ol start="6" class="calibre18">
+<li value="6" class="calibre17">Configure the transport type for Sensu; we are using Rabbitmq for this deployment:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:/etc/sensu/conf.d# cat transport.json</strong><br class="calibre7"/><strong class="calibre4">{</strong><br class="calibre7"/><strong class="calibre4"> "transport": {</strong><br class="calibre7"/><strong class="calibre4">   "name": "rabbitmq",</strong><br class="calibre7"/><strong class="calibre4">   "reconnect_on_error": true</strong><br class="calibre7"/><strong class="calibre4"> }</strong><br class="calibre7"/><strong class="calibre4">}</strong><br class="calibre7"/><strong class="calibre4">root@kvm:/etc/sensu/conf.d#</strong>
+</pre>
+<ol start="7" class="calibre18">
+<li value="7" class="calibre17">Configure where the Rabbitmq service is accepting connections, the virtual host, and credentials:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:/etc/sensu/conf.d# cat rabbitmq.json</strong><br class="calibre7"/><strong class="calibre4">{</strong><br class="calibre7"/><strong class="calibre4"> "rabbitmq": {</strong><br class="calibre7"/><strong class="calibre4">   "host": "0.0.0.0",</strong><br class="calibre7"/><strong class="calibre4">   "port": 5672,</strong><br class="calibre7"/><strong class="calibre4">   "vhost": "/sensu",</strong><br class="calibre7"/><strong class="calibre4">   "user": "sensu",</strong><br class="calibre7"/><strong class="calibre4">   "password": "secret"</strong><br class="calibre7"/><strong class="calibre4"> }</strong><br class="calibre7"/><strong class="calibre4">}</strong><br class="calibre7"/><strong class="calibre4">root@kvm:/etc/sensu/conf.d#</strong>
+</pre>
+<ol start="8" class="calibre18">
+<li value="8" class="calibre17">Specify the host and port the Redis service is listening on:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:/etc/sensu/conf.d# cat redis.json</strong><br class="calibre7"/><strong class="calibre4">{</strong><br class="calibre7"/><strong class="calibre4"> "redis": {</strong><br class="calibre7"/><strong class="calibre4">   "host": "localhost",</strong><br class="calibre7"/><strong class="calibre4">   "port": 6379</strong><br class="calibre7"/><strong class="calibre4"> }</strong><br class="calibre7"/><strong class="calibre4">}</strong><br class="calibre7"/><strong class="calibre4">root@kvm:/etc/sensu/conf.d#</strong>
+</pre>
+<ol start="9" class="calibre18">
+<li value="9" class="calibre17">Configure the Sensu client:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:/etc/sensu/conf.d# cat client.json</strong><br class="calibre7"/><strong class="calibre4">{</strong><br class="calibre7"/><strong class="calibre4"> "client": {</strong><br class="calibre7"/><strong class="calibre4">   "name": "ubuntu",</strong><br class="calibre7"/><strong class="calibre4">   "address": "127.0.0.1",</strong><br class="calibre7"/><strong class="calibre4">   "subscriptions": [</strong><br class="calibre7"/><strong class="calibre4">     "base"</strong><br class="calibre7"/><strong class="calibre4">   ],</strong><br class="calibre7"/><strong class="calibre4">   "socket": {</strong><br class="calibre7"/><strong class="calibre4">     "bind": "127.0.0.1",</strong><br class="calibre7"/><strong class="calibre4">     "port": 3030</strong><br class="calibre7"/><strong class="calibre4">   }</strong><br class="calibre7"/><strong class="calibre4"> }</strong><br class="calibre7"/><strong class="calibre4">}</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@kvm:/etc/sensu/conf.d#</strong>
+</pre>
+<div class="packt_infobox">For more information on Sensu, please refer to <a href="https://sensuapp.org/docs/" class="calibre30">https://sensuapp.org/docs/</a>.</div>
+<ol start="10" class="calibre18">
+<li value="10" class="calibre17">Install the web frontend for Sensu, named <strong class="calibre4">Uchiwa</strong>:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:/etc/sensu/conf.d# apt-get install -y uchiwa</strong><br class="calibre7"/><strong class="calibre4">...</strong><br class="calibre7"/><strong class="calibre4">root@kvm:/etc/sensu/conf.d</strong>
+</pre>
+<ol start="11" class="calibre18">
+<li value="11" class="calibre17">Configure the Uchiwa frontend:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:/etc/sensu/conf.d# cat /etc/sensu/uchiwa.json</strong><br class="calibre7"/><strong class="calibre4">{</strong><br class="calibre7"/><strong class="calibre4">  "sensu": [</strong><br class="calibre7"/><strong class="calibre4">    {</strong><br class="calibre7"/><strong class="calibre4">      "name": "KVM guests",</strong><br class="calibre7"/><strong class="calibre4">      "host": "localhost",</strong><br class="calibre7"/><strong class="calibre4">      "ssl": false,</strong><br class="calibre7"/><strong class="calibre4">      "port": 4567,</strong><br class="calibre7"/><strong class="calibre4">      "path": "",</strong><br class="calibre7"/><strong class="calibre4">      "timeout": 5000</strong><br class="calibre7"/><strong class="calibre4">    }</strong><br class="calibre7"/><strong class="calibre4">  ],</strong><br class="calibre7"/><strong class="calibre4"> "uchiwa": {</strong><br class="calibre7"/><strong class="calibre4">   "port": 3000,</strong><br class="calibre7"/><strong class="calibre4">   "stats": 10,</strong><br class="calibre7"/><strong class="calibre4">   "refresh": 10000</strong><br class="calibre7"/><strong class="calibre4"> }</strong><br class="calibre7"/><strong class="calibre4">}</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@kvm:/etc/sensu/conf.d#</strong>
+</pre>
+<ol start="12" class="calibre18">
+<li value="12" class="calibre17">Start the Sensu server, API, client, and frontend components:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:/etc/sensu/conf.d# /etc/init.d/sensu-server start</strong><br class="calibre7"/><strong class="calibre4"> * Starting sensu-server [ OK ]</strong><br class="calibre7"/><strong class="calibre4">root@kvm:/etc/sensu/conf.d# /etc/init.d/sensu-api start</strong><br class="calibre7"/><strong class="calibre4"> * Starting sensu-api [ OK ]</strong><br class="calibre7"/><strong class="calibre4">root@kvm:/etc/sensu/conf.d# /etc/init.d/sensu-client start</strong><br class="calibre7"/><strong class="calibre4"> * Starting sensu-client [ OK ]</strong><br class="calibre7"/><strong class="calibre4">root@kvm:/etc/sensu/conf.d# /etc/init.d/uchiwa restart</strong><br class="calibre7"/><strong class="calibre4">uchiwa started.</strong><br class="calibre7"/><strong class="calibre4">root@kvm:/etc/sensu/conf.d#</strong>
+</pre>
+<ol start="13" class="calibre18">
+<li value="13" class="calibre17">Connect to the KVM instance console; install and configure the Sensu client:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:/etc/sensu/conf.d# virsh console kvm1</strong><br class="calibre7"/><strong class="calibre4">Connected to domain kvm1</strong><br class="calibre7"/><strong class="calibre4">Escape character is ^]</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@debian:~# wget -q https://sensu.global.ssl.fastly.net/apt/pubkey.gpg -O- | apt-key add -</strong><br class="calibre7"/><strong class="calibre4">OK</strong><br class="calibre7"/><strong class="calibre4">root@debian:~# echo "deb https://sensu.global.ssl.fastly.net/apt sensu main" | tee /etc/apt/sources.list.d/sensu.list</strong><br class="calibre7"/><strong class="calibre4">deb https://sensu.global.ssl.fastly.net/apt sensu main</strong><br class="calibre7"/><strong class="calibre4">root@debian:~# apt install apt-transport-https</strong><br class="calibre7"/><strong class="calibre4">root@debian:~# apt update &amp;&amp; apt install sensu</strong><br class="calibre7"/><strong class="calibre4">...</strong><br class="calibre7"/><strong class="calibre4">root@debian:~# cd /etc/sensu/conf.d/</strong><br class="calibre7"/><strong class="calibre4">root@debian:/etc/sensu/conf.d# cat client.json</strong><br class="calibre7"/><strong class="calibre4">{</strong><br class="calibre7"/><strong class="calibre4"> "client": {</strong><br class="calibre7"/><strong class="calibre4">   "name": "monitor_kvm",</strong><br class="calibre7"/><strong class="calibre4">   "address": "10.10.10.92",</strong><br class="calibre7"/><strong class="calibre4">   "subscriptions": ["base"]</strong><br class="calibre7"/><strong class="calibre4"> }</strong><br class="calibre7"/><strong class="calibre4">}</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@debian:/etc/sensu/conf.d# cat rabbitmq.json</strong><br class="calibre7"/><strong class="calibre4">{</strong><br class="calibre7"/><strong class="calibre4"> "rabbitmq": {</strong><br class="calibre7"/><strong class="calibre4">   "host": "10.10.10.1",</strong><br class="calibre7"/><strong class="calibre4">   "port": 5672,</strong><br class="calibre7"/><strong class="calibre4">   "vhost": "/sensu",</strong><br class="calibre7"/><strong class="calibre4">   "user": "sensu",</strong><br class="calibre7"/><strong class="calibre4">   "password": "secret"</strong><br class="calibre7"/><strong class="calibre4"> }</strong><br class="calibre7"/><strong class="calibre4">}</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@debian:/etc/sensu/conf.d# cat transport.json</strong><br class="calibre7"/><strong class="calibre4">{</strong><br class="calibre7"/><strong class="calibre4"> "transport": {</strong><br class="calibre7"/><strong class="calibre4">   "name": "rabbitmq",</strong><br class="calibre7"/><strong class="calibre4">   "reconnect_on_error": true</strong><br class="calibre7"/><strong class="calibre4"> }</strong><br class="calibre7"/><strong class="calibre4">}</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@debian:/etc/sensu/conf.d#</strong>
+</pre>
+<div class="packt_infobox">Replace the IP address of the client with the IP address configured inside the KVM instance. Update the IP address of the Rabbitmq server with the IP address configured on the host bridge. Ensure that the KVM guest can ping the bridge IP on the host OS.</div>
+<ol start="14" class="calibre18">
+<li value="14" class="calibre17">Start the Sensu client:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@debian:/etc/sensu/conf.d# /etc/init.d/sensu-client start</strong><br class="calibre7"/><strong class="calibre4">Starting sensu-client:.</strong><br class="calibre7"/><strong class="calibre4">root@debian:/etc/sensu/conf.d#</strong>
+</pre>
+<ol start="15" class="calibre18">
+<li value="15" class="calibre17">Connect to the Uchiwa interface and ensure that the host Sensu client and the KVM guest Sensu client are listed in the <span>CLIENTS</span> section:</li>
+</ol>
+<div class="cdpaligncenter"><img class="image-border3" src="../images/00008.jpeg"/></div>
+<div class="cdpaligncenter1">The Uchiwa frontend showing the connected clients</div>
+<ol start="16" class="calibre18">
+<li value="16" class="calibre17">While still connected to the KVM guest, install a memory check from the gem repository and test it:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@debian:/etc/sensu/conf.d# apt install rubygems</strong><br class="calibre7"/><strong class="calibre4">...</strong><br class="calibre7"/><strong class="calibre4">root@debian:/etc/sensu/conf.d# gem search sensu | grep plugins | grep memory</strong><br class="calibre7"/><strong class="calibre4">sensu-plugins-memory (0.0.2)</strong><br class="calibre7"/><strong class="calibre4">sensu-plugins-memory-checks (2.1.0)</strong><br class="calibre7"/><strong class="calibre4">root@debian:/etc/sensu/conf.d#</strong><br class="calibre7"/><strong class="calibre4">root@debian:/etc/sensu/conf.d# gem install sensu-plugins-memory-checks</strong><br class="calibre7"/><strong class="calibre4">...</strong><br class="calibre7"/><strong class="calibre4">root@debian:/etc/sensu/conf.d# /etc/init.d/sensu-client restart</strong><br class="calibre7"/><strong class="calibre4">configuration is valid</strong><br class="calibre7"/><strong class="calibre4">Stopping sensu-client:.</strong><br class="calibre7"/><strong class="calibre4">Starting sensu-client:.</strong><br class="calibre7"/><strong class="calibre4">oot@debian:/etc/sensu/conf.d# /usr/local/bin/check-memory-percent.rb -w 80 -c 9</strong><br class="calibre7"/><strong class="calibre4">MEM OK - system memory usage: 11%</strong><br class="calibre7"/><strong class="calibre4">root@debian:/etc/sensu/conf.d#</strong>
+</pre>
+<ol start="17" class="calibre18">
+<li value="17" class="calibre17">Back on the host OS, define the new memory check for the KVM guest:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:/etc/sensu/conf.d# cat check_memory.json</strong><br class="calibre7"/><strong class="calibre4">{</strong><br class="calibre7"/><strong class="calibre4">  "checks": {</strong><br class="calibre7"/><strong class="calibre4">    "memory_check": {</strong><br class="calibre7"/><strong class="calibre4">      "command": "/usr/local/bin/check-memory-percent.rb -w 80 -c 90",</strong><br class="calibre7"/><strong class="calibre4">      "subscribers": ["base"],</strong><br class="calibre7"/><strong class="calibre4">      "handlers": ["default"],</strong><br class="calibre7"/><strong class="calibre4">      "interval": 300</strong><br class="calibre7"/><strong class="calibre4">    }</strong><br class="calibre7"/><strong class="calibre4">  }</strong><br class="calibre7"/><strong class="calibre4">}</strong><br class="calibre7"/><strong class="calibre4">root@kvm:/etc/sensu/conf.d#</strong>
+</pre>
+<ol start="18" class="calibre18">
+<li value="18" class="calibre17">Restart the Sensu components:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:/etc/sensu/conf.d# /etc/init.d/uchiwa restart<br class="calibre7"/></strong><strong class="calibre4">Killing uchiwa (pid 15350) with SIGTERM</strong><br class="calibre7"/><strong class="calibre4">Waiting uchiwa (pid 15350) to die...</strong><br class="calibre7"/><strong class="calibre4">Waiting uchiwa (pid 15350) to die...</strong><br class="calibre7"/><strong class="calibre4">uchiwa stopped.</strong><br class="calibre7"/><strong class="calibre4">uchiwa started.</strong><br class="calibre7"/><strong class="calibre4">root@kvm:/etc/sensu/conf.d# /etc/init.d/sensu-server restart</strong><br class="calibre7"/><strong class="calibre4">configuration is valid</strong><br class="calibre7"/><strong class="calibre4"> * Stopping sensu-server [ OK ]</strong><br class="calibre7"/><strong class="calibre4"> * Starting sensu-server [ OK ]</strong><br class="calibre7"/><strong class="calibre4">root@kvm:/etc/sensu/conf.d# /etc/init.d/sensu-api restart</strong><br class="calibre7"/><strong class="calibre4">configuration is valid</strong><br class="calibre7"/><strong class="calibre4"> * Stopping sensu-api [ OK ]</strong><br class="calibre7"/><strong class="calibre4"> * Starting sensu-api [ OK ]</strong><br class="calibre7"/><strong class="calibre4">root@kvm:/etc/sensu/conf.d#</strong>
+</pre>
+<ol start="19" class="calibre18">
+<li value="19" class="calibre17">The <span>memory_check</span> for the KVM instance is now showing in the Uchiwa dashboard:</li>
+</ol>
+<div class="cdpaligncenter"><img class="image-border4" src="../images/00009.jpeg"/></div>
+<div class="cdpaligncenter1"> The Uchiwa frontend showing the memory check for the KVM guest</div>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">How it works...</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">In the previous section, we installed a Sensu server and all the required infrastructure components for it to run on the hypervisor host. Then we installed the client inside a KVM instance, installed the memory ruby check, and defined it on the host. Let's examine all the steps in more detail.</p>
+<p class="calibre3">In step 1, we install the Redis server and ensure that it is accepting connections. Redis is a key-value store service that Sensu uses to store the historical information about the checks, current state, and connected clients.</p>
+<p class="calibre3">With the Redis server in place, we proceed to install and configure Rabbitmq in steps 2 through 9. Rabbitmq is a message bus conforming to the <strong class="calibre4">Advanced Message Queuing Protocol</strong> (<strong class="calibre4">AMQP</strong>) standard. The Sensu server and clients produce and consume messages from the queue to trigger monitoring actions.</p>
+<p class="calibre3">Although not required, in steps 10 and 11, we install and configure a web frontend for the Sensu server named Uchiwa. We can use the web interface to check on the status of different checks for the KVM guests we monitor.</p>
+<p class="calibre3">In step 13, we install the Sensu client inside the KVM guest instance and proceed to install a memory monitoring script from a gem in step 16. A monitoring script can be written in any language (RUBY in this case) as long as it returns the expected error codes that Sensu expects. In the next section, we are going to write a new check from scratch using Bash.</p>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">There's more...</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">In the previous section, we saw an example of how to use a ruby check inside the KVM instance and monitor the memory utilization. Sensu provides standalone checks that can be triggered from the Sensu client, independently from the Sensu server scheduling mechanism. Let's use that feature and write a simple check in Bash that will run from the host OS, instead of the KVM guest, and use the <kbd class="calibre13">virsh</kbd> command to check the status of a KVM instance:</p>
+<ol class="calibre18">
+<li value="1" class="calibre17"><span>Write a standalone check definition with the custom script that <kbd class="calibre13">sensu-client</kbd> will execute to perform the check:</span></li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:/etc/sensu/conf.d# cat check_kvm_instance_status.json</strong><br class="calibre7"/><strong class="calibre4">{</strong><br class="calibre7"/><strong class="calibre4"> "checks": {</strong><br class="calibre7"/><strong class="calibre4">   "check_kvm_instance_status": {</strong><br class="calibre7"/><strong class="calibre4">     "command": "check_kvm_instance_status.sh -n kvm1",</strong><br class="calibre7"/><strong class="calibre4">     "standalone": true,</strong><br class="calibre7"/><strong class="calibre4">     "subscribers": [</strong><strong class="calibre4">"base"</strong><strong class="calibre4">],</strong><br class="calibre7"/><strong class="calibre4">     "interval": 60</strong><br class="calibre7"/><strong class="calibre4">   }</strong><br class="calibre7"/><strong class="calibre4"> }</strong><br class="calibre7"/><strong class="calibre4">}</strong><br class="calibre7"/><strong class="calibre4">root@kvm:/etc/sensu/conf.d#</strong>
+</pre>
+<ol start="2" class="calibre18">
+<li value="2" class="calibre17">In the Sensu <kbd class="calibre13">plugins</kbd> directory, write this simple Bash script:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:/etc/sensu/conf.d# cd ../plugins/</strong><br class="calibre7"/><strong class="calibre4">root@kvm:/etc/sensu/plugins# cat check_kvm_instance_status.sh</strong><br class="calibre7"/><strong class="calibre4">#!/bin/bash</strong><br class="calibre7"/><strong class="calibre4"># Checks if a KVM instance is running</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">usage()</strong><br class="calibre7"/><strong class="calibre4">{</strong><br class="calibre7"/><strong class="calibre4"> echo "Usage: `basename $0` -n|--name kvm1"</strong><br class="calibre7"/><strong class="calibre4"> exit 2</strong><br class="calibre7"/><strong class="calibre4">}</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">sanity_check()</strong><br class="calibre7"/><strong class="calibre4">{</strong><br class="calibre7"/><strong class="calibre4"> if [ "$INSTANCE_NAME" == "" ]</strong><br class="calibre7"/><strong class="calibre4"> then</strong><br class="calibre7"/><strong class="calibre4">   usage</strong><br class="calibre7"/><strong class="calibre4"> fi</strong><br class="calibre7"/><strong class="calibre4">}</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">report_result()</strong><br class="calibre7"/><strong class="calibre4">{</strong><br class="calibre7"/><strong class="calibre4"> if [ "$INSTANCE_STATE" == "shut off" ]</strong><br class="calibre7"/><strong class="calibre4"> then</strong><br class="calibre7"/><strong class="calibre4">   echo "CRITICAL - KVM instance $INSTANCE_NAME is not running"</strong><br class="calibre7"/><strong class="calibre4">   exit 2</strong><br class="calibre7"/><strong class="calibre4"> else</strong><br class="calibre7"/><strong class="calibre4">   echo "OK - KVM instance $INSTANCE_NAME is running"</strong><br class="calibre7"/><strong class="calibre4">   exit 0</strong><br class="calibre7"/><strong class="calibre4"> fi</strong><br class="calibre7"/><strong class="calibre4">}</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">check_instance_state()</strong><br class="calibre7"/><strong class="calibre4">{</strong><br class="calibre7"/><strong class="calibre4"> declare -g INSTANCE_STATE="shut off"</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4"> INSTANCE_STATE=$(sudo /usr/bin/virsh domstate $INSTANCE_NAME)</strong><br class="calibre7"/><strong class="calibre4">}</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">main()</strong><br class="calibre7"/><strong class="calibre4">{</strong><br class="calibre7"/><strong class="calibre4"> sanity_check</strong><br class="calibre7"/><strong class="calibre4"> check_instance_state</strong><br class="calibre7"/><strong class="calibre4"> report_result</strong><br class="calibre7"/><strong class="calibre4">}</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">while [[ $# &gt; 1 ]]</strong><br class="calibre7"/><strong class="calibre4">do</strong><br class="calibre7"/><strong class="calibre4"> key=$1</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4"> case $key in</strong><br class="calibre7"/><strong class="calibre4">   -n|--name)</strong><br class="calibre7"/><strong class="calibre4">     INSTANCE_NAME=$2</strong><br class="calibre7"/><strong class="calibre4">     shift</strong><br class="calibre7"/><strong class="calibre4">   ;;</strong><br class="calibre7"/><strong class="calibre4">   *)</strong><br class="calibre7"/><strong class="calibre4">     usage</strong><br class="calibre7"/><strong class="calibre4">   ;;</strong><br class="calibre7"/><strong class="calibre4"> esac</strong><br class="calibre7"/><strong class="calibre4"> shift</strong><br class="calibre7"/><strong class="calibre4">done</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">main</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@kvm:/etc/sensu/plugins#</strong>
+</pre>
+<ol start="3" class="calibre18">
+<li value="3" class="calibre17">Make the script executable, add the Sensu user in a <kbd class="calibre13">sudoers</kbd> file, and test the check by executing it:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:/etc/sensu/plugins# chmod u+x check_kvm_instance_status.sh</strong><br class="calibre7"/><strong class="calibre4">root@kvm:/etc/sensu/plugins# chown sensu:sensu check_kvm_instance_status.sh</strong><br class="calibre7"/><strong class="calibre4">root@kvm:/etc/sensu/plugins# echo "sensu ALL=(ALL) NOPASSWD:ALL" &gt; /etc/sudoers.d/sensu</strong><br class="calibre7"/><strong class="calibre4">root@kvm:/etc/sensu/plugins# sudo -u sensu ./check_kvm_instance_status.sh --name kvm1</strong><br class="calibre7"/><strong class="calibre4">OK - KVM instance kvm1 is running</strong><br class="calibre7"/><strong class="calibre4">root@kvm:/etc/sensu/plugins# virsh destroy kvm1</strong><br class="calibre7"/><strong class="calibre4">Domain kvm1 destroyed</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@kvm:/etc/sensu/plugins# sudo -u sensu ./check_kvm_instance_status.sh --name kvm1</strong><br class="calibre7"/><strong class="calibre4">CRITICAL - KVM instance kvm1 is not running</strong><br class="calibre7"/><strong class="calibre4">root@kvm:/etc/sensu/plugins# virsh start kvm1</strong><br class="calibre7"/><strong class="calibre4">Domain kvm1 started</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@kvm:/etc/sensu/plugins#</strong>
+</pre>
+<ol start="4" class="calibre18">
+<li value="4" class="calibre17">Restart the Sensu client on the host; check the logs and the Uchiwa dashboard for the new standalone check:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:/etc/sensu/conf.d# /etc/init.d/sensu-client restart</strong><br class="calibre7"/><strong class="calibre4">configuration is valid</strong><br class="calibre7"/><strong class="calibre4"> * Stopping sensu-client [ OK ]</strong><br class="calibre7"/><strong class="calibre4"> * Starting sensu-client [ OK ]</strong><br class="calibre7"/><strong class="calibre4">root@kvm:/etc/sensu/conf.d# cat /var/log/sensu/sensu-client.log | grep check_kvm_instance_status</strong><br class="calibre7"/><strong class="calibre4">{"timestamp":"2017-04-20T17:37:48.409805+0000","level":"warn","message":"loading config file","file":"/etc/sensu/conf.d/check_kvm_instance_status.json"}</strong><br class="calibre7"/><strong class="calibre4">{"timestamp":"2017-04-20T17:38:16.746861+0000","level":"info","message":"publishing check result","payload":{"client":"ubuntu","check":{"command":"check_kvm_instance_status.sh -n kvm1","standalone":true,"subscribers":["base"],"interval":60,"name":"check_kvm_instance_status","issued":1492709896,"executed":1492709896,"duration":0.016,"output":"OK - KVM instance kvm1 is running\n","status":0}}}</strong><br class="calibre7"/><strong class="calibre4">root@kvm:/etc/sensu/conf.d#</strong>
+</pre>
+<div class="cdpaligncenter1">
+<div class="packt_figure"><img class="image-border5" src="../images/00010.jpeg"/> <br class="calibre7"/>
+<br class="calibre7"/>
+The Uchiwa frontend showing the standalone instance check</div>
+</div>
+<p class="calibre32">Using the examples from the<em class="calibre22"> Resource usage collection with libvirt</em> recipe, you should now be able to write a variety of Sensu monitoring checks executed from the hypervisor or inside the KVM guests.</p>
+<div class="packt_infobox">For more information on how Sensu can execute scripts when an alert is triggered, please refer to the <em class="calibre29">handlers</em> section of the official documentation at <a href="https://sensuapp.org/docs/latest/reference/handlers.html" class="calibre30">https://sensuapp.org/docs/latest/reference/handlers.html</a>.</div>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">Simple KVM backups with tar and rsync</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">In this recipe, we are going to create a backup of a KVM instance using <kbd class="calibre13">tar</kbd> and <kbd class="calibre13">rsync</kbd> and store it on a remote server. This is the easiest way to backup a KVM instance. In the next few recipes, we are going to create snapshots and use them as a cold backup.</p>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">Getting ready</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">For this extremely simple recipe, we are going to need:</p>
+<ul class="calibre16">
+<li class="calibre17">A libvirt host with a running KVM instance, using an image file as its backing store</li>
+<li class="calibre17">The <kbd class="calibre13">tar</kbd> and <kbd class="calibre13">rsync</kbd> Linux utilities</li>
+<li class="calibre17">A remote server to transfer the backup</li>
+</ul>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">How to do it...</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">To back up a virtual machine using <kbd class="calibre13">tar</kbd> and <kbd class="calibre13">rsync</kbd>, perform the following steps:</p>
+<ol class="calibre18">
+<li value="1" class="calibre17">Create the backup directory and change to it:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# mkdir backup_kvm1 &amp;&amp; cd backup_kvm1</strong><br class="calibre7"/><strong class="calibre4">root@kvm:~/backup_kvm1#</strong>
+</pre>
+<ol start="2" class="calibre18">
+<li value="2" class="calibre17">Find the location of the image file of the KVM guest:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~/backup_kvm1# virsh dumpxml kvm1 | grep "source file"</strong><br class="calibre7"/><strong class="calibre4"> &lt;source file='/var/lib/libvirt/images/kvm1.img'/&gt;</strong><br class="calibre7"/><strong class="calibre4">root@kvm:~/backup_kvm1#</strong>
+</pre>
+<ol start="3" class="calibre18">
+<li value="3" class="calibre17">Save the current instance configuration to disk:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~/backup_kvm1# virsh dumpxml kvm1 &gt; kvm1.xml</strong><br class="calibre7"/><strong class="calibre4">root@kvm:~/backup_kvm1#</strong>
+</pre>
+<ol start="4" class="calibre18">
+<li value="4" class="calibre17">Stop the KVM guest and copy the image file to the backup directory:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~/backup_kvm1# virsh destroy kvm1</strong><br class="calibre7"/><strong class="calibre4">Domain kvm1 destroyed</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@kvm:~/backup_kvm1# cp /var/lib/libvirt/images/kvm1.img .</strong><br class="calibre7"/><strong class="calibre4">root@kvm:~/backup_kvm1# ls -lah</strong><br class="calibre7"/><strong class="calibre4">total 2.4G</strong><br class="calibre7"/><strong class="calibre4">drwxr-xr-x 2 root root 4.0K Apr 20 18:37 .</strong><br class="calibre7"/><strong class="calibre4">drwx------ 7 root root 4.0K Apr 20 18:36 ..</strong><br class="calibre7"/><strong class="calibre4">-rwxr-xr-x 1 root root 8.0G Apr 20 18:37 kvm1.img</strong><br class="calibre7"/><strong class="calibre4">-rw-r--r-- 1 root root 3.0K Apr 20 18:36 kvm1.xml</strong><br class="calibre7"/><strong class="calibre4">root@kvm:~/backup_kvm1#</strong>
+</pre>
+<ol start="5" class="calibre18">
+<li value="5" class="calibre17">Create a single archive for the VM's configuration and image files:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~/backup_kvm1# tar jcvf kvm1_backup.tar.bz .</strong><br class="calibre7"/><strong class="calibre4">./</strong><br class="calibre7"/><strong class="calibre4">./kvm1.img</strong><br class="calibre7"/><strong class="calibre4">./kvm1.xml</strong><br class="calibre7"/><strong class="calibre4">root@kvm:~/backup_kvm1# rm kvm1.img kvm1.xml</strong><br class="calibre7"/><strong class="calibre4">root@kvm:~/backup_kvm1#</strong>
+</pre>
+<ol start="6" class="calibre18">
+<li value="6" class="calibre17">Transfer the backup archive to a remote server:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~/backup_kvm1# rsync -vaz kvm1_backup.tar.bz kvm2:/tmp</strong><br class="calibre7"/><strong class="calibre4">sending incremental file list</strong><br class="calibre7"/><strong class="calibre4">kvm1_backup.tar.bz</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">sent 842,977,610 bytes received 35 bytes 26,761,195.08 bytes/sec</strong><br class="calibre7"/><strong class="calibre4">total size is 845,671,214 speedup is 1.00</strong><br class="calibre7"/><strong class="calibre4">root@kvm:~/backup_kvm1#</strong>
+</pre>
+<ol start="7" class="calibre18">
+<li value="7" class="calibre17">To restore from the backup, log in to the remote server and extract the archive:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm2:~# cd /tmp/</strong><br class="calibre7"/><strong class="calibre4">root@kvm2:/tmp# tar jxfv kvm1_backup.tar.bz</strong><br class="calibre7"/><strong class="calibre4">./</strong><br class="calibre7"/><strong class="calibre4">./kvm1.img</strong><br class="calibre7"/><strong class="calibre4">./kvm1.xml</strong><br class="calibre7"/><strong class="calibre4">root@kvm2:/tmp#</strong>
+</pre>
+<ol start="8" class="calibre18">
+<li value="8" class="calibre17">Copy the image file to the configured location and define the instance:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm2:/tmp# cp kvm1.img /var/lib/libvirt/images/</strong><br class="calibre7"/><strong class="calibre4">root@kvm2:/tmp# virsh define kvm1.xml</strong><br class="calibre7"/><strong class="calibre4">Domain kvm1 defined from kvm1.xml</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@kvm2:/tmp# virsh list --all | grep kvm1</strong><br class="calibre7"/><strong class="calibre4"> - kvm1 shut off</strong><br class="calibre7"/><strong class="calibre4">root@kvm2:/tmp#</strong>
+</pre>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">How it works...</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">After creating the backup directory in step 1, we save the current guest definition to disk in step 3. In step 4, after stopping the virtual machine, we copy its image file to the backup directory. In step 5, we create a bzip2 compressed data file which we transfer to a remote server in step 6.</p>
+<p class="calibre3">On the remote server, we extract the archive in step 7 and copy the raw image file to where the XML definition of the instance is expecting it, then define the instance in step 8. </p>
+<p class="calibre3">Note that in order to preserve the consistency and integrity of the data while copying the image file to the backup directory, we had to first stop the KVM guest.</p>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">Creating snapshots</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">A virtual machine snapshot preserves the current state of a running or stopped instance at a specific point in time. It can later be used to restore the instance from that point. Snapshots can be used as backups or as templates for building new virtual machines that will be copies of the original instance.</p>
+<p class="calibre3">To take advantage of snapshots, the backing store must first support it. If you recall from the <em class="calibre22">Managing Disk images with qemu-img</em> recipe in <a target="_blank" href="part0026.html#OPEK0-c1e587dcccb14690b55c247c1809e6ce" class="calibre8">Chapter 1</a><em class="calibre22">, Getting Started with QEMU and KVM</em>, we created a raw image type for the KVM guest. In this recipe, we are going to use the <strong class="calibre4">QEMU Copy-On-Write</strong> (<strong class="calibre4">QCOW2</strong>) image format as the backing store for the KVM instance, because the raw image format does not support snapshots.</p>
+<p class="calibre3"><span>Using the QCOW2 image format, we can create a base image containing the guest OS and everything else we need for the virtual machine, and then create several copy-on-write overlay disk images on top of the original base image. These new overlay images can be used in new virtual machines right away, by creating new XML definition files pointing to the new image.</span></p>
+<p class="calibre3">Let's see an example of using QEMU to create image overlays before we proceed with making libvirt snapshots:</p>
+<ol class="calibre18">
+<li value="1" class="calibre17"><span>To collect information about a QCOW2 image, we can use the</span> <kbd class="calibre13">qemu-img</kbd> <span>utility:</span></li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# qemu-img info kvm1.qcow2</strong><br class="calibre7"/><strong class="calibre4">image: kvm1.qcow2</strong><br class="calibre7"/><strong class="calibre4">file format: qcow2</strong><br class="calibre7"/><strong class="calibre4">virtual size: 8.0G (8589934592 bytes)</strong><br class="calibre7"/><strong class="calibre4">disk size: 2.4G</strong><br class="calibre7"/><strong class="calibre4">cluster_size: 65536</strong><br class="calibre7"/><strong class="calibre4">Format specific information:</strong><br class="calibre7"/><strong class="calibre4"> compat: 1.1</strong><br class="calibre7"/><strong class="calibre4"> lazy refcounts: false</strong><br class="calibre7"/><strong class="calibre4">root@kvm:~#</strong>
+</pre>
+<div class="packt_infobox">To convert an existing raw image to QCOW2, run:<br class="calibre34"/>
+<kbd class="calibre27">root@kvm:~# qemu-img convert -f raw -O qcow2 /var/lib/libvirt/images/kvm1.img /var/lib/libvirt/images/kvm1.qcow2</kbd></div>
+<ol start="2" class="calibre18">
+<li value="2" class="calibre17">Let's create a new overlay image based on the qcow2 preceding image:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# qemu-img create -f qcow2 -b /var/lib/libvirt/images/kvm1_copy.qcow2 /var/lib/libvirt/images/kvm1_copy_2.qcow2</strong><br class="calibre7"/><strong class="calibre4">Formatting '/var/lib/libvirt/images/kvm1_copy_2.qcow2', fmt=qcow2 size=8589934592 backing_file='/var/lib/libvirt/images/kvm1_copy.qcow2' encryption=off cluster_size=65536 lazy_refcounts=off</strong><br class="calibre7"/><strong class="calibre4">root@kvm:~#</strong>
+</pre>
+<ol start="3" class="calibre18">
+<li value="3" class="calibre17">Getting information about the new overlay image now shows the backing file it's based on:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# qemu-img info kvm1_copy.qcow2</strong><br class="calibre7"/><strong class="calibre4">image: kvm1_copy.qcow2</strong><br class="calibre7"/><strong class="calibre4">file format: qcow2</strong><br class="calibre7"/><strong class="calibre4">virtual size: 8.0G (8589934592 bytes)</strong><br class="calibre7"/><strong class="calibre4">disk size: 196K</strong><br class="calibre7"/><strong class="calibre4">cluster_size: 65536</strong><br class="calibre7"/><strong class="calibre4">backing file: /var/lib/libvirt/images/kvm1.qcow2</strong><br class="calibre7"/><strong class="calibre4">Format specific information:</strong><br class="calibre7"/><strong class="calibre4"> compat: 1.1</strong><br class="calibre7"/><strong class="calibre4"> lazy refcounts: false</strong><br class="calibre7"/><strong class="calibre4">root@kvm:~#</strong>
+</pre>
+<ol start="4" class="calibre18">
+<li value="4" class="calibre17">We can create a new overlay file from the previous overlay file:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# qemu-img create -f qcow2 -b /var/lib/libvirt/images/kvm1_copy.qcow2 /var/lib/libvirt/images/kvm1_copy_2.qcow2</strong><br class="calibre7"/><strong class="calibre4">Formatting '/var/lib/libvirt/images/kvm1_copy_2.qcow2', fmt=qcow2 size=8589934592 backing_file='/var/lib/libvirt/images/kvm1_copy.qcow2' encryption=off cluster_size=65536 lazy_refcounts=off</strong><br class="calibre7"/><strong class="calibre4">root@kvm:~# qemu-img info /var/lib/libvirt/images/kvm1_copy_2.qcow2</strong><br class="calibre7"/><strong class="calibre4">image: /var/lib/libvirt/images/kvm1_copy_2.qcow2</strong><br class="calibre7"/><strong class="calibre4">file format: qcow2</strong><br class="calibre7"/><strong class="calibre4">virtual size: 8.0G (8589934592 bytes)</strong><br class="calibre7"/><strong class="calibre4">disk size: 196K</strong><br class="calibre7"/><strong class="calibre4">cluster_size: 65536</strong><br class="calibre7"/><strong class="calibre4">backing file: /var/lib/libvirt/images/kvm1_copy.qcow2</strong><br class="calibre7"/><strong class="calibre4">Format specific information:</strong><br class="calibre7"/><strong class="calibre4"> compat: 1.1</strong><br class="calibre7"/><strong class="calibre4"> lazy refcounts: false</strong><br class="calibre7"/><strong class="calibre4">root@kvm:~#</strong>
+</pre>
+<ol start="5" class="calibre18">
+<li value="5" class="calibre17">Let's list the entire image chain for the last overlay file:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# qemu-img info --backing-chain /var/lib/libvirt/images/kvm1_copy_2.qcow2</strong><br class="calibre7"/><strong class="calibre4">image: /var/lib/libvirt/images/kvm1_copy_2.qcow2</strong><br class="calibre7"/><strong class="calibre4">file format: qcow2</strong><br class="calibre7"/><strong class="calibre4">virtual size: 8.0G (8589934592 bytes)</strong><br class="calibre7"/><strong class="calibre4">disk size: 196K</strong><br class="calibre7"/><strong class="calibre4">cluster_size: 65536</strong><br class="calibre7"/><strong class="calibre4">backing file: /var/lib/libvirt/images/kvm1_copy.qcow2</strong><br class="calibre7"/><strong class="calibre4">Format specific information:</strong><br class="calibre7"/><strong class="calibre4"> compat: 1.1</strong><br class="calibre7"/><strong class="calibre4"> lazy refcounts: false</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">image: /var/lib/libvirt/images/kvm1_copy.qcow2</strong><br class="calibre7"/><strong class="calibre4">file format: qcow2</strong><br class="calibre7"/><strong class="calibre4">virtual size: 8.0G (8589934592 bytes)</strong><br class="calibre7"/><strong class="calibre4">disk size: 196K</strong><br class="calibre7"/><strong class="calibre4">cluster_size: 65536</strong><br class="calibre7"/><strong class="calibre4">backing file: /var/lib/libvirt/images/kvm1.qcow2</strong><br class="calibre7"/><strong class="calibre4">Format specific information:</strong><br class="calibre7"/><strong class="calibre4"> compat: 1.1</strong><br class="calibre7"/><strong class="calibre4"> lazy refcounts: false</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">image: /var/lib/libvirt/images/kvm1.qcow2</strong><br class="calibre7"/><strong class="calibre4">file format: qcow2</strong><br class="calibre7"/><strong class="calibre4">virtual size: 8.0G (8589934592 bytes)</strong><br class="calibre7"/><strong class="calibre4">disk size: 2.4G</strong><br class="calibre7"/><strong class="calibre4">cluster_size: 65536</strong><br class="calibre7"/><strong class="calibre4">Format specific information:</strong><br class="calibre7"/><strong class="calibre4"> compat: 1.1</strong><br class="calibre7"/><strong class="calibre4"> lazy refcounts: false</strong><br class="calibre7"/><strong class="calibre4">root@kvm:~#<br class="calibre7"/></strong>
+</pre>
+<p class="calibre32"><span>Libvirt uses the ability of the QCOW2 image format to create a chain of overlay snapshots that can be used as backups or as templates for new virtual machines. Once an overlay is created, the original base image is treated as read-only.</span> <span>Modifications to the base images (in this example, </span><kbd class="calibre13">kvm1.qcow2</kbd> <span>and </span><kbd class="calibre13">kvm1_copy.qcow2</kbd> because<span> both are base images for the <kbd class="calibre13">kvm1_copy_2.qcow2</kbd> image) are not recommended.</span> <span>Here's a diagrammatic representation of the chain of overlay image files we created earlier:</span></p>
+<div class="cdpaligncenter"><img class="image-border4" src="../images/00011.gif"/></div>
+<div class="cdpaligncenter1"><span>The chain of overlay QCOW2 images, each one serving as a base image for the next</span></div>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">Getting ready</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">For this recipe, we are going to need the following:</p>
+<ul class="calibre16">
+<li class="calibre17">A libvirt host with an existing QCOW2 image, with no snapshots attached</li>
+<li class="calibre17">A running KVM instance</li>
+<li class="calibre17">The QEMU toolset</li>
+</ul>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">How to do it...</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">To create a new KVM snapshot, follow these steps:</p>
+<ol class="calibre18">
+<li value="1" class="calibre17"><span>Create an internal snapshot of the running instance:</span></li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# virsh snapshot-create kvm1</strong><br class="calibre7"/><strong class="calibre4">Domain snapshot 1492797458 created</strong><br class="calibre7"/><strong class="calibre4">root@kvm:~#</strong>
+</pre>
+<ol start="2" class="calibre18">
+<li value="2" class="calibre17">Examine the location of the new snapshot configuration:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# ls -la /var/lib/libvirt/qemu/snapshot/</strong><br class="calibre7"/><strong class="calibre4">total 12</strong><br class="calibre7"/><strong class="calibre4">drwxr-xr-x 3 libvirt-qemu kvm 4096 Apr 21 14:05 .</strong><br class="calibre7"/><strong class="calibre4">drwxr-x--- 6 libvirt-qemu kvm 4096 Apr 21 14:04 ..</strong><br class="calibre7"/><strong class="calibre4">drwxr-xr-x 2 root root 4096 Apr 21 17:57 kvm1</strong><br class="calibre7"/><strong class="calibre4">root@kvm:~# ls -la /var/lib/libvirt/qemu/snapshot/kvm1/</strong><br class="calibre7"/><strong class="calibre4">total 12</strong><br class="calibre7"/><strong class="calibre4">drwxr-xr-x 2 root root 4096 Apr 21 17:57 .</strong><br class="calibre7"/><strong class="calibre4">drwxr-xr-x 3 libvirt-qemu kvm 4096 Apr 21 14:05 ..</strong><br class="calibre7"/><strong class="calibre4">-rw------- 1 root root 3089 Apr 21 17:57 1492797458.xml</strong><br class="calibre7"/><strong class="calibre4">root@kvm:~#</strong>
+</pre>
+<ol start="3" class="calibre18">
+<li value="3" class="calibre17">Examine the snapshot XML definition:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# cat /var/lib/libvirt/qemu/snapshot/kvm1/1492797458.xml</strong><br class="calibre7"/><strong class="calibre4">&lt;!--</strong><br class="calibre7"/><strong class="calibre4">WARNING: THIS IS AN AUTO-GENERATED FILE. CHANGES TO IT ARE LIKELY TO BE</strong><br class="calibre7"/><strong class="calibre4">OVERWRITTEN AND LOST. Changes to this xml configuration should be made using:</strong><br class="calibre7"/><strong class="calibre4"> virsh snapshot-edit</strong><br class="calibre7"/><strong class="calibre4">or other application using the libvirt API.</strong><br class="calibre7"/><strong class="calibre4">--&gt;</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">&lt;domainsnapshot&gt;</strong><br class="calibre7"/><strong class="calibre4"> &lt;name&gt;1492797458&lt;/name&gt;</strong><br class="calibre7"/><strong class="calibre4"> &lt;state&gt;running&lt;/state&gt;</strong><br class="calibre7"/><strong class="calibre4"> &lt;creationTime&gt;1492797458&lt;/creationTime&gt;</strong><br class="calibre7"/><strong class="calibre4"> &lt;memory snapshot='internal'/&gt;</strong><br class="calibre7"/><strong class="calibre4"> &lt;disks&gt;</strong><br class="calibre7"/><strong class="calibre4">   &lt;disk name='hda' snapshot='internal'/&gt;</strong><br class="calibre7"/><strong class="calibre4"> &lt;/disks&gt;</strong><br class="calibre7"/><strong class="calibre4"> &lt;domain type='kvm'&gt;</strong><br class="calibre7"/><strong class="calibre4">   &lt;name&gt;kvm1&lt;/name&gt;</strong><br class="calibre7"/><strong class="calibre4">   ...</strong><br class="calibre7"/><strong class="calibre4"> &lt;/domain&gt;</strong><br class="calibre7"/><strong class="calibre4"> &lt;active&gt;1&lt;/active&gt;</strong><br class="calibre7"/><strong class="calibre4">&lt;/domainsnapshot&gt;</strong><br class="calibre7"/><strong class="calibre4">root@kvm:~#</strong>
+</pre>
+<ol start="4" class="calibre18">
+<li value="4" class="calibre17">Collect information about the base image:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# qemu-img info /var/lib/libvirt/images/kvm1.qcow2</strong><br class="calibre7"/><strong class="calibre4">image: /var/lib/libvirt/images/kvm1.qcow2</strong><br class="calibre7"/><strong class="calibre4">file format: qcow2</strong><br class="calibre7"/><strong class="calibre4">virtual size: 8.0G (8589934592 bytes)</strong><br class="calibre7"/><strong class="calibre4">disk size: 2.4G</strong><br class="calibre7"/><strong class="calibre4">cluster_size: 65536</strong><br class="calibre7"/><strong class="calibre4">Snapshot list:</strong><br class="calibre7"/><strong class="calibre4">ID TAG         VM SIZE   DATE                   VM CLOCK</strong><br class="calibre7"/><strong class="calibre4">1  1492797458  155M      2017-04-21 17:57:38    03:41:16.790</strong><br class="calibre7"/><strong class="calibre4">Format specific information:</strong><br class="calibre7"/><strong class="calibre4"> compat: 1.1</strong><br class="calibre7"/><strong class="calibre4"> lazy refcounts: false</strong><br class="calibre7"/><strong class="calibre4">root@kvm:~#</strong>
+</pre>
+<ol start="5" class="calibre18">
+<li value="5" class="calibre17">Obtain information about the disk device on the virtual machine:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# virsh domblklist kvm1</strong><br class="calibre7"/><strong class="calibre4">Target  Source</strong><br class="calibre7"/><strong class="calibre4">------------------------------------------------</strong><br class="calibre7"/><strong class="calibre4">hda     /var/lib/libvirt/images/kvm1.qcow2</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@kvm:~#</strong>
+</pre>
+<ol start="6" class="calibre18">
+<li value="6" class="calibre17">Create an external, disk-only snapshot:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# virsh snapshot-create-as kvm1 kvm1_ext_snapshot "Disk only external snapshot for kvm1" --disk-only --diskspec hda,snapshot=external,file=/var/lib/libvirt/images/kvm1_disk_external.qcow2</strong><br class="calibre7"/><strong class="calibre4">Domain snapshot kvm1_ext_snapshot created</strong><br class="calibre7"/><strong class="calibre4">root@kvm:~#</strong>
+</pre>
+<ol start="7" class="calibre18">
+<li value="7" class="calibre17">Get information about the external snapshot:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# qemu-img info /var/lib/libvirt/images/kvm1_disk_external.qcow2</strong><br class="calibre7"/><strong class="calibre4">image: /var/lib/libvirt/images/kvm1_disk_external.qcow2</strong><br class="calibre7"/><strong class="calibre4">file format: qcow2</strong><br class="calibre7"/><strong class="calibre4">virtual size: 8.0G (8589934592 bytes)</strong><br class="calibre7"/><strong class="calibre4">disk size: 196K</strong><br class="calibre7"/><strong class="calibre4">cluster_size: 65536</strong><br class="calibre7"/><strong class="calibre4">backing file: /var/lib/libvirt/images/kvm1.qcow2</strong><br class="calibre7"/><strong class="calibre4">backing file format: qcow2</strong><br class="calibre7"/><strong class="calibre4">Format specific information:</strong><br class="calibre7"/><strong class="calibre4"> compat: 1.1</strong><br class="calibre7"/><strong class="calibre4"> lazy refcounts: false</strong><br class="calibre7"/><strong class="calibre4">root@kvm:~#</strong>
+</pre>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">How it works...</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">There are two main types of snapshot:</p>
+<ul class="calibre16">
+<li class="calibre17"><strong class="calibre4">An internal snapshot</strong>: The base image file itself contains the saved state and all subsequent changes to the virtual machine</li>
+<li class="calibre17"><strong class="calibre4">An external snapshot</strong>: <span>The base image will contain the saved state of the virtual machine thus becoming a read-only base image, and a new overlay image is created to track any future changes</span></li>
+</ul>
+<p class="calibre3">Both types of snapshots can be performed on just the disk or the memory of the virtual machine, either on a live or stopped instance.</p>
+<p class="calibre3">In the preceding step 1, we create an internal snapshot of the virtual machine. After the snapshot, there's only one image file: the original image, now containing the snapshot. We can see that the image is a snapshot in step 4, under the <em class="calibre22">Snapshot list</em> section of the output.</p>
+<p class="calibre3">In step 6, we perform an external, disk-only snapshot, by specifying the virtual machine disk, name, and location for the snapshot. Note that after the snapshot, a new image file has been created to track any further changes. We examine that file in step 7. Note how the backing file is the original qcow2 image.</p>
+<p class="calibre3">To perform the disk snapshots, libvirt leverages the QEMU functionality, like the <kbd class="calibre13">qemu-img</kbd> command we saw earlier when creating the overlay images.</p>
+<p class="calibre3">We can now save the snapshots as backups or use them to start new virtual machines. In the following recipes, we are going to see examples on how to use and manipulate the snapshots.</p>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">Listing snapshots</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">In the previous recipe, we create two snapshots of the same KVM instance: one internal and one disk-only, external snapshot. In this recipe, we are going to learn how to list existing snapshots.</p>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">Getting ready</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">For this recipe, we are going to need:</p>
+<ul class="calibre16">
+<li class="calibre17">A libvirt host with the QEMU toolset</li>
+<li class="calibre17">A running KVM instance</li>
+<li class="calibre17">The snapshots we created in the <em class="calibre22">Creating snapshots</em> recipe</li>
+</ul>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">How to do it...</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">To list all existing snapshots, follow the next steps: </p>
+<ol class="calibre18">
+<li value="1" class="calibre17"><span>List all snapshots for the specified KVM instance:</span></li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# virsh snapshot-list kvm1</strong><br class="calibre7"/><strong class="calibre4"> Name                 Creation Time               State</strong><br class="calibre7"/><strong class="calibre4">------------------------------------------------------------</strong><br class="calibre7"/><strong class="calibre4"> 1492797458           2017-04-21 17:57:38 +0000   running</strong><br class="calibre7"/><strong class="calibre4"> kvm1_ext_snapshot    2017-04-21 18:08:49 +0000   disk-snapshot</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@kvm:~#</strong>
+</pre>
+<ol start="2" class="calibre18">
+<li value="2" class="calibre17">List only the disk-based snapshots:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# virsh snapshot-list --disk-only kvm1</strong><br class="calibre7"/><strong class="calibre4"> Name                Creation Time              State</strong><br class="calibre7"/><strong class="calibre4">------------------------------------------------------------</strong><br class="calibre7"/><strong class="calibre4"> kvm1_ext_snapshot   2017-04-21 18:08:49 +0000  disk-snapshot</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@kvm:~#</strong>
+</pre>
+<ol start="3" class="calibre18">
+<li value="3" class="calibre17">List only the internal snapshots:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# virsh snapshot-list --internal kvm1</strong><br class="calibre7"/><strong class="calibre4"> Name         Creation Time              State</strong><br class="calibre7"/><strong class="calibre4">------------------------------------------------------------</strong><br class="calibre7"/><strong class="calibre4"> 1492797458   2017-04-21 17:57:38 +0000  running</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@kvm:~#</strong>
+</pre>
+<ol start="4" class="calibre18">
+<li value="4" class="calibre17">List the external snapshots only:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# virsh snapshot-list --external kvm1</strong><br class="calibre7"/><strong class="calibre4"> Name Creation Time State</strong><br class="calibre7"/><strong class="calibre4">------------------------------------------------------------</strong><br class="calibre7"/><strong class="calibre4"> kvm1_ext_snapshot 2017-04-21 18:08:49 +0000 disk-snapshot</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@kvm:~#</strong>
+</pre>
+<ol start="5" class="calibre18">
+<li value="5" class="calibre17">List all images in a hierarchical tree format:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# virsh snapshot-list --tree kvm1</strong><br class="calibre7"/><strong class="calibre4">1492797458</strong><br class="calibre7"/><strong class="calibre4"> |</strong><br class="calibre7"/><strong class="calibre4"> +- kvm1_ext_snapshot</strong><br class="calibre7"/><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@kvm:~#</strong>
+</pre>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">How it works...</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">We used the versatile <kbd class="calibre13">virsh snapshot-list</kbd> command to list all internal and external snapshots for the specified virtual machine. Note how we can get similar information using the <kbd class="calibre13">qemu-img</kbd> command directly on the image files, as we saw earlier in this chapter. However, the API calls that libvirt provides for listing snapshots are much more convenient. In the next chapter, we are going to see examples on how to use the libvirt Python bindings to manipulate KVM instances and their snapshots.</p>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">Inspecting snapshots</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">In this short recipe, we are going to see examples on how to obtain more information on existing virtual machine snapshots.</p>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">Getting ready</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">For this recipe, we are going to need the following:</p>
+<ul class="calibre16">
+<li class="calibre17">A libvirt host with the QEMU toolset</li>
+<li class="calibre17">The snapshots we created in the <em class="calibre22">Creating snapshots</em> recipe</li>
+</ul>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">How to do it...</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">To inspect a snapshot, run the following commands:</p>
+<ol class="calibre18">
+<li value="1" class="calibre17"><span>List all available snapshots for the specified KVM instance:</span></li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# virsh snapshot-list kvm1</strong><br class="calibre7"/><strong class="calibre4"> Name                Creation Time              State</strong><br class="calibre7"/><strong class="calibre4">------------------------------------------------------------</strong><br class="calibre7"/><strong class="calibre4"> 1492797458          2017-04-21 17:57:38 +0000  running</strong><br class="calibre7"/><strong class="calibre4"> kvm1_ext_snapshot   2017-04-21 18:08:49 +0000  disk-snapshot</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@kvm:~#</strong>
+</pre>
+<ol start="2" class="calibre18">
+<li value="2" class="calibre17">Get information about the running snapshot:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# virsh snapshot-info kvm1 --snapshotname 1492797458</strong><br class="calibre7"/><strong class="calibre4">Name: 1492797458</strong><br class="calibre7"/><strong class="calibre4">Domain: kvm1</strong><br class="calibre7"/><strong class="calibre4">Current: no</strong><br class="calibre7"/><strong class="calibre4">State: running</strong><br class="calibre7"/><strong class="calibre4">Location: internal</strong><br class="calibre7"/><strong class="calibre4">Parent: -</strong><br class="calibre7"/><strong class="calibre4">Children: 1</strong><br class="calibre7"/><strong class="calibre4">Descendants: 1</strong><br class="calibre7"/><strong class="calibre4">Metadata: yes</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@kvm:~#</strong>
+</pre>
+<ol start="3" class="calibre18">
+<li value="3" class="calibre17">Get information about the disk snapshot:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# virsh snapshot-info kvm1 --snapshotname kvm1_ext_snapshot</strong><br class="calibre7"/><strong class="calibre4">Name: kvm1_ext_snapshot</strong><br class="calibre7"/><strong class="calibre4">Domain: kvm1</strong><br class="calibre7"/><strong class="calibre4">Current: yes</strong><br class="calibre7"/><strong class="calibre4">State: disk-snapshot</strong><br class="calibre7"/><strong class="calibre4">Location: external</strong><br class="calibre7"/><strong class="calibre4">Parent: 1492797458</strong><br class="calibre7"/><strong class="calibre4">Children: 0</strong><br class="calibre7"/><strong class="calibre4">Descendants: 0</strong><br class="calibre7"/><strong class="calibre4">Metadata: yes</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@kvm:~#</strong>
+</pre>
+<ol start="4" class="calibre18">
+<li value="4" class="calibre17">Dump the XML configuration for the disk snapshot:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# virsh snapshot-dumpxml kvm1 --snapshotname kvm1_ext_snapshot --security-info</strong><br class="calibre7"/><strong class="calibre4">&lt;domainsnapshot&gt;</strong><br class="calibre7"/><strong class="calibre4"> &lt;name&gt;kvm1_ext_snapshot&lt;/name&gt;</strong><br class="calibre7"/><strong class="calibre4"> &lt;description&gt;Disk only external snapshot for kvm1&lt;/description&gt;</strong><br class="calibre7"/><strong class="calibre4"> &lt;state&gt;disk-snapshot&lt;/state&gt;</strong><br class="calibre7"/><strong class="calibre4"> &lt;parent&gt;</strong><br class="calibre7"/><strong class="calibre4">   &lt;name&gt;1492797458&lt;/name&gt;</strong><br class="calibre7"/><strong class="calibre4"> &lt;/parent&gt;</strong><br class="calibre7"/><strong class="calibre4"> &lt;creationTime&gt;1492798129&lt;/creationTime&gt;</strong><br class="calibre7"/><strong class="calibre4"> &lt;memory snapshot='no'/&gt;</strong><br class="calibre7"/><strong class="calibre4"> &lt;disks&gt;</strong><br class="calibre7"/><strong class="calibre4">   &lt;disk name='hda' snapshot='external' type='file'&gt;</strong><br class="calibre7"/><strong class="calibre4">     &lt;driver type='qcow2'/&gt;</strong><br class="calibre7"/><strong class="calibre4">     &lt;source file='/var/lib/libvirt/images/kvm1_disk_external.qcow2'/&gt;</strong><br class="calibre7"/><strong class="calibre4">   &lt;/disk&gt;</strong><br class="calibre7"/><strong class="calibre4"> &lt;/disks&gt;</strong><br class="calibre7"/><strong class="calibre4"> &lt;domain type='kvm'&gt;</strong><br class="calibre7"/><strong class="calibre4">   &lt;name&gt;kvm1&lt;/name&gt;</strong><br class="calibre7"/><strong class="calibre4">   ...</strong><br class="calibre7"/><strong class="calibre4">   &lt;devices&gt;</strong><br class="calibre7"/><strong class="calibre4">     &lt;emulator&gt;/usr/bin/qemu-system-x86_64&lt;/emulator&gt;</strong><br class="calibre7"/><strong class="calibre4">     &lt;disk type='file' device='disk'&gt;</strong><br class="calibre7"/><strong class="calibre4">       &lt;driver name='qemu' type='qcow2'/&gt;</strong><br class="calibre7"/><strong class="calibre4">       &lt;source file='/var/lib/libvirt/images/kvm1.qcow2'/&gt;</strong><br class="calibre7"/><strong class="calibre4">       &lt;target dev='hda' bus='ide'/&gt;</strong><br class="calibre7"/><strong class="calibre4">       &lt;address type='drive' controller='0' bus='0' target='0' unit='0'/&gt;</strong><br class="calibre7"/><strong class="calibre4">     &lt;/disk&gt;</strong><br class="calibre7"/><strong class="calibre4">    ...</strong><br class="calibre7"/><strong class="calibre4">   &lt;/devices&gt;</strong><br class="calibre7"/><strong class="calibre4"> &lt;seclabel type='none'/&gt;</strong><br class="calibre7"/><strong class="calibre4"> &lt;/domain&gt;</strong><br class="calibre7"/><strong class="calibre4">&lt;/domainsnapshot&gt;</strong>
+</pre>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">How it works...</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">In step 1, we list all the available snapshots for the kvm1 virtual machine. In steps 2 and 3, we obtain information about the snapshots. Of particular interest is the <kbd class="calibre13">Parent</kbd> and <kbd class="calibre13">Children</kbd> fields, showing us the hierarchy of the snapshots.</p>
+<p class="calibre3">In step 4, we examine the XML definition of the KVM guest and the disk-only, external snapshot. We can observe the <kbd class="calibre13">snapshot='external'</kbd> type and the base image location specified with the <kbd class="calibre13">&lt;source file='/var/lib/libvirt/images/kvm1_disk_external.qcow2'/&gt;</kbd> stanza.</p>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">Editing snapshots</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">In this recipe, we are going to edit the XML definition of an existing snapshot and examine the changes.</p>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">Getting ready</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">For this recipe, we are going to need the following:</p>
+<ul class="calibre16">
+<li class="calibre17">A libvirt host with the QEMU toolset</li>
+<li class="calibre17">The snapshots we created in the <em class="calibre22">Creating snapshots</em> recipe</li>
+</ul>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">How to do it...</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">To edit a snapshot, run the following:</p>
+<ol class="calibre18">
+<li value="1" class="calibre17"><span>List all available snapshots for the specified KVM instance:</span></li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# virsh snapshot-list kvm1</strong><br class="calibre7"/><strong class="calibre4"> Name                Creation Time              State</strong><br class="calibre7"/><strong class="calibre4">------------------------------------------------------------</strong><br class="calibre7"/><strong class="calibre4"> 1492797458          2017-04-21 17:57:38 +0000  running</strong><br class="calibre7"/><strong class="calibre4"> kvm1_ext_snapshot   2017-04-21 18:08:49 +0000  disk-snapshot</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@kvm:~#</strong>
+</pre>
+<ol start="2" class="calibre18">
+<li value="2" class="calibre17"><span>E</span>dit the disk snapshot and change its name and description:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# virsh snapshot-edit kvm1 --snapshotname kvm1_ext_snapshot --rename</strong><br class="calibre7"/><strong class="calibre4">&lt;domainsnapshot&gt;</strong><br class="calibre7"/><strong class="calibre4"> &lt;name&gt;kvm1_ext_snapshot_renamed&lt;/name&gt;</strong><br class="calibre7"/><strong class="calibre4"> &lt;description&gt;Disk only external snapshot for kvm1&lt;/description&gt;</strong><br class="calibre7"/><strong class="calibre4"> ...</strong><br class="calibre7"/><strong class="calibre4">root@kvm:~#</strong>
+</pre>
+<ol start="3" class="calibre18">
+<li value="3" class="calibre17">List the snapshots after the update:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# virsh snapshot-list kvm1</strong><br class="calibre7"/><strong class="calibre4"> Name                       Creation Time             State</strong><br class="calibre7"/><strong class="calibre4">------------------------------------------------------------</strong><br class="calibre7"/><strong class="calibre4"> 1492797458                 2017-04-21 17:57:38 +0000 running</strong><br class="calibre7"/><strong class="calibre4"> kvm1_ext_snapshot_renamed  2017-04-21 18:08:49 +0000 disk-snapshot</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@kvm:~#</strong>
+</pre>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">How it works...</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">Libvirt provides a way to edit the snapshot definition for a virtual machine. We can change various XML attributes, such as the snapshot name, description, or the location of the backing image file. In step 1, we list all available snapshots for the specified KVM instance, then proceed to update the name and description of the disk image. Finally, in step 3, we can see the changed name for the external snapshot.</p>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">Reverting snapshots</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">In this recipe, we are going to create an internal snapshot of a running instance, introduce a change, then restore back to the original instance state using the snapshot.</p>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">Getting ready</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">For this recipe, we are going to need the following:</p>
+<ul class="calibre16">
+<li class="calibre17">A libvirt host with an existing QCOW2 image</li>
+<li class="calibre17">A running KVM instance, using the QCOW2 image</li>
+<li class="calibre17">The QEMU toolset</li>
+</ul>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">How to do it...</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">To revert the state of a KVM instance to an older state, from an existing snapshot, run the following:</p>
+<ol class="calibre18">
+<li value="1" class="calibre17"><span>Connect to the KVM instance and create a new file:</span></li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# virsh console kvm1</strong><br class="calibre7"/><strong class="calibre4">Connected to domain kvm1</strong><br class="calibre7"/><strong class="calibre4">Escape character is ^]</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@debian:~# touch SNAPSHOT</strong><br class="calibre7"/><strong class="calibre4">root@debian:~#</strong><br class="calibre7"/><strong class="calibre4">root@kvm:~#</strong>
+</pre>
+<ol start="2" class="calibre18">
+<li value="2" class="calibre17">Create an internal snapshot of the virtual machine:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# virsh snapshot-create kvm1</strong><br class="calibre7"/><strong class="calibre4">Domain snapshot 1492802417 created</strong><br class="calibre7"/><strong class="calibre4">root@kvm:~#</strong>
+</pre>
+<ol start="3" class="calibre18">
+<li value="3" class="calibre17">Get information about the snapshot:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# virsh snapshot-info kvm1 --snapshotname 1492802417</strong><br class="calibre7"/><strong class="calibre4">Name: 1492802417</strong><br class="calibre7"/><strong class="calibre4">Domain: kvm1</strong><br class="calibre7"/><strong class="calibre4">Current: yes</strong><br class="calibre7"/><strong class="calibre4">State: running</strong><br class="calibre7"/><strong class="calibre4">Location: internal</strong><br class="calibre7"/><strong class="calibre4">Parent: 1492797458</strong><br class="calibre7"/><strong class="calibre4">Children: 0</strong><br class="calibre7"/><strong class="calibre4">Descendants: 0</strong><br class="calibre7"/><strong class="calibre4">Metadata: yes</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@kvm:~#</strong>
+</pre>
+<ol start="4" class="calibre18">
+<li value="4" class="calibre17">Connect back to the virtual machine and delete the file we created in step 1:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# virsh console kvm1</strong><br class="calibre7"/><strong class="calibre4">Connected to domain kvm1</strong><br class="calibre7"/><strong class="calibre4">Escape character is ^]</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@debian:~# rm -f SNAPSHOT</strong><br class="calibre7"/><strong class="calibre4">root@debian:~#</strong><br class="calibre7"/><strong class="calibre4">root@kvm:~#</strong>
+</pre>
+<ol start="5" class="calibre18">
+<li value="5" class="calibre17">Restore the instance from the latest snapshot:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# virsh snapshot-revert kvm1 --snapshotname 1492802417</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@kvm:~#</strong>
+</pre>
+<ol start="6" class="calibre18">
+<li value="6" class="calibre17">Connect to the virtual machine and confirm that file we deleted in the previous step exists again:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# virsh console kvm1</strong><br class="calibre7"/><strong class="calibre4">Connected to domain kvm1</strong><br class="calibre7"/><strong class="calibre4">Escape character is ^]</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@debian:~# ls -la SNAPSHOT</strong><br class="calibre7"/><strong class="calibre4">-rw-r--r-- 1 root root 0 Apr 21 14:08 SNAPSHOT</strong><br class="calibre7"/><strong class="calibre4">root@debian:~#</strong><br class="calibre7"/><strong class="calibre4">root@kvm:~#</strong>
+</pre>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">How it works...</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">In step 1, we connect to the KVM instance using the console and create an empty file. We are going to use the file to track changes on the virtual machine. In step 2, we create an internal snapshot and obtain more information about it in step 3. In step 4, we connect to the KVM guest again and delete the file. In step 5, we restore from the snapshot, confirming that the state of the instance has been indeed reverted to before the snapshot, as shown by the presence of the original file we created earlier. </p>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">Deleting snapshots</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">In this quick recipe, we are going to delete the snapshots we created earlier in the <em class="calibre22">Creating snapshots</em> recipe, using libvirt.</p>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">Getting ready</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">For this recipe, we are only going to need the following:</p>
+<ul class="calibre16">
+<li class="calibre17">A libvirt host with the QEMU toolset</li>
+<li class="calibre17">The snapshots we created in the <em class="calibre22">Creating snapshots</em> recipe</li>
+</ul>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">How to do it...</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">To delete a snapshot, follow these steps:</p>
+<ol class="calibre18">
+<li value="1" class="calibre17"><span>List all snapshots present on the host:</span></li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# virsh snapshot-list kvm1</strong><br class="calibre7"/><strong class="calibre4"> Name                      Creation Time             State</strong><br class="calibre7"/><strong class="calibre4">------------------------------------------------------------</strong><br class="calibre7"/><strong class="calibre4"> 1492797458                2017-04-21 17:57:38 +0000 running</strong><br class="calibre7"/><strong class="calibre4"> 1492802417                2017-04-21 19:20:17 +0000 running</strong><br class="calibre7"/><strong class="calibre4"> kvm1_ext_snapshot_renamed 2017-04-21 18:08:49 +0000 disk-snapshot</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@kvm:~#</strong>
+</pre>
+<ol start="2" class="calibre18">
+<li value="2" class="calibre17">Delete the latest snapshot based on the creation time:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# virsh snapshot-delete kvm1 --snapshotname 1492802417</strong><br class="calibre7"/><strong class="calibre4">Domain snapshot 1492802417 deleted</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@kvm:~</strong>#
+</pre>
+<ol start="3" class="calibre18">
+<li value="3" class="calibre17">List the remaining snapshots:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# virsh snapshot-list kvm1</strong><br class="calibre7"/><strong class="calibre4"> Name                       Creation Time             State</strong><br class="calibre7"/><strong class="calibre4">------------------------------------------------------------</strong><br class="calibre7"/><strong class="calibre4"> 1492797458                 2017-04-21 17:57:38 +0000 running</strong><br class="calibre7"/><strong class="calibre4"> kvm1_ext_snapshot_renamed  2017-04-21 18:08:49 +0000 disk-snapshot</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@kvm:~#</strong>
+</pre>
+<ol start="4" class="calibre18">
+<li value="4" class="calibre17">Delete the latest snapshot:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# virsh snapshot-delete kvm1 --current</strong><br class="calibre7"/><strong class="calibre4">Domain snapshot 1492797458 deleted</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">root@kvm:~#</strong>
+</pre>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">How it works...</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">In step 1, we list all snapshots on the host OS. We then delete the latest snapshot, specifying its name, in step 2. In step 3, we verify that the snapshot has been indeed deleted. Finally, in step 4, we delete the latest image by specifying the <em class="calibre22">--</em>current flag.</p>
+<div class="packt_infobox">Please note that in order to delete or restore an external snapshot a libvirt version newer than 1.2.2 is required. If your Linux distribution does not provide a newer version in its repositories, you will have to compile libvirt from source.</div>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    </body></html>

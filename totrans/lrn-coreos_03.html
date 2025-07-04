@@ -1,0 +1,399 @@
+<html><head></head><body>
+<div id="page" style="height:0pt"/><div class="book" title="Chapter&#xA0;3.&#xA0;Creating Your CoreOS Cluster and Managing the Cluster" id="OPEK1-31555e2039a14139a7f00b384a5a2dd8"><div class="book"><div class="book"><div class="book"><h1 class="title" id="calibre_pb_0"><a id="ch03" class="calibre1"/>Chapter 3. Creating Your CoreOS Cluster and Managing the Cluster</h1></div></div></div><p class="calibre9">This chapter covers CoreOS clustering, providing information on the concepts and benefits of clustering. We will also learn how to set up clusters and get familiar with all the services involved in clustering with greater detail.</p><p class="calibre9">This chapter covers the following topics:</p><div class="book"><ul class="itemizedlist"><li class="listitem">Introduction to clustering</li><li class="listitem">The why and the benefits of clustering</li><li class="listitem">CoreOS clustering</li><li class="listitem">Creating a CoreOS cluster</li><li class="listitem">Discovery using etcd </li><li class="listitem">Systemd</li><li class="listitem">Service deployment and High Availability (HA) using fleet</li></ul></div></div>
+
+<div class="book" title="Chapter&#xA0;3.&#xA0;Creating Your CoreOS Cluster and Managing the Cluster" id="OPEK1-31555e2039a14139a7f00b384a5a2dd8">
+<div class="book" title="Introduction to clustering"><div class="book"><div class="book"><div class="book"><h1 class="title" id="calibre_pb_1"><a id="ch03lvl1sec20" class="calibre1"/>Introduction to clustering</h1></div></div></div><p class="calibre9">There <a id="id128" class="calibre1"/>are two ways to scale a system. One is to scale vertically, that is, by adding more hardware resources to a machine. If the memory requirement of the system increases, add more memory; if more processing is required, upgrade the machine to one using higher-end processors or providing a higher number of cores. Horizontal scaling is another way to scale a system to higher capacity. This means adding more machines when required to form a cluster of nodes. This cluster of nodes work in tandem to provide service. The nodes in the cluster may have applications performing the same role like a pool or they may perform a different role.</p></div></div>
+<div class="book" title="The why and the benefits of clustering" id="PNV61-31555e2039a14139a7f00b384a5a2dd8"><div class="book"><div class="book"><div class="book"><h1 class="title" id="calibre_pb_0"><a id="ch03lvl1sec21" class="calibre1"/>The why and the benefits of clustering</h1></div></div></div><p class="calibre9">Horizontal <a id="id129" class="calibre1"/>scalability of a system is limited by hardware resources available in the market. For instance, scaling up RAM from 8 GB to 32 or 64 GB may be cost effective, as many products may be commonly available, but increasing it further may be cost inhibitive. Similarly, scaling up CPU is also limited by system configuration available in the market. Further doubling the hardware capability doesn't result in equal performance improvements. It's typically less.</p><p class="calibre9">With virtualization and cloud services, the cost of buying and maintaining hardware is coming down, making vertical scaling or clustering or scaling out more is lucrative. The increased performance of communication networks has considerably reduced the latency in the<a id="id130" class="calibre1"/> communication of nodes in the cluster. Clustering has various advantages, such as:</p><div class="book"><ul class="itemizedlist"><li class="listitem"><span class="strong"><strong class="calibre2">On-demand scaling</strong></span>: The nodes in the cluster can be added as and when required. We can start with a dimensioned system and keep on adding nodes as capacity increases.</li><li class="listitem"><span class="strong"><strong class="calibre2">Dynamic scaling</strong></span>: Most of the clustering solutions provide a mechanism to add/remove nodes at runtime. Hence, the system as a whole will be up and running for providing service while cluster modifications are being performed.</li><li class="listitem"><span class="strong"><strong class="calibre2">Redundancy</strong></span>: A cluster can be configured with few spare nodes. Upon failure of any nodes or during planned or unplanned maintenance of nodes, these spare nodes can be assigned to the role of the failed node or nodes under maintenance without impacting service capacity.</li></ul></div><p class="calibre9">It's also important to know about the shortcomings of clusters to make an informed decision while architecting a system. As the number of nodes increase, the complexity in the management of those nodes also increases. All the nodes need to be monitored and maintained. The software also has to be designed to be able to run on multiple nodes. There comes a requirement for an orchestration mechanism to orchestrate the applications across different instances in the cluster. For instance, load balancers to distribute load across worker nodes, or job serializers to synchronize and serialize a job across nodes.</p></div>
+
+<div id="page" style="height:0pt"/><div class="book" title="CoreOS clustering"><div class="book" id="QMFO2-31555e2039a14139a7f00b384a5a2dd8"><div class="book"><div class="book"><h1 class="title" id="calibre_pb_0"><a id="ch03lvl1sec22" class="calibre1"/>CoreOS clustering</h1></div></div></div><p class="calibre9">
+<a class="calibre1" title="Chapter 1. CoreOS, Yet Another Linux Distro?" href="part0014_split_000.html#DB7S1-31555e2039a14139a7f00b384a5a2dd8">Chapter 1</a>, <span class="strong"><em class="calibre10">CoreOS, Yet Another Linux Distro</em></span> covers CoreOS cluster architecture. We will <a id="id131" class="calibre1"/>summarize it here again. A CoreOS member or node can contain multiple Docker containers. There can be multiple CoreOS members forming a CoreOS cluster.</p><p class="calibre9">CoreOS uses fleet to schedule and manage the services using <code class="email">systemd </code>onto the CoreOS members during initialization. This is similar to the <code class="email">systemd </code>starting and managing service on Linux machines. The scope of the Linux <code class="email">systemd</code> process is limited to a host node, whereas CoreOS <code class="email">fleetd </code>is the init system for a complete CoreOS cluster. </p><p class="calibre9">CoreOS<a id="id132" class="calibre1"/> uses etcd for node discovery and storing key-value pairs of configuration items accessible across a cluster member.</p><p class="calibre9">It's possible to <a id="id133" class="calibre1"/>set up a cluster in two ways:</p><div class="book"><ul class="itemizedlist"><li class="listitem"><span class="strong"><strong class="calibre2">etcd running on all members</strong></span>: When the number of members of the cluster is few, then etcd can be run on all the members running the services, also called workers. This configuration is simpler as the same <code class="email">cloud-config</code> can be used to start all the members of the cluster. </li><li class="listitem"><span class="strong"><strong class="calibre2">etcd running on few members</strong></span>: When the number of members in the cluster is large, typically greater than ten, it is advisable to run <code class="email">etcd</code> and other CoreOS cluster services exclusively on some of the machines. This becomes easier to dimension the platform configuration of the worker members as they are exclusively used for providing services. In this, two <code class="email">cloud-config </code>files are required: one for CoreOS cluster services including etcd, and the other for workers or proxies.</li></ul></div><p class="calibre9">The setting of CoreOS clusters is fairly simple. Prepare the <code class="email">cloud-config </code>file and start booting members using the file. Small scripting knowledge is required to regenerate the configuration files per member. The discovery service and etcd use the discovery token or static token provided to form a cluster as the members are started.</p></div>
+
+<div class="book" title="CoreOS clustering">
+<div class="book" title="Cluster discovery"><div class="book"><div class="book"><div class="book"><h2 class="title1" id="calibre_pb_1"><a id="ch03lvl4sec06" class="calibre1"/>Cluster discovery</h2></div></div></div><p class="calibre9">This<a id="id134" class="calibre1"/> section describes the various discovery mechanisms used by CoreOS to form a cluster. For the examples in this chapter, the following is the system configuration:</p><div class="mediaobject"><img src="../images/00015.jpeg" alt="Cluster discovery" class="calibre11"/></div><p class="calibre12"> </p></div></div>
+
+<div class="book" title="CoreOS clustering">
+<div class="book" title="Static discovery"><div class="book"><div class="book"><div class="book"><h2 class="title1" id="calibre_pb_2"><a id="ch03lvl3sec12" class="calibre1"/>Static discovery</h2></div></div></div><p class="calibre9">The <span class="strong"><strong class="calibre2">static discovery</strong></span> mechanism<a id="id135" class="calibre1"/> is used when the IP addresses of the members are known beforehand. IPs are preconfigured in the <code class="email">cloud-config </code>file. They are useful in scenarios where the cluster size is small and can be generally used for test setups. Configuring large numbers of hardcoded IPs will be error prone and a maintenance nightmare.</p><p class="calibre9">The following is the <code class="email">cloud-config</code> file that is used to create a cluster using static discovery:</p><div class="informalexample"><pre class="programlisting">#cloud-config
+
+---
+coreos:
+  etcd2:
+    name: core-01
+    advertise-client-urls: http://$public_ipv4:2379
+    initial-advertise-peer-urls: http://$private_ipv4:2380
+    listen-client-urls: http://0.0.0.0:2379,http://0.0.0.0:4001
+    listen-peer-urls: http://$private_ipv4:2380,http://$private_ipv4:7001
+    initial-cluster-token: coreOS-static
+    initial-cluster: core-01=http://172.17.8.101:2380,core-02=http://172.17.8.102:2380,core-03=http://172.17.8.103:2380
+  units:
+  - name: etcd2.service
+    command: start
+    enable: true</pre></div><p class="calibre9">There<a id="id136" class="calibre1"/> are two new fields that were not discussed before. The <code class="email">name</code> field provides the name of the member. This is also used to correlate the member to the URL in <code class="email">initial-cluster</code>. The <code class="email">initial-cluster</code> field provides the member name and URL of all the members of the cluster.</p><div class="informalexample" title="Note"><h3 class="title2"><a id="tip03" class="calibre1"/>Tip</h3><p class="calibre9">The IP addresses provided in the initial-cluster field should contain the static IP address.</p></div><p class="calibre9">In order to create the previously mentioned <code class="email">cloud-config</code> file, for all the nodes that want to be part of the cluster, the following steps need to be performed.</p><p class="calibre9">
+<code class="email">Vagrantfile</code> should contain static IP addresses allocated to each member. As shown in the following sample, IP <code class="email">172.17.8.101</code> is assigned to the first member, IP <code class="email">172.17.8.102</code> is assigned to the second member, and so on:</p><div class="informalexample"><pre class="programlisting">...
+      ip = "172.17.8.#{i+100}"
+      config.vm.network :private_network, ip: ip
+...</pre></div><p class="calibre9">You might have noticed the <code class="email">cloud-config</code> file contains the name of only one member, but the <code class="email">systemd</code> <code class="email">unit</code> file for the <code class="email">etcd</code> service in each CoreOS VM should contain its own member name. This requires the following instrumentation in <code class="email">Vagrantfile</code> to generate the <code class="email">cloud-config</code> file specific to each member. Without going into the specifics of <code class="email">ruby</code>, the following code modifies the name parameter for each member and stores in a separate file.</p><p class="calibre9">The generated file is <code class="email">user-data-1 </code>for the first member, <code class="email">user-data-2</code> for the second member, and so on. Except for the <code class="email">name</code> field, all other parameters are used from the <code class="email">cloud-config</code> file provided. The generated files are used during boot-up of Virtual Machines:</p><div class="informalexample"><pre class="programlisting">...
+      if $share_home
+        config.vm.synced_folder ENV['HOME'], ENV['HOME'], id: "home", :nfs =&gt; true, :mount_options =&gt; ['nolock,vers=3,udp']
+      end
+
+      if File.exist?(CLOUD_CONFIG_PATH)
+<span class="strong"><strong class="calibre2">        user_data_specific = "#{CLOUD_CONFIG_PATH}-#{i}"</strong></span>
+<span class="strong"><strong class="calibre2">        require 'yaml'</strong></span>
+<span class="strong"><strong class="calibre2">        data = YAML.load(IO.readlines(CLOUD_CONFIG_PATH)[1..-1].join)</strong></span>
+<span class="strong"><strong class="calibre2">        if data['coreos'].key? 'etcd2'</strong></span>
+<span class="strong"><strong class="calibre2">          data['coreos']['etcd2']['name'] = vm_name</strong></span>
+<span class="strong"><strong class="calibre2">        end</strong></span>
+<span class="strong"><strong class="calibre2">        yaml = YAML.dump(data)</strong></span>
+<span class="strong"><strong class="calibre2">        File.open(user_data_specific, 'w') { |file| file.write("#cloud-config\n\n#{yaml}") }</strong></span>
+<span class="strong"><strong class="calibre2">        config.vm.provision :file, :source =&gt; user_data_specific, :destination =&gt; "/tmp/vagrantfile-user-data"</strong></span>
+        config.vm.provision :shell, :inline =&gt; "mv /tmp/vagrantfile-user-data /var/lib/coreos-vagrant/", :privileged =&gt; true
+      end
+...</pre></div><p class="calibre9">Set <code class="email">$num_instances</code> to <code class="email">3</code> in the <code class="email">config.rb</code> file and setup is complete for a three-member cluster:</p><p class="calibre9">Boot the <a id="id137" class="calibre1"/>cluster using <code class="email">Vagrant up</code>. Upon successful boot-up, we can see the members of the cluster. </p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong class="calibre2">vagrant ssh core-01</strong></span>
+
+<span class="strong"><strong class="calibre2">etcdctl member list</strong></span>
+<span class="strong"><strong class="calibre2">7cc8bd52fa88d49: name=core-02 peerURLs=http://172.17.8.102:2380 clientURLs=http://172.17.8.102:2379</strong></span>
+<span class="strong"><strong class="calibre2">533d38560a602262: name=core-01 peerURLs=http://172.17.8.101:2380 clientURLs=http://172.17.8.101:2379</strong></span>
+<span class="strong"><strong class="calibre2">b8d2db3a5bf3d17d: name=core-03 peerURLs=http://172.17.8.103:2380 clientURLs=http://172.17.8.103:2379</strong></span>
+
+<span class="strong"><strong class="calibre2">etcdctl cluster-health</strong></span>
+<span class="strong"><strong class="calibre2">cluster is healthy</strong></span>
+<span class="strong"><strong class="calibre2">member 533d38560a602262 is healthy</strong></span>
+<span class="strong"><strong class="calibre2">member 7cc8bd52fa88d49 is healthy</strong></span>
+<span class="strong"><strong class="calibre2">member b8d2db3a5bf3d17d is healthy</strong></span>
+</pre></div></div></div>
+
+<div class="book" title="CoreOS clustering">
+<div class="book" title="etcd discovery"><div class="book"><div class="book"><div class="book"><h2 class="title1" id="calibre_pb_3"><a id="ch03lvl3sec13" class="calibre1"/>etcd discovery</h2></div></div></div><p class="calibre9">The <code class="email">etcd</code> discovery <a id="id138" class="calibre1"/>mechanism is used when the IP addresses of the members are not known in advance or DHCP is used to assign IP addresses. There can be two modes of discovery: public and custom.</p><p class="calibre9">If the cluster<a id="id139" class="calibre1"/> has access to the public IP, the public discovery service <code class="email">discovery.etcd.io</code> can be used to generate a token and manage cluster membership. Access the website <a class="calibre1" href="https://discovery.etcd.io/new?size=&lt;clustersize&gt;">https://discovery.etcd.io/new?size=&lt;clustersize&gt;</a> and generate a token. Note that cluster size is required to be provided while generating a token.</p><div class="mediaobject"><img src="../images/00016.jpeg" alt="etcd discovery" class="calibre11"/></div><p class="calibre12"> </p><p class="calibre9">Generation of a token can be automated in the <code class="email">config.rb</code> file by uncommenting the following lines:</p><div class="informalexample"><pre class="programlisting">...
+# To automatically replace the discovery token on 'vagrant up', uncomment
+# the lines below:
+#
+<span class="strong"><strong class="calibre2">if File.exists?('user-data') &amp;&amp; ARGV[0].eql?('up')</strong></span>
+<span class="strong"><strong class="calibre2">  require 'open-uri'</strong></span>
+<span class="strong"><strong class="calibre2">  require 'yaml'</strong></span>
+
+<span class="strong"><strong class="calibre2">  token = open($new_discovery_url).read</strong></span>
+
+<span class="strong"><strong class="calibre2">  data = YAML.load(IO.readlines('user-data')[1..-1].join)</strong></span>
+<span class="strong"><strong class="calibre2"> </strong></span>
+<span class="strong"><strong class="calibre2">  if data['coreos'].key? 'etcd2'</strong></span>
+<span class="strong"><strong class="calibre2">    data['coreos']['etcd2']['discovery'] = token</strong></span>
+<span class="strong"><strong class="calibre2">  end</strong></span>
+
+<span class="strong"><strong class="calibre2">   yaml = YAML.dump(data)</strong></span>
+<span class="strong"><strong class="calibre2">  File.open('user-data', 'w') { |file| file.write("#cloud-config\n\n#{yaml}") }</strong></span>
+end
+...</pre></div><p class="calibre9">The<a id="id140" class="calibre1"/> following is the <code class="email">cloud-config</code> file that is used to create a cluster using public <code class="email">etcd</code> discovery:</p><div class="informalexample"><pre class="programlisting">#cloud-config
+
+coreos:
+  etcd2:
+    discovery: https://discovery.etcd.io/&lt;token&gt;
+    advertise-client-urls: http://$public_ipv4:2379
+    initial-advertise-peer-urls: http://$private_ipv4:2380
+    listen-client-urls: http://0.0.0.0:2379,http://0.0.0.0:4001
+    listen-peer-urls: http://$private_ipv4:2380,http://$private_ipv4:7001
+  units:
+    - name: etcd2.service
+      command: start
+      enable: true</pre></div><p class="calibre9">Set <code class="email">$num_instances</code> to <code class="email">3</code> in the <code class="email">config.rb</code> file and setup is complete for a three-member cluster. Compared to static discovery, this is a simpler process and no instrumentation is required in <code class="email">Vagrantfile</code>.</p><p class="calibre9">Boot the cluster using <code class="email">Vagrant up</code>. Upon successful boot-up, we can see the members of the cluster:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong class="calibre2">vagrant ssh core-01</strong></span>
+
+<span class="strong"><strong class="calibre2">etcdctl member list</strong></span>
+<span class="strong"><strong class="calibre2">466abd73fa498e31: name=5fd5fe90fef243a090cb2ee4cfac4d53 peerURLs=http://172.17.8.103:2380 clientURLs=http://172.17.8.103:2379</strong></span>
+<span class="strong"><strong class="calibre2">940245793b93afb3: name=43e78c85f5bb439f84badd8a5cb9f12b peerURLs=http://172.17.8.101:2380 clientURLs=http://172.17.8.101:2379</strong></span>
+<span class="strong"><strong class="calibre2">ea07891f96c6abfe: name=93c559a5c40d47c7917607a15d676b6d peerURLs=http://172.17.8.102:2380 clientURLs=http://172.17.8.102:2379</strong></span>
+
+<span class="strong"><strong class="calibre2">etcdctl cluster-health</strong></span>
+<span class="strong"><strong class="calibre2">cluster is healthy</strong></span>
+<span class="strong"><strong class="calibre2">member 466abd73fa498e31 is healthy</strong></span>
+<span class="strong"><strong class="calibre2">member 940245793b93afb3 is healthy</strong></span>
+<span class="strong"><strong class="calibre2">member ea07891f96c6abfe is healthy</strong></span>
+</pre></div><p class="calibre9">Instead <a id="id141" class="calibre1"/>of using a public discovery, an <code class="email">etcd</code> instance can be used as the discovery service to manage cluster membership. One of the <code class="email">etcd</code> instances is configured with the token and number of cluster instances and other <code class="email">etcd</code> instances use it to join to the cluster.</p><p class="calibre9">The following is the <code class="email">cloud-config</code> file that is used to create a cluster using public <code class="email">etcd</code> discovery:</p><div class="informalexample"><pre class="programlisting">#cloud-config
+
+coreos:
+  etcd2:
+    discovery: http://172.17.8.101:4001/v2/keys/discovery/40134540-b53c-46b3-b34f-33b4f0ae3a9c
+    advertise-client-urls: http://$public_ipv4:2379
+    initial-advertise-peer-urls: http://$private_ipv4:2380
+    listen-client-urls: http://$public_ipv4:2379,http://$public_ipv4:4001
+    listen-peer-urls: http://$private_ipv4:2380,http://$private_ipv4:7001
+  units:
+    - name: etcd2.service
+      command: start
+      enable: true</pre></div><p class="calibre9">The token can be generated using the <code class="email">uuidgen</code> Linux command. The path <code class="email">v2/keys/discovery</code> is where cluster information is stored. Any path can be provided. Machine one is used as the custom discovery node. </p><p class="calibre9">The <code class="email">etcd</code> service running on machine one doesn't need a discovery token since it is not going to be part of the cluster. This requires the following instrumentation in <code class="email">Vagrantfile</code> to generate the <code class="email">cloud-config</code> file separately for machine one and other machines. The following code modifies the name parameter for each member, removes unwanted parameters for machine one, and stores in a separate file for each member. In the following sample, the parameters that are not required are set to empty; they can be deleted:</p><div class="informalexample"><pre class="programlisting">...
+      if $share_home
+        config.vm.synced_folder ENV['HOME'], ENV['HOME'], id: "home", :nfs =&gt; true, :mount_options =&gt; ['nolock,vers=3,udp']
+      end
+
+      if File.exist?(CLOUD_CONFIG_PATH)
+<span class="strong"><strong class="calibre2">        user_data_specific = "#{CLOUD_CONFIG_PATH}-#{i}"</strong></span>
+<span class="strong"><strong class="calibre2">        require 'yaml'</strong></span>
+<span class="strong"><strong class="calibre2">        data = YAML.load(IO.readlines(CLOUD_CONFIG_PATH)[1..-1].join)</strong></span>
+<span class="strong"><strong class="calibre2">        if data['coreos'].key? 'etcd2'</strong></span>
+<span class="strong"><strong class="calibre2">          data['coreos']['etcd2']['name'] = vm_name</strong></span>
+<span class="strong"><strong class="calibre2">        end</strong></span>
+<span class="strong"><strong class="calibre2">        if i.equal? 1</strong></span>
+<span class="strong"><strong class="calibre2">          data['coreos']['etcd2']['discovery'] = nil</strong></span>
+<span class="strong"><strong class="calibre2">          data['coreos']['etcd2']['initial-advertise-peer-urls'] = nil</strong></span>
+<span class="strong"><strong class="calibre2">          data['coreos']['etcd2']['listen-peer-urls'] = nil</strong></span>
+<span class="strong"><strong class="calibre2">        end        </strong></span>
+<span class="strong"><strong class="calibre2">        yaml = YAML.dump(data)</strong></span>
+<span class="strong"><strong class="calibre2">        File.open(user_data_specific, 'w') { |file| file.write("#cloud-config\n\n#{yaml}") }</strong></span>
+<span class="strong"><strong class="calibre2">        config.vm.provision :file, :source =&gt; user_data_specific, :destination =&gt; "/tmp/vagrantfile-user-data"</strong></span>
+        config.vm.provision :shell, :inline =&gt; "mv /tmp/vagrantfile-user-data /var/lib/coreos-vagrant/", :privileged =&gt; true
+      end
+...</pre></div><p class="calibre9">Set <code class="email">$num_instances</code> to <code class="email">3</code> in the <code class="email">config.rb</code> file and boot the cluster using <code class="email">Vagrant</code> <code class="email">up</code>. Initially, the <a id="id142" class="calibre1"/>cluster formation will fail as the number of nodes corresponding to the discovery token is not set. Set the number of nodes as <code class="email">2</code> in the cluster. The path provided in the discovery token URL should match the path provided in the URL.</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong class="calibre2">vagrant ssh core-01</strong></span>
+<span class="strong"><strong class="calibre2">curl -X PUT http://172.17.8.101:4001/v2/keys/discovery/40134540-b53c-46b3-b34f-33b4f0ae3a9c/_config/size -d value=2</strong></span>
+<span class="strong"><strong class="calibre2">{"action":"set","node":{"key":"/discovery/40134540-b53c-46b3-b34f-33b4f0ae3a9c/_config/size","value":"2","modifiedIndex":3,"createdIndex":3}}</strong></span>
+</pre></div><p class="calibre9">Upon setting the node size, we can see the members in the cluster. This time, we additionally need to provide the endpoint information on which <code class="email">etcd</code> is listening as the <code class="email">cloud-config</code> file contains a specific IP address instead of wildcard IPs in the previous examples:</p><div class="informalexample"><pre class="programlisting">etcdctl --peers=http://172.17.8.102:4001 member list
+36b2390cc35b7932: name=core-03 peerURLs=http://172.17.8.103:2380 clientURLs=http://172.17.8.103:2379
+654398796d95b9a6: name=core-02 peerURLs=http://172.17.8.102:2380 clientURLs=http://172.17.8.102:2379
+
+etcdctl --peers=http://172.17.8.102:4001 cluster-health
+cluster is healthy
+member 36b2390cc35b7932 is healthy
+member 654398796d95b9a6 is healthy</pre></div></div></div>
+
+<div class="book" title="CoreOS clustering">
+<div class="book" title="DNS discovery"><div class="book"><div class="book"><div class="book"><h2 class="title1" id="calibre_pb_4"><a id="ch03lvl3sec14" class="calibre1"/>DNS discovery</h2></div></div></div><p class="calibre9">Cluster <a id="id143" class="calibre1"/>discovery can also be performed using DNS<a id="id144" class="calibre1"/> SRV records. Contact your system administrator to create DNS SRV records to map the hostname to the service. DNS A records should also be created to map the hostname to the IP address of the members.</p><p class="calibre9">The DNS domain name containing the discovery SRV records is required to be provided using the <code class="email">discovery-srv</code> parameter. The following DNS SRV records are looked up in the listed order:</p><div class="book"><ul class="itemizedlist"><li class="listitem">_etcd-server-ssl._tcp.&lt;domain name&gt;</li><li class="listitem">_etcd-server._tcp.&lt;domain name&gt;</li></ul></div><p class="calibre9">If <code class="email">_etcd-server-ssl._tcp.&lt;domain name&gt;</code> is found then <code class="email">etcd</code> will attempt the bootstrapping process over SSL.</p><p class="calibre9">The following SRV and DNS A records are to be created:</p><div class="informalexample"><pre class="programlisting">_etcd-server._tcp.testdomain.com. 300   IN      SRV     0       0       2380    CoreOS-01.testdomain.com.
+_etcd-server._tcp.testdomain.com. 300   IN      SRV     0       0       2380    CoreOS-02.testdomain.com.
+_etcd-server._tcp.testdomain.com. 300   IN      SRV     0       0       2380    CoreOS-03.testdomain.com.
+CoreOS-01.testdomain.com.       300     IN      A       172.17.8.101
+CoreOS-02.testdomain.com.       300     IN      A       172.17.8.102
+CoreOS-03.testdomain.com.       300     IN      A       172.17.8.103</pre></div><p class="calibre9">The following is the <code class="email">cloud-config</code> file that is used to create a cluster using public <code class="email">etcd</code> discovery:</p><div class="informalexample"><pre class="programlisting">#cloud-config
+coreos:
+  etcd2:
+    discovery-srv: testdomain.com
+    advertise-client-urls: http://$public_ipv4:2379
+    initial-advertise-peer-urls: http://$private_ipv4:2380
+    listen-client-urls: http://0.0.0.0:2379,http://0.0.0.0:4001
+    listen-peer-urls: http://$private_ipv4:2380,http://$private_ipv4:7001
+    initial-cluster-token: etcd-cluster-1
+    initial-cluster-state: new
+  units:
+  - name: etcd2.service
+    command: start
+    enable: true
+<span class="strong"><strong class="calibre2">write_files:</strong></span>
+<span class="strong"><strong class="calibre2">  - path: "/etc/resolv.conf"</strong></span>
+<span class="strong"><strong class="calibre2">    permissions: "0644"</strong></span>
+<span class="strong"><strong class="calibre2">    owner: "root"</strong></span>
+<span class="strong"><strong class="calibre2">    content: |</strong></span>
+      nameserver 172.17.8.111</pre></div><div class="informalexample" title="Note"><h3 class="title2"><a id="tip04" class="calibre1"/>Tip</h3><p class="calibre9">The <code class="email">cloud-config</code> file contains additional section write-files to point to the DNS server where SRV and A records are created.</p></div><p class="calibre9">Set <code class="email">$num_instances</code> to <code class="email">3</code> in the <code class="email">config.rb</code> file and setup is complete for a three-member <a id="id145" class="calibre1"/>cluster. Compared to static discovery, this is<a id="id146" class="calibre1"/> a simpler process and no instrumentation is required in <code class="email">Vagrantfile</code>.</p><p class="calibre9">Boot the cluster using <code class="email">Vagrant up</code>. Upon successful boot-up, we can see the members of the cluster:</p><div class="informalexample"><pre class="programlisting">vagrant ssh core-01
+
+etcdctl member list
+13530017c40ce74f: name=5d0c2805e0944d43b03ef260fea20ae2 peerURLs=http://CoreOS-02.testdomain.com:2380 clientURLs=http://172.17.8.102:2379
+25c0879f38e80fd0: name=26fed2d2c43b4901ad944d9912d071cb peerURLs=http://CoreOS-01.testdomain.com:2380 clientURLs=http://172.17.8.101:2379
+3551738c55e6c3e4: name=39d95e1e69ae4bea97aed0ba5817241e peerURLs=http://CoreOS-03.testdomain.com:2380 clientURLs=http://172.17.8.103:2379
+
+etcdctl cluster-health
+member 13530017c40ce74f is healthy: got healthy result from http://172.17.8.102:2379
+member 25c0879f38e80fd0 is healthy: got healthy result from http://172.17.8.101:2379
+member 3551738c55e6c3e4 is healthy: got healthy result from http://172.17.8.103:2379
+cluster is healthy</pre></div><div class="book" title="systemd"><div class="book"><div class="book"><div class="book"><h3 class="title2"><a id="ch03lvl4sec07" class="calibre1"/>systemd</h3></div></div></div><p class="calibre9">
+<code class="email">systemd</code> is an<a id="id147" class="calibre1"/> init system that most of the Linux distribution, including CoreOS, has adopted to start other services/daemons during boot-up. <code class="email">systemd</code> is designed to run multiple operations required to start services in parallel, resulting in faster boot-up. <code class="email">systemd</code> manages services, devices, sockets, disk mounts, and so on, called units. systemd performs operations like start, stop, enable, and disable on the units. Each unit has a corresponding configuration file called <span class="strong"><strong class="calibre2">unit file</strong></span> that contains information<a id="id148" class="calibre1"/> about actions to be performed for each operation, dependencies on other units, execution pre-conditions and post-conditions, and so on.</p><p class="calibre9">In this section, we will understand how to configure a service using unit file and perform basic operations on the services. Let's start by understanding the contents of unit file.</p></div></div></div>
+
+<div class="book" title="CoreOS clustering">
+<div class="book" title="Service unit files"><div class="book"><div class="book"><div class="book"><h2 class="title1" id="calibre_pb_5"><a id="ch03lvl3sec15" class="calibre1"/>Service unit files</h2></div></div></div><p class="calibre9">Unit files<a id="id149" class="calibre1"/> are embedded in the <code class="email">cloud-config</code> file and CoreOS copies the information verbatim to corresponding unit files.</p><p class="calibre9">The unit name must be of the form <code class="email">string.suffix</code> or <code class="email">string@instance.suffix</code>, where:</p><div class="book"><ul class="itemizedlist"><li class="listitem"><code class="email">string</code> must not be an empty string and can only contain alphanumeric characters and any of <code class="email">':', '_', '.', '@', '-'</code>.</li><li class="listitem"><code class="email">instance</code> can be empty, and can only contain the same characters as are valid for <code class="email">string</code>.</li><li class="listitem"><code class="email">suffix</code> must be one of the following unit types: <code class="email">service</code>, <code class="email">socket</code>, <code class="email">device</code>, <code class="email">mount</code>, <code class="email">automount</code>, <code class="email">timer</code>, <code class="email">path</code>. <code class="email">service</code> is used for describing service.</li></ul></div><p class="calibre9">Unit files contain information grouped under sections. Each section contains a list of parameters and their values. Each parameter can occur multiple times in a section. Section and parameter names are case sensitive. As we will be dealing mostly with services, we will discuss configuration relevant to it. The following are the important section names used for services:</p><div class="book"><ul class="itemizedlist"><li class="listitem"><code class="email">[Unit]</code> section: This section is not used by <code class="email">systemd</code> and contains information for the user about the service. Some of the important parameters of the <code class="email">Unit</code> section are:<div class="book"><ul class="itemizedlist1"><li class="listitem"><code class="email">Description</code>:<code class="email"> </code>This specifies the description of the service such as name, service provided, and so on.</li><li class="listitem"><code class="email">After</code>:<code class="email"> </code>This specifies service names that are supposed to be started before starting this service.</li><li class="listitem"><code class="email">Before</code>:<code class="email"> </code>This specifies service names that are supposed to be started after starting this service.</li></ul></div></li><li class="listitem"><code class="email">[Service]</code> Section: This section contains the configuration for managing units. Some of the important parameters of the <code class="email">Service</code> section are:<div class="book"><ul class="itemizedlist1"><li class="listitem"><code class="email">Type</code>:<code class="email"> </code>This specifies the startup type for the service. The type can be one of the following: <code class="email">simple</code>, <code class="email">forking</code>, <code class="email">oneshot</code>, <code class="email">dbus</code>, <code class="email">notify</code>, or <code class="email">idle</code>.<p class="calibre9">The type <code class="email">simple</code> indicates that the service is started by executing the command configured in <code class="email">ExecStart</code>, and proceeds with other unit file processing. This is the default behavior.</p><p class="calibre9">The <a id="id150" class="calibre1"/>type <code class="email">fork</code> indicates that the parent process will fork a child process and exit upon completion of start. Exiting of the main process is the trigger to process with other unit file processing. To allow systemd to take recovery action upon service failure, the <code class="email">pid</code> file containing <code class="email">pid</code> if the process providing the service can be configured using <code class="email">PIDFile</code>.</p><p class="calibre9">The type <code class="email">oneshot</code> indicates that the service is started by executing the command configured in <code class="email">ExecStart</code>, waits for the exit of the command, and then proceeds with other unit file processing. <code class="email">RemainAfterExit</code> can be used to indicate that the service is an active event after the main process has exited.</p><p class="calibre9">The type <code class="email">notify</code> indicates that the service is started by executing the command configured in <code class="email">ExecStart</code>, and waits for the notification using <code class="email">sd_notify</code> to indicate startup is complete. Upon notification, <code class="email">systemd</code> starts executing other units.</p><p class="calibre9">The type <code class="email">dbus</code> indicates that the service is started by executing the command configured in <code class="email">ExecStart</code>, waits for the service to acquire the D-bus name as specified in <code class="email">BusName</code> and then proceeds with other unit file processing.</p></li><li class="listitem"><code class="email">TimeoutStartSec</code>:<code class="email"> </code>This specifies the <code class="email">systemd</code> wait time during starting the service before marking it as failed. </li><li class="listitem"><code class="email">ExecStartPre</code>:<code class="email"> </code>This can be used to execute commands before starting the service. This parameter can be provided multiple times in the section to execute multiple commands prior to start. The value contains the full path of the command along with arguments to the command. The value can be preceded by <code class="email">-</code> to indicate that the failure of the command will be ignored and next steps will be executed.</li><li class="listitem"><code class="email">ExecStart</code>:<code class="email"> </code>This specifies the full path and the arguments of the command to be executed to start the service. If the path to the command is preceded by a dash <code class="email">-</code> character, non-zero exit statuses will be accepted without marking the service activation as failed.</li><li class="listitem"><code class="email">ExecStartPost</code>:<code class="email"> </code>This can be used to execute commands after starting<a id="id151" class="calibre1"/> the service. This parameter can be provided multiple times in the section to execute multiple commands after the start. The value contains the full path of the command along with arguments to the command. The value can be preceded by <code class="email">-</code> to indicate that the failure of the command will be ignored and next steps will be executed. </li><li class="listitem"><code class="email">ExecStop</code>:<code class="email"> </code>This indicates the command needed to stop the service. If this is not given, the process will be killed immediately when the service is stopped.</li><li class="listitem"><code class="email">TimeoutStopSec</code>:<code class="email"> </code>This specifies the <code class="email">systemd</code> wait time during stopping the service before forcefully killing it.</li></ul></div></li><li class="listitem"><code class="email">PIDFile</code>:<code class="email"> </code>This specifies the absolute filename pointing to the PID file of this service. <code class="email">systemd</code> reads the PID of the main process of the daemon after startup of the service. <code class="email">systemd</code> removes the file after the service has shut down if it still exists.</li><li class="listitem"><code class="email">BusName</code>: This specifies the D-Bus bus name that this service is reachable at. This option is mandatory for services where <code class="email">Type</code> is set to <code class="email">dbus</code>.</li><li class="listitem"><code class="email">RemainAfterExit</code>:<code class="email"> </code>This flag specifies whether the service shall be considered active even when all its processes exited. Defaults to no.</li></ul></div></div></div>
+
+<div class="book" title="CoreOS clustering">
+<div class="book" title="Starting and stopping a service"><div class="book"><div class="book"><div class="book"><h2 class="title1" id="calibre_pb_6"><a id="ch03lvl3sec16" class="calibre1"/>Starting and stopping a service</h2></div></div></div><p class="calibre9">
+<code class="email">systemd</code> provides<a id="id152" class="calibre1"/> an interface to monitor and <a id="id153" class="calibre1"/>manage the service using the <code class="email">systemctl</code> command. To <a id="id154" class="calibre1"/>start a service, invoke the <code class="email">start</code> option<a id="id155" class="calibre1"/> with the service name. To start the service permanently after reboot, invoke the <code class="email">enable</code> option with the service name.<code class="email">.service</code> can be omitted when the service name is provided to the <code class="email">systemctl</code> command:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong class="calibre2">systemctl enable crond</strong></span>
+<span class="strong"><strong class="calibre2">systemctl start crond</strong></span>
+</pre></div><p class="calibre9">To stop the service, invoke the <code class="email">stop</code> option with the service name:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong class="calibre2">systemctl stop crond</strong></span>
+</pre></div><p class="calibre9">To<a id="id156" class="calibre1"/> check the status<a id="id157" class="calibre1"/> of the<a id="id158" class="calibre1"/> service, invoke the <code class="email">status</code> option <a id="id159" class="calibre1"/>with the service name:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong class="calibre2">systemctl status crond</strong></span>
+<span class="strong"><strong class="calibre2">crond.service - Command Scheduler</strong></span>
+<span class="strong"><strong class="calibre2">   Loaded: loaded (/usr/lib/systemd/system/crond.service; enabled)</strong></span>
+<span class="strong"><strong class="calibre2">   Active: active (running) since Tue 2015-09-08 22:51:30 IST; 2s ago</strong></span>
+<span class="strong"><strong class="calibre2"> Main PID: 8225 (crond)</strong></span>
+<span class="strong"><strong class="calibre2">   CGroup: /system.slice/crond.service</strong></span>
+<span class="strong"><strong class="calibre2">           `-8225 /usr/sbin/crond -n</strong></span>
+<span class="strong"><strong class="calibre2">...</strong></span>
+</pre></div><div class="book" title="fleet"><div class="book"><div class="book"><div class="book"><h3 class="title2"><a id="ch03lvl4sec08" class="calibre1"/>fleet</h3></div></div></div><p class="calibre9">CoreOS <a id="id160" class="calibre1"/>extends the <a id="id161" class="calibre1"/>init system to the cluster using fleet. fleet emulates all the nodes in the CoreOS cluster to be part of a single init system or system service. fleet controls the systemd service at the cluster level, not at the individual node level, which allows fleet to manage services in any of the nodes in the cluster. fleet handles scheduling a unit/service/container to a cluster member, handles units by rescheduling to another member, and provides an interface for monitoring and managing units locally or remotely. You don't have to care about the coupling of a member to the service, as fleet does it for you. The unit is guaranteed to be running on all the clusters meeting the constraint required for running the service. Unit files are not only limited to launch a Docker, even though most of the time unit files are used to start a Docker. Some of the valid unit types are <code class="email">.socket</code>, <code class="email">.mount</code>, and so on.</p></div></div></div>
+
+<div class="book" title="CoreOS clustering">
+<div class="book" title="Architectural overview"><div class="book"><div class="book"><div class="book"><h2 class="title1" id="calibre_pb_7"><a id="ch03lvl3sec17" class="calibre1"/>Architectural overview</h2></div></div></div><p class="calibre9">fleet consists <a id="id162" class="calibre1"/>of two main components: <span class="strong"><strong class="calibre2">fleet agent</strong></span> and <span class="strong"><strong class="calibre2">fleet engine</strong></span>. Both <a id="id163" class="calibre1"/>these components <a id="id164" class="calibre1"/>are <a id="id165" class="calibre1"/>part of the <code class="email">fleetd</code> module and will be running on all the cluster nodes. Both the engine and agent components work with a reconciliation model, wherein both these components take a snapshot of the current state of the cluster and derive the desired state and try to emulate the derived state of the cluster.</p><p class="calibre9">fleet uses the D-Bus interface exposed by systemd. D-Bus is the message bus system for IPC provided by the Linux OS, which provides one-to-one messaging methods and the pub/sub type of message communication. </p><div class="informalexample" title="Note"><h3 class="title2"><a id="tip05" class="calibre1"/>Tip</h3><p class="calibre9">As fleet is written in Go language, fleet uses <code class="email">godbus</code>, which is the native GO binding for D-Bus. </p></div><p class="calibre9">fleet uses <code class="email">godbus</code> to communicate with <code class="email">systemd</code> for sending the commands to start/stop units in <a id="id166" class="calibre1"/>a particular node. It also uses <code class="email">godbus</code> to <a id="id167" class="calibre1"/>get the current state of the units periodically. </p><div class="book" title="Engine"><div class="book"><div class="book"><div class="book"><h3 class="title2"><a id="ch03lvl4sec09" class="calibre1"/>Engine</h3></div></div></div><p class="calibre9">The fleetd engine is <a id="id168" class="calibre1"/>responsible for making the scheduling decision of the units among the cluster of nodes based on the constraint, if any. The engine talks to <code class="email">etcd</code> for getting the current state of units and nodes in the cluster. All the units, state of the units, and the nodes in the cluster are stored in the <code class="email">etcd</code> data store.</p><p class="calibre9">The scheduling decision happens in a timely fashion or is triggered by <code class="email">etcd</code> events. The reconciliation process is triggered by <code class="email">etcd</code> events or time period, wherein the engine takes a snapshot of the current state and the desired state of the cluster, which includes the state of all the units running on the cluster along with the state of all the nodes/agents in the cluster. Based on the current state and desired state of the cluster, it takes necessary action to move from the current state to the desired state and save the desired state as the current state. By default, the engine uses the least-loaded scheduling algorithm, wherein it chooses the node that is loaded less for running a new unit.</p></div><div class="book" title="Agent"><div class="book"><div class="book"><div class="book"><h3 class="title2"><a id="ch03lvl4sec10" class="calibre1"/>Agent</h3></div></div></div><p class="calibre9">
+<span class="strong"><strong class="calibre2">Agent</strong></span> is <a id="id169" class="calibre1"/>responsible for starting the units in the node. Once the engines choose the appropriate node for running the units, it is the responsibility of the agent in that node to start the unit. To start the unit, the agent sends start or stop unit commands to the local systemd process using the D-Bus. The agent is also responsible for sending the state of the units to the etcd, which will be later communicated to the engine. Similar to the engine, the agent also runs a periodic reconciler process to compute the current state and desired state of unit files and takes the necessary action to move to the desired state.</p><p class="calibre9">The following diagram represents how the job/unit is scheduled by the fleet engine to one of the nodes in the cluster. When the user wants to start a unit using the <code class="email">fleetctl start</code> command, the engine picks this job and adds it to the job offer. The qualified agent running on the node bids for the job on behalf of the node. Once the qualified agent is selected by the engine, it sends the unit to the agent for deployment. </p><div class="mediaobject"><img src="../images/00017.jpeg" alt="Agent" class="calibre11"/></div><p class="calibre12"> </p></div></div></div>
+
+<div class="book" title="CoreOS clustering">
+<div class="book" title="fleetctl"><div class="book"><div class="book"><div class="book"><h2 class="title1" id="calibre_pb_8"><a id="ch03lvl3sec18" class="calibre1"/>fleetctl</h2></div></div></div><p class="calibre9">
+<code class="email">fleetctl</code> is <a id="id170" class="calibre1"/>the utility provided by the CoreOS distribution to <a id="id171" class="calibre1"/>interface and manage the <code class="email">fleetd</code> module. This is similar to <code class="email">systemctl</code> for <code class="email">systemd</code> to fleet. <code class="email">fleetctl</code> can either be executed on one of the nodes inside the CoreOS cluster or it can be executed on a machine that is not part of the CoreOS cluster. There are different mechanisms to run <code class="email">fleetctl</code> to manage the fleet service.</p><p class="calibre9">By default, <code class="email">fleetctl</code> communicates directly with <code class="email">unix:///var/run/fleet.sock,</code> which is a Unix domain socket of the local host machine. To override and to contact a particular node's HTTP API, the <code class="email">--endpoint</code> option should be used, as follows. The <code class="email">--endpoint</code> option can also be provided using <code class="email">FLEETCTL_ENDPOINT</code> environmental options:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong class="calibre2">fleetctl --endpoint http://&lt;IP:PORT&gt; list-units</strong></span>
+</pre></div><p class="calibre9">When the user want to execute the <code class="email">fleetctl</code> command from an external machine, the <code class="email">--tunnel</code> option is used, which provides a way to tunnel <code class="email">fleetctl</code> commands to one of the nodes in the cluster using SSH:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong class="calibre2">fleetctl --tunnel 10.0.0.1 list-machines</strong></span>
+</pre></div><p class="calibre9">
+<code class="email">fleetctl</code> contains the command to start, stop, and destroy units in the cluster. The following<a id="id172" class="calibre1"/> table <a id="id173" class="calibre1"/>lists the commands provided <a id="id174" class="calibre1"/>by <code class="email">fleetctl</code>:</p><div class="informalexample"><table border="1" class="calibre18"><colgroup class="calibre19"><col class="calibre20"/><col class="calibre20"/><col class="calibre20"/></colgroup><thead class="calibre21"><tr class="calibre22"><th valign="bottom" class="calibre23">
+<p class="calibre24">Command</p>
+</th><th valign="bottom" class="calibre23">
+<p class="calibre24">Description</p>
+</th><th valign="bottom" class="calibre23">
+<p class="calibre24">Example</p>
+</th></tr></thead><tbody class="calibre25"><tr class="calibre22"><td valign="top" class="calibre26">
+<p class="calibre24">
+<code class="literal">fleetctl list-unit-files</code>
+</p>
+</td><td valign="top" class="calibre26">
+<p class="calibre24">List all units in the fleet cluster.</p>
+</td><td valign="top" class="calibre26">
+<p class="calibre24">
+</p><div class="informalexample1"><pre class="programlisting1">
+<span><strong class="calibre27">$ fleetctl list-unit-files</strong></span>
+<span><strong class="calibre27">UNIT            HASH    DSTATE   STATE    TMACHINE</strong></span>
+<span><strong class="calibre27">myservice.service d4d81cf launched launched 85c0c595.../172.17.8.102</strong></span>
+<span><strong class="calibre27">example.service   e56c91e launched launched 113f16a7.../172.17.8.103</strong></span>
+</pre></div><p class="calibre24">
+</p>
+</td></tr><tr class="calibre22"><td valign="top" class="calibre26">
+<p class="calibre24">
+<code class="literal">fleetctl start</code>
+</p>
+</td><td valign="top" class="calibre26">
+<p class="calibre24">To start a unit.</p>
+</td><td valign="top" class="calibre26">
+<p class="calibre24">
+</p><div class="informalexample1"><pre class="programlisting1">
+<span><strong class="calibre27">$ fleetctl start myservice.service</strong></span>
+<span><strong class="calibre27">Unit myservice.service launched on d4d81cf.../172.17.8.102</strong></span>
+</pre></div><p class="calibre24">
+</p>
+</td></tr><tr class="calibre22"><td valign="top" class="calibre26">
+<p class="calibre24">
+<code class="literal">fleetctl stop</code>
+</p>
+</td><td valign="top" class="calibre26">
+<p class="calibre24">To stop a unit.</p>
+</td><td valign="top" class="calibre26">
+<p class="calibre24">
+</p><div class="informalexample1"><pre class="programlisting1">
+<span><strong class="calibre27">$ fleetctl stop myservice.service</strong></span>
+<span><strong class="calibre27">Unit myservice.service stopped on d4d81cf.../172.17.8.102</strong></span>
+</pre></div><p class="calibre24">
+</p>
+</td></tr><tr class="calibre22"><td valign="top" class="calibre26">
+<p class="calibre24">
+<code class="literal">fleetctl load</code>
+</p>
+</td><td valign="top" class="calibre26">
+<p class="calibre24">To schedule a unit in a cluster without starting the unit. This unit will be in an inactive state.</p>
+</td><td valign="top" class="calibre26">
+<p class="calibre24">
+</p><div class="informalexample1"><pre class="programlisting1">
+<span><strong class="calibre27">$ fleetctl load example.service</strong></span>
+<span><strong class="calibre27">Unit example.service loaded on 133f19a7.../172.17.8.103</strong></span>
+</pre></div><p class="calibre24">
+</p>
+</td></tr><tr class="calibre22"><td valign="top" class="calibre26">
+<p class="calibre24">
+<code class="literal">fleetctl unload</code>
+</p>
+</td><td valign="top" class="calibre26">
+<p class="calibre24">To unschedule a unit in a cluster. This unit will be visible in <code class="literal">fleetctl list-unit-files</code> but will not have any state. </p>
+</td><td valign="top" class="calibre26">
+<p class="calibre24">
+</p><div class="informalexample1"><pre class="programlisting1">
+<span><strong class="calibre27">$ fleetctl load example.service</strong></span>
+</pre></div><p class="calibre24">
+</p>
+</td></tr><tr class="calibre22"><td valign="top" class="calibre26">
+<p class="calibre24">
+<code class="literal">fleetctl submit</code>
+</p>
+</td><td valign="top" class="calibre26">
+<p class="calibre24">To bring the units into the cluster. This unit will be visible in <code class="literal">fleetctl list-unit-files</code> but will not have any state.</p>
+</td><td valign="top" class="calibre26">
+<p class="calibre24">
+</p><div class="informalexample1"><pre class="programlisting1">
+<span><strong class="calibre27">fleetctl submit example.service</strong></span>
+</pre></div><p class="calibre24">
+</p>
+</td></tr><tr class="calibre22"><td valign="top" class="calibre26">
+<p class="calibre24">
+<code class="literal">fleetctl destroy</code>
+</p>
+</td><td valign="top" class="calibre26">
+<p class="calibre24">The destroy command stops the unit and removes the unit file from the cluster.</p>
+</td><td valign="top" class="calibre26">
+<p class="calibre24">
+</p><div class="informalexample1"><pre class="programlisting1">
+<span><strong class="calibre27">fleetctl destroy example.service</strong></span>
+</pre></div><p class="calibre24">
+</p>
+</td></tr><tr class="calibre22"><td valign="top" class="calibre26">
+<p class="calibre24">
+<code class="literal">fleetctl status</code>
+</p>
+</td><td valign="top" class="calibre26">
+<p class="calibre24">To get the status of the unit. This command invokes the <code class="literal">systemctl</code> command on the machine running a given unit over SSH.</p>
+</td><td valign="top" class="calibre26">
+<p class="calibre24">
+</p><div class="informalexample1"><pre class="programlisting1">
+<span><strong class="calibre27">$ fleetctl status example.service</strong></span>
+<span><strong class="calibre27">example.service - Hello World</strong></span>
+<span><strong class="calibre27">   Loaded: loaded (/run/systemd/system/example.service; enabled-runtime)</strong></span>
+<span><strong class="calibre27">   Active: active (running) since Mon 2015-09-21 23:20:23 UTC; 1h 49min ago</strong></span>
+<span><strong class="calibre27"> Main PID: 6972 (bash)</strong></span>
+<span><strong class="calibre27">   CGroup: /system.slice/example.1.service</strong></span>
+<span><strong class="calibre27">           ├─ 6973 /bin/bash -c while true; do echo "Hello, world"; sleep 1; done</strong></span>
+<span><strong class="calibre27">           └─20381 sleep 1</strong></span>
+</pre></div><p class="calibre24">
+</p>
+</td></tr></tbody></table></div><p class="calibre9">The <code class="email">fleetctl</code> syntax looks similar to <code class="email">systemctl</code>, which is the management interface<a id="id175" class="calibre1"/> for <code class="email">systemd</code>.</p><div class="book" title="Standard (local) and global units"><div class="book"><div class="book"><div class="book"><h3 class="title2"><a id="ch03lvl4sec11" class="calibre1"/>Standard (local) and global units</h3></div></div></div><p class="calibre9">Global <a id="id176" class="calibre1"/>units are units that are scheduled to run on all the members. Standard or local units are units that are scheduled to run only on some machines. In case of failures, these units are switched to another member in the cluster fit to run those units. </p></div></div></div>
+
+<div class="book" title="CoreOS clustering">
+<div class="book" title="Unit file options for fleet"><div class="book"><div class="book"><div class="book"><h2 class="title1" id="calibre_pb_9"><a id="ch03lvl3sec19" class="calibre1"/>Unit file options for fleet</h2></div></div></div><p class="calibre9">Unit file <a id="id177" class="calibre1"/>format is the same as the file format for <code class="email">systemd</code>. fleet extends the configuration by adding another section, <code class="email">X-Fleet</code>. This section is used by fleet to schedule the units on a specific member based on the constraints specified. Some of the important parameters of the <code class="email">X-Fleet</code> section are:</p><div class="book"><ul class="itemizedlist"><li class="listitem"><code class="email">MachineID</code>: This specifies the machine on which the unit has to be executed. Machine ID can be obtained from the <code class="email">/etc/machine-id</code> file, or through the <code class="email">fleetctl list-machines -l</code> command. This option is to be used with discretion as it defies the purpose of fleet, allowing a unit to be targeted specifically on the machine.</li><li class="listitem"><code class="email">MachineOf</code>: This instructs fleet to execute the unit on which the specified unit is running. This option can be used to group units running on a member.</li><li class="listitem"><code class="email">MachineMetadata</code>: This instructs fleet to execute the units on the member matching the specified metadata. If more than one metadata is provided, all metadata should match. To match any of the metadata the parameter can include multiple times. <code class="email">Metadata</code> is provided for the member in the <code class="email">cloud-config</code> fleet configuration.</li><li class="listitem"><code class="email">Conflicts</code>: This instructs fleet not to execute the unit on the specified unit that is running.</li><li class="listitem"><code class="email">Global</code>: If this is set to true, the unit is scheduled to be executed on all the members. Additionally, if <code class="email">MachineMetadata </code>is configured, they run only on members having matching metadata. Any other options, if provided, make the unit<a id="id178" class="calibre1"/> configuration invalid.</li></ul></div></div></div>
+
+<div class="book" title="CoreOS clustering">
+<div class="book" title="Instantiating the service unit in the cluster"><div class="book"><div class="book"><div class="book"><h2 class="title1" id="calibre_pb_10"><a id="ch03lvl2sec22" class="calibre1"/>Instantiating the service unit in the cluster</h2></div></div></div><p class="calibre9">We have <a id="id179" class="calibre1"/>seen what CoreOS clustering is, how to form a cluster, and tools like <code class="email">fleet</code> and <code class="email">fleetctl</code>. Now, let us see how a service unit can be started in one of the nodes in the cluster using <code class="email">fleet</code>. As mentioned already, <code class="email">fleetctl</code> is the command-line utility provided by the CoreOS distribution to perform various operations, such as start the service, stop the service, and so on in a cluster. Like <code class="email">systemctl</code>, <code class="email">fleetctl</code> also requires a service file to perform these operations. Let us see a sample service file and using the service file, how fleet starts the service in the cluster:</p><div class="informalexample"><pre class="programlisting">[Unit]
+Description=Example
+After=docker.service
+Requires=docker.service
+
+[Service]
+TimeoutStartSec=0
+ExecStartPre=-/usr/bin/docker kill busybox1
+ExecStartPre=-/usr/bin/docker rm busybox1
+ExecStartPre=/usr/bin/docker pull busybox
+ExecStart=/usr/bin/docker run --name busybox1 busybox /bin/sh -c "while true; do echo Hello World; sleep 1; done"
+ExecStop=/usr/bin/docker stop busybox1</pre></div><p class="calibre9">Save the preceding file as <code class="email">example.service</code> on the CoreOS machine. Now, execute the following command to start the service in the cluster:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong class="calibre2">$ fleetctl start example.service</strong></span>
+
+<span class="strong"><strong class="calibre2">$ fleetctl list-units</strong></span>
+<span class="strong"><strong class="calibre2">UNIT              MACHINE                 ACTIVE    SUB</strong></span>
+<span class="strong"><strong class="calibre2">example.service     d0ef0562.../10.0.0.3   active    running</strong></span>
+
+<span class="strong"><strong class="calibre2">$ fleetctl list-machines</strong></span>
+<span class="strong"><strong class="calibre2">MACHINE                                 IP          METADATA</strong></span>
+<span class="strong"><strong class="calibre2">159b2900-7f06-5d43-92da-daeeabb90d5a    10.0.0.1   -</strong></span>
+<span class="strong"><strong class="calibre2">50a69aa6-518d-4d81-ad3d-bfc4d146e996    10.0.0.2   -</strong></span>
+<span class="strong"><strong class="calibre2">d0ef0562-6a6f-1d80-b7e6-46e996bfc4d1    10.0.0.3   -</strong></span>
+</pre></div><p class="calibre9">One of the major requirements for running a service is to provide high availability. To provide a high-availability service, we may need to run multiple instances of the same service. These different instances should be running on different nodes. To provide high availability for a unit/service, we should make sure that the different instances of the service are running on different nodes in the cluster. This can be achieved in CoreOS by using the <a id="id180" class="calibre1"/>
+<code class="email">conflicts</code> attribute. Let us have a look at the service file for these two instances of the service, say, the service as <code class="email">redis.service</code>: </p><div class="informalexample"><pre class="programlisting">[Unit]
+Description=My redis Frontend
+After=docker.service
+Requires=docker.service
+
+[Service]
+TimeoutStartSec=0
+ExecStartPre=-/usr/bin/docker kill redis
+ExecStartPre=-/usr/bin/docker rm redis
+ExecStartPre docker pull dockerfile/redis
+ExecStart docker run -d --name redis -p 6379:6379 dockerfile/redis
+ExecStop=/usr/bin/docker stop redis
+
+[X-Fleet]
+Conflicts=redis@*.service</pre></div><p class="calibre9">Save this content as <code class="email">redis@1.service</code> and <code class="email">redis@2.service</code>. The conflicts attributes in the service file informs fleet not to start these two services in the same node:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong class="calibre2">$ fleetctl start redis@1</strong></span>
+<span class="strong"><strong class="calibre2">$ fleetctl start redis@2</strong></span>
+<span class="strong"><strong class="calibre2">$ fleetctl list-units</strong></span>
+<span class="strong"><strong class="calibre2">UNIT              MACHINE                 ACTIVE    SUB</strong></span>
+<span class="strong"><strong class="calibre2">redis@1.service  5a2686a6.../10.0.0.2   active    running</strong></span>
+<span class="strong"><strong class="calibre2">redis@2.service  259b18ff.../10.0.0.1   active    running</strong></span>
+</pre></div></div></div>
+
+<div class="book" title="CoreOS clustering">
+<div class="book" title="Recovering from node failure"><div class="book"><div class="book"><div class="book"><h2 class="title1" id="calibre_pb_11"><a id="ch03lvl2sec23" class="calibre1"/>Recovering from node failure</h2></div></div></div><p class="calibre9">CoreOS<a id="id181" class="calibre1"/> provides an inherent mechanism to reschedule the units from one node to another node when there is a node failure or machine failure. All the nodes in the cluster send a heartbeat message to the fleet leader. When the heartbeat messages are not received from a particular node, all the units running on that node are marked to be rescheduled in different nodes. The fleet engine identifies the qualified node and starts the units in the qualified node.</p></div></div>
+<div class="book" title="Summary" id="RL0A1-31555e2039a14139a7f00b384a5a2dd8"><div class="book"><div class="book"><div class="book"><h1 class="title" id="calibre_pb_0"><a id="ch03lvl1sec23" class="calibre1"/>Summary</h1></div></div></div><p class="calibre9">In this chapter, we learned about CoreOS clusters and how members join a cluster using cluster discovery. We got ourselves familiar with the init system used to start the units in most of the Linux systems and how CoreOS extends it to a multi-member cluster using the fleet service. We learned about starting and stopping a service on a member using fleet.</p><p class="calibre9">In the next chapter, we will understand more about the constraints on the service, which helps fleet select the member suitable for it to run.</p></div></body></html>

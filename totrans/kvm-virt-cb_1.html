@@ -1,0 +1,1466 @@
+<html><head></head><body>
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">Getting Started with QEMU and KVM</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3"> In this chapter, we will cover the following topics:</p>
+<ul class="calibre16">
+<li class="calibre17">Installing and configuring QEMU</li>
+<li class="calibre17">Managing disk images with qemu-img</li>
+<li class="calibre17"><span>Preparing images for OS installation with</span> qemu-nbd</li>
+<li class="calibre17">Installing a custom OS on the image with debootstrap</li>
+<li class="calibre17">Resizing an image</li>
+<li class="calibre17">Using pre-existing images</li>
+<li class="calibre17">Running virtual machines with qemu-system-*</li>
+<li class="calibre17">Starting the QEMU VM with KVM support</li>
+<li class="calibre17">Connecting to a running instance with VNC</li>
+</ul>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">Introduction</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3"><strong class="calibre4">Quick Emulator</strong> (<strong class="calibre4">QEMU</strong>) is the main component of the QEMU/KVM virtualization technology suit. It provides hardware virtualization and processor emulation. QEMU runs in userspace and, without the need for kernel, drivers can still provide fast system emulation. QEMU supports two operating modes:</p>
+<ul class="calibre16">
+<li class="calibre17">Full system emulation, where QEMU emulates an entire computer system, including the CPU type and peripherals</li>
+<li class="calibre17">User mode emulation, where QEMU can run a process that has been compiled on a different CPU architecture natively</li>
+</ul>
+<p class="calibre3">In this book, we are going to focus on full system emulation with the hardware acceleration support provided by the <strong class="calibre4">Kernel-based Virtual Machine</strong> (<strong class="calibre4">KVM</strong>) hypervisor.</p>
+<p class="calibre3">In this chapter, we will start by installing QEMU on Linux, then explore various examples of building, managing, and using disk images for the virtual instances. We will then have an in-depth look at running QEMU in <span>full system emulation mode, using the provided binaries. We will see examples of using the KVM kernel module to accelerate the QEMU processes. Finally, we are going to end the chapter with details on how to connect to the virtual machines we started earlier, using VNC clients.</span></p>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">Installing and configuring QEMU</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">In this recipe, we will look at installing QEMU on a single server with the provided distribution packages. For production environments, we recommend using precompiled, packaged versions of QEMU for easier and more consistent deployments. However, we are going to see an example of how to compile QEMU from source, in case you need a certain version that you might want to package later.</p>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">Getting ready</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">Depending on your Linux distribution, the package name and installation commands will differ. You can use your system's package manager, such as <kbd class="calibre13">apt</kbd>, <kbd class="calibre13">dnf</kbd>, or <kbd class="calibre13">yum</kbd> to search for any packages containing the <span>QEMU</span> string and get familiar with what is available for your particular Linux variant. The source code can be downloaded from the official QEMU project website at <a href="http://www.qemu-project.org/download/#source" target="_blank" class="calibre8">http://www.qemu-project.org/download/#source</a>. </p>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">How to do it...</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">Perform the following steps to install QEMU from packages on Ubuntu/Debian and RHEL/CentOS distributions:</p>
+<ol class="calibre18">
+<li value="1" class="calibre17">On Ubuntu/Debian distributions, update your packages index:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# apt-get update</strong>
+</pre>
+<ol start="2" class="calibre18">
+<li value="2" class="calibre17">Install the package:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4"><span>root@kvm:~# apt-get install -y qemu</span></strong>
+</pre>
+<ol start="3" class="calibre18">
+<li value="3" class="calibre17">On CentOS/RHEL distributions execute: </li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# yum install qemu-kvm</strong>
+</pre>
+<p class="calibre26">To install from source, execute the following:</p>
+<ol class="calibre18">
+<li value="1" class="calibre17">Download the archive first:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~#cd /usr/src &amp;&amp; wget <br class="calibre7"/>http://download.qemu-project.org/qemu-2.8.0.tar.xz</strong>
+</pre>
+<ol start="2" class="calibre18">
+<li value="2" class="calibre17">Extract the files from the archive:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:/usr/src# tar xvJf qemu-2.8.0.tar.xz &amp;&amp; cd qemu-        2.8.0</strong>
+</pre>
+<ol start="3" class="calibre18">
+<li value="3" class="calibre17">Configure and compile the source code:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:/usr/src/qemu-2.8.0# ./configure  <br class="calibre7"/>root@kvm:/usr/src/qemu-2.8.0# make &amp;&amp; make install</strong>
+</pre>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">How it works...</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">Installing QEMU is quite trivial, as we just saw. Let's have a look at what the QEMU metapackage installed on Ubuntu looks like:</p>
+<pre class="calibre23">
+<strong class="calibre4">root@kvm:~# dpkg --list | grep qemu<br class="calibre7"/>ii ipxe-qemu 1.0.0+git-20150424.a25a16d-1ubuntu1 all PXE boot firmware - ROM images for qemu<br class="calibre7"/>ii qemu 1:2.5+dfsg-5ubuntu10.8 amd64 fast processor emulator<br class="calibre7"/>ii qemu-block-extra:amd64 1:2.5+dfsg-5ubuntu10.8 amd64 extra block backend modules for qemu-system and qemu-utils<br class="calibre7"/>ii qemu-slof 20151103+dfsg-1ubuntu1 all Slimline Open Firmware -- QEMU PowerPC version<br class="calibre7"/>ii qemu-system 1:2.5+dfsg-5ubuntu10.8 amd64 QEMU full system emulation binaries<br class="calibre7"/>ii qemu-system-arm 1:2.5+dfsg-5ubuntu10.8 amd64 QEMU full system emulation binaries (arm)<br class="calibre7"/>ii qemu-system-common 1:2.5+dfsg-5ubuntu10.8 amd64 QEMU full system emulation binaries (common files)<br class="calibre7"/>ii qemu-system-mips 1:2.5+dfsg-5ubuntu10.8 amd64 QEMU full system emulation binaries (mips)<br class="calibre7"/>ii qemu-system-misc 1:2.5+dfsg-5ubuntu10.8 amd64 QEMU full system emulation binaries (miscelaneous)<br class="calibre7"/>ii qemu-system-ppc 1:2.5+dfsg-5ubuntu10.8 amd64 QEMU full system emulation binaries (ppc)<br class="calibre7"/>ii qemu-system-sparc 1:2.5+dfsg-5ubuntu10.8 amd64 QEMU full system emulation binaries (sparc)<br class="calibre7"/>ii qemu-system-x86 1:2.5+dfsg-5ubuntu10.8 amd64 QEMU full system emulation binaries (x86)<br class="calibre7"/>ii qemu-user 1:2.5+dfsg-5ubuntu10.8 amd64 QEMU user mode emulation binaries<br class="calibre7"/>ii qemu-user-binfmt 1:2.5+dfsg-5ubuntu10.8 amd64 QEMU user mode binfmt registration for qemu-user<br class="calibre7"/>ii qemu-utils 1:2.5+dfsg-5ubuntu10.8 amd64 QEMU utilities<br class="calibre7"/>root@kvm:~#</strong>
+</pre>
+<p class="calibre3">From the preceding output, we can see that there are few packages involved. If you are interested, you can read the individual description to get more familiar with what each package provides.</p>
+<p class="calibre3">It's worth mentioning that all binaries provided from the earlier-mentioned packages start with the prefix <span>QEMU</span>. You can use tab completion to see the list of available executables:</p>
+<pre class="calibre23">
+<strong class="calibre4">root@kvm:~# qemu-<br class="calibre7"/>qemu-aarch64 qemu-io qemu-mips64el qemu-ppc64 qemu-sparc32plus qemu-system-lm32 qemu-system-mipsel qemu-system-sh4 qemu-system-xtensa<br class="calibre7"/>qemu-alpha qemu-m68k qemu-mipsel qemu-ppc64abi32 qemu-sparc64 qemu-system-m68k qemu-system-moxie qemu-system-sh4eb qemu-system-xtensaeb<br class="calibre7"/>qemu-arm qemu-make-debian-root qemu-mipsn32 qemu-ppc64le qemu-system-aarch64 qemu-system-microblaze qemu-system-or32 qemu-system-sparc qemu-tilegx<br class="calibre7"/>qemu-armeb qemu-microblaze qemu-mipsn32el qemu-s390x qemu-system-alpha qemu-system-microblazeel qemu-system-ppc qemu-system-sparc64 qemu-unicore32<br class="calibre7"/>qemu-cris qemu-microblazeel qemu-nbd qemu-sh4 qemu-system-arm qemu-system-mips qemu-system-ppc64 qemu-system-tricore qemu-x86_64<br class="calibre7"/>qemu-i386 qemu-mips qemu-or32 qemu-sh4eb qemu-system-cris qemu-system-mips64 qemu-system-ppc64le qemu-system-unicore32<br class="calibre7"/>qemu-img qemu-mips64 qemu-ppc qemu-sparc qemu-system-i386 qemu-system-mips64el qemu-system-ppcemb qemu-system-x86_64<br class="calibre7"/>root@kvm:~#</strong>
+</pre>
+<p class="calibre3">We can see that there's a single executable for each CPU architecture type that can be emulated.</p>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">Managing disk images with qemu-img</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">To run virtual machines, QEMU needs images to store the filesystem of the guest OS. The image itself is a type of file, and it represents the guest filesystem residing on a virtual disk. QEMU supports various images and provides tools to create and manage them. In this recipe, we are going to build a blank disk image with the <kbd class="calibre13">qemu-img</kbd> utility.</p>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">Getting ready</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">To use this recipe, we need to have the <kbd class="calibre13">qemu-img</kbd> utility installed. If you followed the steps in the first recipe, you should have that covered. To check what image types are supported on your Linux distribution, run the following command:</p>
+<pre class="calibre23">
+<strong class="calibre4">root@kvm:~# qemu-img -h | grep Supported<br class="calibre7"/>Supported formats: bochs vvfat rbd vpc parallels tftp ftp ftps raw https qcow dmg http qcow2 quorum null-aio cloop vdi iscsi null-co vhdx blkverify file vmdk host_cdrom blkdebug host_device sheepdog qed nbd<br class="calibre7"/>root@kvm:~#</strong>
+</pre>
+<p class="calibre3">From the preceding output, we can see that there are many supported images on the test system that we are using. Make sure that your QEMU version supports the raw image type, as it's the default and that is what we are going to use in this recipe. One of the most commonly used image type is <kbd class="calibre13">qcow2</kbd>, which supports copy on write, compression, encryption, and snapshotting. We are going to leverage that in later recipes. </p>
+<div class="packt_infobox">Please note that even though QEMU supports multiple formats, that does not necessarily mean that you can run virtual machines on them. However, <kbd class="calibre27">qemu-img</kbd> can be used to convert different images to raw and <kbd class="calibre27">qcow2</kbd> formats. For best performance, use raw or <kbd class="calibre27">qcow2</kbd> image formats.</div>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">How to do it...</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">Perform the following steps to create a blank raw image of a specified size and to verify that the file was created on the host:</p>
+<ol class="calibre18">
+<li value="1" class="calibre17">Create a raw image named <kbd class="calibre13">debian.img</kbd> with size of 10 GB:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# qemu-img create -f raw debian.img 10G    <br class="calibre7"/>Formatting 'debian.img', fmt=raw size=10737418240    <br class="calibre7"/>root@kvm:~#</strong>
+</pre>
+<ol start="2" class="calibre18">
+<li value="2" class="calibre17">Check that the file was created:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# ls -lah debian.img    <br class="calibre7"/>-rw-r--r-- 1 root root 10G Feb 10 16:58 debian.img    <br class="calibre7"/> root@kvm:~#</strong>
+</pre>
+<ol start="3" class="calibre18">
+<li value="3" class="calibre17">Examine the file type:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# file -s debian.img    <br class="calibre7"/>debian.img: data    <br class="calibre7"/>root@kvm:~#</strong>
+</pre>
+<ol start="4" class="calibre18">
+<li value="4" class="calibre17">Obtain more information about the image:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# qemu-img info debian.img</strong><br class="calibre7"/><strong class="calibre4">image: debian.img</strong><br class="calibre7"/><strong class="calibre4">file format: raw</strong><br class="calibre7"/><strong class="calibre4">virtual size: 10G (10737418240 bytes)</strong><br class="calibre7"/><strong class="calibre4">disk size: 0</strong><br class="calibre7"/><strong class="calibre4">root@kvm:~#</strong>
+</pre>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">How it works...</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">The <kbd class="calibre13">qemu-img</kbd> utility allows us to create, convert, and modify guest images.</p>
+<p class="calibre3">In step 1, we used the <kbd class="calibre13">-f</kbd> flag specifying the image format; in this case, <kbd class="calibre13">raw</kbd>, the name of the image to be created and the size in gigabytes.</p>
+<p class="calibre3">In step 4, we used the <kbd class="calibre13">info</kbd> subcommand to gather additional information about the existing image. Note how the disk size is showing as currently being zero. This is due to the fact that this is a blank image, not containing a filesystem. We are going to create one in the next recipe.</p>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">There's more...</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">In this recipe, we listed the supported disk image formats by QEMU. The following is a brief description of the most common types that you might encounter:</p>
+<ul class="calibre16">
+<li class="calibre17"><kbd class="calibre13">raw</kbd>: Raw disk image format. This is the default format and can be one of the fastest file-based formats. If you format this image with a filesystem that supports holes, for example, EXT3, then only sectors that have data will use space. The main drawback of the raw images is the lack of features, making them ideal for testing and quick prototyping. </li>
+<li class="calibre17"><kbd class="calibre13">qcow2</kbd>: As we mentioned in the previous section, this is one of the most feature-rich formats. It supports VM snapshots, compression, and encryption for the price of slightly reduced performance.</li>
+<li class="calibre17"><kbd class="calibre13">qcow</kbd>: This is an older QEMU image format that <span>supports backing files, compact image files, encryption, and compression.</span></li>
+<li class="calibre17"><kbd class="calibre13">dmg</kbd>: This is the Mac disk image format. The Mac disk image provides secure password protection and compression, and it is most commonly used to distribute software, rather than running virtual machines.</li>
+<li class="calibre17"><kbd class="calibre13">nbd</kbd>: The network block device, typically used for accessing remote storage devices. </li>
+<li class="calibre17"><kbd class="calibre13">vdi</kbd>: This disk format is used by the Oracle VirtualBox software and can be used to run virtual machines on various CPU platforms.</li>
+<li class="calibre17"><kbd class="calibre13">vmdk</kbd>: This is the VMware disk image type, where a single virtual hard disk can span multiple files.</li>
+<li class="calibre17"><kbd class="calibre13">vhdx</kbd>: Microsoft Hyper-V uses this image format. It provides large storage capacity, data corruption protection during power failures and read/write optimization for larger disk images.</li>
+</ul>
+<p class="calibre3">In this book, we are going to use the <kbd class="calibre13">raw</kbd> and <kbd class="calibre13">qcow2</kbd> disk formats, as they provide the best performance and toolset for running and manipulating them.</p>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">Preparing images for OS installation with qemu-nbd</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">In the previous recipe, we created a blank raw image. In this recipe, we are going to make a partition and a filesystem on it, getting the image ready for full guest OS installation. When creating the partition and file system, you should consider the type of load that the virtual instance will create. If your applications running inside VM are IO bound, you might consider XFS for the image filesystem. For this recipe, we are going to use EXT4, as most Linux distributions support it out of the box.</p>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">Getting ready</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">For this recipe, we are going to use the following tools:</p>
+<ul class="calibre16">
+<li class="calibre17"><kbd class="calibre13">qemu-nbd</kbd></li>
+<li class="calibre17"><kbd class="calibre13">sfdisk</kbd></li>
+<li class="calibre17">The <kbd class="calibre13">nbd</kbd> kernel module</li>
+<li class="calibre17"><kbd class="calibre13">mkfs</kbd></li>
+</ul>
+<p class="calibre3">Most Linux distributions should already have the tools installed. If that's not the case, consult your distribution's documentation on how to install them.</p>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">How to do it...</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">Perform the following steps outlined to partition and create a filesystem on the blank image:</p>
+<ol class="calibre18">
+<li value="1" class="calibre17">Load the <kbd class="calibre13">nbd</kbd> kernel module:</li>
+</ol>
+<pre class="calibre28">
+<strong class="calibre4">    root@kvm:~# modprobe nbd<br class="calibre7"/>    root@kvm:~#</strong>
+</pre>
+<ol start="2" class="calibre18">
+<li value="2" class="calibre17">Using the <kbd class="calibre13">qemu-nbd</kbd> tool, associate the blank image file to the <kbd class="calibre13">/dev/nbd0</kbd> block device: </li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# qemu-nbd --format=raw --connect=/dev/nbd0          debian.img  <br class="calibre7"/>root@kvm:~#</strong>
+</pre>
+<ol start="3" class="calibre18">
+<li value="3" class="calibre17">Create two partitions on the block device. One will be used for swap, and the other as the root partition for the guest OS:   </li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# sfdisk /dev/nbd0 &lt;&lt; EOF    <br class="calibre7"/>&gt;,1024,82    <br class="calibre7"/>&gt;;    <br class="calibre7"/>&gt;EOF    <br class="calibre7"/></strong><strong class="calibre4">Checking that no-one is using this disk right now ...<br class="calibre7"/>OK<br class="calibre7"/>Disk /dev/nbd0: cannot get geometry<br class="calibre7"/><br class="calibre7"/>Disk /dev/nbd0: 1305 cylinders, 255 heads, 63 sectors/track<br class="calibre7"/><br class="calibre7"/>sfdisk: ERROR: sector 0 does not have an msdos signature<br class="calibre7"/> /dev/nbd0: unrecognized partition table type<br class="calibre7"/>Old situation:<br class="calibre7"/>No partitions found<br class="calibre7"/>New situation:<br class="calibre7"/>Units = cylinders of 8225280 bytes, blocks of 1024 bytes, counting from 0<br class="calibre7"/><br class="calibre7"/> Device Boot Start End #cyls #blocks Id System<br class="calibre7"/>/dev/nbd0p1 0+ 1023 1024- 8225279+ 82 Linux swap / Solaris<br class="calibre7"/>/dev/nbd0p2 1024 1304 281 2257132+ 83 Linux<br class="calibre7"/>/dev/nbd0p3 0 - 0 0 0 Empty<br class="calibre7"/>/dev/nbd0p4 0 - 0 0 0 Empty<br class="calibre7"/>Warning: no primary partition is marked bootable (active)<br class="calibre7"/>This does not matter for LILO, but the DOS MBR will not boot this disk.<br class="calibre7"/>Successfully wrote the new partition table<br class="calibre7"/><br class="calibre7"/>Re-reading the partition table ...<br class="calibre7"/><br class="calibre7"/>If you created or changed a DOS partition, /dev/foo7, say, then use dd(1)<br class="calibre7"/>to zero the first 512 bytes: dd if=/dev/zero of=/dev/foo7 bs=512 count=1<br class="calibre7"/>(See fdisk(8).)<br class="calibre7"/>root@kvm:~#</strong>
+</pre>
+<ol start="4" class="calibre18">
+<li value="4" class="calibre17"> List the available block devices after the partitioning:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# ls -la /dev/nbd0*    <br class="calibre7"/>brw-rw---- 1 root disk 43, 0 Feb 10 18:24 /dev/nbd0    <br class="calibre7"/>brw-rw---- 1 root disk 43, 1 Feb 10 18:24 /dev/nbd0p1    <br class="calibre7"/>brw-rw---- 1 root disk 43, 2 Feb 10 18:24 /dev/nbd0p2    <br class="calibre7"/>root@kvm:~#</strong>
+</pre>
+<ol start="5" class="calibre18">
+<li value="5" class="calibre17">Create the swap partition: </li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# mkswap /dev/nbd0p1    <br class="calibre7"/>Setting up swapspace version 1, size = 508 KiB (520192 bytes)    <br class="calibre7"/>no label, UUID=c246fe39-1bc5-4978-967c-806264771d69    <br class="calibre7"/>root@kvm:~#</strong>
+</pre>
+<ol start="6" class="calibre18">
+<li value="6" class="calibre17">Make the EXT4 filesystem on the root partition:   </li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# mkfs.ext4 /dev/nbd0p2    <br class="calibre7"/>mke2fs 1.42.13 (17-May-2015)    <br class="calibre7"/>Discarding device blocks: failed - Input/output error    <br class="calibre7"/>Creating filesystem with 2620928 4k blocks and 655360 inodes    <br class="calibre7"/>Filesystem UUID: 2ffa23de-579a-45ad-abbc-2a179de67f11    <br class="calibre7"/>Superblock backups stored on blocks:    <br class="calibre7"/>    32768, 98304, 163840, 229376, 294912, 819200, 884736, 1605632    <br class="calibre7"/>Allocating group tables: done    <br class="calibre7"/>Writing inode tables: done    <br class="calibre7"/>Creating journal (32768 blocks): done    <br class="calibre7"/>Writing superblocks and filesystem accounting information: done    <br class="calibre7"/>root@kvm:~#</strong>
+</pre>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">How it works...</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">We take advantage of the functionality that the <kbd class="calibre13">nbd</kbd> kernel module provides by allowing us to associate a raw image file to a block device using the <kbd class="calibre13">qemu-nbd</kbd> utility. To get more information about the kernel module run the following code:</p>
+<pre class="calibre23">
+<strong class="calibre4">root@kvm:~# modinfo nbd<br class="calibre7"/>filename: /lib/modules/4.4.0-62-generic/kernel/drivers/block/nbd.ko<br class="calibre7"/>license: GPL<br class="calibre7"/>description: Network Block Device<br class="calibre7"/>srcversion: C67096AF2AE3C738DBE0B7E<br class="calibre7"/>depends:<br class="calibre7"/>intree: Y<br class="calibre7"/>vermagic: 4.4.0-62-generic SMP mod_unload modversions<br class="calibre7"/>parm: nbds_max:number of network block devices to initialize (default: 16) (int)<br class="calibre7"/>parm: max_part:number of partitions per device (default: 0) (int)<br class="calibre7"/>root@kvm:~#</strong>
+</pre>
+<p class="calibre3">We can examine the block device metadata created in step 2 by running the following command:</p>
+<pre class="calibre23">
+<strong class="calibre4">root@kvm:~# file -s /dev/nbd0<br class="calibre7"/>/dev/nbd0: x86 boot sector<br class="calibre7"/>root@kvm:~#</strong>
+</pre>
+<p class="calibre3">After creating the two new partitions in step 3, the type of the image file has changed. Let's examine it again:</p>
+<pre class="calibre23">
+<strong class="calibre4">root@kvm:~# file -s debian.img<br class="calibre7"/>debian.img: x86 boot sector<br class="calibre7"/>root@kvm:~#</strong>
+</pre>
+<div class="packt_infobox">We chose to use the <kbd class="calibre27">sfdisk</kbd> utility to create the partitions, but you can use the <kbd class="calibre27">fdisk</kbd> utility interactively instead if you prefer. The end result will be the same.</div>
+<p class="calibre3">Now that we have an image file that contains two partitions and a filesystem, we can proceed with installing the guest OS in the next recipe.</p>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">Installing a custom OS on the image with debootstrap</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">In this recipe, we are going to use the <kbd class="calibre13">debootstrap</kbd> utility to install a Debian distribution on the raw image we prepared in the previous two recipes. The <kbd class="calibre13">debootstrap</kbd> command is used to bootstrap a basic Debian system using a specific public mirror. By the end of this recipe, we should have an image containing an entire Linux distribution, ready for QEMU execution.</p>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">Getting ready</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">We are going to need the following in order to complete this recipe:</p>
+<ul class="calibre16">
+<li class="calibre17">The block devices created in the previous recipe</li>
+<li class="calibre17">The <kbd class="calibre13">debootstrap</kbd> utility</li>
+<li class="calibre17">The <kbd class="calibre13">chroot</kbd> utility</li>
+</ul>
+<p class="calibre3">To ensure that the swap and root block devices are still present on the system, run the following:</p>
+<pre class="calibre23">
+<span><strong class="calibre4">root@kvm:~# ls -la /dev/nbd0*</strong></span><strong class="calibre4"><br class="calibre7"/>brw-rw---- 1 root disk 43, 0 Feb 10 18:24 /dev/nbd0<br class="calibre7"/>brw-rw---- 1 root disk 43, 1 Feb 10 18:24 /dev/nbd0p1<br class="calibre7"/>brw-rw---- 1 root disk 43, 2 Feb 10 18:24 /dev/nbd0p2<br class="calibre7"/>root@kvm:~#</strong>
+</pre>
+<p class="calibre3">If that's not the case, please refer to the <span><em class="calibre22">Preparing images for OS installation with qemu-nbd</em> recipe on how to associate the raw image with the <kbd class="calibre13">/deb/nbd0</kbd> block device.</span></p>
+<p class="calibre3">To install the <kbd class="calibre13">debootstrap</kbd> utility, if not already present on your system, execute the following code:</p>
+<pre class="calibre23">
+<strong class="calibre4">root@kvm:~# apt install -y debootstrap<br class="calibre7"/>...<br class="calibre7"/>Setting up debootstrap (1.0.78+nmu1ubuntu1.2) ...<br class="calibre7"/>root@kvm:~#</strong>
+</pre>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">How to do it...</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">Follow these steps outlined to install a new Debian Linux distribution on the raw image:</p>
+<ol class="calibre18">
+<li value="1" class="calibre17"> Mount the root partition from the <strong class="calibre4">Network Block Device</strong> (<strong class="calibre4">NBD</strong>) device and ensure that it was mounted successfully:  </li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# mount /dev/nbd0p2 /mnt/    <br class="calibre7"/>root@kvm:~# mount | grep mnt    <br class="calibre7"/>/dev/nbd0p2 on /mnt type ext4 (rw) <br class="calibre7"/>root@kvm:~#</strong>
+</pre>
+<ol start="2" class="calibre18">
+<li value="2" class="calibre17"> Install the latest stable Debian distribution on the root partition mounted on <kbd class="calibre13">/mnt</kbd> from the specified public repository:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# debootstrap --arch=amd64 --include="openssh-server vim" stable /mnt/ http://httpredir.debian.org/debian/    <br class="calibre7"/>...    <br class="calibre7"/>I: Base system installed successfully.    <br class="calibre7"/>root@kvm:~#</strong>
+</pre>
+<ol start="3" class="calibre18">
+<li value="3" class="calibre17"> Ensure the root filesystem was created, by listing all the files at the mounted location: </li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# ls -lah /mnt/    <br class="calibre7"/>total 100K    drwxr-xr-x 22 root root 4.0K Feb 10 17:19 .    <br class="calibre7"/>drwxr-xr-x 23 root root 4.0K Feb 10 15:29 ..    <br class="calibre7"/>drwxr-xr-x 2 root root 4.0K Feb 10 17:19 bin    <br class="calibre7"/>drwxr-xr-x 2 root root 4.0K Dec 28 17:42 boot    <br class="calibre7"/>drwxr-xr-x 4 root root 4.0K Feb 10 17:18 dev    <br class="calibre7"/>drwxr-xr-x 55 root root 4.0K Feb 10 17:19 etc    <br class="calibre7"/>drwxr-xr-x 2 root root 4.0K Dec 28 17:42 home    <br class="calibre7"/>drwxr-xr-x 12 root root 4.0K Feb 10 17:19 lib    <br class="calibre7"/>drwxr-xr-x 2 root root 4.0K Feb 10 17:18 lib64    <br class="calibre7"/>drwx------ 2 root root 16K Feb 10 17:06 lost+found    <br class="calibre7"/>drwxr-xr-x 2 root root 4.0K Feb 10 17:18 media    <br class="calibre7"/>drwxr-xr-x 2 root root 4.0K Feb 10 17:18 mnt    <br class="calibre7"/>drwxr-xr-x 2 root root 4.0K Feb 10 17:18 opt    <br class="calibre7"/>drwxr-xr-x 2 root root 4.0K Dec 28 17:42 proc    <br class="calibre7"/>drwx------ 2 root root 4.0K Feb 10 17:18 root    <br class="calibre7"/>drwxr-xr-x 4 root root 4.0K Feb 10 17:19 run    <br class="calibre7"/>drwxr-xr-x 2 root root 4.0K Feb 10 17:19 sbin    <br class="calibre7"/>drwxr-xr-x 2 root root 4.0K Feb 10 17:18 srv    <br class="calibre7"/>drwxr-xr-x 2 root root 4.0K Apr 6 2015 sys    <br class="calibre7"/>drwxrwxrwt 2 root root 4.0K Feb 10 17:18 tmp    <br class="calibre7"/>drwxr-xr-x 10 root root 4.0K Feb 10 17:18 usr    <br class="calibre7"/>drwxr-xr-x 11 root root 4.0K Feb 10 17:18 var    <br class="calibre7"/>root@kvm:~#</strong>
+</pre>
+<ol start="4" class="calibre18">
+<li value="4" class="calibre17">Bind and mount the devices directory from the host to the image filesystem:   </li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# mount --bind /dev/ /mnt/dev    <br class="calibre7"/>root@kvm:~#</strong>
+</pre>
+<ol start="5" class="calibre18">
+<li value="5" class="calibre17">Ensure that the <kbd class="calibre13">nbd</kbd> devices are now present inside the mount location:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# ls -la /mnt/dev/ | grep nbd0    <br class="calibre7"/>brw-rw---- 1 root disk 43, 0 Feb 10 18:24 nbd0    <br class="calibre7"/>brw-rw---- 1 root disk 43, 1 Feb 10 18:26 nbd0p1    <br class="calibre7"/>brw-rw---- 1 root disk 43, 2 Feb 10 18:26 nbd0p2    <br class="calibre7"/>root@kvm:~#</strong>
+</pre>
+<ol start="6" class="calibre18">
+<li value="6" class="calibre17"><span> </span>Change the directory namespace to be the root filesystem of the image and ensure the operation succeeded:  </li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# chroot /mnt/    <br class="calibre7"/>root@kvm:/# pwd<br class="calibre7"/>/    <br class="calibre7"/>root@kvm:/#</strong>
+</pre>
+<ol start="7" class="calibre18">
+<li value="7" class="calibre17"><span> </span>Check the distribution version inside the chroot environment:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:/# cat /etc/debian_version<br class="calibre7"/>8.7    <br class="calibre7"/>root@kvm:/#</strong>
+</pre>
+<ol start="8" class="calibre18">
+<li value="8" class="calibre17">Mount the <kbd class="calibre13">proc</kbd> and <kbd class="calibre13">sysfs</kbd> virtual filesystems inside the chrooted environment:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:/# mount -t proc none /proc    <br class="calibre7"/>root@kvm:/# mount -t sysfs none /sys    <br class="calibre7"/>root@kvm:/#</strong>
+</pre>
+<ol start="9" class="calibre18">
+<li value="9" class="calibre17">While still inside the chrooted location, install the Debian kernel metapackage and the <kbd class="calibre13">grub2</kbd> utilities: <span> </span></li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:/# apt-get install -y --force-yes linux-image-amd64 grub2</strong>
+</pre>
+<div class="packt_infobox">If asked to select target device for GRUB to install on, do not select any and just continue.</div>
+<ol start="10" class="calibre18">
+<li value="10" class="calibre17">Install GRUB on the root device:  </li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:/# grub-install /dev/nbd0 --force   </strong><br class="calibre7"/><strong class="calibre4">Installing for i386-pc platform.<br class="calibre7"/>grub-install: warning: this msdos-style partition label has no post-MBR gap; embedding won't be possible.<br class="calibre7"/>grub-install: warning: Embedding is not possible. GRUB can only be installed in this setup by using blocklists. However, blocklists are UNRELIABLE and their use is discouraged..<br class="calibre7"/>Installation finished. No error reported.    </strong><br class="calibre7"/><strong class="calibre4">root@kvm:/#</strong>
+</pre>
+<ol start="11" class="calibre18">
+<li value="11" class="calibre17"> Update the GRUB configs and the <kbd class="calibre13">initrd</kbd> image:   </li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:/# update-grub2    <br class="calibre7"/>Generating grub configuration file ...<br class="calibre7"/>Found linux image: /boot/vmlinuz-3.16.0-4-amd64<br class="calibre7"/>Found initrd image: /boot/initrd.img-3.16.0-4-amd64<br class="calibre7"/>done   <br class="calibre7"/>root@kvm:/#</strong>
+</pre>
+<ol start="12" class="calibre18">
+<li value="12" class="calibre17"> Change the root password of the guest: </li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:/# passwd    <br class="calibre7"/>Enter new UNIX password:    <br class="calibre7"/>Retype new UNIX password:    <br class="calibre7"/>passwd: password updated successfully    <br class="calibre7"/>root@kvm:/#</strong>
+</pre>
+<ol start="13" class="calibre18">
+<li value="13" class="calibre17">Allow access to the pseudo Terminal inside the new guest OS:   </li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:/# echo "pts/0" &gt;&gt; /etc/securetty    <br class="calibre7"/>root@kvm:/#</strong>
+</pre>
+<ol start="14" class="calibre18">
+<li value="14" class="calibre17">Change the <kbd class="calibre13">systemd</kbd> run level to the <kbd class="calibre13">multi-user</kbd> level:  </li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:/# systemctl set-default multi-user.target    <br class="calibre7"/>Created symlink from /etc/systemd/system/default.target to /lib/systemd/system/multi-user.target.    <br class="calibre7"/>root@kvm:/#</strong>
+</pre>
+<ol start="15" class="calibre18">
+<li value="15" class="calibre17">Add the root mountpoint to the <kbd class="calibre13">fstab</kbd> file, so it can persist reboots:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:/# echo "/dev/sda2 / ext4 defaults,discard 0 0" &gt; /etc/fstab</strong>
+</pre>
+<ol start="16" class="calibre18">
+<li value="16" class="calibre17">Unmount the following filesystems as we are done using them for now: </li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:/# umount /proc/ /sys/ /dev/</strong>
+</pre>
+<ol start="17" class="calibre18">
+<li value="17" class="calibre17">Exit the chrooted environment:   </li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:/# exit    <br class="calibre7"/>exit    <br class="calibre7"/>root@kvm:~#</strong>
+</pre>
+<ol start="18" class="calibre18">
+<li value="18" class="calibre17">Install GRUB on the root partition of the block device associated with the raw image:   </li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# grub-install /dev/nbd0 --root-directory=/mnt --modules="biosdisk part_msdos" --force <br class="calibre7"/>Installing for i386-pc platform.<br class="calibre7"/>grub-install: warning: this msdos-style partition label has no post-MBR gap; embedding won't be possible.<br class="calibre7"/>grub-install: warning: Embedding is not possible. GRUB can only be installed in this setup by using blocklists. However, blocklists are UNRELIABLE and their use is discouraged..<br class="calibre7"/>Installation finished. No error reported.    <br class="calibre7"/>root@kvm:~#</strong>
+</pre>
+<ol start="19" class="calibre18">
+<li value="19" class="calibre17">Update the GRUB configuration file to reflect the correct block device for the guest image: </li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# sed -i 's/nbd0p2/sda2/g' /mnt/boot/grub/grub.cfg    <br class="calibre7"/>root@kvm:~#</strong>
+</pre>
+<ol start="20" class="calibre18">
+<li value="20" class="calibre17"> Unmount the <kbd class="calibre13">nbd0</kbd> device:   </li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# umount /mnt    <br class="calibre7"/>root@kvm:~#</strong>
+</pre>
+<ol start="21" class="calibre18">
+<li value="21" class="calibre17">Disassociate the <kbd class="calibre13">nbd0</kbd> device from the raw image:   </li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# qemu-nbd --disconnect /dev/nbd0    <br class="calibre7"/>/dev/nbd0 disconnected    <br class="calibre7"/>root@kvm:~#</strong>
+</pre>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">How it works...</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">A lot has happened in the previous section, so let's step through the commands and talk a little bit more about what exactly was performed and why.</p>
+<p class="calibre3">In step 1, we mounted the root partition we created earlier on the <span><kbd class="calibre13">/dev/nbd0p2</kbd> device to <kbd class="calibre13">/mnt</kbd>, so we can use it. Once mounted, in step 2, we installed an entire Debian distribution on that device using the mount-point as the target.</span></p>
+<p class="calibre3">In order to install the GRUB boot loader on the root partition of the image, we bind and mounted the <kbd class="calibre13">/dev</kbd> directory from the host filesystem to the image filesystem in <kbd class="calibre13">/mnt</kbd> in step 4.</p>
+<p class="calibre3">Then in step 6, we used the chroot tool to change our directory namespace to be <kbd class="calibre13">/mnt</kbd>, so we can perform operations, as we are directly on the new OS.</p>
+<p class="calibre3">In step 8, we mounted the <kbd class="calibre13">proc</kbd> and <kbd class="calibre13">sysfs</kbd> virtual filesystems inside the image because the GRUB bootloader tool expect them.</p>
+<p class="calibre3">In step 9, we proceeded to install the kernel source and GRUB tools in preparation of installing the bootloader on the boot partition and in step 10 we installed the bootloader.</p>
+<p class="calibre3">In step 11, the GRUB configuration files were generated and the boot ramdisk image was updated.</p>
+<p class="calibre3">In steps 12, 13, and 14, we changed the root password and ensured we get access to the pseudo Terminal, so we can log into the VM later and change the run-level from the default graphical interface to the multiuser.</p>
+<p class="calibre3">Since the fstab file is empty right after installing the Debian OS on the image, we have to add the root mount point, or the VM will not be able to start. This was accomplished in step 15.</p>
+<p class="calibre3">In steps 16 and 17, we performed some cleaning up by unmounting the filesystems we mounted earlier and exited the chroot environment.</p>
+<p class="calibre3">Back on the host filesystem in step 18, we installed GRUB on the <kbd class="calibre13">nbd0</kbd> device by specifying the mounted location of the image. </p>
+<p class="calibre3">In step 19, we updated the GRUB config device name to be <kbd class="calibre13">sda2</kbd> because this is the name that will appear inside the virtual machine once we start it. The <kbd class="calibre13">nbd0p2</kbd> name is only present while we have the association between the raw image and the network block device on the host OS. From the VM perspective, the second partition inside the image we created by is named <kbd class="calibre13">sda2</kbd> by default.</p>
+<p class="calibre3">And finally, in steps 20 and 21, we performed some cleaning by removing the mount point and disassociating the raw image from the network block device <kbd class="calibre13">nbd0</kbd>.</p>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">Resizing an image</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">In this recipe, we are going to examine how to resize an existing raw image, the partitions hosted on it and the filesystem on top of the partitions. We are going to be using the raw image that we build in the previous recipes, which contains a swap and a root partition with an EXT4 filesystem formatted on it.</p>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">Getting ready</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">For this recipe, we are going to use the following tools:</p>
+<ul class="calibre16">
+<li class="calibre17"><kbd class="calibre13">qemu-img</kbd></li>
+<li class="calibre17"><kbd class="calibre13">losetup</kbd></li>
+<li class="calibre17"><kbd class="calibre13">tune2fs</kbd></li>
+<li class="calibre17"><kbd class="calibre13">e2fsck</kbd></li>
+<li class="calibre17"><kbd class="calibre13">kpartx</kbd></li>
+<li class="calibre17"><kbd class="calibre13">fdisk</kbd></li>
+<li class="calibre17"><kbd class="calibre13">resize2fs</kbd></li>
+</ul>
+<p class="calibre3">Most of the utilities should already be installed on Ubuntu with the exception of <kbd class="calibre13">kpartx</kbd>. To install it, run the following:</p>
+<pre class="calibre23">
+<strong class="calibre4">root@kvm:~# apt install kpartx</strong>
+</pre>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">How to do it...</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">The next steps demonstrate how to add additional space to the raw image we created earlier, extend the root partition, and resize the filesystem. By the end of this recipe, the original raw image filesystem size should have changed from <kbd class="calibre13">10G</kbd> to <kbd class="calibre13">20G</kbd>.</p>
+<ol class="calibre18">
+<li value="1" class="calibre17">Obtain the current size of the image:  </li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# qemu-img info debian.img    <br class="calibre7"/>image: debian.img<br class="calibre7"/>file format: raw<br class="calibre7"/>virtual size: 10G (10737418240 bytes)<br class="calibre7"/>disk size: 848M    <br class="calibre7"/>root@kvm:~#</strong>
+</pre>
+<ol start="2" class="calibre18">
+<li value="2" class="calibre17">Add additional 10 GB to the image:  </li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# qemu-img resize -f raw debian.img +10GB    <br class="calibre7"/>Image resized.    <br class="calibre7"/>root@kvm:~#</strong>
+</pre>
+<div class="packt_infobox">Please note that not all image types support resizing. In order to resize such an image, you will need to convert it to raw image first using  the <kbd class="calibre27">qemu-img</kbd> convert command.</div>
+<ol start="3" class="calibre18">
+<li value="3" class="calibre17"> Check the new size of the image:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# qemu-img info debian.img    <br class="calibre7"/>image: debian.img<br class="calibre7"/>file format: raw<br class="calibre7"/>virtual size: 20G (21474836480 bytes)<br class="calibre7"/>disk size: 848M   <br class="calibre7"/>root@kvm:~#</strong>
+</pre>
+<ol start="4" class="calibre18">
+<li value="4" class="calibre17">Print the name of the first unused loop device:   </li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# losetup -f <br class="calibre7"/>/dev/loop0    <br class="calibre7"/>root@kvm:~#</strong>
+</pre>
+<ol start="5" class="calibre18">
+<li value="5" class="calibre17">Associate the first unused loop device with the raw image file: </li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# losetup /dev/loop1 debian.img    <br class="calibre7"/>root@kvm:~#</strong>
+</pre>
+<ol start="6" class="calibre18">
+<li value="6" class="calibre17">Read the partition information from the associated loop device and create the device mappings:   </li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# kpartx -av /dev/loop1    <br class="calibre7"/>add map loop1p1 (252:0): 0 1024 linear 7:1 2048    <br class="calibre7"/>add map loop1p2 (252:1): 0 20967424 linear 7:1 4096<br class="calibre7"/>root@kvm:~#</strong>
+</pre>
+<ol start="7" class="calibre18">
+<li value="7" class="calibre17">Examine the new device maps, representing the partitions on the raw image:   </li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# ls -la /dev/mapper    <br class="calibre7"/>total 0    <br class="calibre7"/>drwxr-xr-x 2 root root 100 Mar 9 19:10 .    <br class="calibre7"/>drwxr-xr-x 20 root root 4760 Mar 9 19:10 ..    <br class="calibre7"/>crw------- 1 root root 10, 236 Feb 10 23:25 control    <br class="calibre7"/>lrwxrwxrwx 1 root root 7 Mar 9 19:10 loop1p1    <br class="calibre7"/>lrwxrwxrwx 1 root root 7 Mar 9 19:10 loop1p2    <br class="calibre7"/>root@kvm:~#</strong>
+</pre>
+<ol start="8" class="calibre18">
+<li value="8" class="calibre17"> Obtain some information from the root partition mapping: </li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# tune2fs -l /dev/mapper/loop1p2    <br class="calibre7"/>tune2fs 1.42.13 (17-May-2015)    <br class="calibre7"/>Filesystem volume name: &lt;none&gt;    <br class="calibre7"/>Last mounted on: /    <br class="calibre7"/>Filesystem UUID: 96a73752-489a-435c-8aa0-8c5d1aba3e5f    <br class="calibre7"/>Filesystem magic number: 0xEF53    <br class="calibre7"/>Filesystem revision #: 1 (dynamic)    <br class="calibre7"/>Filesystem features: has_journal ext_attr resize_inode dir_index filetype needs_recovery extent flex_bg sparse_super            large_file huge_file uninit_bg dir_nlink extra_isize    Filesystem flags: signed_directory_hash    <br class="calibre7"/>Default mount options: user_xattr acl    <br class="calibre7"/>Filesystem state: clean    <br class="calibre7"/>Errors behavior: Continue    <br class="calibre7"/>Filesystem OS type: Linux    <br class="calibre7"/>Inode count: 655360    <br class="calibre7"/>Block count: 2620928    <br class="calibre7"/>Reserved block count: 131046    <br class="calibre7"/>Free blocks: 2362078    <br class="calibre7"/>Free inodes: 634148    <br class="calibre7"/>First block: 0    <br class="calibre7"/>Block size: 4096    <br class="calibre7"/>Fragment size: 4096    <br class="calibre7"/>Reserved GDT blocks: 639    <br class="calibre7"/>Blocks per group: 32768    <br class="calibre7"/>Fragments per group: 32768    <br class="calibre7"/>Inodes per group: 8192    <br class="calibre7"/>Inode blocks per group: 512    <br class="calibre7"/>Flex block group size: 16    <br class="calibre7"/>Filesystem created: Fri Feb 10 23:29:01 2017    <br class="calibre7"/>Last mount time: Thu Mar 9 19:09:25 2017    <br class="calibre7"/>Last write time: Thu Mar 9 19:08:23 2017    <br class="calibre7"/>Mount count: 12    <br class="calibre7"/>Maximum mount count: -1    <br class="calibre7"/>Last checked: Fri Feb 10 23:29:01 2017    <br class="calibre7"/>Check interval: 0 (&lt;none&gt;)    <br class="calibre7"/>Lifetime writes: 1621 MB    <br class="calibre7"/>Reserved blocks uid: 0 (user root)    <br class="calibre7"/>Reserved blocks gid: 0 (group root)    <br class="calibre7"/>First inode: 11    <br class="calibre7"/>Inode size: 256    <br class="calibre7"/>Required extra isize: 28    <br class="calibre7"/>Desired extra isize: 28    <br class="calibre7"/>Journal inode: 8    <br class="calibre7"/>Default directory hash: half_md4    <br class="calibre7"/>Directory Hash Seed: f101cccc-944e-4773-8644-91ebf4bd4f2d    <br class="calibre7"/>Journal backup: inode blocks    <br class="calibre7"/>root@kvm:~#</strong>
+</pre>
+<ol start="9" class="calibre18">
+<li value="9" class="calibre17">Check the filesystem on the root partition of the mapped device:   </li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# e2fsck /dev/mapper/loop1p2    <br class="calibre7"/>e2fsck 1.42.13 (17-May-2015)    <br class="calibre7"/>/dev/mapper/loop1p2: recovering journal    Setting free blocks count to 2362045 (was 2362078)    /dev/mapper/loop1p2: clean, 21212/655360 files, 258883/2620928 blocks    <br class="calibre7"/>root@kvm:~#</strong>
+</pre>
+<ol start="10" class="calibre18">
+<li value="10" class="calibre17">Remove the journal from the root partition device:   </li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# tune2fs -O ^has_journal /dev/mapper/loop1p2    <br class="calibre7"/>tune2fs 1.42.13 (17-May-2015)    <br class="calibre7"/>root@kvm:~#</strong>
+</pre>
+<ol start="11" class="calibre18">
+<li value="11" class="calibre17">Ensure that the journaling has been removed:   </li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# tune2fs -l /dev/mapper/loop1p2 | grep "features"    <br class="calibre7"/>Filesystem features: ext_attr resize_inode dir_index filetype extent flex_bg sparse_super large_file huge_file uninit_bg     dir_nlink extra_isize    <br class="calibre7"/>root@kvm:~#</strong>
+</pre>
+<ol start="12" class="calibre18">
+<li value="12" class="calibre17">Remove the partition mappings: </li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# kpartx -dv /dev/loop1    <br class="calibre7"/>del devmap : loop1p2    <br class="calibre7"/>del devmap : loop1p1    <br class="calibre7"/>root@kvm:~#</strong>
+</pre>
+<ol start="13" class="calibre18">
+<li value="13" class="calibre17">Detach the loop device from the image:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# losetup -d /dev/loop1    <br class="calibre7"/>root@kvm:~#</strong>
+</pre>
+<ol start="14" class="calibre18">
+<li value="14" class="calibre17"> Associate the raw image with the network block device: </li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# qemu-nbd --format=raw --connect=/dev/nbd0 debian.img  root@kvm:~#</strong>
+</pre>
+<ol start="15" class="calibre18">
+<li value="15" class="calibre17">Using <kbd class="calibre13">fdisk</kbd>, list the available partitions, then delete the root partition, recreate it, and write the changes: </li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# fdisk /dev/nbd0    <br class="calibre7"/></strong><br class="calibre7"/><strong class="calibre4">Command (m for help): p</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">Disk /dev/nbd0: 21.5 GB, 21474836480 bytes</strong><br class="calibre7"/><strong class="calibre4">255 heads, 63 sectors/track, 2610 cylinders, total 41943040 sectors</strong><br class="calibre7"/><strong class="calibre4">Units = sectors of 1 * 512 = 512 bytes</strong><br class="calibre7"/><strong class="calibre4">Sector size (logical/physical): 512 bytes / 512 bytes</strong><br class="calibre7"/><strong class="calibre4">I/O size (minimum/optimal): 512 bytes / 512 bytes</strong><br class="calibre7"/><strong class="calibre4">Disk identifier: 0x00000000</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4"> Device Boot Start End Blocks Id System</strong><br class="calibre7"/><strong class="calibre4">/dev/nbd0p1 1 16450559 8225279+ 82 Linux swap / Solaris</strong><br class="calibre7"/><strong class="calibre4">/dev/nbd0p2 16450560 20964824 2257132+ 83 Linux</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">Command (m for help): d</strong><br class="calibre7"/><strong class="calibre4">Partition number (1-4): 2</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">Command (m for help): n</strong><br class="calibre7"/><strong class="calibre4">Partition type:</strong><br class="calibre7"/><strong class="calibre4"> p primary (1 primary, 0 extended, 3 free)</strong><br class="calibre7"/><strong class="calibre4"> e extended</strong><br class="calibre7"/><strong class="calibre4">Select (default p): p</strong><br class="calibre7"/><strong class="calibre4">Partition number (1-4, default 2): 2</strong><br class="calibre7"/><strong class="calibre4">First sector (16450560-41943039, default 16450560):</strong><br class="calibre7"/><strong class="calibre4">Using default value 16450560</strong><br class="calibre7"/><strong class="calibre4">Last sector, +sectors or +size{K,M,G} (16450560-41943039, default 41943039):</strong><br class="calibre7"/><strong class="calibre4">Using default value 41943039</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">Command (m for help): w</strong><br class="calibre7"/><strong class="calibre4">The partition table has been altered!</strong><br class="calibre7"/><br class="calibre7"/><strong class="calibre4">Calling ioctl() to re-read partition table.</strong><br class="calibre7"/><strong class="calibre4">Syncing disks.</strong><br class="calibre7"/><strong class="calibre4">root@kvm:~#</strong>
+</pre>
+<ol start="16" class="calibre18">
+<li value="16" class="calibre17"> Associate the first unused loop device with the raw image file, like we did in step 5:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# losetup /dev/loop1 debian.img</strong>
+</pre>
+<ol start="17" class="calibre18">
+<li value="17" class="calibre17">Read the partition information from the associated loop device and create the device mappings: </li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# kpartx -av /dev/loop1    <br class="calibre7"/>add map loop1p1 (252:2): 0 1024 linear 7:1 2048    <br class="calibre7"/>add map loop1p2 (252:3): 0 41938944 linear 7:1 4096    <br class="calibre7"/>root@kvm:~#</strong>
+</pre>
+<ol start="18" class="calibre18">
+<li value="18" class="calibre17"> After the partitioning is complete, perform a filesystem check:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# e2fsck -f /dev/mapper/loop1p2    <br class="calibre7"/>e2fsck 1.42.13 (17-May-2015)    <br class="calibre7"/>Pass 1: Checking inodes, blocks, and sizes    <br class="calibre7"/>Pass 2: Checking directory structure    <br class="calibre7"/>Pass 3: Checking directory connectivity    <br class="calibre7"/>Pass 4: Checking reference counts    <br class="calibre7"/>Pass 5: Checking group summary information    <br class="calibre7"/>/dev/mapper/loop1p2: 21212/655360 files (0.2% non-contiguous), 226115/2620928 blocks    <br class="calibre7"/>root@kvm:~#</strong>
+</pre>
+<ol start="19" class="calibre18">
+<li value="19" class="calibre17"> Resize the filesystem on the root partition of the mapped device:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# resize2fs /dev/nbd0p2 </strong><br class="calibre7"/><strong class="calibre4">resize2fs 1.42.13 (17-May-2015) </strong><br class="calibre7"/><strong class="calibre4">Resizing the filesystem on /dev/mapper/loop1p2 to 5242368 (4k) blocks. </strong><br class="calibre7"/><strong class="calibre4">The filesystem on /dev/mapper/loop1p2 is now 5242368 (4k) blocks long. </strong><br class="calibre7"/><strong class="calibre4">root@kvm:~#</strong>
+</pre>
+<ol start="20" class="calibre18">
+<li value="20" class="calibre17">Create the filesystem journal because we removed it earlier: </li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# tune2fs -j /dev/mapper/loop1p2    <br class="calibre7"/>tune2fs 1.42.13 (17-May-2015)    <br class="calibre7"/>Creating journal inode: done    <br class="calibre7"/>root@kvm:~#</strong>
+</pre>
+<ol start="21" class="calibre18">
+<li value="21" class="calibre17">Remove the device mappings: </li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# kpartx -dv /dev/loop1    <br class="calibre7"/>del devmap : loop1p2    <br class="calibre7"/>del devmap : loop1p1    <br class="calibre7"/>root@kvm:~# losetup -d /dev/loop1    <br class="calibre7"/>root@kvm:~#</strong>
+</pre>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">How it works...</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">Resizing an image for VM can be somewhat involving, as we saw from all the steps in the previous section. Things can get complicated when there are multiple Linux partitions inside the same image, even more so if we are not using <strong class="calibre4">Logical Volume Management</strong> (<strong class="calibre4">LVM</strong>). Let's step through all the commands we ran earlier and explain in more details why we ran them and what they do.</p>
+<p class="calibre3">In step 1, we confirmed the current size of the image being 10 GB.</p>
+<p class="calibre3">In step 2, we added 10 GB at the end of the image and confirm the new image size in step 3.</p>
+<p class="calibre3">Recall that the image we built from earlier recipes contains two partitions, swap and root. We need a way to manipulate them individually. Particularly, we would like to allocate the extra space we added in step 2 to the root partition. To do that we need to expose it as a block device that we can easily manipulate with standard disk and filesystem utilities. We accomplished that using the <kbd class="calibre13">losetup</kbd> command in step 5, resulting in a mapping between the image and a new block device named <kbd class="calibre13">/dev/loop1</kbd>. In step 6, we exposed the individual partitions as two new device mappings. The <kbd class="calibre13">/dev/mapper/loop1p2</kbd> is the root partition that we would like to append the unused disk space to.</p>
+<p class="calibre3">Before we can resize the partitioned on the loop device, we need to check the integrity of the filesystem on it, and this is what we did in step 9. Because we are using a journaling filesystem, we need to remove the journal prior to resizing. We do that in step 10 and made sure that the <kbd class="calibre13">has_journal</kbd> attribute is not showing after running the <kbd class="calibre13">tune2fs</kbd> command in step 11.</p>
+<p class="calibre3">Now, we need to work directly on the main block device and not the individual partitions. We remove the mappings in steps 12 and 13 and associated a new block device with the image file using the <kbd class="calibre13">qemu-nbd</kbd> command in step 14. The new <kbd class="calibre13">/dev/nbd0</kbd> block device now represents the entire disk of the guest VM and it's a direct mapping to what's inside the raw image. We can use this block device just like any other regular disk, most importantly we can use tools such as <kbd class="calibre13">fdisk</kbd> to examine and manipulate the partitions residing on it.</p>
+<p class="calibre3">In step 15, we use the <kbd class="calibre13">fdisk</kbd> utility to delete the root partition and recreate it. This does not destroy any filesystem data, but changes the metadata, allocating the extra space we added earlier as part of the root partition.</p>
+<p class="calibre3">Now that the block device has all the disk space allocated to the root partition, we need to extend the filesystem that is on top of it. We do that by first recreating the individual partition mappings like we did earlier, to expose the root partition directly so that we can yet again manipulate it. We do that in steps 16 and 17.</p>
+<p class="calibre3">In steps 18 and 19, we check the integrity of the root file system, then we resize it to the maximum available disk space on the root partition that it resides.</p>
+<p class="calibre3">Finally, in step 20, we remove the mappings again. Now the image, the root partition inside the image, and the EXT4 filesystem on top of the Linux partition have been resized to 20 GB. </p>
+<p class="calibre3">You can check the new root partition size by starting a new QEMU instance using the image. We are going to do just that in a separate recipe in this chapter.</p>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">Using pre-existing images</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">In the <em class="calibre22">Installing a custom OS on the image with debootstrap</em> recipe, we saw how to use the <kbd class="calibre13">debootstrap</kbd> command to install Debian on an image we built. Most Linux vendors provide already built images of their distributions for various architectures. Installable images are also available for manually installing the guest OS. In this recipe, we are going to demonstrate how to obtain and examine CentOS and Debian images that have already been built. In a later recipe, we are going to show how to start QEMU/KVM instances using those same images.</p>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">Getting ready</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">For this recipe, we are going to need QEMU installed on the host OS. For instructions on how to install QEMU, please refer to the <em class="calibre22">Installing and configuring QEMU</em> recipe from this chapter. We are also going to need the <kbd class="calibre13">wget</kbd> utility to download the images from the upstream public repositories.</p>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">How to do it...</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">To obtain Debian Wheezy images for use with QEMU and KVM, perform the following:</p>
+<ol class="calibre18">
+<li value="1" class="calibre17">Download the image using <kbd class="calibre13">wget</kbd>: </li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~tmp# wget https://people.debian.org/~aurel32/qemu/amd64/debian_wheezy_amd64_standard.qcow2    <br class="calibre7"/>--2017-03-09 22:07:20-- 2    Resolving people.debian.org (people.debian.org)... 2001:41c8:1000:21::21:30, 5.153.231.30    Connecting to people.debian.org (people.debian.org)|2001:41c8:1000:21::21:30|:443... connected.    HTTP request sent, awaiting response... 200 OK    Length: 267064832 (255M)    Saving to: ‘debian_wheezy_amd64_standard.qcow2’    debian_wheezy_amd64_standard.qcow2 100% .  [===================================&gt;] 254.69M 35.8MB/s in 8.3s    2017-03-09 22:07:29 (30.9 MB/s) - ‘debian_wheezy_amd64_standard.qcow2’ saved [267064832/267064832]    <br class="calibre7"/>root@kvm:~#</strong>
+</pre>
+<ol start="2" class="calibre18">
+<li value="2" class="calibre17">Inspect the type of the image:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# qemu-img info debian_wheezy_amd64_standard.qcow2    <br class="calibre7"/>image: debian_wheezy_amd64_standard.qcow2    <br class="calibre7"/>file format: qcow2    <br class="calibre7"/>virtual size: 25G (26843545600 bytes)    <br class="calibre7"/>disk size: 261M    <br class="calibre7"/>cluster_size: 65536    <br class="calibre7"/>Format specific information:    <br class="calibre7"/>compat: 1.1    <br class="calibre7"/>lazy refcounts: false    <br class="calibre7"/>refcount bits: 16    <br class="calibre7"/>corrupt: false    <br class="calibre7"/>root@kvm:~#</strong>
+</pre>
+<p class="calibre26">To download CentOS images run the following commands:</p>
+<ol class="calibre18">
+<li value="1" class="calibre17">Download the image using wget:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:/tmp# wget         https://cloud.centos.org/centos/7/images/CentOS-7-x86_64-GenericCloud.qcow2    --2017-03-09 22:11:34-- https://cloud.centos.org/centos/7/images/CentOS-7-x86_64-GenericCloud.qcow2    Resolving cloud.centos.org (cloud.centos.org)... 2604:4500::2a8a, 136.243.75.209    Connecting to cloud.centos.org (cloud.centos.org)|2604:4500::2a8a|:443... connected.    HTTP request sent, awaiting response... 200 OK    Length: 1361182720 (1.3G)    Saving to: ‘CentOS-7-x86_64-GenericCloud.qcow2’</strong><br class="calibre7"/><strong class="calibre4">CentOS-7-x86_64-GenericCloud.qcow2 100%[=========================================&gt;] 1.27G 22.3MB/s in 54s</strong><br class="calibre7"/><strong class="calibre4">2017-03-09 22:12:29 (24.0 MB/s) - ‘CentOS-7-x86_64-GenericCloud.qcow2’ saved [1361182720/1361182720]</strong><br class="calibre7"/><strong class="calibre4">FINISHED --2017-03-09 22:12:29--    Total wall clock time: 54s    Downloaded: 1 files, 1.3G in 54s (24.0 MB/s)    <br class="calibre7"/>root@kvm:/tmp#</strong>
+</pre>
+<ol start="2" class="calibre18">
+<li value="2" class="calibre17">Inspect the type of the image:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# qemu-img info CentOS-7-x86_64-GenericCloud.qcow2    <br class="calibre7"/>image: CentOS-7-x86_64-GenericCloud.qcow2    <br class="calibre7"/>file format: qcow2    <br class="calibre7"/>virtual size: 8.0G (8589934592 bytes)    <br class="calibre7"/>disk size: 1.3G    <br class="calibre7"/>cluster_size: 65536    <br class="calibre7"/>Format specific information:    <br class="calibre7"/>compat: 0.10    <br class="calibre7"/>refcount bits: 16    <br class="calibre7"/>root@kvm:~#</strong>
+</pre>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">How it works...</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">There are many public repositories on the Internet that provide images of various types, most commonly <kbd class="calibre13">qcow2</kbd> for use with QEMU/KVM. In the previous section, we used the official CentOS repository to obtain the image and an another one containing prebuilt images for Debian.</p>
+<p class="calibre3">Both images are in the <kbd class="calibre13">qcow2</kbd> format, as we confirmed in step 2.</p>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">There's more...</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">So far, we've only seen how to build, examine, manipulate, and download images. In the next recipe, we are going to focus on how to actually use the images to start QEMU/KVM instances.</p>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">See also</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">Examine the following links to get more information about what prebuilt images are available for the listed distributions:</p>
+<ul class="calibre16">
+<li class="calibre17">Official Ubuntu images: <a href="https://uec-images.ubuntu.com/releases/" class="calibre8">https://uec-images.ubuntu.com/releases/</a></li>
+<li class="calibre17">Official CentOS images: <a href="https://cloud.centos.org/centos/" class="calibre8">https://cloud.centos.org/centos/</a></li>
+<li class="calibre17">Official Debian images: <a href="http://cdimage.debian.org/cdimage/openstack/" class="calibre8">http://cdimage.debian.org/cdimage/openstack/</a></li>
+<li class="calibre17">Official Fedora images: <a href="https://alt.fedoraproject.org/cloud/" class="calibre8">https://alt.fedoraproject.org/cloud/</a></li>
+<li class="calibre17">Official openSUSE images: <a href="http://download.opensuse.org/repositories/Cloud:/Images:/" class="calibre8">http://download.opensuse.org/repositories/Cloud:/Images:/</a></li>
+</ul>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">Running virtual machines with qemu-system-*</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">In this recipe, we are going to demonstrate how to start virtual machines with QEMU. QEMU provides binaries that can emulate different CPU architectures using either custom or prebuilt images for the guest OS.</p>
+<p class="calibre3">If you completed the <em class="calibre22">Installing and configuring QEMU</em> recipe, you should have a host that contains the following binaries:</p>
+<pre class="calibre23">
+<strong class="calibre4">root@kvm:~# ls -la /usr/bin/qemu-system-*<br class="calibre7"/>-rwxr-xr-x 1 root root 8868848 Jan 25 12:49 /usr/bin/qemu-system-aarch64<br class="calibre7"/>-rwxr-xr-x 1 root root 7020544 Jan 25 12:49 /usr/bin/qemu-system-alpha<br class="calibre7"/>-rwxr-xr-x 1 root root 8700784 Jan 25 12:49 /usr/bin/qemu-system-arm<br class="calibre7"/>-rwxr-xr-x 1 root root 3671488 Jan 25 12:49 /usr/bin/qemu-system-cris<br class="calibre7"/>-rwxr-xr-x 1 root root 8363680 Jan 25 12:49 /usr/bin/qemu-system-i386<br class="calibre7"/>-rwxr-xr-x 1 root root 3636640 Jan 25 12:49 /usr/bin/qemu-system-lm32<br class="calibre7"/>-rwxr-xr-x 1 root root 6982528 Jan 25 12:49 /usr/bin/qemu-system-m68k<br class="calibre7"/>-rwxr-xr-x 1 root root 3652224 Jan 25 12:49 /usr/bin/qemu-system-microblaze<br class="calibre7"/>-rwxr-xr-x 1 root root 3652224 Jan 25 12:49 /usr/bin/qemu-system-microblazeel<br class="calibre7"/>-rwxr-xr-x 1 root root 8132992 Jan 25 12:49 /usr/bin/qemu-system-mips<br class="calibre7"/>-rwxr-xr-x 1 root root 8356672 Jan 25 12:49 /usr/bin/qemu-system-mips64<br class="calibre7"/>-rwxr-xr-x 1 root root 8374336 Jan 25 12:49 /usr/bin/qemu-system-mips64el<br class="calibre7"/>-rwxr-xr-x 1 root root 8128896 Jan 25 12:49 /usr/bin/qemu-system-mipsel<br class="calibre7"/>-rwxr-xr-x 1 root root 3578592 Jan 25 12:49 /usr/bin/qemu-system-moxie<br class="calibre7"/>-rwxr-xr-x 1 root root 3570848 Jan 25 12:49 /usr/bin/qemu-system-or32<br class="calibre7"/>-rwxr-xr-x 1 root root 8701760 Jan 25 12:49 /usr/bin/qemu-system-ppc<br class="calibre7"/>-rwxr-xr-x 1 root root 9048000 Jan 25 12:49 /usr/bin/qemu-system-ppc64<br class="calibre7"/>lrwxrwxrwx 1 root root 17 Jan 25 12:49 /usr/bin/qemu-system-ppc64le -&gt; qemu-system-ppc64<br class="calibre7"/>-rwxr-xr-x 1 root root 8463680 Jan 25 12:49 /usr/bin/qemu-system-ppcemb<br class="calibre7"/>-rwxr-xr-x 1 root root 6894528 Jan 25 12:49 /usr/bin/qemu-system-sh4<br class="calibre7"/>-rwxr-xr-x 1 root root 6898624 Jan 25 12:49 /usr/bin/qemu-system-sh4eb<br class="calibre7"/>-rwxr-xr-x 1 root root 4032000 Jan 25 12:49 /usr/bin/qemu-system-sparc<br class="calibre7"/>-rwxr-xr-x 1 root root 7201696 Jan 25 12:49 /usr/bin/qemu-system-sparc64<br class="calibre7"/>-rwxr-xr-x 1 root root 3704704 Jan 25 12:49 /usr/bin/qemu-system-tricore<br class="calibre7"/>-rwxr-xr-x 1 root root 3554912 Jan 25 12:49 /usr/bin/qemu-system-unicore32<br class="calibre7"/>-rwxr-xr-x 1 root root 8418656 Jan 25 12:49 /usr/bin/qemu-system-x86_64<br class="calibre7"/>-rwxr-xr-x 1 root root 3653024 Jan 25 12:49 /usr/bin/qemu-system-xtensa<br class="calibre7"/>-rwxr-xr-x 1 root root 3642752 Jan 25 12:49 /usr/bin/qemu-system-xtensaeb<br class="calibre7"/>root@kvm:~#</strong>
+</pre>
+<p class="calibre3">Each command can start a QEMU-emulated instance for the specific CPU architecture. For this recipe, we are going to be using the <kbd class="calibre13">qemu-system-x86_64</kbd> utility.</p>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">Getting ready</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">To complete this recipe, you will need the following:</p>
+<ul class="calibre16">
+<li class="calibre17">The QEMU binaries, provided after following the <span><em class="calibre22">Installing and configuring QEMU</em> recipe</span></li>
+<li class="calibre17">The custom raw Debian image we built in the <em class="calibre22">Installing a custom OS on the image with debootstrap</em> recipe</li>
+<li class="calibre17">The CentOS <kbd class="calibre13">qcow2</kbd> image we downloaded in the <em class="calibre22">Using pre-existing images</em> recipe</li>
+</ul>
+<p class="calibre3">Let's have a look at what CPU architectures QEMU  supports on the host system:</p>
+<pre class="calibre23">
+<strong class="calibre4">root@kvm:~# qemu-system-x86_64 --cpu help<br class="calibre7"/>x86 qemu64 QEMU Virtual CPU version 2.5+<br class="calibre7"/>x86 phenom AMD Phenom(tm) 9550 Quad-Core Processor<br class="calibre7"/>x86 core2duo Intel(R) Core(TM)2 Duo CPU T7700 @ 2.40GHz<br class="calibre7"/>x86 kvm64 Common KVM processor<br class="calibre7"/>x86 qemu32 QEMU Virtual CPU version 2.5+<br class="calibre7"/>x86 kvm32 Common 32-bit KVM processor<br class="calibre7"/>x86 coreduo Genuine Intel(R) CPU T2600 @ 2.16GHz<br class="calibre7"/>x86 486<br class="calibre7"/>x86 pentium<br class="calibre7"/>x86 pentium2<br class="calibre7"/>x86 pentium3<br class="calibre7"/>x86 athlon QEMU Virtual CPU version 2.5+<br class="calibre7"/>x86 n270 Intel(R) Atom(TM) CPU N270 @ 1.60GHz<br class="calibre7"/>x86 Conroe Intel Celeron_4x0 (Conroe/Merom Class Core 2)<br class="calibre7"/>x86 Penryn Intel Core 2 Duo P9xxx (Penryn Class Core 2)<br class="calibre7"/>x86 Nehalem Intel Core i7 9xx (Nehalem Class Core i7)<br class="calibre7"/>x86 Westmere Westmere E56xx/L56xx/X56xx (Nehalem-C)<br class="calibre7"/>x86 SandyBridge Intel Xeon E312xx (Sandy Bridge)<br class="calibre7"/>x86 IvyBridge Intel Xeon E3-12xx v2 (Ivy Bridge)<br class="calibre7"/>x86 Haswell-noTSX Intel Core Processor (Haswell, no TSX)<br class="calibre7"/>x86 Haswell Intel Core Processor (Haswell)<br class="calibre7"/>x86 Broadwell-noTSX Intel Core Processor (Broadwell, no TSX)<br class="calibre7"/>x86 Broadwell Intel Core Processor (Broadwell)<br class="calibre7"/>x86 Opteron_G1 AMD Opteron 240 (Gen 1 Class Opteron)<br class="calibre7"/>x86 Opteron_G2 AMD Opteron 22xx (Gen 2 Class Opteron)<br class="calibre7"/>x86 Opteron_G3 AMD Opteron 23xx (Gen 3 Class Opteron)<br class="calibre7"/>x86 Opteron_G4 AMD Opteron 62xx class CPU<br class="calibre7"/>x86 Opteron_G5 AMD Opteron 63xx class CPU<br class="calibre7"/>x86 host KVM processor with all supported host features (only available in KVM mode)<br class="calibre7"/><br class="calibre7"/>Recognized CPUID flags:<br class="calibre7"/>fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat pse36 pn clflush ds acpi mmx fxsr sse sse2 ss ht tm ia64 pbe<br class="calibre7"/>pni|sse3 pclmulqdq|pclmuldq dtes64 monitor ds_cpl vmx smx est tm2 ssse3 cid fma cx16 xtpr pdcm pcid dca sse4.1|sse4_1 sse4.2|sse4_2 x2apic movbe popcnt tsc-deadline aes xsave osxsave avx f16c rdrand hypervisor<br class="calibre7"/>fsgsbase tsc_adjust bmi1 hle avx2 smep bmi2 erms invpcid rtm mpx avx512f rdseed adx smap pcommit clflushopt clwb avx512pf avx512er avx512cd<br class="calibre7"/>syscall nx|xd mmxext fxsr_opt|ffxsr pdpe1gb rdtscp lm|i64 3dnowext 3dnow<br class="calibre7"/>lahf_lm cmp_legacy svm extapic cr8legacy abm sse4a misalignsse 3dnowprefetch osvw ibs xop skinit wdt lwp fma4 tce nodeid_msr tbm topoext perfctr_core perfctr_nb<br class="calibre7"/>invtsc<br class="calibre7"/>xstore xstore-en xcrypt xcrypt-en ace2 ace2-en phe phe-en pmm pmm-en<br class="calibre7"/>kvmclock kvm_nopiodelay kvm_mmu kvmclock kvm_asyncpf kvm_steal_time kvm_pv_eoi kvm_pv_unhalt kvmclock-stable-bit<br class="calibre7"/>npt lbrv svm_lock nrip_save tsc_scale vmcb_clean flushbyasid decodeassists pause_filter pfthreshold<br class="calibre7"/>xsaveopt xsavec xgetbv1 xsaves<br class="calibre7"/>arat<br class="calibre7"/>root@kvm:~#</strong>
+</pre>
+<p class="calibre3">From the preceding output, we can see the list of CPUs that we can pass as parameters to the <kbd class="calibre13">-cpu</kbd> flag in order to emulate that CPU type inside our virtual machine.</p>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">How to do it...</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">To start a new virtual machine using the <kbd class="calibre13">qemu-system</kbd> utility, perform the following steps:</p>
+<ol class="calibre18">
+<li value="1" class="calibre17">Start a new QEMU virtual machine using the <kbd class="calibre13">x86_64</kbd> CPU architecture: </li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# qemu-system-x86_64 -name debian -vnc 146.20.141.254:0 -cpu Nehalem -m 1024 -drive     format=raw,index=2,file=debian.img -daemonize    <br class="calibre7"/>root@kvm:~#</strong>
+</pre>
+<ol start="2" class="calibre18">
+<li value="2" class="calibre17">Ensure that the instance is running: </li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# pgrep -lfa qemu<br class="calibre7"/>3527 qemu-system-x86_64 -name debian -vnc 146.20.141.254:0 -m 1024 -drive format=raw,index=2,file=debian.img -daemonize    <br class="calibre7"/>root@kvm:~#</strong>
+</pre>
+<ol start="3" class="calibre18">
+<li value="3" class="calibre17">Terminate the Debian QEMU instance:   </li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# pkill qemu    <br class="calibre7"/>root@kvm:~#</strong>
+</pre>
+<ol start="4" class="calibre18">
+<li value="4" class="calibre17">Start a new QEMU instance using the prebuilt CentOS image: </li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# qemu-system-x86_64 -vnc 146.20.141.254:0 -m 1024 -hda CentOS-7-x86_64-GenericCloud.qcow2 -daemonize    <br class="calibre7"/>root@kvm:~#</strong>
+</pre>
+<ol start="5" class="calibre18">
+<li value="5" class="calibre17"> Ensure that the instance is running: </li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# pgrep -lfa qemu<br class="calibre7"/>3546 qemu-system-x86_64 -vnc 146.20.141.254:0 -m 1024 -hda CentOS-7-x86_64-GenericCloud.qcow2 -daemonize    <br class="calibre7"/>root@kvm:~#</strong>
+</pre>
+<ol start="6" class="calibre18">
+<li value="6" class="calibre17">Terminate the CentOS QEMU instance:   </li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# pkill qemu    <br class="calibre7"/>root@kvm:~#</strong>
+</pre>
+<div class="packt_infobox">Make sure to replace the IP address of the <kbd class="calibre27">-vnc</kbd> parameter with the one from your host machine.</div>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">How it works...</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">How to start a virtual machine with QEMU/KVM depends greatly on the type of image and how the partitions are structured inside that image.</p>
+<p class="calibre3">We used two different image types with different partitioning schemes to demonstrate this concept.</p>
+<p class="calibre3">In step 1, we used the <span><kbd class="calibre13">qemu-system-x86_64</kbd> command to emulate a <kbd class="calibre13">x86_64</kbd> CPU architecture, specifically we passed the <kbd class="calibre13">-cpu Nehalem</kbd> flag, emulating the Nehalem CPU model. We passed the IP address of our host as a parameter to the <kbd class="calibre13">-vnc</kbd> flag. This starts a VNC server in the VM so that we can later use a VNC client to connect to the QEMU instance. We specified the amount of memory to be allocated to the instance, in this case, 1GB with the <kbd class="calibre13">-m</kbd> flag. We instructed QEMU that we are going to use a raw image with the <kbd class="calibre13">format=raw</kbd> option and the name and location of the actual image with the <kbd class="calibre13">file=debian.img</kbd> parameter.</span></p>
+<p class="calibre3">Recall that this raw image contains two partitions with the second partition containing the root filesystem where the bootloader is located. This is very important to remember because we need to specify from what partition index the guest OS should load. We do that with the <kbd class="calibre13">index=2</kbd> flag. Finally, we pass the <kbd class="calibre13">-daemonize</kbd> parameter to background the QEMU process.</p>
+<p class="calibre3">In step 4, we started another QEMU instance, this time using the <kbd class="calibre13">qcow2</kbd> CentOS image we downloaded earlier. We did not have to specify from what partition we need to boot from this this time because most prebuilt images use the first partition, or only have one partition. We also used the <kbd class="calibre13">-hda</kbd> flag instead of the <kbd class="calibre13">-drive</kbd> parameter, just to demonstrate that both options can be used with the same result. The <kbd class="calibre13">-hda</kbd> flag tells QEMU the first disk for the instance should be loaded from the filename that follows it.</p>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">Starting the QEMU VM with KVM support</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">In this recipe, we are going to start a QEMU virtual machine with KVM acceleration. <strong class="calibre4">Kernel-based Virtual Machine</strong> (<strong class="calibre4">KVM</strong>) is a full virtualization technology for CPU architectures that support virtualization extensions. For Intel-based processors, this is the Intel VT, and for AMD CPUS, it is the AMD-V hardware extension. The main parts of KVM are two loadable kernel modules, named <kbd class="calibre13">kvm.ko</kbd>, which provides the main virtualization functionality, and a second kernel module that is processor specific, <kbd class="calibre13">kvm-intel.ko</kbd> and <kbd class="calibre13">kvm-amd.ko</kbd> for both main CPU vendors.</p>
+<p class="calibre3">QEMU is the userspace component to create virtual machines, where KVM resides in kernel space. If you completed the <em class="calibre22">Running virtual machines with qemu-system</em>-* recipe, you might note that the difference between running a KVM virtual machine and running a nonaccelerated QEMU instance is just a single command-line option.</p>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">Getting ready</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">In order to start a KVM instance, you will need the following:</p>
+<ul class="calibre16">
+<li class="calibre17">The QEMU binaries, provided after following the <span><em class="calibre22">Installing and configuring QEMU</em> recipe</span></li>
+<li class="calibre17">The custom raw Debian image we built in the <em class="calibre22">Installing a custom OS on the image with debootstrap</em> recipe</li>
+<li class="calibre17">Processor that supports virtualization</li>
+<li class="calibre17">The KVM kernel modules</li>
+</ul>
+<p class="calibre3">To check whether your CPU supports virtualization, run the following code:</p>
+<pre class="calibre23">
+<strong class="calibre4">root@kvm:~# cat /proc/cpuinfo | egrep "vmx|svm" | uniq<br class="calibre7"/>flags : fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat pse36 clflush dts acpi mmx fxsr sse sse2 ss ht tm pbe syscall nx pdpe1gb rdtscp lm constant_tsc arch_perfmon pebs bts rep_good nopl xtopology nonstop_tsc aperfmperf eagerfpu pni pclmulqdq dtes64 monitor ds_cpl vmx smx est tm2 ssse3 sdbg fma cx16 xtpr pdcm pcid dca sse4_1 sse4_2 x2apic movbe popcnt tsc_deadline_timer aes xsave avx f16c rdrand lahf_lm abm epb tpr_shadow vnmi flexpriority ept vpid fsgsbase tsc_adjust bmi1 avx2 smep bmi2 erms invpcid cqm xsaveopt cqm_llc cqm_occup_llc dtherm arat pln pts<br class="calibre7"/>root@kvm:~#</strong>
+</pre>
+<p class="calibre3">The presence of the <kbd class="calibre13">vmx</kbd> (for Intel) or <kbd class="calibre13">svm</kbd> (for AMD) flags indicate that your CPU supports the virtualization extensions.</p>
+<div class="packt_infobox">The flags from the <kbd class="calibre27">cpuinfo</kbd> command output simply mean that your processor supports virtualization; however, make sure that this feature is enabled in the BIOS of your system; otherwise, the KVM instance will fail to start.</div>
+<p class="calibre3">To manually load the KVM kernel module and ensure that it's been loaded, run the following code:</p>
+<pre class="calibre23">
+<strong class="calibre4">root@kvm:~# modprobe kvm<br class="calibre7"/>root@kvm:~# lsmod | grep kvm<br class="calibre7"/>kvm                   455843  0<br class="calibre7"/>root@kvm:~#</strong>
+</pre>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">How to do it...</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">To start a KVM instance, ensure that it's running and finally terminate it, execute the following:</p>
+<ol class="calibre18">
+<li value="1" class="calibre17"> Start a QEMU instance with KVM support: </li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# qemu-system-x86_64 -name debian -vnc 146.20.141.254:0 -m 1024 -drive format=raw,index=2,file=debian.img -enable-kvm -daemonize    <br class="calibre7"/>root@kvm:~#</strong>
+</pre>
+<ol start="2" class="calibre18">
+<li value="2" class="calibre17">Ensure that the instance is running: </li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# pgrep -lfa qemu    <br class="calibre7"/>4895 qemu-system-x86_64 -name debian -vnc 146.20.141.254:0 -m 1024 -drive format=raw,index=2,file=debian.img -enable-kvm -daemonize    <br class="calibre7"/>root@kvm:~#</strong>
+</pre>
+<ol start="3" class="calibre18">
+<li value="3" class="calibre17">Terminate the instance:   </li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# pkill qemu    <br class="calibre7"/>root@kvm:~#</strong>
+</pre>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">How it works...</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">To start a QEMU/KVM virtual machine, all we had to do differently from what we performed in the <em class="calibre22">Installing and configuring QEMU</em> recipe is pass the <span><kbd class="calibre13">-enable-kvm</kbd> flag to the <kbd class="calibre13">qemu-system-x86_64</kbd> command.</span></p>
+<p class="calibre3">In step 1, we specified a name for the VM with the <kbd class="calibre13">-name</kbd> flag, provided the IP address of our physical host to the <kbd class="calibre13">-vnc</kbd> flag, enabling VNC access for the virtual instance, allocated 1 GB of memory with the <kbd class="calibre13">-m</kbd> flag, specified the partition where the bootloader is located with the <kbd class="calibre13">index=2</kbd> parameter, the image format, and name, and finally we enabled KVM hardware acceleration with the <kbd class="calibre13">-enable-kvm</kbd> parameter and deamonized the process with the <kbd class="calibre13">-daemonize</kbd> flag.</p>
+<p class="calibre3">In step 2, we ensured that the instance is running and we terminated it in step 3.</p>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">There's more...</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3"><span>As an alternative to directly running the</span> <kbd class="calibre13">qemu-system</kbd>-* <span>commands, on Ubuntu systems there's the <kbd class="calibre13">qemu-kvm</kbd> package that provides the <kbd class="calibre13">/usr/bin/kvm</kbd> binary. This file is a wrapper to the <kbd class="calibre13">qemu-system-x86_64</kbd> command, and it passes the <kbd class="calibre13">-enable-kvm</kbd> parameter to it automatically. </span></p>
+<p class="calibre3">To install the package and use the <kbd class="calibre13">kvm</kbd> command instead, run the following:</p>
+<pre class="calibre23">
+<strong class="calibre4">root@kvm:~# apt install qemu-kvm<br class="calibre7"/>...<br class="calibre7"/>root@kvm:~# kvm -name debian -vnc 146.20.141.254:0 -cpu Nehalem -m 1024 -drive format=raw,index=2,file=debian.img -daemonize<br class="calibre7"/>root@kvm:~# pgrep -lfa qemu<br class="calibre7"/>25343 qemu-system-x86_64 -enable-kvm -name debian -vnc 146.20.141.254:0 -cpu Nehalem -m 1024 -drive format=raw,index=2,file=debian.img -daemonize<br class="calibre7"/>root@kvm:~#</strong>
+</pre>
+<p class="calibre3">You might have noted that starting and stopping QEMU/KVM instances is somewhat of a manual process, especially having to kill the instance process in order to stop it. In <a target="_blank" href="part0068.html#20R680-c1e587dcccb14690b55c247c1809e6ce" class="calibre8">Chapter 2</a>, <em class="calibre22">Using libvirt to Manage KVM</em>, we are going to walk you through a set of recipes that will make managing the life cycle of KVM virtual machines much easier, with the userspace tools that the libvirt package provides.</p>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">Connecting to a running instance with VNC</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">In this recipe, we are going to connect to a running KVM instance using a VNC client. Once connected, we are going to log in and check the CPU type and available memory of the instance. We've already seen how to start QEMU/KVM instances with VNC support in the previous recipes, but we are going to do it again, in case you are not reading this book from cover to cover.</p>
+<p class="calibre3"><strong class="calibre4">Virtual Network Computing</strong> (<strong class="calibre4">VNC</strong>) uses the <strong class="calibre4">Remote Frame Buffer</strong> (<strong class="calibre4">RFB</strong>) protocol to remotely control another system. It relays the screen from the remote computer back to the client, allowing the full keyboard and mouse control. </p>
+<p class="calibre3">There are many different VNC client and server implementations, but for this recipe, we are going to use a freely available version named chicken of the VNC for macOS. You can download the client from <a href="https://sourceforge.net/projects/chicken/" class="calibre8">https://sourceforge.net/projects/cotvnc/</a>.</p>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">Getting ready</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">In order to complete this recipe, you will need the following:</p>
+<ul class="calibre16">
+<li class="calibre17">The QEMU binaries, provided after following the <span><em class="calibre22">Installing and configuring QEMU</em> recipe</span></li>
+<li class="calibre17">The custom raw Debian image we built in the <em class="calibre22">Installing a custom OS on the image with debootstrap</em> recipe</li>
+<li class="calibre17">A processor that supports virtualization</li>
+<li class="calibre17">The loaded KVM kernel modules</li>
+<li class="calibre17">The chicken of the VNC client, installed, as described in the previous section</li>
+</ul>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">How to do it...</h1>
+            
+
+            <article class="calibre1">
+                
+<ol class="calibre18">
+<li value="1" class="calibre17"> Start a new KVM-accelerated <kbd class="calibre13">qemu</kbd> instance:  </li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# qemu-system-x86_64 -name debian -vnc 146.20.141.254:0 -cpu Nehalem -m 1024 -drive format=raw,index=2,file=debian.img -daemonize    <br class="calibre7"/>root@kvm:~#</strong>
+</pre>
+<ol start="2" class="calibre18">
+<li value="2" class="calibre17"> Ensure that the instance is running:</li>
+</ol>
+<pre class="calibre25">
+<strong class="calibre4">root@kvm:~# pgrep -lfa qemu    <br class="calibre7"/>4987 qemu-system-x86_64 -name debian -vnc 146.20.141.254:0 -cpu Nehalem -m 1024 -drive format=raw,index=2,file=debian.img -daemonize    <br class="calibre7"/>root@kvm:~#</strong>
+</pre>
+<ol start="3" class="calibre18">
+<li value="3" class="calibre17">Start the VNC client and connect to the VNC server on the IP address and display port you specified in step 1:</li>
+</ol>
+<div class="cdpaligncenter"><img class="image-border" src="../images/00005.jpeg"/></div>
+<div class="cdpaligncenter1">The VNC login screen</div>
+<ol start="4" class="calibre18">
+<li value="4" class="calibre17"><span>Log in to the instance using the root user, then c</span>heck the CPU type and available memory as shown here:</li>
+</ol>
+<div class="cdpaligncenter"><img class="image-border1" src="../images/00006.jpeg"/></div>
+<div class="cdpaligncenter1"><span> VNC session</span></div>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    
+
+        <section class="calibre1">
+
+            <header class="calibre1">
+                </header><h1 class="header-title" id="calibre_pb_0">How it works...</h1>
+            
+
+            <article class="calibre1">
+                
+<p class="calibre3">In step 1, we started a new QEMU instance with KVM acceleration and enabled a VNC server on it with the specified IP address and display port. We specified the amount of available memory and the CPU model name.</p>
+<p class="calibre3">In step 4, we logged in the instance using the root user and the password we created when building the image, then obtained the CPU information by running the <kbd class="calibre13">lscpu</kbd> command. Note how the CPU model name matches what we specified with the <kbd class="calibre13">-cpu</kbd> flag when we started the virtual machine. Next, we checked the allocated memory with the <kbd class="calibre13">free</kbd> command, which also matches what we previously specified with the <kbd class="calibre13">-m</kbd> parameter.</p>
+
+
+            </article>
+
+            <footer class="calibre5">
+                
+            </footer>
+
+        </section>
+    </body></html>

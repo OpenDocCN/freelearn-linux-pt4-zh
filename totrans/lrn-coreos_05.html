@@ -1,0 +1,519 @@
+<html><head></head><body>
+<div id="page" style="height:0pt"/><div class="book" title="Chapter&#xA0;5.&#xA0;Discovering Services Running in a Cluster" id="VF2I1-31555e2039a14139a7f00b384a5a2dd8"><div class="book"><div class="book"><div class="book"><h1 class="title" id="calibre_pb_0"><a id="ch05" class="calibre1"/>Chapter 5. Discovering Services Running in a Cluster </h1></div></div></div><p class="calibre9">When there are large numbers of members in a deployment, it's very important for the system to have easy manageability with the least human intervention possible. Human interventions tend to have human errors associated with them, making the system unstable. Imagine a scenario where there is a load balancer, which distributes HTTP traffic to multiple servers. If any servers go down or come up, it's very important that the load balancer knows about a node or service addition or deletion automatically without manual intervention, else it will be a nightmare managing such deployments. Service discovery ensures that the load balancer is aware of the currently active instances of services; based on this, it can take routing decisions.</p><p class="calibre9">This chapter explains the need and mechanism for the discovery of services running on a cluster.</p><p class="calibre9">This chapter covers the following topics:</p><div class="book"><ul class="itemizedlist"><li class="listitem">Introduction and necessity of service discovery</li><li class="listitem">Mechanism for discovery of services.</li></ul></div></div>
+
+<div class="book" title="Chapter&#xA0;5.&#xA0;Discovering Services Running in a Cluster" id="VF2I1-31555e2039a14139a7f00b384a5a2dd8">
+<div class="book" title="Introduction and necessity of service discovery"><div class="book"><div class="book"><div class="book"><h1 class="title" id="calibre_pb_1"><a id="ch05lvl1sec27" class="calibre1"/>Introduction and necessity of service discovery</h1></div></div></div><p class="calibre9">In a CoreOS environment, all of the user applications will be deployed as services inside a container. For most of these, user applications need to work coherently and hence, a mechanism is needed to discover these services and service parameters. Service discovery via etcd provides a way to publish the services and the required parameters with a service to other services in the system. The service discovery mechanism is not only useful for service parameter discovery but also involves the detection of the change of state of a member (the addition of a new member or the removal of a member running a service or a member going down), the state of the service (the service providing an application comes up or goes down), and service parameters (like the IP and port on which the service is provided, database connection end points, and so on). It is a requirement that the service information is available across all members at all times, which means that the mechanism for service discovery should be replicated and made available through multiple members to avoid single point of failure.</p></div></div>
+
+<div id="page" style="height:0pt"/><div class="book" title="Mechanism for service discovery"><div class="book" id="10DJ42-31555e2039a14139a7f00b384a5a2dd8"><div class="book"><div class="book"><h1 class="title" id="calibre_pb_0"><a id="ch05lvl1sec28" class="calibre1"/>Mechanism for service discovery</h1></div></div></div><p class="calibre9">Features provided by the CoreOS services <code class="email">etcd</code> and <code class="email">fleetd</code> can be used to discover services. The following figure explains the typical mechanism used for service discovery:</p><div class="mediaobject"><img src="../images/00022.jpeg" alt="Mechanism for service discovery" class="calibre11"/></div><p class="calibre12"> </p><p class="calibre9">In the previous chapters, we have seen how <code class="email">etcd</code> and <code class="email">fleetd</code> can be used to discover the member nodes in a cluster. The etcd service is not limited for node discovery. It can be used to discover or publish information related to applications or services. The subsequent sections in this chapter cover how to publish and discover service-related information using etcd.</p><p class="calibre9">There <a id="id202" class="calibre1"/>are two kinds of member nodes in the cluster: frontend <a id="id203" class="calibre1"/>service nodes and backend service nodes.</p><div class="book"><ul class="itemizedlist"><li class="listitem">The frontend service handles all service requests and routes the request to the <code class="email">backend</code> service for actual processing. This is the simplified but typical architecture for any high-capacity system. In the frontend service nodes, the following<a id="id204" class="calibre1"/> services will be running:<div class="book"><ul class="itemizedlist1"><li class="listitem"><code class="email">Discovery</code> service</li><li class="listitem"><code class="email">etcd</code> service</li><li class="listitem"><code class="email">fleetd</code> service </li><li class="listitem">Frontend or route service</li></ul></div></li><li class="listitem">Backend service nodes are responsible for running the services that are being scheduled <a id="id205" class="calibre1"/>or routed by the frontend service <a id="id206" class="calibre1"/>nodes. In the backend service nodes, the following services will be running:<div class="book"><ul class="itemizedlist1"><li class="listitem"><code class="email">Register</code> service: If simple discovery is required, this can be included in the backend service unit file as <code class="email">ExeStartPost</code></li><li class="listitem"><code class="email">etcd</code> service</li><li class="listitem"><code class="email">fleetd</code> service </li><li class="listitem">Backend or actual service</li></ul></div></li></ul></div><p class="calibre9">The <code class="email">fleetd</code> and <code class="email">etcd</code> services are already discussed in detail in previous chapters. The Register service running in backend nodes updates the service information in the etcd key-value store, which will be published to the discovery service. The discovery services running in the frontend nodes are used to discover the backend member service information using etcd key-value store information.</p><p class="calibre9">Let's understand the complete flow of discovery step by step:</p><div class="book"><ul class="itemizedlist"><li class="listitem">The <code class="email">Frontend </code>member is started. The fleetd service kicks in and schedules the <code class="email">Frontend </code>and <code class="email">Discovery </code>service . Service level affinity is used to ensure that both of them run together on a member.</li><li class="listitem">The <code class="email">Discovery </code>service uses the <code class="email">etcd</code> key-value store feature to look for backend member information. It also sets up a watch so that it comes to know of any changes in the service discovery information. We will learn about reading, writing, and setting up a watch on etcd later in this chapter. Since backend members are not started, no service information is available yet, so the discovery service is in wait mode looking for any updates in service information.</li><li class="listitem">One of the <code class="email">backend</code> member is started. The <code class="email">fleetd</code> service again kicks in and schedules the <code class="email">Backend</code> and <code class="email">Register </code>service. Here, also, service level affinity is used to ensure that both of them run together on a member.  The Register service updates the service information in the <code class="email">etcd</code> key-value store. This service information is useful for the frontend member. Service information can be endpoint information like IP and port, service type, or any other <a id="id207" class="calibre1"/>metadata necessary for the frontend to take an informed decision on scheduling the request. It's also important that a time to live is set on such data and the data is being periodically rewritten on etcd. Setting time to live on data ensures that service data also gets removed when service terminates.</li><li class="listitem">Since the <code class="email">Discovery </code>service on the frontend member has set up a watch on etcd, it comes to know about new service instance additions. It then updates the frontend service that adds the service instance. Based on the information available, the frontend service can start scheduling the incoming request to the service instance.</li><li class="listitem">Once other members are started, service discovery keeps on happening as explained in the previous step and the frontend service becomes aware of more and more service instances for the scheduling request.</li><li class="listitem">Now, assume one of the members went down. The service information gets erased from <code class="email">etcd</code> after the time to live if they are not updated again. The same will happen when the member is up and running but the backend service goes down and is not able to come up again. In this scenario, <code class="email">fleetd</code> will bring down the Register service also, since they are bound together. If they don't come up further on the member, the service parameter will again expire on <code class="email">etcd</code> after time to live.</li><li class="listitem">Parameter deletion is again detected by the <code class="email">Discovery</code> service and the information passed to the <code class="email">Frontend</code> service. The <code class="email">Frontend</code> service now knows that there is one less service instance to work on.</li></ul></div><p class="calibre9">Note that this is only a conceptual representation of the whole process. There is no restriction that your frontend application and discovery services should be two separate applications or services. There is a possibility that your frontend application could also contain the discovery services. When you use a third party or readymade frontend application like <code class="email">HAProxy</code>, then you may need to write a thin discovery service or you can also use <code class="email">confd</code>, another readymade application for discovery. Similarly, the backend service and register service can be fused together or you can use another readymade application, <code class="email">forest</code>, to directly update <code class="email">etcd</code> without writing a register service.</p></div>
+
+<div class="book" title="Mechanism for service discovery">
+<div class="book" title="Operations of etcd"><div class="book"><div class="book"><div class="book"><h2 class="title1" id="calibre_pb_1"><a id="ch05lvl2sec27" class="calibre1"/>Operations of etcd</h2></div></div></div><p class="calibre9">
+<code class="email">etcd</code> provides <a id="id208" class="calibre1"/>the following three operations <a id="id209" class="calibre1"/>for manipulating the key-value store:</p><div class="book"><ul class="itemizedlist"><li class="listitem">etcd write</li><li class="listitem">etcd read </li><li class="listitem">etcd watch</li></ul></div><p class="calibre9">There are two main interfaces provided by CoreOS to perform the preceding <code class="email">etcd</code> operations:</p><div class="book"><ul class="itemizedlist"><li class="listitem"><code class="email">etcdctl</code></li><li class="listitem">REST-based interface. <code class="email">cURL</code> can be used to invoke REST APIs.</li></ul></div><div class="book" title="Operations using etcdctl"><div class="book"><div class="book"><div class="book"><h3 class="title2"><a id="ch05lvl3sec20" class="calibre1"/>Operations using etcdctl</h3></div></div></div><p class="calibre9">
+<code class="email">etcdctl</code> is a<a id="id210" class="calibre1"/> command-line client of <code class="email">etcd</code>. Using <code class="email">etcdctl</code>, you <a id="id211" class="calibre1"/>can read, write, and watch the key-value store of etcd. <code class="email">etcdctl</code> can be used as a standalone tool for configuring the key-value store or can also be used in scripts. <code class="email">etcdctl</code> sends the request message to the <code class="email">etcd</code> service and waits for the response from etcd. <code class="email">etcdctl</code> can return any one of the following return codes:</p><div class="informalexample"><table border="1" class="calibre18"><colgroup class="calibre19"><col class="calibre20"/><col class="calibre20"/></colgroup><thead class="calibre21"><tr class="calibre22"><th valign="bottom" class="calibre23">
+<p class="calibre24">Return value</p>
+</th><th valign="bottom" class="calibre23">
+<p class="calibre24">Semantics</p>
+</th></tr></thead><tbody class="calibre25"><tr class="calibre22"><td valign="top" class="calibre26">
+<p class="calibre24">0</p>
+</td><td valign="top" class="calibre26">
+<p class="calibre24">Success</p>
+</td></tr><tr class="calibre22"><td valign="top" class="calibre26">
+<p class="calibre24">1</p>
+</td><td valign="top" class="calibre26">
+<p class="calibre24">Malformed etcdctl arguments</p>
+</td></tr><tr class="calibre22"><td valign="top" class="calibre26">
+<p class="calibre24">2</p>
+</td><td valign="top" class="calibre26">
+<p class="calibre24">Failed to connect to host</p>
+</td></tr><tr class="calibre22"><td valign="top" class="calibre26">
+<p class="calibre24">3</p>
+</td><td valign="top" class="calibre26">
+<p class="calibre24">Failed to auth (client cert rejected, ca validation failure, and so on)</p>
+</td></tr><tr class="calibre22"><td valign="top" class="calibre26">
+<p class="calibre24">4</p>
+</td><td valign="top" class="calibre26">
+<p class="calibre24">400 error from etcd</p>
+</td></tr><tr class="calibre22"><td valign="top" class="calibre26">
+<p class="calibre24">5</p>
+</td><td valign="top" class="calibre26">
+<p class="calibre24">500 error from etcd</p>
+</td></tr></tbody></table></div><div class="book" title="etcd write using etcdctl"><div class="book"><div class="book"><div class="book"><h4 class="title3"><a id="ch05lvl4sec12" class="calibre1"/>etcd write using etcdctl</h4></div></div></div><p class="calibre9">The etcd write service will be used by the backend nodes to publish the service information using the key-value data store to the frontend services. </p><p class="calibre9">The <a id="id212" class="calibre1"/>following write operations are possible using <code class="email">etcdctl</code>. The following table lists the command options provided by <code class="email">etcdctl</code> with syntax and examples: </p><div class="informalexample"><table border="1" class="calibre18"><colgroup class="calibre19"><col class="calibre20"/><col class="calibre20"/><col class="calibre20"/></colgroup><thead class="calibre21"><tr class="calibre22"><th valign="bottom" class="calibre23">
+<p class="calibre24">Operations</p>
+</th><th valign="bottom" class="calibre23">
+<p class="calibre24">Command syntax</p>
+</th><th valign="bottom" class="calibre23">
+<p class="calibre24">Example</p>
+</th></tr></thead><tbody class="calibre25"><tr class="calibre22"><td valign="top" class="calibre26">
+<p class="calibre24">Setting value for a key</p>
+</td><td valign="top" class="calibre26">
+<p class="calibre24">
+<code class="literal">etcdctl set &lt;key&gt; &lt;value&gt;</code>
+</p>
+</td><td valign="top" class="calibre26">
+<p class="calibre24">
+<code class="literal">$ etcdctl set /foo/bar "foo bar"</code>
+</p>
+</td></tr><tr class="calibre22"><td valign="top" class="calibre26">
+<p class="calibre24">Setting value for a key with expiry in seconds</p>
+</td><td valign="top" class="calibre26">
+<p class="calibre24">
+<code class="literal">etcdctl set &lt;key&gt; &lt;value&gt; –ttl </code>
+</p>
+</td><td valign="top" class="calibre26">
+<p class="calibre24">
+<code class="literal">$ etcdctl set /foo/bar "foo bar" –ttl 10</code>
+</p>
+</td></tr><tr class="calibre22"><td valign="top" class="calibre26">
+<p class="calibre24">Conditionally setting value for a key based on<a id="id213" class="indexterm"/> the previous value</p>
+</td><td valign="top" class="calibre26">
+<p class="calibre24">
+<code class="literal">etcdctl set /&lt;key&gt; &lt;old-value&gt;  --swap-with-value &lt;new-value&gt;</code>
+</p>
+</td><td valign="top" class="calibre26">
+<p class="calibre24">
+<code class="literal">$ etcdctl set /foo/bar "foo bar" --swap-with-value "bar  foo"</code>
+</p>
+</td></tr><tr class="calibre22"><td valign="top" class="calibre26">
+<p class="calibre24">Creating a new key</p>
+</td><td valign="top" class="calibre26">
+<p class="calibre24">
+<code class="literal">etcdctl mk &lt;key&gt; &lt;value&gt;</code>
+</p>
+</td><td valign="top" class="calibre26">
+<p class="calibre24">
+<code class="literal">$ etcdctl mk /foo/bar "foo bar"</code>
+</p>
+</td></tr><tr class="calibre22"><td valign="top" class="calibre26">
+<p class="calibre24">Creating a new directory</p>
+</td><td valign="top" class="calibre26">
+<p class="calibre24">
+<code class="literal">etcdctl mkdir &lt;dir&gt;</code>
+</p>
+</td><td valign="top" class="calibre26">
+<p class="calibre24">
+<code class="literal">$ etcdctl mkdir /foo/bar</code>
+</p>
+</td></tr><tr class="calibre22"><td valign="top" class="calibre26">
+<p class="calibre24">Updating value for a key</p>
+</td><td valign="top" class="calibre26">
+<p class="calibre24">
+<code class="literal">etcdctl update  &lt;key&gt; &lt;value&gt;</code>
+</p>
+</td><td valign="top" class="calibre26">
+<p class="calibre24">
+<code class="literal">$ etcdctl set /foo/bar "bar foo"</code>
+</p>
+</td></tr><tr class="calibre22"><td valign="top" class="calibre26">
+<p class="calibre24">Deleting a key</p>
+</td><td valign="top" class="calibre26">
+<p class="calibre24">
+<code class="literal">etcdctl rm &lt;key&gt;</code>
+</p>
+</td><td valign="top" class="calibre26">
+<p class="calibre24">
+<code class="literal">$ etcdctl rm /foo/bar </code>
+</p>
+</td></tr><tr class="calibre22"><td valign="top" class="calibre26">
+<p class="calibre24">Deleting a key and all its child key recursively</p>
+</td><td valign="top" class="calibre26">
+<p class="calibre24">
+<code class="literal">etcdctl rm &lt;key&gt; --recursive</code>
+</p>
+</td><td valign="top" class="calibre26">
+<p class="calibre24">
+<code class="literal">$ etcdctl rm /foo/bar –recursive</code>
+</p>
+</td></tr><tr class="calibre22"><td valign="top" class="calibre26">
+<p class="calibre24">Conditionally deleting a key</p>
+</td><td valign="top" class="calibre26">
+<p class="calibre24">
+<code class="literal">etcdctl rm &lt;key&gt; --with-value &lt;value&gt;</code>
+</p>
+</td><td valign="top" class="calibre26">
+<p class="calibre24">
+<code class="literal">$ etcdctl rm /foo/bar --with-value "foo bar"</code>
+</p>
+</td></tr><tr class="calibre22"><td valign="top" class="calibre26">
+<p class="calibre24">Deleting a directory</p>
+</td><td valign="top" class="calibre26">
+<p class="calibre24">
+<code class="literal">etcdctl rmdir  &lt;dir&gt;</code>
+</p>
+</td><td valign="top" class="calibre26">
+<p class="calibre24">
+<code class="literal">$ etcdctl rmdir /foo/bar</code>
+</p>
+</td></tr></tbody></table></div></div><div class="book" title="etcd read using etcdctl"><div class="book"><div class="book"><div class="book"><h4 class="title3"><a id="ch05lvl4sec13" class="calibre1"/>etcd read using etcdctl</h4></div></div></div><p class="calibre9">The <a id="id214" class="calibre1"/>
+<code class="email">etcd read</code> service will be used by the frontend nodes to discover the service information using the key-value data store.</p><p class="calibre9">The following read operations are possible using <code class="email">etcdctl</code>. The following table lists the command options provided by <code class="email">etcdctl</code> with syntax and examples: </p><div class="informalexample"><table border="1" class="calibre18"><colgroup class="calibre19"><col class="calibre20"/><col class="calibre20"/><col class="calibre20"/></colgroup><thead class="calibre21"><tr class="calibre22"><th valign="bottom" class="calibre23">
+<p class="calibre24">Operations</p>
+</th><th valign="bottom" class="calibre23">
+<p class="calibre24">Command syntax</p>
+</th><th valign="bottom" class="calibre23">
+<p class="calibre24">Example</p>
+</th></tr></thead><tbody class="calibre25"><tr class="calibre22"><td valign="top" class="calibre26">
+<p class="calibre24">Retrieving a key-value </p>
+</td><td valign="top" class="calibre26">
+<p class="calibre24">
+<code class="literal">etcdctl get &lt;key&gt; </code>
+</p>
+</td><td valign="top" class="calibre26">
+<p class="calibre24">
+<code class="literal">$ etcdctl get /foo/bar </code>
+</p>
+<p class="calibre24">
+<code class="literal">foo bar</code>
+</p>
+</td></tr><tr class="calibre22"><td valign="top" class="calibre26">
+<p class="calibre24">Retrieving a key-value with additional metadata</p>
+</td><td valign="top" class="calibre26">
+<p class="calibre24">
+<code class="literal">etcdctl -o extended get &lt;key&gt; </code>
+</p>
+</td><td valign="top" class="calibre26">
+<p class="calibre24">
+<code class="literal">$ etcdctl -o extended get /foo/bar </code>
+</p>
+<p class="calibre24">Key: /foo/bar</p>
+<p class="calibre24">Modified-Index: 72</p>
+<p class="calibre24">TTL: 0</p>
+<p class="calibre24">Etcd-Index: 72</p>
+<p class="calibre24">Raft-Index: 5611</p>
+<p class="calibre24">Raft-Term: 1</p>
+<p class="calibre24">foo bar</p>
+</td></tr><tr class="calibre22"><td valign="top" class="calibre26">
+<p class="calibre24">Creating a new key</p>
+</td><td valign="top" class="calibre26">
+<p class="calibre24">
+<code class="literal">etcdctl mk &lt;key&gt; &lt;value&gt;</code>
+</p>
+</td><td valign="top" class="calibre26">
+<p class="calibre24">
+<code class="literal">$ etcdctl mk /foo/bar "foo bar"</code>
+</p>
+</td></tr><tr class="calibre22"><td valign="top" class="calibre26">
+<p class="calibre24">Listing the directory</p>
+</td><td valign="top" class="calibre26">
+<p class="calibre24">
+<code class="literal">etcdctl ls </code>
+</p>
+</td><td valign="top" class="calibre26">
+<p class="calibre24">
+<code class="literal">$ etcdctl ls</code>
+</p>
+<p class="calibre24">
+<code class="literal">/foo</code>
+</p>
+</td></tr><tr class="calibre22"><td valign="top" class="calibre26">
+<p class="calibre24">Listing<a id="id215" class="indexterm"/> the directory recursively</p>
+</td><td valign="top" class="calibre26">
+<p class="calibre24">
+<code class="literal">etcdctl ls –recursive</code>
+</p>
+</td><td valign="top" class="calibre26">
+<p class="calibre24">
+<code class="literal">$ etcdctl ls --recursive</code>
+</p>
+<p class="calibre24">
+<code class="literal">/foo</code>
+</p>
+<p class="calibre24">
+<code class="literal">/foo/bar</code>
+</p>
+</td></tr></tbody></table></div><p class="calibre9">With our <code class="email">testservices</code> example, the following command is used to read the parameters using <code class="email">etcdctl</code>. Note that we are using the <code class="email">ls</code> command here to get the list of services and then querying on a specific service instance.</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong class="calibre2">etcdctl ls /testservice/backend/1</strong></span>
+<span class="strong"><strong class="calibre2">/testservice/backend/1</strong></span>
+<span class="strong"><strong class="calibre2">/testservice/backend/2</strong></span>
+
+<span class="strong"><strong class="calibre2">etcdctl get /testservice/backend/2</strong></span>
+<span class="strong"><strong class="calibre2">172.17.8.102:55555</strong></span>
+</pre></div></div><div class="book" title="etcd watch using etcdctl"><div class="book"><div class="book"><div class="book"><h4 class="title3"><a id="ch05lvl4sec14" class="calibre1"/>etcd watch using etcdctl</h4></div></div></div><p class="calibre9">The <code class="email">etcd</code> <code class="email">watch</code> <a id="id216" class="calibre1"/>service will be used by the frontend nodes to monitor or watch for any change in the key-value data store.</p><p class="calibre9">The following watch operations are possible using <code class="email">etcdctl</code>. The following table lists the command options provided by <code class="email">etcdctl</code> with syntax and examples:</p><div class="informalexample"><table border="1" class="calibre18"><colgroup class="calibre19"><col class="calibre20"/><col class="calibre20"/><col class="calibre20"/></colgroup><thead class="calibre21"><tr class="calibre22"><th valign="bottom" class="calibre23">
+<p class="calibre24">Operations</p>
+</th><th valign="bottom" class="calibre23">
+<p class="calibre24">Command syntax</p>
+</th><th valign="bottom" class="calibre23">
+<p class="calibre24">Example</p>
+</th></tr></thead><tbody class="calibre25"><tr class="calibre22"><td valign="top" class="calibre26">
+<p class="calibre24">Watching for any change in the key-value.</p>
+</td><td valign="top" class="calibre26">
+<p class="calibre24">
+<code class="literal">etcdctl watch &lt;key&gt; </code>
+</p>
+</td><td valign="top" class="calibre26">
+<p class="calibre24">
+<code class="literal">$ etcdctl watch /foo/bar </code>
+</p>
+</td></tr><tr class="calibre22"><td valign="top" class="calibre26">
+<p class="calibre24">Continuously watching any change in the key-value. In this case, etcdctl hangs forever until <span><em class="calibre28">Ctrl </em></span>+ <span><em class="calibre28">C</em></span> and it prints the value when there is a change in the key-value. </p>
+</td><td valign="top" class="calibre26">
+<p class="calibre24">
+<code class="literal">etcdctl watch &lt;key&gt; --forever</code>
+</p>
+</td><td valign="top" class="calibre26">
+<p class="calibre24">
+<code class="literal">$ etcdctl watch /foo/bar --forever</code>
+</p>
+<p class="calibre24">
+<code class="literal">foo bar</code>
+</p>
+</td></tr><tr class="calibre22"><td valign="top" class="calibre26">
+<p class="calibre24">Continuously watching any change in the key-value and executes a program when there is a change in the key-value.</p>
+</td><td valign="top" class="calibre26">
+<p class="calibre24">
+<code class="literal">etcdctl exec-watch &lt;key&gt; --sh -c program to execute</code>
+</p>
+</td><td valign="top" class="calibre26">
+<p class="calibre24">
+<code class="literal">$ etcdctl exec-watch -- sh -c env | grep ETCD</code>
+</p>
+</td></tr></tbody></table></div></div><div class="book" title="Example of etcd using etcdctl"><div class="book"><div class="book"><div class="book"><h4 class="title3"><a id="ch05lvl4sec15" class="calibre1"/>Example of etcd using etcdctl</h4></div></div></div><p class="calibre9">Until now, we have seen how a service parameter can be published and discovered in theoretical fashion. Now it's time for some practical work. Let's start off by getting ourselves<a id="id217" class="calibre1"/> familiar with the etcd key-value store features used for discovery and how to use them with an example of a service called <code class="email">testservices</code>, which publishes the IP address and port number on which this service is running.</p><p class="calibre9">Here, <code class="email">testservices</code> is the directory where all the new service information is added. IP is the IP of the member and <code class="email">5555</code> is the port (chosen for this example) on which a service is running.</p><p class="calibre9">The following is the command to write the IP address and port on which a service is added with the key as IP:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong class="calibre2">etcdctl set /testservices/ip '172.17.8.101:55555' –ttl 30</strong></span>
+</pre></div><p class="calibre9">An optional parameter, <code class="email">–ttl 30</code>, is added to set the lifetime for the key as 30 seconds. </p><div class="informalexample" title="Note"><h3 class="title2"><a id="tip06" class="calibre1"/>Tip</h3><p class="calibre9">In our example, we have chosen to show how to write the IP address and port number key to the key-store. Please note that there are various ways to learn about the IP address on which a service is running programmatically. The environment variables <code class="email">COREOS_PRIVATE_IPV4</code> and <code class="email">COREOS_PUBLIC_IPV4</code> can be used or the <code class="email">ipconfig</code> command can be used to find out the IP address assigned for the member.</p></div><p class="calibre9">To get the parameters published by <code class="email">testservices</code>, the following command should be used:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong class="calibre2">etcdctl get /testservices/ip 172.17.8.101:55555</strong></span>
+</pre></div><p class="calibre9">To watch these parameters the following command should be used:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong class="calibre2">etcdctl watch /testservices/ip</strong></span>
+</pre></div><p class="calibre9">The following are the commands to write entries that we queried using <code class="email">etcdctl</code> before.</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong class="calibre2">etcdctl set /testservices/backend/1 172.17.8.101:55555 –ttl 30</strong></span>
+<span class="strong"><strong class="calibre2">etcdctl set /testservices/backend/2 172.17.8.102:55555 –ttl 30</strong></span>
+</pre></div></div></div><div class="book" title="Operations using cURL"><div class="book"><div class="book"><div class="book"><h3 class="title2"><a id="ch05lvl3sec21" class="calibre1"/>Operations using cURL</h3></div></div></div><p class="calibre9">
+<span class="strong"><strong class="calibre2">cURL</strong></span>, often <a id="id218" class="calibre1"/>referred to as <code class="email">curl</code>, is a command-line tool used <a id="id219" class="calibre1"/>to transfer data to and from application servers using various protocols. cURL supports<a id="id220" class="calibre1"/> a range of protocols including <span class="strong"><strong class="calibre2">HTTPS</strong></span>, <span class="strong"><strong class="calibre2">HTTP</strong></span>, <span class="strong"><strong class="calibre2">FTPS</strong></span>, <span class="strong"><strong class="calibre2">FTP</strong></span>, <span class="strong"><strong class="calibre2">SCP</strong></span>, <span class="strong"><strong class="calibre2">TFTP</strong></span>, <span class="strong"><strong class="calibre2">SFTP</strong></span>, <span class="strong"><strong class="calibre2">DAP</strong></span>, <span class="strong"><strong class="calibre2">LDAP</strong></span>, <span class="strong"><strong class="calibre2">DICT</strong></span>, <span class="strong"><strong class="calibre2">TELNET</strong></span>, <span class="strong"><strong class="calibre2">IMAP</strong></span>, <span class="strong"><strong class="calibre2">FILE</strong></span>, <span class="strong"><strong class="calibre2">POP3</strong></span>, <span class="strong"><strong class="calibre2">SMTP</strong></span>, and <span class="strong"><strong class="calibre2">RTSP</strong></span>. It is often used for getting or sending files using URL like syntax. Like <code class="email">etcdctl</code>, curl can also be used as a standalone tool for configuring the key-value store or can also be used in scripts. All the operations that can be done using <code class="email">etcdctl</code> can also be done using curl. curl also provides more operations to manipulate the key-value store. curl sends a request message to the etcd service and waits for the response. The response contains the following parameters/attributes:</p><div class="book"><ul class="itemizedlist"><li class="listitem">Action: The action field represents the type of curl request sent. The action can take the value as <code class="email">get, set, create, delete, update, expire, watch</code>, and so on.</li><li class="listitem">Node: The <code class="email">node</code> field represents the directories of the key-value store. It consists of key, value, <code class="email">createIndex</code>, and <code class="email">modifiedIndex</code>.<div class="book"><ul class="itemizedlist1"><li class="listitem">The <code class="email">key</code> field represents the key of the key-value store.</li><li class="listitem">The <code class="email">value</code> field represents the value of the key-value store.</li><li class="listitem">Every node has a field called <code class="email">index</code>, which will be incremented for each change to <code class="email">etcd</code>. The <code class="email">createdIndex</code> field is filled with this index.</li><li class="listitem"><code class="email">modifiedIndex</code> also represents the index of the node. However, this represents the number of operations that are applied over this node, which changes the value of this key-value store.</li></ul></div></li></ul></div><p class="calibre9">A sample <a id="id221" class="calibre1"/>output of a <code class="email">curl set</code> command is shown as follows:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong class="calibre2">curl -L http://127.0.0.1:4001/v2/keys/foo/bar -XPUT -d value="foo bar"</strong></span>
+
+<span class="strong"><strong class="calibre2">{</strong></span>
+<span class="strong"><strong class="calibre2">    "action": "set",</strong></span>
+<span class="strong"><strong class="calibre2">    "node": {</strong></span>
+<span class="strong"><strong class="calibre2">        "createdIndex": 2,</strong></span>
+<span class="strong"><strong class="calibre2">        "key": "/foo/bar",</strong></span>
+<span class="strong"><strong class="calibre2">        "modifiedIndex": 2,</strong></span>
+<span class="strong"><strong class="calibre2">        "value": "foo bar"</strong></span>
+<span class="strong"><strong class="calibre2">    }</strong></span>
+<span class="strong"><strong class="calibre2">}</strong></span>
+</pre></div><div class="book" title="etcd read using curl"><div class="book"><div class="book"><div class="book"><h4 class="title3"><a id="ch05lvl4sec16" class="calibre1"/>etcd read using curl</h4></div></div></div><p class="calibre9">The <a id="id222" class="calibre1"/>following read operations are possible using curl. The following table lists the command options provided by curl with syntax and examples:</p><div class="informalexample"><table border="1" class="calibre18"><colgroup class="calibre19"><col class="calibre20"/><col class="calibre20"/><col class="calibre20"/></colgroup><thead class="calibre21"><tr class="calibre22"><th valign="bottom" class="calibre23">
+<p class="calibre24">Operations</p>
+</th><th valign="bottom" class="calibre23">
+<p class="calibre24">Command syntax</p>
+</th><th valign="bottom" class="calibre23">
+<p class="calibre24">Example</p>
+</th></tr></thead><tbody class="calibre25"><tr class="calibre22"><td valign="top" class="calibre26">
+<p class="calibre24">Retrieving a key-value </p>
+</td><td valign="top" class="calibre26">
+<p class="calibre24">
+<code class="literal">curl -L &lt;URL&gt;</code>
+</p>
+</td><td valign="top" class="calibre26">
+<p class="calibre24">
+<code class="literal">curl -L http://127.0.0.1:4001/v2/keys/foo/bar</code>
+</p>
+<p class="calibre24">
+</p><div class="informalexample1"><pre class="programlisting1">
+{
+    "action": "get",
+    "node": {
+        "createdIndex": 2,
+        "key": "/foo/bar",
+        "modifiedIndex": 2,
+        "value": "foo bar"
+    }
+}
+</pre></div><p class="calibre24">
+</p>
+</td></tr><tr class="calibre22"><td valign="top" class="calibre26">
+<p class="calibre24">Retrieving a key-value recursively</p>
+</td><td valign="top" class="calibre26">
+<p class="calibre24">
+<code class="literal">curl -L &lt;URL&gt; ? ?recursive=true&amp;sorted=true</code>
+</p>
+</td><td valign="top" class="calibre26">
+<p class="calibre24">
+<code class="literal">curl -L 'http://127.0.0.1:4001/v2/keys/foo/bar?recursive=true&amp;sorted=true'</code>
+</p>
+<p class="calibre24">
+</p><div class="informalexample1"><pre class="programlisting1">
+{
+    "action": "get",
+    "node": {
+        "createdIndex": 2,
+        "key": "/foo/bar",
+        "modifiedIndex": 2,
+        "value": "foo bar"
+    }
+}
+</pre></div><p class="calibre24">
+</p>
+</td></tr></tbody></table></div></div><div class="book" title="etcd write using curl"><div class="book"><div class="book"><div class="book"><h4 class="title3"><a id="ch05lvl4sec17" class="calibre1"/>etcd write using curl</h4></div></div></div><p class="calibre9">The<a id="id223" class="calibre1"/> following write operations are possible using <code class="email">curl</code>. The following table lists the command options provided by curl with syntax and examples:</p><div class="informalexample"><table border="1" class="calibre18"><colgroup class="calibre19"><col class="calibre20"/><col class="calibre20"/><col class="calibre20"/></colgroup><thead class="calibre21"><tr class="calibre22"><th valign="bottom" class="calibre23">
+<p class="calibre24">Operations</p>
+</th><th valign="bottom" class="calibre23">
+<p class="calibre24">Command syntax</p>
+</th><th valign="bottom" class="calibre23">
+<p class="calibre24">Example</p>
+</th></tr></thead><tbody class="calibre25"><tr class="calibre22"><td valign="top" class="calibre26">
+<p class="calibre24">Setting value for a key</p>
+</td><td valign="top" class="calibre26">
+<p class="calibre24">
+<code class="literal">curl –L &lt;URL&gt; -XPUT -d value=&lt;value&gt;</code>
+</p>
+</td><td valign="top" class="calibre26">
+<p class="calibre24">
+<code class="literal">curl -L http://127.0.0.1:4001/v2/keys/foo/bar -XPUT -d value="foo bar"</code>
+</p>
+<p class="calibre24">
+</p><div class="informalexample1"><pre class="programlisting1">
+{
+    "action": "set",
+    "node": {
+        "createdIndex": 2,
+        "key": "/foo/bar",
+        "modifiedIndex": 2,
+        "value": "foo bar "
+    }
+}
+</pre></div><p class="calibre24">
+</p>
+</td></tr><tr class="calibre22"><td valign="top" class="calibre26">
+<p class="calibre24">Setting <a id="id224" class="indexterm"/>value for a key with expiry in seconds</p>
+</td><td valign="top" class="calibre26">
+<p class="calibre24">
+<code class="literal">curl –L &lt;URL&gt; -XPUT -d value=&lt;value&gt; -d ttl=&lt;value&gt;</code>
+</p>
+</td><td valign="top" class="calibre26">
+<p class="calibre24">
+<code class="literal">curl -L http://127.0.0.1:4001/v2/keys/foo/bar -XPUT -d value="foo bar" –d ttl=5</code>
+</p>
+<p class="calibre24">
+</p><div class="informalexample1"><pre class="programlisting1">
+{
+    "action": "set",
+    "node": {
+        "createdIndex": 2,
+        "expiration": "2015-12-04T12:11:11.824823581-08:00",
+        "key": "/foo/bar",
+        "modifiedIndex": 2,
+        "ttl": 5,
+        "value": "foo bar"
+    }
+}
+</pre></div><p class="calibre24">
+</p>
+</td></tr><tr class="calibre22"><td valign="top" class="calibre26">
+<p class="calibre24">Updating value for a key</p>
+</td><td valign="top" class="calibre26">
+<p class="calibre24">
+<code class="literal">curl –L &lt;URL&gt; -XPUT -d value=&lt;value&gt;</code>
+</p>
+</td><td valign="top" class="calibre26">
+<p class="calibre24">
+<code class="literal">curl -L http://127.0.0.1:4001/v2/keys/foo/bar -XPUT -d value="foo bar2"</code>
+</p>
+<p class="calibre24">
+</p><div class="informalexample1"><pre class="programlisting1">
+{
+    "action": "set",
+    "node": {
+        "createdIndex": 3,
+        "key": "/foo/bar",
+        "modifiedIndex": 3,
+        "value": "foo bar2 "
+    },
+    "prevNode": {
+        "createdIndex": 2,
+        "key": "/foo/bar",
+        "modifiedIndex": 2,
+        "value": "foo bar "
+    }
+}
+</pre></div><p class="calibre24">
+</p>
+</td></tr><tr class="calibre22"><td valign="top" class="calibre26">
+<p class="calibre24">Deleting a key</p>
+</td><td valign="top" class="calibre26">
+<p class="calibre24">
+<code class="literal">curl –L &lt;URL&gt; -XDELETE</code>
+</p>
+</td><td valign="top" class="calibre26">
+<p class="calibre24">
+<code class="literal">curl -L http://127.0.0.1:4001/v2/keys/foo/bar -XDELETE</code>
+</p>
+<div class="informalexample1"><pre class="programlisting1">
+{
+    "action": "delete",
+    "node": {
+        "createdIndex": 3,
+        "key": "/foo/bar",
+        "modifiedIndex": 3
+    },
+    "prevNode": {
+        "createdIndex": 2,
+        "key": "/foo/bar",
+        "modifiedIndex": 2,
+        "value": "foo bar "
+    }
+}
+</pre></div>
+</td></tr></tbody></table></div></div><div class="book" title="etcd watch using curl"><div class="book"><div class="book"><div class="book"><h4 class="title3"><a id="ch05lvl4sec18" class="calibre1"/>etcd watch using curl</h4></div></div></div><p class="calibre9">The <a id="id225" class="calibre1"/>following watch operations are possible using <code class="email">curl</code>. The following <a id="id226" class="calibre1"/>table lists the command options provided by curl with syntax and examples:</p><div class="informalexample"><table border="1" class="calibre18"><colgroup class="calibre19"><col class="calibre20"/><col class="calibre20"/><col class="calibre20"/></colgroup><thead class="calibre21"><tr class="calibre22"><th valign="bottom" class="calibre23">
+<p class="calibre24">Operations</p>
+</th><th valign="bottom" class="calibre23">
+<p class="calibre24">Command syntax</p>
+</th><th valign="bottom" class="calibre23">
+<p class="calibre24">Example</p>
+</th></tr></thead><tbody class="calibre25"><tr class="calibre22"><td valign="top" class="calibre26">
+<p class="calibre24">Watching for any change in the key-value </p>
+</td><td valign="top" class="calibre26">
+<p class="calibre24">
+<code class="literal">curl –L &lt;URL&gt;?wait=true</code>
+</p>
+</td><td valign="top" class="calibre26">
+<p class="calibre24">
+<code class="literal">curl -L http://127.0.0.1:4001/v2/keys/foo/bar?wait=true</code>
+</p>
+</td></tr></tbody></table></div></div><div class="book" title="Example using curl"><div class="book"><div class="book"><div class="book"><h4 class="title3"><a id="ch05lvl4sec19" class="calibre1"/>Example using curl</h4></div></div></div><p class="calibre9">Let's see<a id="id227" class="calibre1"/> how to use curl with our <code class="email">testservices</code> that want to publish the IP address and port number in which this service is running.</p><p class="calibre9">Here, <code class="email">testservices</code> is the directory where all the new service information is added. IP is the IP of the member and <code class="email">5555</code> is the port (chosen for this example) on which a service is running.</p><p class="calibre9">The following is the command to write the IP address and port on which a service is added with the key as IP:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong class="calibre2">curl -L http://127.0.0.1:4001/v2/keys/testservices/ip -XPUT -d value="'172.17.8.101:5555"</strong></span>
+
+<span class="strong"><strong class="calibre2">{</strong></span>
+<span class="strong"><strong class="calibre2">    "action": "set",</strong></span>
+<span class="strong"><strong class="calibre2">    "node": {</strong></span>
+<span class="strong"><strong class="calibre2">        "createdIndex": 3,</strong></span>
+<span class="strong"><strong class="calibre2">        "key": "/ testservices/ip ",</strong></span>
+<span class="strong"><strong class="calibre2">        "modifiedIndex": 3,</strong></span>
+<span class="strong"><strong class="calibre2">        "value": "'172.17.8.101:5555"</strong></span>
+<span class="strong"><strong class="calibre2">    }</strong></span>
+<span class="strong"><strong class="calibre2">}</strong></span>
+</pre></div><p class="calibre9">To get the <a id="id228" class="calibre1"/>parameters published by <code class="email">testservices</code>, the following command should be used:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong class="calibre2">curl -L 'http://127.0.0.1:4001/v2/keys/testservices/ip'</strong></span>
+
+<span class="strong"><strong class="calibre2">{</strong></span>
+<span class="strong"><strong class="calibre2">    "action": "get",</strong></span>
+<span class="strong"><strong class="calibre2">    "node": {</strong></span>
+<span class="strong"><strong class="calibre2">        "createdIndex": 4,</strong></span>
+<span class="strong"><strong class="calibre2">        "key": "/ testservices/ip ",</strong></span>
+<span class="strong"><strong class="calibre2">        "modifiedIndex": 4,</strong></span>
+<span class="strong"><strong class="calibre2">        "value": "'172.17.8.101:5555"</strong></span>
+<span class="strong"><strong class="calibre2">    }</strong></span>
+<span class="strong"><strong class="calibre2">}</strong></span>
+</pre></div><p class="calibre9">To watch these parameters, the following command should be used:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong class="calibre2">curl -L http://127.0.0.1:4001/v2/keys/ testservices/ip'?wait=true</strong></span>
+</pre></div></div></div></div></div>
+<div class="book" title="HAProxy and service discovery" id="11C3M1-31555e2039a14139a7f00b384a5a2dd8"><div class="book"><div class="book"><div class="book"><h1 class="title" id="calibre_pb_0"><a id="ch05lvl1sec29" class="calibre1"/>HAProxy and service discovery</h1></div></div></div><p class="calibre9">In this <a id="id229" class="calibre1"/>section, we use service discovery to create a <a id="id230" class="calibre1"/>web service that has multiple backend nodes with HAProxy frontend and then load balancing the service requests. HAProxy is a commonly used load balancer for TCP and HTTP-based applications.</p><p class="calibre9">Let's start by understanding a typical HAProxy configuration. We are not going to cover the HAProxy configuration exhaustively, but will only concentrate on the configurations that are relevant for service discovery:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong class="calibre2">frontend testloadbalancer</strong></span>
+<span class="strong"><strong class="calibre2">    bind *:80</strong></span>
+<span class="strong"><strong class="calibre2">    mode http</strong></span>
+<span class="strong"><strong class="calibre2">    balance roundrobin</strong></span>
+<span class="strong"><strong class="calibre2">    server testserver01 172.17.18.101:80 check</strong></span>
+<span class="strong"><strong class="calibre2">    server testserver02 172.17.18.102:80 check</strong></span>
+</pre></div><p class="calibre9">This configuration instructs HAProxy to bind to port <code class="email">80</code> and forward HTTP traffic to the servers <code class="email">172.17.18.10</code> and <code class="email">172.17.18.102</code> in a round robin fashion. When we have information on every backend server, we can configure HAProxy statically and the setup<a id="id231" class="calibre1"/> will work. But imagine a scenario where the <a id="id232" class="calibre1"/>information on the IP is not available. For example, when IPs are allocated dynamically or the number of nodes keeps increasing as the traffic to the server increases. We can use service discovery to keep HAProxy updated with the addition and deletion of the backend dynamically. We will make ourselves familiar with another tool called confd. We will use confd as a discovery service. confd has the capability of watching the etcd key store, it then prepares a configuration file based on the template and copies the configuration file to the location required by the applications, and invokes a command asking an application to reload the configuration.</p><p class="calibre9">confd requires a template application configuration file in the directory <code class="email">/etc/confd/templates</code> and a confd configuration file in the directory <code class="email">/etc/confd/conf.d</code>.</p><p class="calibre9">The following is the configuration file <code class="email">testconfd.toml</code> for confd:</p><div class="informalexample"><pre class="programlisting">[template]
+src = "haproxy.cfg.tmpl"
+dest = "/etc/haproxy/haproxy.cfg"
+keys = [
+  "/testservice/backend",
+]
+reload_cmd = "/usr/sbin/service haproxy reload"</pre></div><p class="calibre9">This configuration file mentions that the HAProxy template filename is <code class="email">haproxy.cfg.tmpl</code>. The configuration file prepared based on the template file has to be copied to <code class="email">/etc/haproxy/haproxy.cfg</code>. The configuration file also mentions that the etcd key is <code class="email">/testservice/backend</code>. Finally, it invokes the command to reload HAProxy.</p><p class="calibre9">The following is how the template file <code class="email">haproxy.cfg.tmpl</code> would look for the HAProxy configuration file we have seen before:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong class="calibre2">frontend testloadbalancer</strong></span>
+<span class="strong"><strong class="calibre2">    bind *:80</strong></span>
+<span class="strong"><strong class="calibre2">    mode http</strong></span>
+<span class="strong"><strong class="calibre2">    balance roundrobin</strong></span>
+<span class="strong"><strong class="calibre2">    {{range $serveraddr := . testservice backend}}</strong></span>
+<span class="strong"><strong class="calibre2">    server {{Base $serveraddr.Key}} {{$serveraddr.Value}} check</strong></span>
+<span class="strong"><strong class="calibre2">    {{end}}</strong></span>
+</pre></div><p class="calibre9">The range directive loops through etcd keys and prepares the entries for each name. The base directive used is very similar to the base-name utility of Linux. For the etcd keys written in this chapter before, the corresponding entries would be: </p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong class="calibre2">server 1 172.17.18.101:55555 check</strong></span>
+<span class="strong"><strong class="calibre2">server 2 172.17.18.102:55555 check</strong></span>
+</pre></div><p class="calibre9">Now, coming <a id="id233" class="calibre1"/>to the backend servers, we can add the <a id="id234" class="calibre1"/>command (<code class="email">etcdctl</code> or <code class="email">curl</code>) to update the system IP address in etcd using <code class="email">ExeStartPost</code>. confd would then update the frontend HAProxy with the new configuration as and when backend servers come up.</p></div>
+<div class="book" title="Summary" id="12AK81-31555e2039a14139a7f00b384a5a2dd8"><div class="book"><div class="book"><div class="book"><h1 class="title" id="calibre_pb_0"><a id="ch05lvl1sec30" class="calibre1"/>Summary</h1></div></div></div><p class="calibre9">In this chapter, we understood discovery services, why it is very important while developing services or applications in a CoreOS environment, how to publish a service and its parameters, and how to watch for changes in the state of the services. We also learned about the two important tools, etcdctl and curl, that are widely used for service discovery, with some examples.</p><p class="calibre9">In the next chapter, we will learn how different services running inside a CoreOS cluster can communicate with each other using service chaining mechanisms.</p></div></body></html>
