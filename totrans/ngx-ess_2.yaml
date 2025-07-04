@@ -1,90 +1,130 @@
 - en: Chapter 2. Managing Nginx
+  id: totrans-0
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 第2章 管理 Nginx
 - en: In a web server running at full scale, thousands of events are occurring each
     second. Micromanaging these events is obviously not possible, yet even small glitches
     are able to cause serious deterioration of quality of service and affect user
     experience.
+  id: totrans-1
   prefs: []
   type: TYPE_NORMAL
+  zh: 在一个全负载运行的 Web 服务器中，每秒钟发生成千上万的事件。显然，无法对这些事件进行微观管理，但即便是小的故障也能导致服务质量严重下降，进而影响用户体验。
 - en: To prevent theses glitches from happening, a dedicated webmaster or site reliability
     engineer must be able to understand and properly manage the processes behind the
     scenes.
+  id: totrans-2
   prefs: []
   type: TYPE_NORMAL
+  zh: 为了防止这些问题的发生，专职网站管理员或站点可靠性工程师必须能够理解并正确管理后台的进程。
 - en: 'In this chapter, you will learn how to manage an Nginx instance in operation,
     and we will discuss the following topics:'
+  id: totrans-3
   prefs: []
   type: TYPE_NORMAL
+  zh: 本章将介绍如何管理正在运行的 Nginx 实例，并讨论以下主题：
 - en: Starting and stopping Nginx
+  id: totrans-4
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 启动和停止 Nginx
 - en: Reloading and reconfiguring processes
+  id: totrans-5
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 重新加载和重新配置进程
 - en: Allocating worker processes
+  id: totrans-6
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 分配工作进程
 - en: Other management questions
+  id: totrans-7
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 其他管理问题
 - en: The Nginx connection processing architecture
+  id: totrans-8
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: Nginx 连接处理架构
 - en: 'Before you study the management procedures of Nginx, you need to get some idea
     of how Nginx processes connections. In the full-scale mode, a single Nginx instance
     consists of the **master process** and **worker processes**, as shown in the following
     figure:'
+  id: totrans-9
   prefs: []
   type: TYPE_NORMAL
+  zh: 在你学习 Nginx 的管理过程之前，你需要了解 Nginx 如何处理连接。在全负载模式下，单个 Nginx 实例由**主进程**和**工作进程**组成，如下图所示：
 - en: '![The Nginx connection processing architecture](img/B04282_02_01.jpg)'
+  id: totrans-10
   prefs: []
   type: TYPE_IMG
+  zh: '![Nginx 连接处理架构](img/B04282_02_01.jpg)'
 - en: The master process spawns worker processes and controls them by sending and
     forwarding signals and listening for quit notifications from them. Worker processes
     wait on listening sockets and accept incoming connections. The operating system
     distributes incoming connections among worker processes in a round-robin fashion.
+  id: totrans-11
   prefs: []
   type: TYPE_NORMAL
+  zh: 主进程生成工作进程并通过发送和转发信号以及监听来自工作进程的退出通知来控制它们。工作进程在监听套接字上等待并接受传入连接。操作系统以轮询方式将传入连接分配给工作进程。
 - en: 'The master process is responsible for all startup, shutdown, and maintenance
     tasks such as the following:'
+  id: totrans-12
   prefs: []
   type: TYPE_NORMAL
+  zh: 主进程负责所有启动、关闭和维护任务，诸如以下内容：
 - en: Reading and re-reading configuration files
+  id: totrans-13
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 读取和重新读取配置文件
 - en: Opening and reopening log files
+  id: totrans-14
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 打开和重新打开日志文件
 - en: Creating listening sockets
+  id: totrans-15
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 创建监听套接字
 - en: Starting and restarting worker processes
+  id: totrans-16
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 启动和重启工作进程
 - en: Forwarding signals to the worker processes
+  id: totrans-17
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 向工作进程转发信号
 - en: Starting a new binary
+  id: totrans-18
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 启动新的二进制文件
 - en: The master process thus ensures continuous operation of an Nginx instance in
     the face of various changes in the environment and occasional crashes of worker
     processes.
+  id: totrans-19
   prefs: []
   type: TYPE_NORMAL
+  zh: 因此，主进程确保在环境变化和工作进程偶尔崩溃的情况下，Nginx 实例能够持续运行。
 - en: Worker processes are responsible for serving connections and accepting new ones.
     Worker processes can run certain maintenance tasks as well. For instance, they
     reopen log files on their own after the master process has ensured that this operation
@@ -95,319 +135,475 @@
     a connection are allocated when a worker process starts. The maximum number of
     connections that a worker process can handle simultaneously is configured by the
     `worker_connections` directive and defaults to 512.
+  id: totrans-20
   prefs: []
   type: TYPE_NORMAL
+  zh: 工作进程负责处理连接并接受新连接。工作进程还可以执行某些维护任务。例如，在主进程确保操作安全后，工作进程会自行重新打开日志文件。每个工作进程处理多个连接。这是通过运行事件循环来实现的，该循环通过特殊的系统调用从操作系统中获取在打开的套接字上发生的事件，并通过读取和写入活动套接字快速处理所有获取到的事件。维护连接所需的资源会在工作进程启动时分配。工作进程同时处理的最大连接数由`worker_connections`指令配置，默认值为
+    512。
 - en: 'In a **clustered setup**, a special routing device such as a load balancer
     or another Nginx instance is used to balance incoming connections among a set
     of identical Nginx instances, each of them consisting of a master process and
     a collection of worker processes. This is shown in the following figure:'
+  id: totrans-21
   prefs: []
   type: TYPE_NORMAL
+  zh: 在**集群架构**中，使用负载均衡器或另一个 Nginx 实例等专用路由设备，来平衡进入连接到一组相同的 Nginx 实例，这些实例每个都包含一个主进程和一组工作进程。如下图所示：
 - en: '![The Nginx connection processing architecture](img/B04282_02_02.jpg)'
+  id: totrans-22
   prefs: []
   type: TYPE_IMG
+  zh: '![Nginx连接处理架构](img/B04282_02_02.jpg)'
 - en: In this setup, the load balancer routes connections only to those instances
     that are listening for incoming connections. The load balancer ensures that each
     of the active instances gets an approximately equal amount of traffic, and routes
     traffic away from an instance if it shows any connectivity problems.
+  id: totrans-23
   prefs: []
   type: TYPE_NORMAL
+  zh: 在此设置中，负载均衡器仅将连接路由到那些正在监听传入连接的实例。负载均衡器确保每个活动实例接收到大致相等的流量，并在某个实例出现连接问题时将流量从该实例路由出去。
 - en: Because of the difference in the architecture, the management procedures for
     a clustered setup are slightly different than for a **standalone instance**. We
     will discuss these differences soon.
+  id: totrans-24
   prefs: []
   type: TYPE_NORMAL
+  zh: 由于架构差异，集群设置的管理程序与**独立实例**的管理程序略有不同。我们将在稍后讨论这些差异。
 - en: Starting and stopping Nginx
+  id: totrans-25
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 启动和停止Nginx
 - en: 'In the previous chapter, you learned a bit about how to start your Nginx instance.
     On Ubuntu, Debian, or Redhat-like systems you can run the following command:'
+  id: totrans-26
   prefs: []
   type: TYPE_NORMAL
+  zh: 在上一章中，你学习了如何启动Nginx实例。在Ubuntu、Debian或类似Redhat的系统上，你可以运行以下命令：
 - en: '[PRE0]'
+  id: totrans-27
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE0]'
 - en: 'In the absence of startup scripts, you can simply run the binary using the
     following command:'
+  id: totrans-28
   prefs: []
   type: TYPE_NORMAL
+  zh: 如果没有启动脚本，你可以简单地使用以下命令运行二进制文件：
 - en: '[PRE1]'
+  id: totrans-29
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE1]'
 - en: 'Nginx will read and parse the configuration file, create a PID file (a file
     containing its process ID), open log files, create listening sockets, and start
     worker processes. Once worker processes have started, a Nginx instance is able
     to respond to incoming connections. This is what a running Nginx instance looks
     like in the process list:'
+  id: totrans-30
   prefs: []
   type: TYPE_NORMAL
+  zh: Nginx将读取并解析配置文件，创建PID文件（包含其进程ID的文件），打开日志文件，创建监听套接字，并启动工作进程。一旦工作进程启动，Nginx实例就能响应传入的连接。这是运行中的Nginx实例在进程列表中的样子：
 - en: '[PRE2]'
+  id: totrans-31
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE2]'
 - en: Every Nginx process sets its process title such that it conveniently reflects
     the role of the process. Here, for example, you see the master process of the
     instance with process ID `2324` and four worker processes with process IDs `2325`,
     `2326`, `2327`, and `2328`. Note how the **parent process ID** (**PPID**) column
     points at the master process. We will refer to the ID of the master process further
     in this section.
+  id: totrans-32
   prefs: []
   type: TYPE_NORMAL
+  zh: 每个Nginx进程都会设置其进程标题，以便方便地反映该进程的角色。例如，在这里，你可以看到实例的主进程ID为`2324`，并且有四个工作进程，进程ID分别为`2325`、`2326`、`2327`和`2328`。注意，**父进程ID**（**PPID**）列指向主进程。我们将在本节中进一步讨论主进程的ID。
 - en: 'If you can''t find your instance in the process list or you see an error message
     on the console upon startup, something is preventing Nginx from starting. The
     following table lists potential issues and their solutions:'
+  id: totrans-33
   prefs: []
   type: TYPE_NORMAL
+  zh: 如果你在进程列表中找不到你的实例，或者在启动时控制台显示错误信息，说明某些因素阻止了Nginx的启动。以下表格列出了可能的问题及其解决方案：
 - en: '| Message | Issue | Resolution |'
+  id: totrans-34
   prefs: []
   type: TYPE_TB
+  zh: '| 信息 | 问题 | 解决方案 |'
 - en: '| --- | --- | --- |'
+  id: totrans-35
   prefs: []
   type: TYPE_TB
+  zh: '| --- | --- | --- |'
 - en: '| `[emerg] bind() to x.x.x.x:x failed (98: Address already in use)` | Conflicting
     listening endpoint | Make sure endpoints specified by the `listen` directive do
     not conflict with other services |'
+  id: totrans-36
   prefs: []
   type: TYPE_TB
+  zh: '| `[emerg] bind() to x.x.x.x:x failed (98: Address already in use)` | 监听端点冲突
+    | 确保`listen`指令指定的端点与其他服务不冲突 |'
 - en: '| `[emerg] open() "<path to file>" failed (2: No such file or directory)` |
     Invalid path to a file | Make sure all paths in your configuration point to existing
     directories |'
+  id: totrans-37
   prefs: []
   type: TYPE_TB
+  zh: '| `[emerg] open() "<path to file>" failed (2: No such file or directory)` |
+    文件路径无效 | 确保配置中的所有路径指向现有目录 |'
 - en: '| `[emerg] open() "<path to file>" failed (13: Permission denied)` | Insufficient
     privileges | Make sure all paths in your configuration point to directories that
     Nginx has access to |'
+  id: totrans-38
   prefs: []
   type: TYPE_TB
+  zh: '| `[emerg] open() "<path to file>" failed (13: Permission denied)` | 权限不足 |
+    确保配置中的所有路径指向Nginx有权限访问的目录 |'
 - en: 'To stop Nginx, you can run the following command if a startup script is available:'
+  id: totrans-39
   prefs: []
   type: TYPE_NORMAL
+  zh: 要停止Nginx，如果有启动脚本可用，你可以运行以下命令：
 - en: '[PRE3]'
+  id: totrans-40
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE3]'
 - en: 'Alternatively, you can send the `TERM` or `INT` signal to the master process
     of your instance to trigger a fast shutdown or the `QUIT` signal to trigger a
     graceful shutdown, as shown here:'
+  id: totrans-41
   prefs: []
   type: TYPE_NORMAL
+  zh: 另外，你可以向实例的主进程发送`TERM`或`INT`信号来触发快速关闭，或者发送`QUIT`信号来触发优雅关闭，如下所示：
 - en: '[PRE4]'
+  id: totrans-42
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE4]'
 - en: The preceding command will trigger the graceful shutdown procedure on the instance
     and all processes will eventually quit. Here, we refer to the process ID of the
     master process from the preceding process list.
+  id: totrans-43
   prefs: []
   type: TYPE_NORMAL
+  zh: 前述命令将触发实例的优雅关闭过程，所有进程最终会退出。在这里，我们引用了前面进程列表中主进程的进程ID。
 - en: Control signals and their usage
+  id: totrans-44
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 控制信号及其使用
 - en: 'Nginx, like any other Unix background service, is controlled by signals. Signals
     are asynchronous events that interrupt normal execution of a process and activate
     certain functions. The following table lists all signals that Nginx supports and
     the functions that they trigger:'
+  id: totrans-45
   prefs: []
   type: TYPE_NORMAL
+  zh: Nginx 像其他 Unix 后台服务一样，由信号控制。信号是异步事件，它会中断进程的正常执行并激活某些功能。下表列出了 Nginx 支持的所有信号及其触发的功能：
 - en: '| Signal | Function |'
+  id: totrans-46
   prefs: []
   type: TYPE_TB
+  zh: '| 信号 | 功能 |'
 - en: '| --- | --- |'
+  id: totrans-47
   prefs: []
   type: TYPE_TB
+  zh: '| --- | --- |'
 - en: '| `TERM`, `INT` | Fast shutdown |'
+  id: totrans-48
   prefs: []
   type: TYPE_TB
+  zh: '| `TERM`, `INT` | 快速关闭 |'
 - en: '| `QUIT` | Graceful shutdown |'
+  id: totrans-49
   prefs: []
   type: TYPE_TB
+  zh: '| `QUIT` | 优雅关闭 |'
 - en: '| `HUP` | Reconfiguration |'
+  id: totrans-50
   prefs: []
   type: TYPE_TB
+  zh: '| `HUP` | 重新配置 |'
 - en: '| `USR1` | Log file reopening |'
+  id: totrans-51
   prefs: []
   type: TYPE_TB
+  zh: '| `USR1` | 日志文件重新打开 |'
 - en: '| `USR2` | Nginx binary upgrade |'
+  id: totrans-52
   prefs: []
   type: TYPE_TB
+  zh: '| `USR2` | Nginx 二进制升级 |'
 - en: '| `WINCH` | Graceful worker shutdown |'
+  id: totrans-53
   prefs: []
   type: TYPE_TB
+  zh: '| `WINCH` | 优雅关闭工作进程 |'
 - en: 'All signals must be sent to the master process of an instance. The master process
     of an instance can be located by looking it up in the process list:'
+  id: totrans-54
   prefs: []
   type: TYPE_NORMAL
+  zh: 所有信号必须发送到实例的主进程。可以通过在进程列表中查找来定位实例的主进程：
 - en: '[PRE5]'
+  id: totrans-55
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE5]'
 - en: 'In this listing, the master process has a process ID `4754` and four worker
     processes. The process ID of the master process can be also obtained by examining
     the content of the PID file:'
+  id: totrans-56
   prefs: []
   type: TYPE_NORMAL
+  zh: 在此列表中，主进程的进程 ID 是 `4754`，并且有四个工作进程。主进程的进程 ID 也可以通过查看 PID 文件的内容获得：
 - en: '[PRE6]'
+  id: totrans-57
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE6]'
 - en: Tip
+  id: totrans-58
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
+  zh: 提示
 - en: '**Note**: The path of `nginx.pid` might vary in different systems. You can
     use the `/usr/sbin/nginx -V` command to find out the exact path.'
+  id: totrans-59
   prefs: []
   type: TYPE_NORMAL
+  zh: '**注意**：`nginx.pid` 的路径在不同系统中可能有所不同。你可以使用 `/usr/sbin/nginx -V` 命令来查找确切路径。'
 - en: 'To send a signal to an instance, use the `kill` command and specify the process
     ID of the master process as the last argument:'
+  id: totrans-60
   prefs: []
   type: TYPE_NORMAL
+  zh: 要向实例发送信号，请使用 `kill` 命令，并将主进程的进程 ID 作为最后一个参数：
 - en: '[PRE7]'
+  id: totrans-61
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE7]'
 - en: 'Alternatively, you can use command substitution to take the process ID of the
     master process directly from the PID file:'
+  id: totrans-62
   prefs: []
   type: TYPE_NORMAL
+  zh: 另外，你也可以使用命令替换，从 PID 文件中直接获取主进程的进程 ID：
 - en: '[PRE8]'
+  id: totrans-63
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE8]'
 - en: 'You can also use the following command:'
+  id: totrans-64
   prefs: []
   type: TYPE_NORMAL
+  zh: 你还可以使用以下命令：
 - en: '[PRE9]'
+  id: totrans-65
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE9]'
 - en: The preceding three commands will trigger reconfiguration of the instance. We
     will now discuss each of the functions that signals trigger in Nginx.
+  id: totrans-66
   prefs: []
   type: TYPE_NORMAL
+  zh: 前述的三个命令将触发实例的重新配置。接下来我们将讨论信号在 Nginx 中触发的各个功能。
 - en: Fast shutdown
+  id: totrans-67
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 快速关闭
 - en: The `TERM` and `INT` signals are sent to the master process of an Nginx instance
     to trigger the fast shutdown procedure. All resources such as connections, open
     files and log files that each worker process is in possession of are immediately
     closed. After that, each worker process quits and the master process gets notified.
     Once all worker processes quit, the master process quits and shutdown is completed.
+  id: totrans-68
   prefs: []
   type: TYPE_NORMAL
+  zh: '`TERM` 和 `INT` 信号被发送到 Nginx 实例的主进程，以触发快速关闭程序。每个工作进程所拥有的所有资源，如连接、打开的文件和日志文件，都将立即关闭。之后，每个工作进程退出，主进程收到通知。一旦所有工作进程退出，主进程也会退出，关闭操作完成。'
 - en: A fast shutdown obviously causes visible service outage. Therefore, it must
     be used either in emergency situations or when you are absolutely sure that nobody
     is using your instance.
+  id: totrans-69
   prefs: []
   type: TYPE_NORMAL
+  zh: 一个快速关闭显然会导致明显的服务中断。因此，它必须仅在紧急情况下或你完全确定没有人在使用你的实例时使用。
 - en: Graceful shutdown
+  id: totrans-70
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 优雅关闭
 - en: Once Nginx receives the `QUIT` signal, it enters graceful shutdown mode. Nginx
     closes listening sockets and accepts no new connections from then on. Existing
     connections are still served until no longer needed. Therefore, graceful shutdown
     might take a long time to complete, especially if some of the connections are
     in the middle of a long download or upload.
+  id: totrans-71
   prefs: []
   type: TYPE_NORMAL
+  zh: 一旦 Nginx 收到 `QUIT` 信号，它进入优雅关闭模式。Nginx 关闭监听套接字，并从此不再接受新的连接。现有的连接仍然会被服务，直到不再需要为止。因此，优雅关闭可能需要较长时间，特别是当一些连接正在进行长时间的下载或上传时。
 - en: 'After you have signaled graceful shutdown to Nginx, you can monitor your process
     list to see which Nginx worker processes are still running and keep track of the
     progress of your shutdown procedure:'
+  id: totrans-72
   prefs: []
   type: TYPE_NORMAL
+  zh: 在你向 Nginx 发送了优雅关闭信号后，你可以监控进程列表，查看哪些 Nginx 工作进程仍在运行，并跟踪关闭进程的进度：
 - en: '[PRE10]'
+  id: totrans-73
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE10]'
 - en: In this listing, you can see an instance after a graceful shutdown has been
     triggered. A single worker process has an `is shutting down` label and its process
     title is marking a process that is currently shutting down.
+  id: totrans-74
   prefs: []
   type: TYPE_NORMAL
+  zh: 在此列表中，你可以看到在触发优雅关闭后，一个实例的状态。一个工作进程标有 `is shutting down` 标签，并且其进程标题标示该进程正在关闭。
 - en: Once all connections handled by a worker are closed, the worker process quits
     and the master process gets notified. Once all worker processes quit, the master
     process quits and shutdown is completed.
+  id: totrans-75
   prefs: []
   type: TYPE_NORMAL
+  zh: 一旦所有工作进程处理的连接都被关闭，工作进程退出，并通知主进程。一旦所有工作进程退出，主进程也会退出，关闭操作完成。
 - en: In a clustered or load-balanced setup, graceful shutdown is a typical way of
     putting an instance out of operation. Using graceful shutdown ensures that there
     are no visible outages of your service due to server reconfiguration or maintenance.
+  id: totrans-76
   prefs: []
   type: TYPE_NORMAL
+  zh: 在集群或负载均衡设置中，优雅关闭是使实例停止服务的典型方式。使用优雅关闭可以确保由于服务器重新配置或维护，服务不会出现明显的中断。
 - en: In a single instance, graceful shutdown can only make sure that existing connections
     are not closed abruptly. Once graceful shutdown is triggered on a single instance,
     the service will immediately be unavailable for new visitors. To ensure continuous
     availability on a single instance, use maintenance procedures such as reconfiguration,
     log file reopening, and Nginx binary update.
+  id: totrans-77
   prefs: []
   type: TYPE_NORMAL
+  zh: 在单实例中，优雅关闭只能确保现有连接不会被突然关闭。一旦单实例触发了优雅关闭，服务将立即无法为新访客提供服务。为了确保单实例的连续可用性，可以使用如重新配置、日志文件重新打开和
+    Nginx 二进制更新等维护程序。
 - en: Reconfiguration
+  id: totrans-78
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 重新配置
 - en: The `HUP` signal can be used to signal Nginx to reread the configuration files
     and restart worker processes. This procedure cannot be performed without restarting
     worker processes, as configuration data structures cannot be changed while a worker
     process is running.
+  id: totrans-79
   prefs: []
   type: TYPE_NORMAL
+  zh: '`HUP`信号可以用来通知 Nginx 重新读取配置文件并重新启动工作进程。此过程必须重启工作进程，因为在工作进程运行时，配置数据结构无法更改。'
 - en: Once the master process receives the `HUP` signals, it tries to reread the configuration
     files. If the configuration files can be parsed and contain no errors, the master
     process signals all the existing worker process to gracefully shut down. After
     signaling, it starts new worker processes with the new configuration.
+  id: totrans-80
   prefs: []
   type: TYPE_NORMAL
+  zh: 一旦主进程接收到`HUP`信号，它会尝试重新读取配置文件。如果配置文件能够被解析且没有错误，主进程会向所有现有的工作进程发送信号，要求它们优雅地关闭。发送信号后，主进程会使用新的配置启动新的工作进程。
 - en: As with graceful shutdown, the reconfiguration procedure might take a long time
     to complete. After you have signaled the reconfiguration to Nginx, you can monitor
     your process list to see which old Nginx worker processes are still running and
     keep track of the progress of your reconfiguration.
+  id: totrans-81
   prefs: []
   type: TYPE_NORMAL
+  zh: 与优雅关闭一样，重新配置过程可能需要很长时间才能完成。在你向 Nginx 发送重新配置信号后，可以监控你的进程列表，查看哪些旧的 Nginx 工作进程仍在运行，并跟踪重新配置的进展。
 - en: Note
+  id: totrans-82
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
+  zh: 注意
 - en: If another reconfiguration is triggered during a running reconfiguration procedure,
     Nginx will start a new collection of worker processes—even though worker processes
     from the past two rounds have not finished. This, in principle, might lead to
     excessive process table usage, so it's recommended that you wait until the current
     reconfiguration procedure is finished before starting a new one.
+  id: totrans-83
   prefs: []
   type: TYPE_NORMAL
+  zh: 如果在运行中的重新配置过程中触发了另一次重新配置，Nginx 会启动一组新的工作进程，即使过去两轮的工作进程尚未完成。原则上，这可能会导致过度使用进程表，因此建议在当前的重新配置过程完成后再启动新的配置过程。
 - en: 'Here is an example of a reconfiguration procedure:'
+  id: totrans-84
   prefs: []
   type: TYPE_NORMAL
+  zh: 这里是一个重新配置过程的示例：
 - en: '[PRE11]'
+  id: totrans-85
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE11]'
 - en: 'This listing shows an operating Nginx instance. The master process has a process
     ID of `5887`. Let''s send an `HUP` signal to the master process of the instance:'
+  id: totrans-86
   prefs: []
   type: TYPE_NORMAL
+  zh: 该列表显示了一个正在运行的 Nginx 实例。主进程的进程 ID 为`5887`。我们来向该实例的主进程发送一个`HUP`信号：
 - en: '[PRE12]'
+  id: totrans-87
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE12]'
 - en: 'The instance will change in the following way:'
+  id: totrans-88
   prefs: []
   type: TYPE_NORMAL
+  zh: 该实例将发生以下变化：
 - en: '[PRE13]'
+  id: totrans-89
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE13]'
 - en: As you can see, the old worker processes with process IDs `5888`, `5889`, `5890`,
     and `5891` are currently shutting down. The master process has re-read the configuration
     files and spawned a new collection of worker processes with process IDs `5918`,
     `5919`, `5920`, and `5921`.
+  id: totrans-90
   prefs: []
   type: TYPE_NORMAL
+  zh: 如你所见，旧的工作进程（进程 ID 为`5888`、`5889`、`5890`和`5891`）正在关闭。主进程已重新读取配置文件，并启动了一组新的工作进程，进程
+    ID 为`5918`、`5919`、`5920`和`5921`。
 - en: 'After a while, old worker processes will terminate and the instance will look
     like it did before:'
+  id: totrans-91
   prefs: []
   type: TYPE_NORMAL
+  zh: 一段时间后，旧的工作进程将终止，实例将恢复到之前的状态：
 - en: '[PRE14]'
+  id: totrans-92
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE14]'
 - en: The new worker processes have picked up the new configuration now.
+  id: totrans-93
   prefs: []
   type: TYPE_NORMAL
+  zh: 新的工作进程现在已加载新的配置。
 - en: Reopening the log file
+  id: totrans-94
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 重新打开日志文件
 - en: Reopening the log file is simple yet extremely important for the continuous
     operation of your server. When log file reopening is triggered with the `USR1`
     signal, the master process of an instance takes the list of configured log files
@@ -416,315 +612,475 @@
     the same procedure, and after that the log output is redirected to the new files.
     After that, worker processes close all old log file descriptors that they currently
     hold open.
+  id: totrans-95
   prefs: []
   type: TYPE_NORMAL
+  zh: 重新打开日志文件既简单又极其重要，对于服务器的持续运行至关重要。当通过 `USR1` 信号触发日志文件重新打开时，实例的主进程会获取已配置的日志文件列表并逐一打开它们。如果成功，它会关闭旧的日志文件，并通知工作进程重新打开日志文件。工作进程现在可以安全地重复相同的过程，之后日志输出将被重定向到新文件。之后，工作进程会关闭它们当前打开的所有旧日志文件描述符。
 - en: Note
+  id: totrans-96
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
+  zh: 注意
 - en: The paths to log files do not change during this procedure. Nginx expects that
     the old log files are renamed before triggering this function. That's why while
     opening log files with same paths, Nginx effectively creates or opens new files.
+  id: totrans-97
   prefs: []
   type: TYPE_NORMAL
+  zh: 在此过程中，日志文件的路径不会发生变化。Nginx 期望在触发此功能之前，旧的日志文件已经被重命名。这就是为什么当使用相同路径打开日志文件时，Nginx
+    会有效地创建或打开新的文件。
 - en: 'The steps of the log file reopening procedure are as follows:'
+  id: totrans-98
   prefs: []
   type: TYPE_NORMAL
+  zh: 日志文件重新打开过程的步骤如下：
 - en: Log files are renamed or moved to new locations via an external tool.
+  id: totrans-99
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 日志文件通过外部工具被重命名或移动到新位置。
 - en: You send Nginx the `USR1` signal. Nginx closes the old files and opens new ones.
+  id: totrans-100
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 你向 Nginx 发送 `USR1` 信号，Nginx 会关闭旧文件并打开新文件。
 - en: Old files are now closed and can be archived.
+  id: totrans-101
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 旧文件现在已关闭，可以进行归档。
 - en: New files are now active and being used.
+  id: totrans-102
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 新的文件现在已激活并正在使用中。
 - en: 'A typical tool for managing Nginx log files is **logrotate**. The logrotate
     tool is a quite common tool that can be found in many Linux distributions. Here
     is an example configuration file for logrotate that automatically performs the
     log file rotation procedure:'
+  id: totrans-103
   prefs: []
   type: TYPE_NORMAL
+  zh: 一个典型的 Nginx 日志文件管理工具是 **logrotate**。logrotate 是一个相当常见的工具，可以在许多 Linux 发行版中找到。以下是一个自动执行日志文件轮转程序的
+    logrotate 配置文件示例：
 - en: '[PRE15]'
+  id: totrans-104
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE15]'
 - en: The preceding script daily rotates each log file it can find in the `/var/log/nginx`
     folder. The log files are kept until seven files have accumulated. The `delaycompress`
     options specify that the log files should not be compressed immediately after
     rotation to avoid a situation where Nginx keeps writing to a file being compressed.
+  id: totrans-105
   prefs: []
   type: TYPE_NORMAL
+  zh: 上述脚本会每天轮转它能找到的 `/var/log/nginx` 文件夹中的每个日志文件。日志文件会保存直到积累了七个文件为止。`delaycompress`
+    选项指定日志文件在轮转后不会立即压缩，以避免 Nginx 在压缩文件时继续写入该文件。
 - en: 'Problems in log file rotation procedure can lead to losses of data. Here is
     a checklist that will help you to configure your log file rotation procedure correctly:'
+  id: totrans-106
   prefs: []
   type: TYPE_NORMAL
+  zh: 日志文件轮转过程中的问题可能会导致数据丢失。以下是一个检查表，帮助你正确配置日志文件轮转程序：
 - en: Make sure the `USR1` signal is delivered only after log files are moved. Failure
     to do so will make Nginx write to rotated files instead of new ones.
+  id: totrans-107
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 确保在日志文件被移动之后再发送 `USR1` 信号。如果没有按此顺序操作，Nginx 会写入被轮转的文件而不是新的文件。
 - en: Make sure Nginx has enough rights to create files in the log folder. If Nginx
     is not able to open new log files, the rotation procedure will fail.
+  id: totrans-108
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 确保 Nginx 拥有足够的权限在日志文件夹中创建文件。如果 Nginx 无法打开新的日志文件，轮转过程将失败。
 - en: Nginx binary upgrade
+  id: totrans-109
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: Nginx 二进制升级
 - en: Nginx is capable of updating its own binary while operating. This is done by
     passing listening sockets to a new binary and listing to them in a special environment
     variable.
+  id: totrans-110
   prefs: []
   type: TYPE_NORMAL
+  zh: Nginx 可以在运行时更新其二进制文件。这是通过将监听的套接字传递给新的二进制文件，并通过一个特殊的环境变量继续监听它们来实现的。
 - en: This function can be used to safely upgrade your binary on-the-fly to a new
     version or try out new features if you use a custom binary with plugins.
+  id: totrans-111
   prefs: []
   type: TYPE_NORMAL
+  zh: 如果你使用带插件的自定义二进制文件，此功能可以用于在不中断服务的情况下安全地升级二进制文件或尝试新的功能。
 - en: Note
+  id: totrans-112
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
+  zh: 注意
 - en: With other web servers, this operation would require stopping your server completely
     and starting it again with a new binary. Your service would be unavailable for
     a brief period. The Nginx binary upgrade function is used to avoid interruption
     of your service and provides a fall-back option if something goes wrong with the
     new binary.
+  id: totrans-113
   prefs: []
   type: TYPE_NORMAL
+  zh: 对于其他 Web 服务器，这一操作需要完全停止服务器并用新的二进制文件重新启动。这样会导致服务暂时不可用。Nginx 的二进制升级功能旨在避免服务中断，并提供一个回退选项，以防新二进制文件出现问题。
 - en: To upgrade you binary, first make sure it has the same source code configuration
     as the old binary. Refer to the *Copying source code configuration from pre-built
     packages* section in [Chapter 1](ch01.html "Chapter 1. Getting Started with Nginx"),
     *Getting Started with Nginx*, to learn how to build a binary with source code
     configuration from another binary.
+  id: totrans-114
   prefs: []
   type: TYPE_NORMAL
+  zh: 要升级你的二进制文件，首先确保它与旧的二进制文件有相同的源代码配置。参考 [第1章](ch01.html "第1章：Nginx入门") 中的 *从预构建包复制源代码配置*
+    部分，学习如何通过另一个二进制文件构建具有源代码配置的二进制文件。
 - en: 'When the new binary is built, rename the old one and put the new binary into
     its place:'
+  id: totrans-115
   prefs: []
   type: TYPE_NORMAL
+  zh: 当新的二进制文件构建完成后，重命名旧的文件，并将新的二进制文件放入其位置：
 - en: '[PRE16]'
+  id: totrans-116
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE16]'
 - en: The preceding sequence assumes your current working directory contains a Nginx
     source code tree.
+  id: totrans-117
   prefs: []
   type: TYPE_NORMAL
+  zh: 前面的序列假设你当前的工作目录包含 Nginx 源代码树。
 - en: 'Next, send the `USR2` signal to the master process of the running instance:'
+  id: totrans-118
   prefs: []
   type: TYPE_NORMAL
+  zh: 接下来，发送 `USR2` 信号到正在运行实例的主进程：
 - en: '[PRE17]'
+  id: totrans-119
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE17]'
 - en: 'The master process will rename its PID file by adding an `.oldbin` suffix and
     start the new binary that will create a new master process. The new master process
     will read and parse the configuration and spawn new worker processes. The instance
     now looks like this:'
+  id: totrans-120
   prefs: []
   type: TYPE_NORMAL
+  zh: 主进程将通过添加 `.oldbin` 后缀来重命名其 PID 文件，并启动新的二进制文件，这将创建一个新的主进程。新的主进程将读取并解析配置，生成新的工作进程。现在实例看起来是这样的：
 - en: '[PRE18]'
+  id: totrans-121
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE18]'
 - en: 'In the preceding code, we can see two master processes: one for the old binary
     (`12995`) and one for the new binary (`13119`). The new master process inherits
     the listening sockets from the old master process, and workers of both instances
     accept incoming connections.'
+  id: totrans-122
   prefs: []
   type: TYPE_NORMAL
+  zh: 在前面的代码中，我们可以看到两个主进程：一个是旧的二进制文件的主进程（`12995`），另一个是新的二进制文件的主进程（`13119`）。新的主进程继承了旧的主进程的监听套接字，两个实例的工作进程都接受传入的连接。
 - en: Graceful worker shutdown
+  id: totrans-123
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 优雅地关闭工作进程
 - en: 'In order to fully test-drive the new binary, we need to ask the old master
     process to gracefully shut down its worker processes. Once the new binary has
     started and the working processes of the new binary are running, send the master
     process of the old instance the `WINCH` signal using the following command:'
+  id: totrans-124
   prefs: []
   type: TYPE_NORMAL
+  zh: 为了全面测试新的二进制文件，我们需要请求旧的主进程优雅地关闭其工作进程。一旦新的二进制文件已经启动，并且新的工作进程正在运行，就使用以下命令向旧实例的主进程发送
+    `WINCH` 信号：
 - en: '[PRE19]'
+  id: totrans-125
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE19]'
 - en: 'Then, connections will be accepted only by workers of the new instance. The
     worker processes of the old instance will gracefully shut down:'
+  id: totrans-126
   prefs: []
   type: TYPE_NORMAL
+  zh: 然后，只有新的实例的工作进程会接受连接。旧实例的工作进程将优雅地关闭：
 - en: '[PRE20]'
+  id: totrans-127
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE20]'
 - en: 'Finally, the worker processes of the old binary will quit and only the worker
     processes of the new binary will remain:'
+  id: totrans-128
   prefs: []
   type: TYPE_NORMAL
+  zh: 最终，旧的二进制文件的工作进程将退出，只有新的二进制文件的工作进程会保留下来：
 - en: '[PRE21]'
+  id: totrans-129
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE21]'
 - en: Now, only the worker processes of the new binary are accepting and processing
     incoming connections.
+  id: totrans-130
   prefs: []
   type: TYPE_NORMAL
+  zh: 现在，只有新的二进制文件的工作进程在接收和处理传入的连接。
 - en: Finalizing the upgrade procedure
+  id: totrans-131
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 完成升级程序
 - en: Once only the workers of the new binary are running, you have two choices.
+  id: totrans-132
   prefs: []
   type: TYPE_NORMAL
+  zh: 一旦只有新的二进制文件的工作进程在运行，你有两个选择。
 - en: 'If the new binary is working well, the old master process can be terminated
     by sending the `QUIT` signal:'
+  id: totrans-133
   prefs: []
   type: TYPE_NORMAL
+  zh: 如果新的二进制文件工作正常，可以通过发送 `QUIT` 信号来终止旧的主进程：
 - en: '[PRE22]'
+  id: totrans-134
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE22]'
 - en: The old master process will remove its PID file and the instance is now ready
     for the next upgrade. Later, if you find any issues with the new binary, you can
     downgrade to the old binary by repeating the whole binary upgrade procedure.
+  id: totrans-135
   prefs: []
   type: TYPE_NORMAL
+  zh: 旧的主进程将删除其 PID 文件，实例现在准备好进行下次升级。之后，如果你发现新的二进制文件存在问题，可以通过重复整个二进制升级过程来降级到旧的二进制文件。
 - en: 'If the new binary is not working properly, you can restart the worker processes
     of the old master process by sending the `HUP` signal:'
+  id: totrans-136
   prefs: []
   type: TYPE_NORMAL
+  zh: 如果新的二进制文件工作不正常，你可以通过发送 `HUP` 信号来重新启动旧主进程的工作进程：
 - en: '[PRE23]'
+  id: totrans-137
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE23]'
 - en: 'The old master process will restart its working processes without re-reading
     the configuration files, and workers of both old and new binaries will now accept
     incoming connections:'
+  id: totrans-138
   prefs: []
   type: TYPE_NORMAL
+  zh: 旧的主进程将重新启动其工作进程，而不重新读取配置文件，旧的和新的二进制文件的工作进程现在将接收传入连接：
 - en: '[PRE24]'
+  id: totrans-139
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE24]'
 - en: 'The processes of the new binary can be gracefully shut down by sending the
     new master process the `QUIT` signal:'
+  id: totrans-140
   prefs: []
   type: TYPE_NORMAL
+  zh: 通过向新的主进程发送 `QUIT` 信号，可以优雅地关闭新的二进制文件的进程：
 - en: '[PRE25]'
+  id: totrans-141
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE25]'
 - en: 'After that, you need to return the old binary back to its location:'
+  id: totrans-142
   prefs: []
   type: TYPE_NORMAL
+  zh: 之后，你需要将旧的二进制文件恢复到原来的位置：
 - en: '[PRE26]'
+  id: totrans-143
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE26]'
 - en: The instance is now ready for the next upgrade.
+  id: totrans-144
   prefs: []
   type: TYPE_NORMAL
+  zh: 实例现在准备好进行下次升级。
 - en: Note
+  id: totrans-145
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
+  zh: 注意
 - en: If a worker process is taking too long to quit for some reason, you can force
     it to quit by directly sending it the `KILL` signal.
+  id: totrans-146
   prefs: []
   type: TYPE_NORMAL
+  zh: 如果某个工作进程因为某种原因需要很长时间才能退出，你可以通过直接发送 `KILL` 信号强制它退出。
 - en: 'If the new binary is not working properly and you need an urgent solution,
     you can urgently shut down the new master process by sending the `TERM` signal:'
+  id: totrans-147
   prefs: []
   type: TYPE_NORMAL
+  zh: 如果新二进制文件运行不正常，且需要紧急解决方案，你可以通过发送 `TERM` 信号紧急关闭新的主进程：
 - en: '[PRE27]'
+  id: totrans-148
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE27]'
 - en: 'The processes of the new binary will immediately quit. The old master process
     will be notified and it will start new worker processes. The old master process
     will also move its PID file back to its original location so that it replaces
     the PID file of the new binary. After that, you need to return the old binary
     back to its original location:'
+  id: totrans-149
   prefs: []
   type: TYPE_NORMAL
+  zh: 新二进制文件的进程将立即退出。旧的主进程将收到通知，并会启动新的工作进程。旧的主进程还会将其 PID 文件移回原始位置，以便它替换掉新二进制文件的 PID
+    文件。之后，你需要将旧的二进制文件恢复到原来的位置：
 - en: '[PRE28]'
+  id: totrans-150
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE28]'
 - en: The instance is now ready for further operation or the next upgrade.
+  id: totrans-151
   prefs: []
   type: TYPE_NORMAL
+  zh: 实例现在已准备好进行进一步操作或下一个升级。
 - en: Handling difficult cases
+  id: totrans-152
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 处理困难情况
 - en: 'In extremely rare cases, you might run into a difficult situation. If a worker
     process does not shut down when asked to in a reasonable time, there might be
     a problem with it. Typical signs of such problems are as follows:'
+  id: totrans-153
   prefs: []
   type: TYPE_NORMAL
+  zh: 在极为罕见的情况下，你可能会遇到困难的情况。如果工作进程在合理时间内没有关闭，可能存在问题。以下是这类问题的典型迹象：
 - en: A process spends too much time in the running state (R) and does not shut down
+  id: totrans-154
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 一个进程在运行状态（R）下花费了太多时间，且没有关闭
 - en: A process spends too much time in the noninterruptible sleep state (D) and does
     not shut down
+  id: totrans-155
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 一个进程在不可中断的休眠状态（D）下花费了太多时间，且没有关闭
 - en: A process is sleeping (S) and does not shut down
+  id: totrans-156
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 一个进程处于休眠状态（S）且没有关闭
 - en: In each of these cases, you can force the worker process to shut down by first
     sending the `TERM` signal directly to the worker process. If the worker process
     does not react within 30 seconds, you can force the process to quit by sending
     it the `KILL` signal.
+  id: totrans-157
   prefs: []
   type: TYPE_NORMAL
+  zh: 在这些情况下，你可以通过先向工作进程发送 `TERM` 信号来强制关闭该工作进程。如果工作进程在 30 秒内没有响应，你可以通过发送 `KILL` 信号来强制终止进程。
 - en: Distribution-specific startup scripts
+  id: totrans-158
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 发行版特定的启动脚本
 - en: 'On Ubuntu, Debian, and RHEL, the startup script automates the preceding control
     sequences. By using the startup script, you don''t need to remember the exact
     sequence of the commands and signal names. The following table illustrates the
     use of the startup script:'
+  id: totrans-159
   prefs: []
   type: TYPE_NORMAL
+  zh: 在 Ubuntu、Debian 和 RHEL 上，启动脚本会自动执行上述控制序列。通过使用启动脚本，你无需记住命令和信号名称的确切顺序。下表展示了启动脚本的使用：
 - en: '| Command | Equivalent to |'
+  id: totrans-160
   prefs: []
   type: TYPE_TB
+  zh: '| 命令 | 等同于 |'
 - en: '| --- | --- |'
+  id: totrans-161
   prefs: []
   type: TYPE_TB
+  zh: '| --- | --- |'
 - en: '| `service nginx start` | `sbin`/`nginx` |'
+  id: totrans-162
   prefs: []
   type: TYPE_TB
+  zh: '| `service nginx start` | `sbin`/`nginx` |'
 - en: '| `service nginx stop` | `TERM`, `wait 30 seconds`, then `KILL` |'
+  id: totrans-163
   prefs: []
   type: TYPE_TB
+  zh: '| `service nginx stop` | `TERM`，`等待 30 秒`，然后 `KILL` |'
 - en: '| `service nginx restart` | `service nginx stop` and `service nginx start`
     |'
+  id: totrans-164
   prefs: []
   type: TYPE_TB
+  zh: '| `service nginx restart` | `service nginx stop` 和 `service nginx start` |'
 - en: '| `service nginx configtest` | `nginx -t <config file>` |'
+  id: totrans-165
   prefs: []
   type: TYPE_TB
+  zh: '| `service nginx configtest` | `nginx -t <配置文件>` |'
 - en: '| `service nginx reload` | `service nginx configtest` and `HUP` |'
+  id: totrans-166
   prefs: []
   type: TYPE_TB
+  zh: '| `service nginx reload` | `service nginx configtest` 和 `HUP` |'
 - en: '| `service nginx rotate` | `USR1` |'
+  id: totrans-167
   prefs: []
   type: TYPE_TB
+  zh: '| `service nginx rotate` | `USR1` |'
 - en: '| `service nginx upgrade` | `USR2` and `QUIT to the old master` |'
+  id: totrans-168
   prefs: []
   type: TYPE_TB
+  zh: '| `service nginx upgrade` | `USR2` 和 `QUIT 给旧的主进程` |'
 - en: '| `service nginx status` | `show status of the instance` |'
+  id: totrans-169
   prefs: []
   type: TYPE_TB
+  zh: '| `service nginx status` | `显示实例的状态` |'
 - en: The binary upgrade procedure is limited to starting the new binary and signaling
     the old master process to gracefully shut down, so you don't have an option to
     test-drive the new binary in this case.
+  id: totrans-170
   prefs: []
   type: TYPE_NORMAL
+  zh: 二进制升级过程仅限于启动新的二进制文件并向旧的主进程发送信号以优雅地关闭，因此在这种情况下，你没有测试新二进制文件的选项。
 - en: Allocating worker processes
+  id: totrans-171
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 分配工作进程
 - en: We now consider recommendations on allocating worker processes. First, let's
     discuss a little bit about the background. Nginx is an asynchronous web server,
     which means actual input/output operations run asynchronously with the execution
@@ -732,57 +1088,74 @@
     descriptors that need processing using a special system call, and then services
     each of these file descriptors using nonblocking I/O operations. Hence, each worker
     process serves multiple connections.
+  id: totrans-172
   prefs: []
   type: TYPE_NORMAL
+  zh: 现在我们来讨论分配工作进程的建议。首先，稍微了解一下背景。Nginx 是一个异步的 Web 服务器，这意味着实际的输入/输出操作是异步进行的，和工作进程的执行是分开的。每个工作进程运行一个事件循环，通过一个特殊的系统调用获取所有需要处理的文件描述符，然后使用非阻塞的
+    I/O 操作处理这些文件描述符。因此，每个工作进程可以服务多个连接。
 - en: In this situation, the time between an event occurs on a file descriptor, and
     this file descriptor can be serviced (that is latency) depends on how soon a full
     event processing cycle can be completed. Therefore, in order to achieve higher
     latency it makes sense to penalize the competition for CPU resources between worker
     processes in favor of more connections per process, because this would reduce
     the number of context switches between worker processes.
+  id: totrans-173
   prefs: []
   type: TYPE_NORMAL
 - en: 'Therefore, *on the systems that are CPU-bound*, it makes sense to allocate
     as many worker processes as there are CPU cores in the system. For example, consider
     this output of the `top` command (this output can be obtained by pressing *1*
     on the keyboard after `top` starts):'
+  id: totrans-174
   prefs: []
   type: TYPE_NORMAL
 - en: '[PRE29]'
+  id: totrans-175
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE29]'
 - en: 'This system has eight independent CPU cores. The maximum number of worker processes
     that will not compete for CPU cores on this system is therefore eight. To configure
     Nginx to start a specified number of worker processes, you can use the `worker_processes`
     directive in the main configuration file:'
+  id: totrans-176
   prefs: []
   type: TYPE_NORMAL
 - en: '[PRE30]'
+  id: totrans-177
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE30]'
 - en: The preceding command will instruct Nginx to start eight worker processes to
     serve the incoming connections.
+  id: totrans-178
   prefs: []
   type: TYPE_NORMAL
 - en: Note
+  id: totrans-179
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
 - en: If the number of worker processes is set to a number lower than the number of
     CPU cores, Nginx will not be able to take advantage of all parallelism available
     in your system.
+  id: totrans-180
   prefs: []
   type: TYPE_NORMAL
 - en: 'To extend the maximum number of connections that can be processed by a worker
     process, use the `worker_connections` directive:'
+  id: totrans-181
   prefs: []
   type: TYPE_NORMAL
 - en: '[PRE31]'
+  id: totrans-182
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE31]'
 - en: The preceding command will extend the total number of connection that can be
     allocated to 10,000\. This includes both inbound (connections from clients) and
     outbound connections (connections to proxied servers and other external resources).
+  id: totrans-183
   prefs: []
   type: TYPE_NORMAL
 - en: '*On disk I/O-bound systems*, in the absence of the AIO facility, additional
@@ -792,83 +1165,105 @@
     other processes can use the available CPU resources. Therefore, adding worker
     processes past the number of available I/O channels might not lead to an improvement
     in performance.'
+  id: totrans-184
   prefs: []
   type: TYPE_NORMAL
 - en: On systems with mixed resource demands, a worker process allocation strategy
     other than the previously mentioned two might be needed to achieve better performance.
     Try varying the numbers of workers in order to obtain the configuration that works
     best. This can range from one worker to hundreds of workers.
+  id: totrans-185
   prefs: []
   type: TYPE_NORMAL
 - en: Setting up Nginx to serve static data
+  id: totrans-186
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
 - en: Now that you are more proficient in installing, configuring, and managing Nginx,
     we can proceed with some practical questions. Let's see how we can set up Nginx
     to serve static data such as images, CSS, or JavaScript files.
+  id: totrans-187
   prefs: []
   type: TYPE_NORMAL
 - en: 'First, we will take the sample configuration from the previous chapter and
     make it support multiple virtual hosts using wild card inclusion:'
+  id: totrans-188
   prefs: []
   type: TYPE_NORMAL
 - en: '[PRE32]'
+  id: totrans-189
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE32]'
 - en: We have set up Nginx to take advantage of eight processor cores and include
     all configurations files located in `/etc/nginx/site-enabled`.
+  id: totrans-190
   prefs: []
   type: TYPE_NORMAL
 - en: 'Next, we will configure a virtual host `static.example.com` for serving static
     data. The following content goes into the file `/etc/nginx/site-enabled/static.example.com.conf`:'
+  id: totrans-191
   prefs: []
   type: TYPE_NORMAL
 - en: '[PRE33]'
+  id: totrans-192
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE33]'
 - en: This file configures virtual host `static.example.com`. The virtual host root
     location is set as `/usr/local/www/static.example.com`. To enable more efficient
     retrieval of static files, we encourage Nginx to use the sendfile() system call
     (`sendfile on`) and set the maximum sendfile chunk to 1 MB. We also enable the
     "TCP_NOPUSH" option to improve TCP segment utilization when using sendfile() (`tcp_nopush
     on`).
+  id: totrans-193
   prefs: []
   type: TYPE_NORMAL
 - en: The `gzip_static on` directive instructs Nginx to check for gzipped copies of
     static files, such as `main.js.gz` for `main.js` and `styles.css.gz` for `styles.css`.
     If they are found, Nginx will indicate the presence of the `.gzip` content encoding,
     and use the content of the compressed files instead of the original one.
+  id: totrans-194
   prefs: []
   type: TYPE_NORMAL
 - en: This configuration is suitable for virtual hosts that serve small-to-medium
     size static files.
+  id: totrans-195
   prefs: []
   type: TYPE_NORMAL
 - en: Installing SSL certificates
+  id: totrans-196
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
 - en: Today, more than 60 percent of the HTTP traffic on the Internet is protected
     by SSL. In the presence of sophisticated attacks such as cache poisoning and DNS
     hijacking, SSL is mandatory if your web content has any value.
+  id: totrans-197
   prefs: []
   type: TYPE_NORMAL
 - en: Nginx has high-class SSL support and makes it easy for you to configure. Let's
     walk over the installation procedure of an SSL virtual host.
+  id: totrans-198
   prefs: []
   type: TYPE_NORMAL
 - en: 'Before we start, make sure the `openssl` package is installed on your system:'
+  id: totrans-199
   prefs: []
   type: TYPE_NORMAL
 - en: '[PRE34]'
+  id: totrans-200
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE34]'
 - en: This will insure that you have the necessary tools to go over the SSL certificate
     issuing procedure.
+  id: totrans-201
   prefs: []
   type: TYPE_NORMAL
 - en: Creating a Certificate Signing Request
+  id: totrans-202
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
@@ -876,40 +1271,50 @@
     to obtain a real certificate, you need to contact a certification authority to
     issue an SSL certificate. A certification authority will usually charge you a
     fee for that.
+  id: totrans-203
   prefs: []
   type: TYPE_NORMAL
 - en: To issue an SSL certificate, a certification authority needs a **Certificate
     Signing Request** (**CSR**) from you. A CSR is a message created by you and sent
     to a certification authority containing your identification data, such as distinguished
     name, address, and your public key.
+  id: totrans-204
   prefs: []
   type: TYPE_NORMAL
 - en: 'To generate a CSR, run the following command:'
+  id: totrans-205
   prefs: []
   type: TYPE_NORMAL
 - en: '[PRE35]'
+  id: totrans-206
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE35]'
 - en: 'This will start the process of generating two files: a private key for the
     decryption of your SSL certificate (`your_domain_name.key`) and a certificate
     signing request (`your_domain_name.csr`) used to apply for a new SSL certificate.'
+  id: totrans-207
   prefs: []
   type: TYPE_NORMAL
 - en: 'This command will ask you for your identification data:'
+  id: totrans-208
   prefs: []
   type: TYPE_NORMAL
 - en: '**Country name** (**C**): This is a two-letter country code, for example, NL
     or US.'
+  id: totrans-209
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
 - en: '**State or province** (**S**): This is the full name of the state you or your
     company is in, for example, Noord-Holland.'
+  id: totrans-210
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
 - en: '**Locality or city** (**L**): This is the city or town you or your company
     is in, for example, Amsterdam.'
+  id: totrans-211
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
@@ -917,15 +1322,18 @@
     other symbol using the *Shift* key in its name, you must spell out the symbol
     or omit it to enroll. For example, XY & Z Corporation would be XYZ Corporation
     or XY and Z Corporation.'
+  id: totrans-212
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
 - en: '**Organizational Unit** (**OU**): This field is the name of the department
     or organization unit making the request.'
+  id: totrans-213
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
 - en: '**Common name** (**CN**): This is the full name of the host you are protecting.'
+  id: totrans-214
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
@@ -934,23 +1342,28 @@
     and users will connect to `www.example.com`, you must enter `www.example.com`
     into the common name field. If you enter `example.com` into that field, the certificate
     will not be valid for `www.example.com`.
+  id: totrans-215
   prefs: []
   type: TYPE_NORMAL
 - en: Note
+  id: totrans-216
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
 - en: Do not fill in optional attributes such as e-mail address, challenge password,
     or the optional company name when generating the CSR. They do not add much value,
     but just expose more personal data.
+  id: totrans-217
   prefs: []
   type: TYPE_NORMAL
 - en: Your CSR is ready now. After you save your private key to some secure place,
     you can proceed with contacting a certification authority and enrolling for an
     SSL certificate. Present your CSR once requested.
+  id: totrans-218
   prefs: []
   type: TYPE_NORMAL
 - en: Installing an issued SSL certificate
+  id: totrans-219
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
@@ -958,35 +1371,46 @@
     Save your certificate under a descriptive name such as `your_domain_name.crt`.
     Move it to a secure directory that only Nginx and superuser have access to. We
     will use `/etc/ssl` for simplicity as an example of such a directory.
+  id: totrans-220
   prefs: []
   type: TYPE_NORMAL
 - en: 'Now, you can start adding configuration for your secure virtual host:'
+  id: totrans-221
   prefs: []
   type: TYPE_NORMAL
 - en: '[PRE36]'
+  id: totrans-222
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE36]'
 - en: The name of the domain in the `server_name` directive must match the value of
     the common name field in your certificate signing request.
+  id: totrans-223
   prefs: []
   type: TYPE_NORMAL
 - en: 'After the configuration is saved, restart Nginx using the following command:'
+  id: totrans-224
   prefs: []
   type: TYPE_NORMAL
 - en: '[PRE37]'
+  id: totrans-225
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE37]'
 - en: Navigate to `https://your.domain.com` to open a secure connection to your server
     now.
+  id: totrans-226
   prefs: []
   type: TYPE_NORMAL
 - en: Permanently redirecting from a nonsecure virtual host
+  id: totrans-227
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
 - en: The preceding configuration handles only requests issued to the HTTPS service
     (port `443`) of your server. Most of the time, you will be running the plain HTTP
     service (port `80`) next to the secure one.
+  id: totrans-228
   prefs: []
   type: TYPE_NORMAL
 - en: For a number of reasons, it's unwise to have different configurations for the
@@ -994,39 +1418,49 @@
     available over plain HTTP but not over SSL or the other way around, this might
     lead to bad references if a URL pointing to one of your resources is treated in
     a scheme-agnostic way.
+  id: totrans-229
   prefs: []
   type: TYPE_NORMAL
 - en: Likewise, if certain resources are made available over both plain HTTP and SSL
     by mistake, then it is a security error because the resource can be obtained and
     interacted with in a nonsecure way by simply changing the `https://` scheme to
     `http://`.
+  id: totrans-230
   prefs: []
   type: TYPE_NORMAL
 - en: 'To avoid these problems and to simplify your configuration, you can set up
     a simple permanent redirect from the non-SSL virtual host to the SSL virtual host:'
+  id: totrans-231
   prefs: []
   type: TYPE_NORMAL
 - en: '[PRE38]'
+  id: totrans-232
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE38]'
 - en: This ensures that all requests over plain HTTP to any resource on your web site
     will be redirected to the identical resource on the SSL virtual host.
+  id: totrans-233
   prefs: []
   type: TYPE_NORMAL
 - en: Managing temporary files
+  id: totrans-234
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
 - en: 'Managing temporary files is usually not a big deal, but you must be aware of
     it. Nginx uses temporary files to store transient data such as the following:'
+  id: totrans-235
   prefs: []
   type: TYPE_NORMAL
 - en: Large request bodies received from users
+  id: totrans-236
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
 - en: Large response bodies received from proxied servers or via FastCGI, SCGI, or
     UWCGI protocols.
+  id: totrans-237
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
@@ -1034,43 +1468,55 @@
     Started with Nginx"), *Getting Started with Nginx*, you saw the default location
     of temporary folders for these files. The following table lists the configuration
     directives that specify temporary folders for various Nginx core modules:'
+  id: totrans-238
   prefs: []
   type: TYPE_NORMAL
 - en: '| Directive | Purpose |'
+  id: totrans-239
   prefs: []
   type: TYPE_TB
 - en: '| --- | --- |'
+  id: totrans-240
   prefs: []
   type: TYPE_TB
 - en: '| `client_body_temp_path` | Specifies temporary path for client request body
     data |'
+  id: totrans-241
   prefs: []
   type: TYPE_TB
 - en: '| `proxy_temp_path` | Specifies temporary path for responses from proxied servers
     |'
+  id: totrans-242
   prefs: []
   type: TYPE_TB
 - en: '| `fastcgi_temp_path` | Specifies temporary path for responses from FastCGI
     servers |'
+  id: totrans-243
   prefs: []
   type: TYPE_TB
 - en: '| `scgi_temp_path` | Specifies temporary path for responses from SCGI servers
     |'
+  id: totrans-244
   prefs: []
   type: TYPE_TB
 - en: '| `uwsgi_temp_path` | Specifies temporary path for responses from UWCGI servers
     |'
+  id: totrans-245
   prefs: []
   type: TYPE_TB
 - en: The arguments of the preceding directives are as follows
+  id: totrans-246
   prefs: []
   type: TYPE_NORMAL
 - en: '[PRE39]'
+  id: totrans-247
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE39]'
 - en: In the preceding code, `<path>` specifies the path to the directory that contains
     temporary files, and the levels specify the number of characters in each level
     of hashed directories.
+  id: totrans-248
   prefs: []
   type: TYPE_NORMAL
 - en: What is a hashed directory? In UNIX, a directory in the file system is essentially
@@ -1079,85 +1525,108 @@
     routinely scans all of these 100,000 entries, which is not very efficient. To
     avoid this, you can split your temporary directory into a number of subdirectories,
     each of them containing a limited set of temporary files.
+  id: totrans-249
   prefs: []
   type: TYPE_NORMAL
 - en: 'By specifying levels, you instruct Nginx to split your temporary directory
     into a set of subdirectories, each having a specified number of characters in
     its name, for example, a directive:'
+  id: totrans-250
   prefs: []
   type: TYPE_NORMAL
 - en: '[PRE40]'
+  id: totrans-251
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE40]'
 - en: The preceding line of code instructs Nginx to store a temporary file named `3924510929`
     under the path `/var/lib/nginx/proxy/29/3924510929`.
+  id: totrans-252
   prefs: []
   type: TYPE_NORMAL
 - en: Likewise, the directive `proxy_temp_path /var/lib/nginx/proxy 1 2` instructs
     Nginx to store a temporary file named `1673539942` under the path `/var/lib/nginx/proxy/2/94/1673539942`.
+  id: totrans-253
   prefs: []
   type: TYPE_NORMAL
 - en: As you can see, the characters that constitute the names of the intermediary
     directories are extracted from the tail of the temporary file name.
+  id: totrans-254
   prefs: []
   type: TYPE_NORMAL
 - en: 'Both hierarchical and nonhierarchical temporary directory structures have to
     be purged from time to time. This could be achieved by walking the directory tree
     and removing all files residing in those directories. You can use a command like
     the following one:'
+  id: totrans-255
   prefs: []
   type: TYPE_NORMAL
 - en: '[PRE41]'
+  id: totrans-256
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE41]'
 - en: You can use the command from the interactive shell. This command will find all
     files ending with digits located in the temporary directory and remove each of
     these files by running `rm`. This command will prompt the removal if it finds
     something strange.
+  id: totrans-257
   prefs: []
   type: TYPE_NORMAL
 - en: 'For the noninteractive mode, you can use a more dangerous command:'
+  id: totrans-258
   prefs: []
   type: TYPE_NORMAL
 - en: '[PRE42]'
+  id: totrans-259
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE42]'
 - en: This command will not prompt the removal of files.
+  id: totrans-260
   prefs: []
   type: TYPE_NORMAL
 - en: Note
+  id: totrans-261
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
 - en: 'This command is dangerous as it blindly removes a broadly-specified set of
     files. To avoid data loss, stick to the following principles when managing temporary
     directories:'
+  id: totrans-262
   prefs: []
   type: TYPE_NORMAL
 - en: Never store anything but temporary files inside temporary directories
+  id: totrans-263
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
 - en: Always use absolute paths in the first argument of a `find` command
+  id: totrans-264
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
 - en: If possible, check what you are about to remove by substituting `rm` with `echo`
     in order to print the list of files to be supplied to `rm`
+  id: totrans-265
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
 - en: Make sure Nginx stores temporary files under a specially-designated user such
     as `nobody` or `www-data`, and never under the superuser
+  id: totrans-266
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
 - en: Make sure the command above runs under a specially-designated user such as `nobody`
     or `www-data`, and never under the superuser
+  id: totrans-267
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
 - en: Communicating issues to developers
+  id: totrans-268
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
@@ -1165,63 +1634,79 @@
     third-party modules for Nginx, your instance might occasionally experience crashes.
     If you decide to communicate these issues to developers, here is a guide that
     will help you to do it most efficiently.
+  id: totrans-269
   prefs: []
   type: TYPE_NORMAL
 - en: Developers usually don't have access to production systems, but knowing the
     environment your Nginx instance is running in is crucial to trace the cause of
     the problem.
+  id: totrans-270
   prefs: []
   type: TYPE_NORMAL
 - en: Therefore, you need to provide detailed information about the issue. Detailed
     information about a crash can be found in the core file that was created after
     the crash.
+  id: totrans-271
   prefs: []
   type: TYPE_NORMAL
 - en: Note
+  id: totrans-272
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
 - en: '**Warning!**'
+  id: totrans-273
   prefs: []
   type: TYPE_NORMAL
 - en: The core file contains a memory dump of a worker process at the moment of a
     crash and therefore can contain sensitive information, such as passwords, keys,
     or private data. Therefore, never share core files with people you don't trust.
+  id: totrans-274
   prefs: []
   type: TYPE_NORMAL
 - en: 'Instead, use the following procedure to obtain detailed information about a
     crash:'
+  id: totrans-275
   prefs: []
   type: TYPE_NORMAL
 - en: Get a copy of the Nginx binary that you run with debugging information (see
     following instructions)
+  id: totrans-276
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
 - en: 'If a core file is available, run `gdb` on the binary with the debugging information:'
+  id: totrans-277
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
 - en: '[PRE43]'
+  id: totrans-278
   prefs:
   - PREF_IND
   type: TYPE_PRE
+  zh: '[PRE43]'
 - en: 'If the run is successful, this will open the `gdb` prompt. Type `bt full` in
     it:'
+  id: totrans-279
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
 - en: '[PRE44]'
+  id: totrans-280
   prefs:
   - PREF_IND
   type: TYPE_PRE
+  zh: '[PRE44]'
 - en: The preceding command will produce a long dump of the stack at the moment of
     the crash and it's usually sufficient to debug a wide variety of problems. Make
     a summary of the configuration that resulted in a crash and send it over to the
     developer along with the full stack trace.
+  id: totrans-281
   prefs: []
   type: TYPE_NORMAL
 - en: Creating a binary with debugging information
+  id: totrans-282
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
@@ -1229,48 +1714,62 @@
     You don't necessarily need to run a binary with debugging information. It's only
     necessary to have a binary that is identical to the one that you run, but with
     extra debugging information on top of it.
+  id: totrans-283
   prefs: []
   type: TYPE_NORMAL
 - en: 'It is possible to produce such a binary from the source code of the binary
     that you are running by configuring the source tree with an extra `–with-debug`
     option. The steps are as follows:'
+  id: totrans-284
   prefs: []
   type: TYPE_NORMAL
 - en: 'First, obtain configuration script arguments from the binary your instance
     is running:'
+  id: totrans-285
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
 - en: '[PRE45]'
+  id: totrans-286
   prefs:
   - PREF_IND
   type: TYPE_PRE
+  zh: '[PRE45]'
 - en: 'Add the `–with-debug` option in front of the argument string and run the configuration
     scripts:'
+  id: totrans-287
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
 - en: '[PRE46]'
+  id: totrans-288
   prefs:
   - PREF_IND
   type: TYPE_PRE
+  zh: '[PRE46]'
 - en: 'Follow the remaining steps of the build procedure (refer to the previous chapter
     for details). Once you finish, a binary identical to the one that you are running
     but with debugging information appears in the `objs` directory of your source
     tree:'
+  id: totrans-289
   prefs: []
   type: TYPE_NORMAL
 - en: '[PRE47]'
+  id: totrans-290
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE47]'
 - en: Now, you can use this binary to obtain a full stack trace from the core file
     produced by its twin binary.
+  id: totrans-291
   prefs: []
   type: TYPE_NORMAL
 - en: Refer to the previous section in order to learn how to produce a stack trace.
+  id: totrans-292
   prefs: []
   type: TYPE_NORMAL
 - en: Summary
+  id: totrans-293
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
@@ -1279,5 +1778,6 @@
     In the next and further chapters, you will start learning about particular features
     of Nginx and how to apply them. This will add some more flesh to your Nginx core
     skills.
+  id: totrans-294
   prefs: []
   type: TYPE_NORMAL
