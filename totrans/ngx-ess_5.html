@@ -1,0 +1,229 @@
+<html><head></head><body><div class="chapter" title="Chapter&#xA0;5.&#xA0;Managing Inbound and Outbound Traffic"><div class="titlepage"><div><div><h1 class="title"><a id="ch05"/>Chapter 5. Managing Inbound and Outbound Traffic</h1></div></div></div><p>The Internet is an open medium where it is easy and cheap to use someone else's resources. The low cost of usage makes systems vulnerable to intended and unintended abuses and resource usage spikes. The modern Internet is full of dangers such as bots, abusive crawlers, denial of service, and distributed denial of service attacks.</p><p>This is where Nginx comes in handy, with a range of features for inbound and outbound traffic management that allows you to stay in control of the quality of your web service.</p><p>In this chapter, you will learn:</p><div class="itemizedlist"><ul class="itemizedlist"><li class="listitem" style="list-style-type: disc">How to apply various limitation to inbound traffic</li><li class="listitem" style="list-style-type: disc">How to configure upstreams</li><li class="listitem" style="list-style-type: disc">How to use various options for outbound connection management</li></ul></div><div class="section" title="Managing inbound traffic"><div class="titlepage"><div><div><h1 class="title"><a id="ch05lvl1sec28"/>Managing inbound traffic</h1></div></div></div><p>Nginx has various<a id="id289" class="indexterm"/> options for managing inbound traffic. This includes the following:</p><div class="itemizedlist"><ul class="itemizedlist"><li class="listitem" style="list-style-type: disc">Limiting the request rate</li><li class="listitem" style="list-style-type: disc">Limiting the number of simultaneous connections</li><li class="listitem" style="list-style-type: disc">Limiting the transfer rate of a connection</li></ul></div><p>These features are very useful for managing the quality of your web service and to prevent and mitigate abuses.</p><div class="section" title="Limiting the request rate"><div class="titlepage"><div><div><h2 class="title"><a id="ch05lvl2sec62"/>Limiting the request rate</h2></div></div></div><p>Nginx has a<a id="id290" class="indexterm"/> built-in module for limiting the request rate. Before you can enable it, you need to configure a shared memory segment (also known as a <span class="emphasis"><em>zone</em></span>) in the <code class="literal">http</code> section using the <code class="literal">limit_req_zone</code> directive. This directive has the following format:</p><div class="informalexample"><pre class="programlisting">limit_req_zone &lt;key&gt; zone=&lt;name&gt;:&lt;size&gt; rate=&lt;rate&gt;;</pre></div><p>The <code class="literal">&lt;key&gt;</code> argument specifies a single variable or a script (since version 1.7.6) to which the rate limiting <a id="id291" class="indexterm"/>state is bound. In simple terms, by specifying the <code class="literal">&lt;key&gt;</code> argument, you are creating a number of small pipes for each value of the <code class="literal">&lt;key&gt;</code> argument evaluated at runtime, each of them with its request rate limited with <code class="literal">&lt;rate&gt;</code>. Each request for a location where this zone is used will be submitted to the corresponding pipe and if the rate limit is reached, the request will be delayed so that the rate limit within the pipe is satisfied.</p><p>The <code class="literal">&lt;name&gt;</code> argument defines the name of the zone and the <code class="literal">&lt;size&gt;</code> argument defines the size of the zone. Consider the following example:</p><div class="informalexample"><pre class="programlisting">http {
+    limit_req_zone $remote_addr zone=rate_limit1:12m rate=30r/m;
+    [...]
+}</pre></div><p>In the preceding code, we define a zone named <code class="literal">primary</code> that is 12 MB in size and has a rate limit of 30 requests per minute (0.5 request per second). We use the <code class="literal">$remote_addr</code> variable as a key. This variable evaluates into a symbolic value of the IP address the request came from, which can take up to 15 bytes per IPv4 address and even more per IPv6 address.</p><p>To conserve space occupied by the key, we can use the variable <code class="literal">$binary_remote_addr</code> that evaluates into a binary value of the remote IP address:</p><div class="informalexample"><pre class="programlisting">http {
+    limit_req_zone $binary_remote_addr zone=rate_limit1:12m rate=30r/m;
+    [...]
+}</pre></div><p>To enable request rate limiting in a location, use the <code class="literal">limit_req</code> directive:</p><div class="informalexample"><pre class="programlisting">location / {
+    limit_req zone=rate_limit1;
+}</pre></div><p>Once a request is routed to <code class="literal">location /</code>, a rate-limiting state will be retrieved from the specified shared memory segment and Nginx will apply the <span class="emphasis"><em>Leaky Bucket</em></span> algorithm to manage the request rate, as shown in the following figure:</p><div class="mediaobject"><img src="graphics/B04282_05_01.jpg" alt="Limiting the request rate"/><div class="caption"><p>The Leaky Bucket algorithm</p></div></div><p>According to this<a id="id292" class="indexterm"/> algorithm, incoming requests can arrive at an arbitrary rate, but the outbound request rate will never be higher than the specified one. Incoming requests "fill the bucket" and if the "bucket" overflows, excessive requests will get the HTTP status <code class="literal">503</code> (Service Temporarily Unavailable) response.</p></div><div class="section" title="Limiting the number of simultaneous connections"><div class="titlepage"><div><div><h2 class="title"><a id="ch05lvl2sec63"/>Limiting the number of simultaneous connections</h2></div></div></div><p>Although <a id="id293" class="indexterm"/>very practical, request rate limiting cannot help mitigate abuses in case of long-running requests, such as long uploads and downloads.</p><p>In this situation, limiting the number of simultaneous connections comes in handy. In particular, it is advantageous to limit the number of simultaneous connections from a single IP address.</p><p>Enabling the simultaneous connections limit starts from configuring a shared memory segment (a zone) for storing state information, just like when limiting the request rate. This is done in the <code class="literal">http</code> section using the <code class="literal">limit_conn_zone</code> directive. This directive is similar to the <code class="literal">limit_req_zone</code> directive and has the following format:</p><div class="informalexample"><pre class="programlisting">limit_conn_zone &lt;key&gt; zone=&lt;name&gt;:&lt;size&gt;;</pre></div><p>In the <a id="id294" class="indexterm"/>preceding command, the <code class="literal">&lt;key&gt;</code> argument specifies a single variable or a script (since version 1.7.6) to which the connection limiting state is bound. The <code class="literal">&lt;name&gt;</code> argument defines the name of the zone and the <code class="literal">&lt;size&gt;</code> argument defines the size of the zone. Consider the following example:</p><div class="informalexample"><pre class="programlisting">http {
+    limit_conn_zone $remote_addr zone=conn_limit1:12m;
+    [...]
+}</pre></div><p>To conserve the space occupied by the key, we can again use the variable <code class="literal">$binary_remote_addr</code>. It evaluates into a binary value of the remote IP address:</p><div class="informalexample"><pre class="programlisting">http {
+    limit_conn_zone $binary_remote_addr zone=conn_limit1:12m;
+    [...]
+}</pre></div><p>To enable simultaneous connection limiting in a location, use the <code class="literal">limit_conn</code> directive:</p><div class="informalexample"><pre class="programlisting">location /download {
+    limit_conn conn_limit1 5;
+}</pre></div><p>The first argument of the <code class="literal">limit_conn</code> directive specifies the zone used to store connection limiting state information, and the second argument is the maximum number of simultaneous connections.</p><p>For each connection with an active request routed to <code class="literal">location /download</code>, the <code class="literal">&lt;key&gt;</code> argument is evaluated. If the number of simultaneous connections sharing the same value of the key surpasses <code class="literal">5</code>, the server will reply with HTTP status <code class="literal">503</code> (Service Temporarily Unavailable).</p><div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="note22"/>Note</h3><p>Note that the size of the shared memory segment that the <code class="literal">limit_conn_zone</code> directive allocates is fixed. When the allocated shared memory segment gets filled, Nginx returns HTTP status <code class="literal">503</code> (Service Temporarily Unavailable). Therefore, you have to adjust the size of the shared memory segment to account for the potential inbound traffic of your server.</p></div></div></div><div class="section" title="Limiting the transfer rate of a connection"><div class="titlepage"><div><div><h2 class="title"><a id="ch05lvl2sec64"/>Limiting the transfer rate of a connection</h2></div></div></div><p>The transfer <a id="id295" class="indexterm"/>rate of a connection can also be limited. Nginx has a number of options for this purpose. The <code class="literal">limit_rate</code> directive limits the transfer rate of a connection in a location to the value specified in the first argument:</p><div class="informalexample"><pre class="programlisting">location /download {
+    limit_rate 100k;
+}</pre></div><p>The preceding configuration will limit the download rate of any request for <code class="literal">location /download</code> to 100 KBps. The rate limit is set per request. Therefore, if a client opens multiple connections, the total download rate will be higher.</p><p>Setting the rate limit to <code class="literal">0</code> switches off transfer rate limiting. This is helpful when a certain location needs to be excluded from the rate limit restriction:</p><div class="informalexample"><pre class="programlisting">server {
+    [...]
+    limit_rate 1m;
+
+    location /fast {
+        limit_rate 0;
+    }
+}</pre></div><p>The preceding configuration limits the transfer rate of each request to a given virtual host to 1 MBps, except for <code class="literal">location /fast</code>, where the rate is unlimited.</p><p>The transfer rate can also be limited by setting the value of the variable <code class="literal">$limit_rate</code>. This option can be elegantly used when rate-limiting needs to be enabled upon a particular condition:</p><div class="informalexample"><pre class="programlisting">if ($slow) {
+    set $limit_rate 100k;
+}</pre></div><p>There is also an option to postpone the rate restriction until a certain amount of data has been transferred. This can be achieved by using the <code class="literal">limit_rate_after</code> directive:</p><div class="informalexample"><pre class="programlisting">location /media {
+    limit_rate 100k;
+    limit_rate_after 1m;
+}</pre></div><p>The preceding <a id="id296" class="indexterm"/>configuration will enforce the rate limit only after the first megabyte of request data has been sent. Such behavior is useful, for example, when streaming video, as the initial part of the stream is usually prebuffered by the video player. Returning the initial part faster improves video startup time without clogging the disk I/O bandwidth of the server.</p></div><div class="section" title="Applying multiple limitations"><div class="titlepage"><div><div><h2 class="title"><a id="ch05lvl2sec65"/>Applying multiple limitations</h2></div></div></div><p>The limitations <a id="id297" class="indexterm"/>described in the previous section can be combined to produce more sophisticated traffic management strategies. For example, you can create two zones for limiting the number of simultaneous connections with different variables and apply multiple limits at once:</p><div class="informalexample"><pre class="programlisting">http {
+    limit_conn_zone $binary_remote_addr zone=conn_limit1:12m;
+    limit_conn_zone $server_name zone=conn_limit2:24m;
+    […]
+    server {
+        […]
+        location /download {
+            limit_conn conn_limit1 5;
+            limit_conn conn_limit2 200;
+        }
+    }
+}</pre></div><p>The preceding configuration will limit the number of simultaneous connections per IP address to five; at the same time the total number of simultaneous connections per virtual host will not exceed 200.</p></div></div></div>
+<div class="section" title="Managing outbound traffic"><div class="titlepage"><div><div><h1 class="title"><a id="ch05lvl1sec29"/>Managing outbound traffic</h1></div></div></div><p>Nginx also has <a id="id298" class="indexterm"/>a variety of options for outbound traffic management:</p><div class="itemizedlist"><ul class="itemizedlist"><li class="listitem" style="list-style-type: disc">Distributing outbound connections among multiple servers</li><li class="listitem" style="list-style-type: disc">Configuring backup servers</li><li class="listitem" style="list-style-type: disc">Enabling persistent connections with backend servers</li><li class="listitem" style="list-style-type: disc">Limiting transfer rate while reading from backend servers</li></ul></div><p>To enable <a id="id299" class="indexterm"/>most of these functions, the first thing you need is to declare your upstream servers explicitly.</p><div class="section" title="Declaring upstream servers"><div class="titlepage"><div><div><h2 class="title"><a id="ch05lvl2sec66"/>Declaring upstream servers</h2></div></div></div><p>Nginx allows<a id="id300" class="indexterm"/> you to declare upstream servers explicitly. You can then refer to them multiple times as a single entity from any part of the <code class="literal">http</code> configuration. If the location of your server or servers changes, there is no need to go over the entire configuration and adjust it. If new servers join a group, or existing servers leave a group, it's only necessary to adjust the declaration and not the usage.</p><p>An upstream server is declared in the <code class="literal">upstream</code> section:</p><div class="informalexample"><pre class="programlisting">http {
+    upstream backend  {
+        server server1.example.com;
+        server server2.example.com;
+        server server3.example.com;
+    }
+    [...]
+}</pre></div><p>The <code class="literal">upstream</code> section can only be specified inside the <code class="literal">http</code> section. The preceding configuration declares a logical upstream named <code class="literal">backend</code> with three physical servers. Each server is specified using the <code class="literal">server</code> directive. The server directive has the following syntax:</p><div class="informalexample"><pre class="programlisting">server &lt;address&gt; [&lt;parameters&gt;];</pre></div><p>The <code class="literal">&lt;address&gt;</code> parameter specifies an IP address or a domain name of a physical server. If a domain name is specified, it is resolved at the startup time and the resolved IP address is used as the address of a physical server. If the domain name resolves into multiple IP addresses, a separate entry is created for each of the resolved IP addresses. This is equivalent to specifying a <code class="literal">server</code> directive for each of these addresses.</p><p>The address can contain optional port specification, for example, <code class="literal">server1.example.com:8080</code>. If this specification is omitted, port 80 is used. Let's look at an example of upstream declaration:</p><div class="informalexample"><pre class="programlisting">upstream numeric-and-symbolic  {
+    server server.example.com:8080;
+    server 127.0.0.1;
+}</pre></div><p>The preceding <a id="id301" class="indexterm"/>configuration declares an upstream named <code class="literal">numeric-and-symbolic</code>. The first server in the server list has a symbolic name and its port changed to <code class="literal">8080</code>. The second server has the numerical address <code class="literal">127.0.0.1</code> that corresponds to the local host and the port is <code class="literal">80</code>.</p><p>Let's look at another example:</p><div class="informalexample"><pre class="programlisting">upstream numeric-only  {
+    server 192.168.1.1;
+    server 192.168.1.2;
+    server 192.168.1.3;
+}</pre></div><p>The preceding configuration declares an upstream named <code class="literal">numeric-only</code>, which consists of three servers with three different numerical IP addresses listening on the default port.</p><p>Consider the following example:</p><div class="informalexample"><pre class="programlisting">upstream same-host  {
+    server 127.0.0.1:8080;
+    server 127.0.0.1:8081;
+}</pre></div><p>The preceding configuration declares an upstream named <code class="literal">same-host</code>, which consists of two servers with the same address (<code class="literal">127.0.0.1</code>) that listen on different ports.</p><p>Let's look at the following example:</p><div class="informalexample"><pre class="programlisting">upstream single-server  {
+    server 192.168.0.1;
+}</pre></div><p>The preceding configuration declares an upstream named <code class="literal">single-server</code>, which consists of only one server.</p><p>The following table lists the optional parameters of the <code class="literal">server</code> directive and their description:</p><div class="informaltable"><table border="1"><colgroup><col style="text-align: left"/><col style="text-align: left"/></colgroup><thead><tr><th style="text-align: left" valign="bottom">
+<p>Syntax</p>
+</th><th style="text-align: left" valign="bottom">
+<p>Description</p>
+</th></tr></thead><tbody><tr><td style="text-align: left" valign="top">
+<p>
+<code class="literal">weight</code>=&lt;number&gt;</p>
+</td><td style="text-align: left" valign="top">
+<p>This<a id="id302" class="indexterm"/> specifies the numerical weight of the server. It is used for distributing connections among the servers. The default value is <code class="literal">1</code>.</p>
+</td></tr><tr><td style="text-align: left" valign="top">
+<p>
+<code class="literal">max_fails</code>=&lt;number&gt;</p>
+</td><td style="text-align: left" valign="top">
+<p>This specifies the maximum number of connection attempts after which the server is considered as unavailable. The default value is <code class="literal">1</code>.</p>
+</td></tr><tr><td style="text-align: left" valign="top">
+<p>
+<code class="literal">fail_timeout</code>=&lt;number&gt;</p>
+</td><td style="text-align: left" valign="top">
+<p>This specifies the time after which a failing server will be marked as unavailable. The default value is <code class="literal">10</code> seconds.</p>
+</td></tr><tr><td style="text-align: left" valign="top">
+<p>
+<code class="literal">backup</code>
+</p>
+</td><td style="text-align: left" valign="top">
+<p>This labels a server as a backup server.</p>
+</td></tr><tr><td style="text-align: left" valign="top">
+<p>
+<code class="literal">down</code>
+</p>
+</td><td style="text-align: left" valign="top">
+<p>This labels a server as unavailable.</p>
+</td></tr><tr><td style="text-align: left" valign="top">
+<p>
+<code class="literal">max_conns</code>=&lt;number&gt;</p>
+</td><td style="text-align: left" valign="top">
+<p>This limits the number of simultaneous connections to the server.</p>
+</td></tr><tr><td style="text-align: left" valign="top">
+<p>
+<code class="literal">resolve</code>
+</p>
+</td><td style="text-align: left" valign="top">
+<p>This instructs Nginx to automatically update the P addresses of a server specified using a symbolic name and apply these addresses without restarting Nginx. </p>
+</td></tr></tbody></table></div></div><div class="section" title="Using upstream servers"><div class="titlepage"><div><div><h2 class="title"><a id="ch05lvl2sec67"/>Using upstream servers</h2></div></div></div><p>Once<a id="id303" class="indexterm"/> an upstream server is declared, it can be used in the <code class="literal">proxy_pass</code> directive:</p><div class="informalexample"><pre class="programlisting">http {
+    upstream my-cluster  {
+        server server1.example.com;
+        server server2.example.com;
+        server server3.example.com;
+    }
+    […]
+    server {
+        […]
+        location @proxy {
+            proxy_pass http://my-cluster;
+        }
+    }
+}</pre></div><p>The upstream can be referred multiple times from the configuration. With the preceding configuration, once the location <code class="literal">@proxy</code> is requested, Nginx will pass the request to one of the servers in the server list of the upstream.</p><p>The algorithm<a id="id304" class="indexterm"/> for resolving the final address of an upstream server is shown in the following figure:</p><div class="mediaobject"><img src="graphics/B04282_05_05.jpg" alt="Using upstream servers"/><div class="caption"><p>An algorithm for resolving the address of an upstream server</p></div></div><p>Because a destination URL can contain variables, it is evaluated at runtime and parsed as HTTP URL. The server name is extracted from the evaluated destination URL. Nginx looks up an upstream section that matches the server name and if such exists, forwards the request to one of the servers from the upstream server list according to a request distribution strategy.</p><p>If an upstream section that matches the server name exists, Nginx checks if the server name is an IP address. If so, Nginx uses the IP address as the final address of the upstream server. If the server name is symbolic, Nginx resolves the server name in DNS into an IP address. If successful, the resolved IP address is used as the final address of the upstream server.</p><p>The address <a id="id305" class="indexterm"/>of the DNS server or servers can be configured using the <code class="literal">resolver</code> directive:</p><div class="informalexample"><pre class="programlisting">resolver 127.0.0.1;</pre></div><p>The preceding directive takes a list of IP addresses of the DNS servers as its arguments. If a server name cannot be successfully resolved using the configured resolver, Nginx returns HTTP status <code class="literal">502</code> (Bad Gateway).</p><p>When an upstream contains more than one server in the server list, Nginx distributes requests among these servers in an attempt to split the load among the available servers. This is also called clustering, as multiple servers act as one—altogether they are called a cluster.</p></div><div class="section" title="Choosing a request distribution strategy"><div class="titlepage"><div><div><h2 class="title"><a id="ch05lvl2sec68"/>Choosing a request distribution strategy</h2></div></div></div><p>By default, Nginx <a id="id306" class="indexterm"/>uses Round-robin algorithm while distributing requests among available upstream servers, as shown in the following figure:</p><div class="mediaobject"><img src="graphics/B04282_05_02.jpg" alt="Choosing a request distribution strategy"/><div class="caption"><p>Round-robin cyclic distribution algorithm</p></div></div><p>According to this algorithm, incoming requests are assigned to servers from the upstream server list in equal proportions and cyclic order. This ensures equal distribution of incoming requests among available servers, but does not ensure equal distribution of the load among servers.</p><p>If servers in<a id="id307" class="indexterm"/> the upstream server list have varying capacities, the distribution algorithm can be changed to account for that. This is what the parameter <code class="literal">weight</code> is used for. This parameter specifies the relative weight of a server in comparison to other servers. Consider an installation where one of the servers is twice as capable as the other two. We can configure Nginx for this installation as follows:</p><div class="informalexample"><pre class="programlisting">upstream my-cluster  {
+    server server1.example.com weight=2;
+    server server2.example.com;
+    server server3.example.com;
+}</pre></div><p>The first server is configured to have twice as high a weight as the other servers and the request distribution strategy changes accordingly. This is shown in the following figure:</p><div class="mediaobject"><img src="graphics/B04282_05_03.jpg" alt="Choosing a request distribution strategy"/><div class="caption"><p>Weighted round-robin</p></div></div><p>In the preceding figure, we can see that two out of four incoming requests will go to server 1, one will go to server 2, and another one will be going to server 3.</p><p>The round-robin strategy does not guarantee that requests from the same client will be always forwarded to the same server. The latter might be a challenge for web applications that expect the same client to be served by the same server or at least need some affinity of users to servers to perform efficiently.</p><p>With Nginx, you<a id="id308" class="indexterm"/> can solve this by using the IP hash request distribution strategy. With the IP hash distribution strategy, each request from a given IP address will be forwarded to the same backend server. This is achieved by hashing the client's IP address and using the numerical value of the hash to choose the server from the upstream server list. To enable the IP hash request distribution strategy, use the <code class="literal">ip_hash</code> directive in the <code class="literal">upstream</code> section:</p><div class="informalexample"><pre class="programlisting">upstream my-cluster  {
+    ip_hash;
+    server server1.example.com;
+    server server2.example.com;
+    server server3.example.com;
+}</pre></div><p>The preceding configuration declares an upstream with three underlying servers and enables the IP hash request distribution strategy for each of them. A request from a remote client will be forwarded to one of the servers from this list and it is always the same for all requests from the client.</p><p>If you add or remove a server from the list, the correspondence between IP addresses and servers will change and your web application will have to deal with this situation. To make this problem somehow easier to handle, you can mark a server as unavailable using the <code class="literal">down</code> parameter. Requests to this server will be forwarded to the next available server:</p><div class="informalexample"><pre class="programlisting">upstream my-cluster  {
+    ip_hash;
+    server server1.example.com;
+    server server2.example.com down;
+    server server3.example.com;
+}</pre></div><p>The preceding configuration declares the <code class="literal">server2.example.com</code> server unavailable and once a request is targeted to this server, the next available server will be chosen (<code class="literal">server1.example.com</code> or <code class="literal">server3.example.com</code>).</p><p>If an IP address is not a convenient input for the hash function, you can use the <code class="literal">hash</code> directive instead of <code class="literal">ip_hash</code> to choose an input that is more convenient. The only argument of this directive is a script, which is evaluated at runtime and produces a value used as the input for the hash function. This script can contain, for example, a cookie, an HTTP header, a combination of an IP address and a user agent, an IP address and a proxied IP address, and so on. Take a look at the following example:</p><div class="informalexample"><pre class="programlisting">upstream my-cluster  {
+    hash "$cookie_uid";
+    server server1.example.com;
+    server server2.example.com;
+    server server3.example.com;
+}</pre></div><p>The preceding <a id="id309" class="indexterm"/>configuration uses a cookie named <code class="literal">uid</code> as input for the hash function. If the cookie stores a unique ID of a user, each user's requests will be forwarded to a fixed server in the upstream server list. If a user does not have a cookie yet, the variable <code class="literal">$cookie_uid</code> evaluates to an empty string and produces a fixed hash value. Therefore, all requests from users without the <code class="literal">uid</code> cookie are forwarded to a fixed server from the preceding list.</p><p>In the next example, we will use a combination of a remote IP address and the user agent field as input for the hash function:</p><div class="informalexample"><pre class="programlisting">upstream my-cluster  {
+    hash "$remore_addr$http_user_agent";
+    server server1.example.com;
+    server server2.example.com;
+    server server3.example.com;
+}</pre></div><p>The preceding configuration relies on the diversity of user agent field and prevents a concentration of users from proxied IP addresses on a single server.</p></div><div class="section" title="Configuring backup servers"><div class="titlepage"><div><div><h2 class="title"><a id="ch05lvl2sec69"/>Configuring backup servers</h2></div></div></div><p>Some <a id="id310" class="indexterm"/>servers in the server list can be marked as <span class="emphasis"><em>backup</em></span>. By doing so, you tell Nginx that these servers should not be normally used and used only when all non-backup servers do not respond.</p><p>To illustrate the use of backup servers, imagine that you run a <a id="id311" class="indexterm"/><span class="strong"><strong>Content Distribution Network</strong></span> (<span class="strong"><strong>CDN</strong></span>) where a number of geographically distributed edge servers handle user traffic and a set of centralized content servers generate and distribute content to the edge servers. This is shown in the following figure.</p><div class="mediaobject"><img src="graphics/B04282_05_04.jpg" alt="Configuring backup servers"/><div class="caption"><p>A Content Distribution Network</p></div></div><p>The edge servers <a id="id312" class="indexterm"/>are co-located with a set of highly-available caches that do not alter the content obtained from the content servers, but simply store it. The caches have to be used as long as any of them is available.</p><p>However, when none of the caches are available for some reason, the edge server can contact the content servers—although it is not desirable. Such behavior (called degradation) can remedy the situation until the outage of caches is resolved, while keeping the service available.</p><p>Then, the upstream on the edge server can be configured as follows:</p><div class="informalexample"><pre class="programlisting">upstream my-cache  {
+    server cache1.mycdn.com;
+    server cache2.mycdn.com;
+    server cache3.mycdn.com;
+
+    server content1.mycdn.com backup;
+    server content2.mycdn.com backup;
+}</pre></div><p>The preceding<a id="id313" class="indexterm"/> configuration declares the servers <code class="literal">cache1.mycdn.com</code>, <code class="literal">cache2.mycdn.com</code> and <code class="literal">cache3.mycdn.com</code> as primary servers to contact. They will be used as long as any of them is available.</p><p>We then list the <code class="literal">content1.mycdn.com</code> and <code class="literal">content2.mycdn.com</code> servers as backup by specifying the <code class="literal">backup</code> parameter. These servers will be contacted only if none of the primary servers are available. This feature of Nginx provides flexibility in the way the availability of your system is managed.</p></div><div class="section" title="Determining whether a server is available"><div class="titlepage"><div><div><h2 class="title"><a id="ch05lvl2sec70"/>Determining whether a server is available</h2></div></div></div><p>How<a id="id314" class="indexterm"/> do you define that a server is available? For most applications, connectivity errors are hard signs of an unavailable server, but what if an error is software generated? It might be worth trying the next server if a server is available on the transport layer (over TCP/IP) but returns HTTP errors such as <code class="literal">500</code> (Internal Server Error) and <code class="literal">503</code> (Service Unavailable) or even softer errors such as <code class="literal">403</code> (Forbidden) or <code class="literal">404</code> (Not found). If the upstream server is a proxy itself, it might be necessary to handle HTTP errors <code class="literal">502</code> (Bad Gateway) and <code class="literal">504</code> (Gateway Timeout).</p><p>Nginx allows you to specify availability and retrial conditions using the directives <code class="literal">proxy_next_upstream</code>, <code class="literal">fastcgi_next_upstream</code>, <code class="literal">uwsgi_next_upstream</code>, <code class="literal">scgi_next_upstream</code>, and <code class="literal">memcached_next_upstream</code>. Each of these directives receives a list of conditions that will be treated as errors while communicating with an upstream server, and make Nginx retry with another server. In addition to that, if the number of unsuccessful interaction attempts with a server is larger than the value of the <code class="literal">max_fails</code> parameter for the server (the default value is <code class="literal">1</code>), the server will be marked as unavailable for a period specified by the <code class="literal">fail_timeout</code> directive (the default value is <code class="literal">10</code> seconds).</p><p>The following table lists all possible values for the arguments of the directives <code class="literal">proxy_next_upstream</code>, <code class="literal">fastcgi_next_upstream</code>, <code class="literal">uwsgi_next_upstream</code>, <code class="literal">scgi_next_upstream</code>, and <code class="literal">memcached_next_upstream</code>:</p><div class="informaltable"><table border="1"><colgroup><col style="text-align: left"/><col style="text-align: left"/></colgroup><thead><tr><th style="text-align: left" valign="bottom">
+<p>Value</p>
+</th><th style="text-align: left" valign="bottom">
+<p>Meaning</p>
+</th></tr></thead><tbody><tr><td style="text-align: left" valign="top">
+<p>
+<code class="literal">error</code>
+</p>
+</td><td style="text-align: left" valign="top">
+<p>A connection error has occurred or an error during sending a request or receiving a reply has occurred</p>
+</td></tr><tr><td style="text-align: left" valign="top">
+<p>
+<code class="literal">timeout</code>
+</p>
+</td><td style="text-align: left" valign="top">
+<p>A connection timed out during setup, sending a request or receiving a reply</p>
+</td></tr><tr><td style="text-align: left" valign="top">
+<p>
+<code class="literal">invalid_header</code>
+</p>
+</td><td style="text-align: left" valign="top">
+<p>The upstream server has returned an empty or invalid reply</p>
+</td></tr><tr><td style="text-align: left" valign="top">
+<p>
+<code class="literal">http_500</code>
+</p>
+</td><td style="text-align: left" valign="top">
+<p>The upstream server returned a reply with HTTP status code <code class="literal">500</code> (Internal Server Error)</p>
+</td></tr><tr><td style="text-align: left" valign="top">
+<p>
+<code class="literal">http_502</code>
+</p>
+</td><td style="text-align: left" valign="top">
+<p>The upstream server returned a reply with HTTP status code <code class="literal">502</code> (Bad Gateway)</p>
+</td></tr><tr><td style="text-align: left" valign="top">
+<p>
+<code class="literal">http_503</code>
+</p>
+</td><td style="text-align: left" valign="top">
+<p>The upstream server returned a reply with HTTP status code <code class="literal">503</code> (Service Unavailable)</p>
+</td></tr><tr><td style="text-align: left" valign="top">
+<p>
+<code class="literal">http_504</code>
+</p>
+</td><td style="text-align: left" valign="top">
+<p>The upstream server returned a reply with HTTP status code <code class="literal">504</code> (Gateway Timeout)</p>
+</td></tr><tr><td style="text-align: left" valign="top">
+<p>
+<code class="literal">http_403</code>
+</p>
+</td><td style="text-align: left" valign="top">
+<p>The upstream server returned a reply with HTTP status code <code class="literal">403</code> (Forbidden)</p>
+</td></tr><tr><td style="text-align: left" valign="top">
+<p>
+<code class="literal">http_404</code>
+</p>
+</td><td style="text-align: left" valign="top">
+<p>The upstream server returned a reply with HTTP status code <code class="literal">404</code> (Not Found)</p>
+</td></tr><tr><td style="text-align: left" valign="top">
+<p>
+<code class="literal">off</code>
+</p>
+</td><td style="text-align: left" valign="top">
+<p>Disables passing requests to the next server</p>
+</td></tr></tbody></table></div><p>The default <a id="id315" class="indexterm"/>value for the preceding directives is <code class="literal">error timeout</code>. This makes Nginx retry a request with another server only if a connectivity error or a timeout has occurred.</p><p>Here is an example of a configuration that uses the <code class="literal">proxy_next_upstream</code> directive:</p><div class="informalexample"><pre class="programlisting">location @proxy {
+    proxy_pass http://backend;
+    proxy_next_upstream error timeout http_500 http_502 http_503 http_504;
+}</pre></div><p>The preceding configuration extends the default retrial and availability option and enables retrying with the next server in case of connectivity error, upstream error (<code class="literal">502</code>, <code class="literal">503</code>, or <code class="literal">504</code>) or a connection timeout.</p></div><div class="section" title="Enabling persistent connections"><div class="titlepage"><div><div><h2 class="title"><a id="ch05lvl2sec71"/>Enabling persistent connections</h2></div></div></div><p>By default, Nginx <a id="id316" class="indexterm"/>does not keep connections with upstream servers open. Keeping the connections open can significantly improve the performance of your system. This is because persistent connections eliminate the connection setup overhead every time a request is made to a given upstream server.</p><p>To enable persistent connections for an upstream, use the <code class="literal">keepalive</code> directive in the <code class="literal">upstream</code> section:</p><div class="informalexample"><pre class="programlisting">upstream my-cluster  {
+    keepalive 5;
+    server server1.example.com;
+    server server2.example.com;
+    server server3.example.com;
+}</pre></div><p>The only argument of the <code class="literal">keepalive</code> directive specifies the minimum number of inactive persistent connections in the connection pool of this upstream. If the number of inactive persistent connections grows beyond this number, Nginx closes as many connections as needed to stay within this number. This guarantees that a specified number of hot and ready-to-go connections are always available for use. At the same time, these connections consume the resources of backend servers, so this number must be chosen cautiously.</p><p>To use persistent connections with HTTP proxying, further tweaks are required:</p><div class="informalexample"><pre class="programlisting">location @proxy {
+    proxy_pass http://backend;
+    proxy_http_version 1.1;
+    proxy_set_header Connection "";
+}</pre></div><p>In the preceding configuration, we change the HTTP version to 1.1 so that persistent connections are expected by default. We also clear the Connection header so that the Connection header from the original request does not influence the proxied request.</p></div><div class="section" title="Limiting the transfer rate of an upstream connection"><div class="titlepage"><div><div><h2 class="title"><a id="ch05lvl2sec72"/>Limiting the transfer rate of an upstream connection</h2></div></div></div><p>The transfer <a id="id317" class="indexterm"/>rate of a connection with an upstream can be limited. This feature can be used to reduce stress on the upstream server. The <a id="id318" class="indexterm"/><code class="literal">proxy_limit_rate</code> directive limits the transfer rate of an upstream connection in a location to the value specified in the first argument:</p><div class="informalexample"><pre class="programlisting">location @proxy {
+    proxy_pass http://backend;
+    proxy_buffering on;
+    proxy_limit_rate 200k;
+}</pre></div><p>The preceding<a id="id319" class="indexterm"/> configuration will limit the rate of connections with the specified backend to 200 KBps. The rate limit is set per request. If Nginx opens multiple connections to the upstream server, the total rate will be higher.</p><div class="note" title="Note" style=""><div class="inner"><h3 class="title"><a id="note23"/>Note</h3><p>Rate limiting works only if proxy response buffering is switched on using the <code class="literal">proxy_buffering</code> directive.</p></div></div></div></div>
+<div class="section" title="Summary"><div class="titlepage"><div><div><h1 class="title"><a id="ch05lvl1sec30"/>Summary</h1></div></div></div><p>In this chapter, you learned about a number of tools for inbound and outbound traffic management. These tools will help you to ensure the reliability of your web service and implement complex caching schemes.</p><p>In the next chapter, you'll learn how to squeeze the most performance out of your web server and optimize resource usage—performance tuning.</p></div></body></html>
