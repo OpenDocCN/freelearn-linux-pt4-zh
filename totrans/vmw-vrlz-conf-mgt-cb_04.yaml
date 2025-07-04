@@ -1,51 +1,75 @@
 - en: Chapter 4. Windows Patching
+  id: totrans-0
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 第4章。Windows补丁更新
 - en: 'In this chapter, we will cover the following recipes:'
+  id: totrans-1
   prefs: []
   type: TYPE_NORMAL
+  zh: 在本章中，我们将涵盖以下内容：
 - en: Configuring VCM to use Microsoft updates
+  id: totrans-2
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 配置VCM以使用Microsoft更新
 - en: An introduction to automated patching
+  id: totrans-3
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 自动化补丁更新简介
 - en: Creating a patch assessment template
+  id: totrans-4
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 创建补丁评估模板
 - en: Windows patching – on demand
+  id: totrans-5
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: Windows补丁更新——按需
 - en: Windows patching – scheduled
+  id: totrans-6
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: Windows补丁更新——定期
 - en: Patching machines in multi-domain environments and workgroups
+  id: totrans-7
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 在多域环境和工作组中进行机器补丁更新
 - en: Patching VM templates
+  id: totrans-8
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 补丁虚拟机模板
 - en: Patching reports
+  id: totrans-9
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 补丁报告
 - en: Introduction
+  id: totrans-10
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 介绍
 - en: So far, we have covered how to deploy VCM on one or multiple tiers, how to configure
     it, and how to deploy agents on the machines we want to manage. In this chapter,
     we will have a look at patching Windows servers and desktops.
+  id: totrans-11
   prefs: []
   type: TYPE_NORMAL
+  zh: 到目前为止，我们已经讨论了如何在一个或多个层级上部署VCM，如何配置它，以及如何在我们想要管理的机器上部署代理。在本章中，我们将探讨如何对Windows服务器和桌面进行补丁更新。
 - en: Even though all products go through rigorous quality tests, there are always
     some bugs left that can be exploited if they aren't fixed. Patch management comes
     into the picture to do this job. With the help of VCM, we can perform an automated,
@@ -56,15 +80,21 @@
     need to pay extra for VCM. It can not only patch Windows and Linux but can also
     be used to patch Unix and Mac OS. We can schedule the patching job, and VCM will
     perform the patching and update the status on the central console.
+  id: totrans-12
   prefs: []
   type: TYPE_NORMAL
+  zh: 尽管所有产品都经过严格的质量测试，但总会留下些未修复的漏洞，如果不修复，这些漏洞可能会被利用。补丁管理的作用就是来完成这个任务。在VCM的帮助下，我们可以对基础设施进行自动化、定期的补丁缺失分析，并根据需要部署补丁。市场上有许多工具，如Microsoft
+    System Center Configuration Manager或BMC BSA，能够完成这项任务，但使用VCM的好处是它是vRealize Operation套件的一部分，因此你不需要为VCM额外付费。它不仅可以为Windows和Linux进行补丁更新，还可以用于补丁Unix和Mac
+    OS。我们可以安排补丁任务，VCM会执行补丁操作并在中央控制台上更新状态。
 - en: With the help of vRealize Automation and vRealize Orchestrator, we can automate
     the deployment of Windows patching. We can create a registry entry in the VM that
     will be captured by VCM while performing the collection, and based on that registry
     entry, the VM will be placed in the correct machine group, which is created for
     the sole purpose of patching the VMs on the same schedule.
+  id: totrans-13
   prefs: []
   type: TYPE_NORMAL
+  zh: 借助vRealize Automation和vRealize Orchestrator，我们可以自动化Windows补丁更新的部署。我们可以在虚拟机中创建一个注册表项，这个项将在VCM执行收集时被捕获，并根据这个注册表项，虚拟机会被放入正确的机器组，该组专门用于在相同的时间表上进行补丁更新。
 - en: In order to perform scheduled patching, we need to configure at least four jobs.
     The first one is the initial collection, which will collect status details against
     the **Patching - Windows Security Bulletins** filter set. Once those details are
@@ -74,288 +104,415 @@
     patching job. After each patching job is finished, VCM starts its own data collection
     job to obtain the updated status of the server. Finally, we need to schedule a
     final assessment, which will update the patch status of the after patch deployment.
+  id: totrans-14
   prefs: []
   type: TYPE_NORMAL
+  zh: 为了执行定期补丁更新，我们需要配置至少四个任务。第一个是初始收集，它将收集**Patching - Windows Security Bulletins**筛选器集的状态详情。一旦这些详细信息被存入VCM数据库，另一个任务将启动初步评估，检查服务器上缺失哪些补丁。一旦VCM获得了缺失补丁的详细信息，补丁评估模板中的补丁将开始实际的补丁任务。在每个补丁任务完成后，VCM会启动自己的数据收集任务，以获取服务器的更新状态。最后，我们需要安排最终评估，以更新补丁部署后的补丁状态。
 - en: Configuring VCM to use Microsoft updates
+  id: totrans-15
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 配置VCM以使用Microsoft更新
 - en: In this recipe, we will configure VCM to synchronize patch metadata with Microsoft
     so that we can select one or more patches and check the compliance of our infrastructure.
     If VCM detects non-compliance, we can deploy the patches.
+  id: totrans-16
   prefs: []
   type: TYPE_NORMAL
+  zh: 在这个步骤中，我们将配置VCM与Microsoft同步补丁元数据，以便我们可以选择一个或多个补丁并检查我们的基础设施合规性。如果VCM检测到不合规的情况，我们可以部署补丁。
 - en: Getting ready
+  id: totrans-17
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 准备工作
 - en: We will need a fully deployed VCM server to work on this recipe. In order to
     use VCM for patching, we need Internet access to download patches from Microsoft
     onto the VCM Collector server. We should have proxy details available, such as
     IP address, port name, and user credentials. If you are on a secure network, make
     sure you have Internet access, at least to [https://www.microsoft.com/](https://www.microsoft.com/) and
     [http://www.vmware.com/](http://www.vmware.com/).
+  id: totrans-18
   prefs: []
   type: TYPE_NORMAL
+  zh: 我们需要一个完全部署的 VCM 服务器来执行此操作。为了使用 VCM 进行修补，我们需要通过互联网将补丁从 Microsoft 下载到 VCM 收集器服务器。我们应该有代理的相关信息，如
+    IP 地址、端口名称和用户凭证。如果您在一个安全的网络中，请确保至少能够访问[https://www.microsoft.com/](https://www.microsoft.com/)和[http://www.vmware.com/](http://www.vmware.com/)。
 - en: Firewall requirements are discussed in the *vRealize Configuration Manager port
     and protocol summary* section of [Chapter 1](ch01.html "Chapter 1. Installing
     VCM"), *Installing VCM*.
+  id: totrans-19
   prefs: []
   type: TYPE_NORMAL
+  zh: 防火墙要求在[vRealize 配置管理器端口和协议摘要](ch01.html "第1章。安装VCM")的*安装 VCM*章节中进行了讨论。
 - en: Note
+  id: totrans-20
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
+  zh: 注意
 - en: Note that before you patch Windows Server 2008 and Windows 7 machines, you need
     to verify that the Windows Update service is running, which means that it is set
     to something other than **Disabled**.
+  id: totrans-21
   prefs: []
   type: TYPE_NORMAL
+  zh: 请注意，在修补 Windows Server 2008 和 Windows 7 机器之前，您需要验证 Windows Update 服务是否正在运行，这意味着它的设置不是**禁用**状态。
 - en: How to do it...
+  id: totrans-22
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 如何操作...
 - en: To prepare for Microsoft patching, we will break the recipe into several steps.
     The proxy steps only need to be performed if you are using a proxy to access the
     Internet.
+  id: totrans-23
   prefs: []
   type: TYPE_NORMAL
+  zh: 为了准备 Microsoft 补丁，我们将这项任务分为几个步骤。只有在通过代理访问互联网时，才需要执行代理步骤。
 - en: Configuring a proxy
+  id: totrans-24
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
+  zh: 配置代理
 - en: 'In a real-life scenario, the VCM server would need a proxy to access patching
     sites on the Internet; we need to update those settings in vRealize Configuration
     Manager. We can do that by following these steps:'
+  id: totrans-25
   prefs: []
   type: TYPE_NORMAL
+  zh: 在实际场景中，VCM 服务器需要通过代理才能访问互联网上的修补网站；我们需要在 vRealize 配置管理器中更新这些设置。我们可以按照以下步骤进行操作：
 - en: Log in to VCM with admin privileges.
+  id: totrans-26
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 使用管理员权限登录 VCM。
 - en: Go to **Administration** | **Settings** | **General Settings** | **Patching**
     | **Internet**.
+  id: totrans-27
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 转到**管理** | **设置** | **常规设置** | **修补** | **互联网**。
 - en: Select **HTTP Proxy Server** and **Logon** individually. Hit the **Edit** button
     at the top and provide the proxy details.![Configuring a proxy](img/image_04_001.jpg)
+  id: totrans-28
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 分别选择**HTTP 代理服务器**和**登录**。点击顶部的**编辑**按钮并提供代理详细信息。![配置代理](img/image_04_001.jpg)
 - en: Enter the credentials acquired in the **Getting Ready** stage.![Configuring
     a proxy](img/image_04_002.jpg)
+  id: totrans-29
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 输入在**准备阶段**中获取的凭据。![配置代理](img/image_04_002.jpg)
 - en: Hit **Next** and then **Finish**.
+  id: totrans-30
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 点击**下一步**，然后点击**完成**。
 - en: Once we have filled in the proxy options, VCM can connect to the Internet and
     download Microsoft patches.
+  id: totrans-31
   prefs: []
   type: TYPE_NORMAL
+  zh: 一旦我们填写了代理选项，VCM 就可以连接到互联网并下载 Microsoft 补丁。
 - en: If you have direct access to the Internet, you don't need to fill in these details.
     You can skip this section. Once the proxy has been configured, we can set the
     frequency with which to check for updates and the languages we need to download
     the patches.
+  id: totrans-32
   prefs: []
   type: TYPE_NORMAL
+  zh: 如果您可以直接访问互联网，则无需填写这些详细信息。您可以跳过这一部分。一旦代理配置完成，我们可以设置检查更新的频率以及需要下载的补丁语言。
 - en: VCM will not download any patch on the collector unless it is required while
     deploying it on the managed machine and the administrator opts to download it.
     VCM only syncs metadata for Windows and Linux/Unix machines from [http://www.vmware.com/](http://www.vmware.com/),
     and then, those details are presented to the VCM administrator as available patches
     for distribution.
+  id: totrans-33
   prefs: []
   type: TYPE_NORMAL
+  zh: 除非在将补丁部署到受管机器时需要，否则 VCM 不会在收集器上下载任何补丁，并且管理员选择下载它时才会下载。VCM 仅同步来自[http://www.vmware.com/](http://www.vmware.com/)的
+    Windows 和 Linux/Unix 机器的元数据，然后，这些信息会以可分发补丁的形式呈现给 VCM 管理员。
 - en: Downloading settings
+  id: totrans-34
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
+  zh: 下载设置
 - en: The download settings are where we define the synchronization schedule and additional
     languages if required. Patches are available in various languages for the operating
     systems we have installed; here, we can choose the language required by our infrastructure.
     Microsoft patches are released every second Tuesday, also known as *Patch Tuesday*,
     but there are patches that can be released out of band, so we can set the schedule
     to daily to make sure we don't miss those out-of-band patch details.
+  id: totrans-35
   prefs: []
   type: TYPE_NORMAL
+  zh: 下载设置是我们定义同步计划和额外语言的地方，若有需要。补丁有多种语言版本，适用于我们已安装的操作系统；在这里，我们可以选择我们基础设施所需的语言。Microsoft
+    补丁每月第二个星期二发布，也就是*补丁星期二*，但有些补丁可能会在非定期发布，因此我们可以将计划设置为每日，以确保我们不会错过这些非定期发布的补丁信息。
 - en: 'To configure download settings, follow these steps:'
+  id: totrans-36
   prefs: []
   type: TYPE_NORMAL
+  zh: 要配置下载设置，请按照以下步骤操作：
 - en: Go to **Administration** | **Settings** | **General Settings** | **Patching**
     | **Windows** | **Bulletin and Updates**.
+  id: totrans-37
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 转到**管理** | **设置** | **常规设置** | **补丁管理** | **Windows** | **公告和更新**。
 - en: Change the schedule to suit your needs, or go with the defaults.
+  id: totrans-38
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 更改调度以满足您的需求，或者使用默认设置。
 - en: '**Superseded Patches**'
+  id: totrans-39
   prefs: []
   type: TYPE_NORMAL
+  zh: '**已替代的补丁**'
 - en: Some of these updates might *supersede* previously installed updates, that is,
     Microsoft might re-release a patch or release a patch that supersedes/replaces
     a previous patch. The new version of the patch is the only one that needs to be
     installed.
+  id: totrans-40
   prefs: []
   type: TYPE_NORMAL
+  zh: 这些更新中的一些可能会*替代*之前安装的更新，也就是说，微软可能会重新发布一个补丁或发布一个替代/取代先前补丁的新补丁。只需要安装补丁的新版本。
 - en: An example would be Patch MS15-024 superseding Patch MS15-016, which in turn
     supersedes Patch MS14-085\. This would mean that only Patch MS15-024 needs to
     be downloaded.
+  id: totrans-41
   prefs: []
   type: TYPE_NORMAL
+  zh: 一个例子是补丁MS15-024替代了补丁MS15-016，而MS15-016又替代了补丁MS14-085。这意味着只需要下载补丁MS15-024。
 - en: 'Microsoft''s supersedence information can be found in the **Updates Replaced**
     column of the **Affected Software** table at the top of the security bulletins:'
+  id: totrans-42
   prefs: []
   type: TYPE_NORMAL
+  zh: 微软的替代信息可以在安全公告顶部的**更新替代**列中的**受影响软件**表格中找到：
 - en: '![Downloading settings](img/image_04_003.jpg)'
+  id: totrans-43
   prefs: []
   type: TYPE_IMG
+  zh: '![下载设置](img/image_04_003.jpg)'
 - en: The network authority account
+  id: totrans-44
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
+  zh: 网络权限帐户
 - en: As explained in the *Service accounts* subsection of [Chapter 1](ch01.html "Chapter 1. Installing
     VCM"), *Installing VCM*, we need the network authority account. Now, we will associate
     those accounts with either machine groups or domains.
+  id: totrans-45
   prefs: []
   type: TYPE_NORMAL
+  zh: 如[第1章](ch01.html "第1章 安装VCM")中*服务帐户*小节所解释的，*安装VCM*，我们需要网络权限帐户。现在，我们将这些帐户与计算机组或域进行关联。
 - en: 'Start by following these steps:'
+  id: totrans-46
   prefs: []
   type: TYPE_NORMAL
+  zh: 首先按照以下步骤操作：
 - en: Go to **Administration** | **Settings** | **Network Authority**.
+  id: totrans-47
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 转到**管理** | **设置** | **网络权限**。
 - en: 'We now have the following options:'
+  id: totrans-48
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 现在我们有以下选项：
 - en: '**Available Domains Identified**'
+  id: totrans-49
   prefs:
   - PREF_IND
   type: TYPE_NORMAL
+  zh: '**已识别的可用域**'
 - en: We added domains when we installed VCM. Have a look at step 19 of the *Installing
     VCM – two-tier deployment* recipe from [Chapter 1](ch01.html "Chapter 1. Installing
     VCM"), *Installing VCM *for more details.
+  id: totrans-50
   prefs:
   - PREF_IND
   type: TYPE_NORMAL
+  zh: 在安装VCM时，我们添加了域。请查看[第1章](ch01.html "第1章 安装VCM")中*安装VCM – 两层部署*食谱的第19步，了解更多细节。
 - en: '**Available Accounts**'
+  id: totrans-51
   prefs:
   - PREF_IND
   type: TYPE_NORMAL
+  zh: '**可用帐户**'
 - en: We assigned one network authority account during VCM deployment; have a look
     at step 17 of the *Installing VCM – two-tier deployment* recipe from [Chapter
     1](ch01.html "Chapter 1. Installing VCM"), *Installing VCM* for more details.
+  id: totrans-52
   prefs:
   - PREF_IND
   type: TYPE_NORMAL
+  zh: 在VCM部署过程中，我们分配了一个网络权限帐户；请查看[第1章](ch01.html "第1章 安装VCM")中*安装VCM – 两层部署*食谱的第17步，了解更多细节。
 - en: '**Assigned Accounts**'
+  id: totrans-53
   prefs:
   - PREF_IND
   type: TYPE_NORMAL
+  zh: '**已分配帐户**'
 - en: For this recipe, we will chose **Assigned Accounts**.
+  id: totrans-54
   prefs:
   - PREF_IND
   type: TYPE_NORMAL
+  zh: 对于这个食谱，我们将选择**已分配帐户**。
 - en: To make it possible to patch machines in multiple domains, we need to assign
     available accounts to available domains or machine groups. To do this, go to **Assigned
     Accounts** | **By Domain** | **Active Directory**.
+  id: totrans-55
   prefs:
   - PREF_IND
   type: TYPE_NORMAL
+  zh: 为了能够在多个域中进行补丁修复，我们需要将可用帐户分配给可用的域或计算机组。为此，请转到**已分配帐户** | **按域** | **Active Directory**。
 - en: 'The following screenshot shows the assigned network authority account for the
     `study.local` Active Directory domain:'
+  id: totrans-56
   prefs:
   - PREF_IND
   type: TYPE_NORMAL
+  zh: 以下截图展示了`study.local` Active Directory域的已分配网络权限帐户：
 - en: '![The network authority account](img/image_04_004.jpg)'
+  id: totrans-57
   prefs:
   - PREF_IND
   type: TYPE_IMG
+  zh: '![网络权限帐户](img/image_04_004.jpg)'
 - en: Synchronizing patches with Microsoft
+  id: totrans-58
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
+  zh: 与微软同步补丁
 - en: 'Once we have an Internet connection (either natively or using a proxy), we
     can synchronize patch metadata with Microsoft by following these steps:'
+  id: totrans-59
   prefs: []
   type: TYPE_NORMAL
+  zh: 一旦我们有了互联网连接（无论是直接连接还是通过代理），我们可以通过以下步骤与微软同步补丁元数据：
 - en: Go to **Patching **| **Windows **| **Bulletins **| **By Bulletin** and click
     on **Check for Update**.![Synchronizing patches with Microsoft](img/image_04_005.jpg)
+  id: totrans-60
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 转到**补丁管理** | **Windows** | **公告** | **按公告**并点击**检查更新**。![与微软同步补丁](img/image_04_005.jpg)
 - en: To monitor the status of the sync, go to **Patching **| **Job Management** | **Windows **| **Job
     Manager** | **Running**.
+  id: totrans-61
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 要监控同步状态，请转到**补丁管理** | **作业管理** | **Windows** | **作业管理器** | **正在运行**。
 - en: Once the job is done, you can look at the bulletins under **Patching **| **Windows** | **Bulletins **| **By
     Bulletin**, which can be used to create a patch assessment template.
+  id: totrans-62
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 完成工作后，您可以查看**补丁管理** | **Windows** | **公告** | **按公告**下的公告，这些可以用来创建补丁评估模板。
 - en: 'You will be able to see the patch details on the right-hand side now:'
+  id: totrans-63
   prefs: []
   type: TYPE_NORMAL
+  zh: 现在，您可以在右侧查看补丁的详细信息：
 - en: '![Synchronizing patches with Microsoft](img/image_04_006.jpg)'
+  id: totrans-64
   prefs: []
   type: TYPE_IMG
+  zh: '![与Microsoft同步补丁](img/image_04_006.jpg)'
 - en: 'In earlier releases of VCM, there was an issue with synchronization. Patches
     were not visible even after synchronization was complete. Here is the *Knowledge
     Base* article for the resolution: [http://kb.vmware.com/selfservice/microsites/search.do?language=en_US&cmd=displayKC&externalId=2053975](http://kb.vmware.com/selfservice/microsites/search.do?language=en_US&cmd=displayKC&externalId=2053975)
     . Fortunately, we don''t need to do this in the latest version of VCM.'
+  id: totrans-65
   prefs: []
   type: TYPE_NORMAL
+  zh: 在VCM的早期版本中，曾经有一个同步问题。即使同步完成，补丁也不可见。这里有一篇*知识库*文章提供了解决方法：[http://kb.vmware.com/selfservice/microsites/search.do?language=en_US&cmd=displayKC&externalId=2053975](http://kb.vmware.com/selfservice/microsites/search.do?language=en_US&cmd=displayKC&externalId=2053975)。幸运的是，在最新版本的VCM中，我们不需要做这个操作。
 - en: How it works...
+  id: totrans-66
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 它是如何工作的...
 - en: We are performing necessary initial configuration so that VCM can reach the
     Internet and synchronize patch metadata that can be used to check which patches
     are missing and which are not required on the machines in the infrastructure.
+  id: totrans-67
   prefs: []
   type: TYPE_NORMAL
+  zh: 我们正在进行必要的初始配置，以便VCM能够访问互联网，并同步补丁元数据，借此检查基础架构中的机器缺少哪些补丁，哪些补丁不需要。
 - en: The proxy configuration in VCM is for the synchronization and downloading of
     patches once we start deploying them; they are downloaded to the collector server
     from the Internet.
+  id: totrans-68
   prefs: []
   type: TYPE_NORMAL
+  zh: VCM中的代理配置用于补丁的同步和下载，一旦我们开始部署补丁，它们将从互联网下载到Collector服务器。
 - en: The download directory
+  id: totrans-69
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
+  zh: 下载目录
 - en: The default download directory is `X:\Program Files (x86)VMware\VCM\WebConsole\L1033\Files\SUM
     Downloads`.
+  id: totrans-70
   prefs: []
   type: TYPE_NORMAL
+  zh: 默认下载目录是`X:\Program Files (x86)VMware\VCM\WebConsole\L1033\Files\SUM Downloads`。
 - en: This directory is shared as `\\collector_name\cmfiles$\SUM Downloads`.
+  id: totrans-71
   prefs: []
   type: TYPE_NORMAL
+  zh: 该目录共享为`\\collector_name\cmfiles$\SUM Downloads`。
 - en: Note that if no Internet access is available, you must obtain the patches manually
     and store them in `\\collector_name\cmfiles$\SUM Downloads` on the VCM Collector.
+  id: totrans-72
   prefs: []
   type: TYPE_NORMAL
+  zh: 请注意，如果没有互联网连接，你必须手动获取补丁并将其存储在VCM Collector上的`\\collector_name\cmfiles$\SUM Downloads`目录中。
 - en: See also
+  id: totrans-73
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 另见
 - en: More details about the network authority account can be found in the *Adding
     a network authority account to manage machines in multiple domains* recipe from
     [Chapter 2](ch02.html "Chapter 2. Configuring VCM to Manage Your Infrastructure"), *Configuring
     VCM to Manage Your Infrastructure*
+  id: totrans-74
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 更多关于网络权限账户的详细信息可以参考[第2章](ch02.html "第2章 配置VCM以管理基础设施")中的*将网络权限账户添加到多个域中管理机器*一节，*配置VCM以管理基础设施*。
 - en: An introduction to automated patching
+  id: totrans-75
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 自动化补丁简介
 - en: Once we are finished with the preparation, we will have a look at how we can
     use VCM to automatically populate specific machine groups so that they can be
     patched automatically on a schedule. As discussed in the introduction of the chapter,
@@ -364,360 +521,508 @@
     the initial data collection. Based on that registry entry, individual VMs will
     be placed in their respective machine groups, which will be used for automated
     patching.
+  id: totrans-76
   prefs: []
   type: TYPE_NORMAL
+  zh: 完成准备工作后，我们将看看如何利用VCM自动填充特定机器组，以便它们可以按计划自动打补丁。正如本章介绍中所讨论的，如果你使用vRealize Automation和vRealize
+    Orchestrator来部署新的虚拟机，你可以使用它们来创建一个注册表项，该项将在初始数据收集中被VCM捕获。根据该注册表项，单个虚拟机会被分配到相应的机器组，这些机器组将用于自动化补丁。
 - en: If you are not using an automated deploy tool to create registry entries, you
     have to devise a way to manually populate the machine groups every time a new
     machine/server is deployed.
+  id: totrans-77
   prefs: []
   type: TYPE_NORMAL
+  zh: 如果你没有使用自动化部署工具来创建注册表项，则必须每次部署新机器/服务器时，手动填充机器组。
 - en: Getting ready
+  id: totrans-78
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 准备工作
 - en: Get help from a vRA and vRO expert, who will present an option on the portal
     for users when they request a machine; otherwise, create scripts that will add
     required registry entries to the managed machines.
+  id: totrans-79
   prefs: []
   type: TYPE_NORMAL
+  zh: 向vRA和vRO专家寻求帮助，他们将在门户上为用户提供请求机器的选项；否则，创建脚本，向管理机器添加所需的注册表项。
 - en: For this recipe, we will do it manually in order to simulate the process.
+  id: totrans-80
   prefs: []
   type: TYPE_NORMAL
+  zh: 对于这个操作，我们将手动进行，以模拟整个过程。
 - en: How to do it...
+  id: totrans-81
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 如何操作...
 - en: An explanation of utilizing vRA and vRO for automated patching is out of the
     scope of this book; get in touch with your vRA and vRO experts for that.
+  id: totrans-82
   prefs: []
   type: TYPE_NORMAL
+  zh: 使用vRA和vRO进行自动化补丁的说明不在本书的范围之内；有关此方面的内容，请联系你的vRA和vRO专家。
 - en: 'An example script that can be used to add a registry entry is as follows. Each
     line represents a single script and will add required registry entry:'
+  id: totrans-83
   prefs: []
   type: TYPE_NORMAL
+  zh: 以下是可以用来添加注册表项的示例脚本。每行代表一个脚本，并将添加所需的注册表项：
 - en: '[PRE0]'
+  id: totrans-84
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE0]'
 - en: You can use any tool to do this, or run them manually on each machine. We had
     a look at how this can be used to create a machine group in the *Creating machine
     groups* recipe in [Chapter 2](ch02.html "Chapter 2. Configuring VCM to Manage
     Your Infrastructure"), *Configuring VCM to Manage Your Infrastructure*.
+  id: totrans-85
   prefs: []
   type: TYPE_NORMAL
+  zh: 您可以使用任何工具来执行此操作，或手动在每台机器上运行它们。我们已经在[第2章](ch02.html "第2章：配置VCM以管理您的基础设施")中的*创建机器组*食谱里查看了如何使用它来创建机器组，*配置VCM以管理您的基础设施*。
 - en: How it works...
+  id: totrans-86
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 工作原理...
 - en: It gives us a variable that will be used to create filters in machine groups,
     and then, those filters will make sure the machines in the respective machine
     groups can be patched on a schedule. To create a machine group based on this captured
     registry entry, have a look at the *Creating machine groups* recipe in [Chapter
     2](ch02.html "Chapter 2. Configuring VCM to Manage Your Infrastructure"), *Configuring
     VCM to Manage Your Infrastructure*.
+  id: totrans-87
   prefs: []
   type: TYPE_NORMAL
+  zh: 它为我们提供了一个变量，该变量将用于在机器组中创建过滤器，然后，这些过滤器将确保相应机器组中的机器可以按计划进行补丁更新。要根据此捕获的注册表项创建机器组，请查看[第2章](ch02.html
+    "第2章：配置VCM以管理您的基础设施")中的*创建机器组*食谱，*配置VCM以管理您的基础设施*。
 - en: See also
+  id: totrans-88
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 另请参见
 - en: As mentioned in the recipe, have a look at *Creating machine groups* recipe
     in [Chapter 2](ch02.html "Chapter 2. Configuring VCM to Manage Your Infrastructure"), *Configuring
     VCM to Manage Your Infrastructure*
+  id: totrans-89
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 如食谱中所述，请查看[第2章](ch02.html "第2章：配置VCM以管理您的基础设施")中的*创建机器组*食谱，*配置VCM以管理您的基础设施*。
 - en: For setting up scheduled patching, go through the *Windows patching – scheduled*
     recipe later in this chapter
+  id: totrans-90
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 要设置计划的补丁更新，请参考本章后面的*Windows补丁更新-计划*食谱
 - en: Creating a patch assessment template
+  id: totrans-91
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 创建补丁评估模板
 - en: A patch assessment template is basically a list of patches grouped together,
     for example, all patches for Windows Server 2008, all security patches for a specific
     month, or only security updates for all Windows operating systems. We can create
     either a static template or a dynamic template. In a static template, we choose
     patches manually, while in a dynamic template, we define criteria based on the
     patch release date, severity of the patch, product, and so on.
+  id: totrans-92
   prefs: []
   type: TYPE_NORMAL
+  zh: 补丁评估模板基本上是将补丁按组排列的列表，例如，所有Windows Server 2008的补丁、某一特定月份的所有安全补丁，或所有Windows操作系统的安全更新。我们可以创建静态模板或动态模板。在静态模板中，我们手动选择补丁，而在动态模板中，我们根据补丁发布日期、补丁的严重性、产品等定义标准。
 - en: Getting ready
+  id: totrans-93
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 准备工作
 - en: Before starting this recipe, we need a fully functional VCM setup and to follow
     the steps mentioned in *Configuring VCM to use Microsoft updates*.
+  id: totrans-94
   prefs: []
   type: TYPE_NORMAL
+  zh: 在开始此操作之前，我们需要一个完全正常工作的VCM设置，并且按照*配置VCM以使用Microsoft更新*中提到的步骤进行操作。
 - en: How to do it...
+  id: totrans-95
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 如何操作...
 - en: You are tasked with implementing your organization's patch policy for Windows
     servers, and your security team will test and provide you with a list of approved
     patches on a monthly basis. You need to create a patch template and make sure
     all your servers are patched according to approved patches.
+  id: totrans-96
   prefs: []
   type: TYPE_NORMAL
+  zh: 您的任务是为Windows服务器实施组织的补丁策略，并且您的安全团队将每月测试并向您提供批准的补丁列表。您需要创建一个补丁模板，并确保所有服务器根据批准的补丁进行更新。
 - en: To start with, you need to create a patch template and update it on a monthly
     basis. As you will get a list of approved patches, it's better you create a static
     template and keep adding patches every month.
+  id: totrans-97
   prefs: []
   type: TYPE_NORMAL
+  zh: 首先，您需要创建一个补丁模板并每月更新。由于您将获得批准的补丁列表，因此最好创建一个静态模板并每月添加补丁。
 - en: 'To create the patch assessment template, follow this process:'
+  id: totrans-98
   prefs: []
   type: TYPE_NORMAL
+  zh: 要创建补丁评估模板，请遵循以下过程：
 - en: After logging in to VCM, go to **Patching** | **Windows** | **Assessment Template**
     and click on **Add**. This will launch the wizard.
+  id: totrans-99
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 登录VCM后，转到**Patching** | **Windows** | **Assessment Template**，点击**Add**。这将启动向导。
 - en: Give a name, proper description, and, depending on your requirements, select
     **Dynamic Template** or **Static Template**.
+  id: totrans-100
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 给模板命名，提供适当的描述，并根据需求选择**动态模板**或**静态模板**。
 - en: In our case, we need to select **Static Template**.![How to do it...](img/image_04_007.jpg)
+  id: totrans-101
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 在我们的案例中，我们需要选择**静态模板**。![如何操作...](img/image_04_007.jpg)
 - en: For **Static Template**, select the required patches and save the template.
+  id: totrans-102
   prefs:
   - PREF_IND
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 对于**静态模板**，选择所需的补丁并保存模板。
 - en: '![How to do it...](img/image_04_008.jpg)'
+  id: totrans-103
   prefs:
   - PREF_IND
   type: TYPE_IMG
+  zh: '![如何操作...](img/image_04_008.jpg)'
 - en: For **Dynamic Template**, define criteria; VCM will then populate the patches
     on that basis.
+  id: totrans-104
   prefs:
   - PREF_IND
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 对于**动态模板**，定义条件；VCM 将根据这些条件填充补丁。
 - en: '![How to do it...](img/image_04_009.jpg)'
+  id: totrans-105
   prefs:
   - PREF_IND
   type: TYPE_IMG
+  zh: '![如何操作...](img/image_04_009.jpg)'
 - en: Note
+  id: totrans-106
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
+  zh: 注意
 - en: Note that once a template type is selected and saved, it cannot be changed to
     another type.
+  id: totrans-107
   prefs: []
   type: TYPE_NORMAL
+  zh: 请注意，一旦选择并保存了模板类型，就无法更改为另一种类型。
 - en: How it works...
+  id: totrans-108
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 它是如何工作的……
 - en: We cannot deploy patches without creating assessment templates; these will be
     used for assessing the status of the machines, checking missing patches, and then
     deploying them.
+  id: totrans-109
   prefs: []
   type: TYPE_NORMAL
+  zh: 在创建评估模板之前，我们不能部署补丁；这些模板将用于评估机器的状态，检查缺失的补丁，然后再进行部署。
 - en: As explained, you can create a dynamic monthly template to assess and update
     Windows templates in vCenter, as those will be patched monthly and we don't need
     them to be assessed with a big, long assessment template.
+  id: totrans-110
   prefs: []
   type: TYPE_NORMAL
+  zh: 如前所述，您可以创建一个动态的月度模板，用于评估并更新 vCenter 中的 Windows 模板，因为这些模板每月都会进行补丁更新，我们不需要通过一个庞大的长评估模板来评估它们。
 - en: We can create a big assessment template that can be used to scan and check the
     entire infrastructure with live machines and will include only those patches that
     are approved by the company's security team.
+  id: totrans-111
   prefs: []
   type: TYPE_NORMAL
+  zh: 我们可以创建一个大型评估模板，用于扫描和检查整个基础设施中的实时机器，并且只包括公司安全团队批准的补丁。
 - en: You should note that if some users with administrative access uninstall a patch,
     then this big assessment template comes in handy, as it will have the uninstalled
     patch listed, and then VCM will reinstall the patch.
+  id: totrans-112
   prefs: []
   type: TYPE_NORMAL
+  zh: 您需要注意，如果某些具有管理员权限的用户卸载了某个补丁，那么这个大型评估模板将派上用场，因为它会列出被卸载的补丁，然后 VCM 会重新安装该补丁。
 - en: 'Here is a comparison of the template types:'
+  id: totrans-113
   prefs: []
   type: TYPE_NORMAL
+  zh: 这是不同模板类型的对比：
 - en: '**Dynamic template**: This updates the patch list based on the conditions we
     provide while creating it. Refer to the previous screenshot: we have options to
     filter patches based on parameters such as **Bulletin Name** or **Last X Days**,
     so we can have a monthly assessment template ready for the current month; or by
     severity, so we can have security patches only.'
+  id: totrans-114
   prefs: []
   type: TYPE_NORMAL
+  zh: '**动态模板**：此模板会根据我们在创建过程中提供的条件更新补丁列表。请参阅之前的截图：我们有选项根据**公告名称**或**过去 X 天**等参数来筛选补丁，这样我们就可以为当前月份准备一个月度评估模板；或者按严重性筛选，以便只包括安全补丁。'
 - en: '**Static template**: This template does not update itself on its own; the administrator
     needs to log in to VCM to add/remove the patches from the list. If your security
     team releases a list of approved patches every month, you can create a master
     template and keep adding new patches, removing patches that are superseded, and
     keep an updated assessment template ready for deployment.'
+  id: totrans-115
   prefs: []
   type: TYPE_NORMAL
+  zh: '**静态模板**：此模板不会自动更新；管理员需要登录 VCM 来添加/移除列表中的补丁。如果您的安全团队每月发布批准的补丁列表，您可以创建一个主模板，并持续添加新的补丁，移除已被替代的补丁，并保持一个更新的评估模板以供部署使用。'
 - en: Every template has a unique ID associated with it in the VCM database; if we
     create a template, use it in deployment, delete it, and then recreate a template
     with the same name, then this newly created template will be treated as a different
     template by VCM and will not be used automatically in the deployment that had
     been using the old template.
+  id: totrans-116
   prefs: []
   type: TYPE_NORMAL
+  zh: 每个模板在 VCM 数据库中都有一个唯一的 ID；如果我们创建一个模板，使用它进行部署，删除它，然后重新创建一个具有相同名称的模板，那么新创建的模板将被
+    VCM 视为不同的模板，并且不会自动在之前使用旧模板的部署中使用。
 - en: Windows patching – on demand
+  id: totrans-117
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: Windows 补丁 – 按需
 - en: Once the patch assessment template is ready, we need to first assess machines
     for missing patches and then use that to patch them. The assessment will also
     be used to check patch compliance in the form of reports, which we will cover
     at the end of this chapter.
+  id: totrans-118
   prefs: []
   type: TYPE_NORMAL
+  zh: 一旦补丁评估模板准备好，我们需要首先评估机器以查找缺失的补丁，然后使用该评估来为其打补丁。评估还将用于检查补丁合规性，形式为报告，我们将在本章末尾讨论。
 - en: Getting ready
+  id: totrans-119
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 准备就绪
 - en: We will need the VCM server connected to the Internet and configured as in the
     *Configuring VCM to use Microsoft updates* and *Creating a patch assessment template* recipes.
     We can either use the default machine groups created by VCM or create groups as
     necessary; the process was explained in the *Creating machine groups* recipe in
     [Chapter 2](ch02.html "Chapter 2. Configuring VCM to Manage Your Infrastructure"), *Configuring
     VCM to Manage Your Infrastructure*.
+  id: totrans-120
   prefs: []
   type: TYPE_NORMAL
+  zh: 我们需要将 VCM 服务器连接到互联网，并按照*配置 VCM 使用 Microsoft 更新*和*创建补丁评估模板*配方中的步骤进行配置。我们可以使用
+    VCM 创建的默认机器组，或根据需要创建新的机器组；该过程在[第2章](ch02.html "第2章 配置 VCM 管理您的基础设施")的*创建机器组*配方中进行了说明。
 - en: How to do it...
+  id: totrans-121
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 如何操作……
 - en: 'We will use the default machine groups listed in the recipe just mentioned
     and will not create any new ones for now. So, we will start by logging in to VCM
     and following these steps:'
+  id: totrans-122
   prefs: []
   type: TYPE_NORMAL
+  zh: 我们将使用刚才提到的食谱中列出的默认机器组，目前不创建任何新组。因此，我们将首先登录VCM并按照以下步骤操作：
 - en: Go to **Patching **| **Windows **| **Assessment Template**.
+  id: totrans-123
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 转到**补丁**|**Windows**|**评估模板**。
 - en: Select the assessment template, making sure the proper machine group is selected
     at the top (machine groups are used to filter selected machines instead of showing
     all the machines managed by VCM).
+  id: totrans-124
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 选择评估模板，确保在顶部选择了正确的机器组（机器组用于筛选选择的机器，而不是显示VCM管理的所有机器）。
 - en: If you click on the data grid, you will be able to see the status of all the
     machines on which the VCM agent is installed and which are a part of the selected
     machine group. If **Data Age** is **N/A**, then we need to perform a data collection
     for those machines. The following screenshot shows the **Suggested Patch** value
     as **Must reassess - Machine Added After Assessment run** for the `dc01` machine:![How
     to do it...](img/image_04_010.jpg)
+  id: totrans-125
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 如果你点击数据网格，你将能够查看所有已安装VCM代理并且属于选定机器组的机器的状态。如果**数据年龄**为**N/A**，那么我们需要对这些机器执行数据收集。以下截图显示了`dc01`机器的**建议补丁**值为**必须重新评估
+    - 评估运行后添加的机器**：![如何操作...](img/image_04_010.jpg)
 - en: Simply select the machine(s) and click on **Collect** in the top-left corner.
     This will launch a wizard; make sure all the required machine(s) are part of the
     **Selected** box on the right-hand side.
+  id: totrans-126
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 只需选择机器并点击左上角的**收集**。这将启动一个向导；确保所有必需的机器都位于右侧的**已选择**框中。
 - en: Select **Select a collection Filter set to apply to those machines** and **do
     not Limit collection to Deltas**; any priority is fine, so go with the default.
+  id: totrans-127
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 选择**选择一个要应用于这些机器的收集过滤器集**，并**不限制收集仅为增量**；任何优先级都可以，选择默认即可。
 - en: Under **Filter Sets**, select **Patching - Windows Security Bulletins**.![How
     to do it...](img/image_04_011.jpg)
+  id: totrans-128
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 在**过滤器集**下，选择**补丁 - Windows安全公告**。![如何操作...](img/image_04_011.jpg)
 - en: Make sure the job is completed successfully; it will take 10 minutes to add
     the details to the VCM database.
+  id: totrans-129
   prefs:
   - PREF_IND
   type: TYPE_NORMAL
+  zh: 确保任务成功完成；添加详细信息到VCM数据库将需要10分钟时间。
 - en: Once the collection is complete, click on **Assess**. This will check the patch
     status of each machine. The content of the assessment template will be checked
     against the managed machine's patch status. The results will then be presented
     with details of missing or installed patches.![How to do it...](img/image_04_012.jpg)
+  id: totrans-130
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 收集完成后，点击**评估**。这将检查每台机器的补丁状态。评估模板的内容将与管理的机器的补丁状态进行对比。然后，将展示缺失或已安装补丁的详细结果。![如何操作...](img/image_04_012.jpg)
 - en: After the assessment, you will be given options such as **I****nstalling the
     missing patches** or **No Affected Product Installed**. To install missing patches,
     select them and click on **Deploy**. This will again launch a wizard.
+  id: totrans-131
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 评估完成后，你将看到如**安装缺失的补丁**或**未安装受影响的产品**等选项。要安装缺失的补丁，请选择它们并点击**部署**。这将再次启动一个向导。
 - en: On the first page, select the patches you want to deploy.
+  id: totrans-132
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 在第一页，选择你要部署的补丁。
 - en: 'In the next step, it will try to find the location of the patches. It will
     report whether the patch was found and include the bulletin number:'
+  id: totrans-133
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 在下一步中，它将尝试查找补丁的位置。它会报告补丁是否找到，并包括公告编号：
 - en: '***Found on Collector*** : The Windows patch file was found in the download
     directory.'
+  id: totrans-134
   prefs:
   - PREF_IND
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '***在收集器上找到***：Windows补丁文件已在下载目录中找到。'
 - en: '**Found on the Internet**: The Windows patch file was found on the download
     site and must be downloaded.'
+  id: totrans-135
   prefs:
   - PREF_IND
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '**在互联网上找到**：Windows补丁文件已在下载站点找到并且必须下载。'
 - en: '**Not Found**: The Windows patch file was not found on the Collector or the
     Internet.'
+  id: totrans-136
   prefs:
   - PREF_IND
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '**未找到**：在收集器或互联网中未找到Windows补丁文件。'
 - en: 'We need to download a patch before installing, so select **Download Now**:'
+  id: totrans-137
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 在安装之前，我们需要先下载补丁，因此请选择**立即下载**：
 - en: '***Download at run time*** : This pulls the patch down to the default download
     directory or the alternate local patch path when the patch is deployed. Because
     the deployment can be scheduled, you can run the deployment and download the files
     when heavy loads do not occur on your network.'
+  id: totrans-138
   prefs:
   - PREF_IND
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '***运行时下载***：这将在部署补丁时，将补丁下载到默认的下载目录或备用的本地补丁路径。由于部署可以安排定时执行，因此你可以在网络负载较轻时运行部署并下载文件。'
 - en: '***Download now*** : This pulls the patch files down to the default download
     directory or the alternate local patch path immediately. Depending on your network
     load and the number of files to download, you can download the patch files immediately.'
+  id: totrans-139
   prefs:
   - PREF_IND
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '***立即下载***：这会将补丁文件立即拉取到默认下载目录或备用的本地补丁路径中。根据网络负载和要下载的文件数量，你可以立即下载补丁文件。'
 - en: As this is on-demand patching, select **Copy patches to target machines during
     deployment** and **Run Action now**.![How to do it...](img/image_04_013.jpg)
+  id: totrans-140
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 由于这是按需补丁，选择 **在部署期间将补丁复制到目标机器** 和 **立即运行操作**。 ![如何操作...](img/image_04_013.jpg)
 - en: Select **Reboot Options** as required.![How to do it...](img/image_04_014.jpg)
+  id: totrans-141
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 根据需要选择 **重启选项**。 ![如何操作...](img/image_04_014.jpg)
 - en: Download the patches, and the deployment will start.
+  id: totrans-142
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 下载补丁后，部署将开始。
 - en: The deployment can be monitored at **Patching** | **Job Management** | **Windows**
     | **Job Manager** | **Running**.
+  id: totrans-143
   prefs:
   - PREF_IND
   type: TYPE_NORMAL
+  zh: 部署过程可以在 **Patching** | **Job Management** | **Windows** | **Job Manager** |
+    **Running** 中监控。
 - en: '![How to do it...](img/image_04_015.jpg)'
+  id: totrans-144
   prefs:
   - PREF_IND
   type: TYPE_IMG
+  zh: '![如何操作...](img/image_04_015.jpg)'
 - en: 'Once the patches are deployed on the target machine, it will display a message
     like this:'
+  id: totrans-145
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 一旦补丁部署到目标机器上，它将显示如下消息：
 - en: '![How to do it...](img/image_04_016.jpg)'
+  id: totrans-146
   prefs: []
   type: TYPE_IMG
+  zh: '![如何操作...](img/image_04_016.jpg)'
 - en: After we have started the deployment, we probably want to monitor how it's going.
     To do so, click on **Jobs** on the VCM console and follow the **Patching** job.
     Once the patch has been deployed, we need to check the status being updated in
@@ -729,29 +1034,45 @@
     give you the desired result, that is, the status of the managed machines–whether
     the patch was deployed or the machine failed or is still waiting for a reboot
     (if not, set to reboot when deploying patches).
+  id: totrans-147
   prefs: []
   type: TYPE_NORMAL
+  zh: 在我们启动部署后，可能需要监控其进展。为此，请点击 VCM 控制台中的 **Jobs**，然后跟踪 **Patching** 任务。一旦补丁部署完成，我们需要检查
+    VCM 控制台中的状态更新，也就是说，在 **Suggested Patch** 下，它之前显示了 **Install the Patch**，现在应该显示
+    **None (Patch Already Applied)**。为此，返回 **Patching** | **Windows** | **Assessment
+    Template** | <你在开始时使用的补丁模板> 并开始收集。一旦收集完成，执行评估（点击顶部菜单中的 **Assess**），刷新后将显示你想要的结果，即受管机器的状态——无论补丁是否已部署，机器是否失败，或仍在等待重启（如果没有，请在部署补丁时设置重启）。
 - en: 'The following screenshot shows the status after running the assessment on a
     managed machine after patch deployment, reboot, and data collection:'
+  id: totrans-148
   prefs: []
   type: TYPE_NORMAL
+  zh: 以下截图展示了在补丁部署、重启和数据收集后的受管机器上运行评估的状态：
 - en: '![How to do it...](img/image_04_017.jpg)'
+  id: totrans-149
   prefs: []
   type: TYPE_IMG
+  zh: '![如何操作...](img/image_04_017.jpg)'
 - en: Note
+  id: totrans-150
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
+  zh: 注意
 - en: 'Note that VCM runs **Job Summary: Patching Automated Collection - Patching
     - Windows Security Bulletins** to run a collection after patching, but it sometimes
     takes a while to run this collection. We can run the collection the same way we
     did at the start of the recipe and perform an assessment.'
+  id: totrans-151
   prefs: []
   type: TYPE_NORMAL
+  zh: '请注意，VCM 会运行 **Job Summary: Patching Automated Collection - Patching - Windows
+    Security Bulletins** 在补丁部署后进行收集，但有时运行该收集会花费一些时间。我们可以像开始时一样运行收集，并进行评估。'
 - en: How it works...
+  id: totrans-152
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 工作原理...
 - en: After the initial assessment, VCM identifies which patches are missing on the
     server, based on which it gives you the Suggested Patch advice, such as installing
     missing patches. You can choose to install missing patches. Now, VCM tries to
@@ -759,8 +1080,11 @@
     installation on another server–or is available on Internet; this is where proxy
     configuration comes in handy. If the patch is not available on the Collector server,
     it offers to download the patch.
+  id: totrans-153
   prefs: []
   type: TYPE_NORMAL
+  zh: 在初步评估后，VCM 根据服务器上缺少的补丁，给出建议的补丁安装建议，例如安装缺失的补丁。你可以选择安装这些缺失的补丁。现在，VCM 会尝试查找补丁是否可以在
+    Collector 服务器上获取——已下载用于在其他服务器上安装——或者是否可以从互联网获取；这时代理配置就显得特别有用。如果 Collector 服务器上没有这个补丁，它会提供下载补丁的选项。
 - en: 'Once the patch download is complete, it stages the patch on the managed machine
     and starts installing it. Once the patch installation is over and if the patch
     requires a reboot, depending upon the options we have selected, it will reboot
@@ -768,205 +1092,295 @@
     and then updates the status to VCM regarding the patch we installed. If we perform
     another assessment after the patching and data collection, we can check the current
     status of the patch: it must be installed.'
+  id: totrans-154
   prefs: []
   type: TYPE_NORMAL
+  zh: 一旦修补程序下载完成，它会在管理机器上进行修补准备并开始安装。安装完毕后，如果修补程序需要重启，根据我们选择的选项，服务器将会重启。重启完成后，系统会执行修补后的数据收集，并将安装状态更新到VCM。如果我们在修补和数据收集后进行另一次评估，我们可以检查修补程序的当前状态：它必须已经安装。
 - en: Windows patching – scheduled
+  id: totrans-155
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: Windows修补 - 已安排
 - en: In the previous recipe, we deployed a patch on demand and found we need to run
     a few tasks to finish the job. We cannot afford to wait in front of the server
     every time to perform an on-demand patching; hence, what we can do is schedule
     patch deployment. Because the assessment is run only against data in the VCM database,
     we must collect patching data from managed machines before and after we run an
     assessment.
+  id: totrans-156
   prefs: []
   type: TYPE_NORMAL
+  zh: 在之前的操作中，我们按需部署了修补程序，并发现我们需要执行一些任务才能完成工作。我们无法每次都站在服务器前执行按需修补程序，因此，我们可以做的是安排修补程序的部署。因为评估仅针对VCM数据库中的数据运行，我们必须在进行评估之前和之后收集管理机器的修补数据。
 - en: Getting ready
+  id: totrans-157
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 准备中
 - en: We will need a VCM server that has an Internet connection and has been through
     the earlier recipes, such as *Prepare VCM for Windows patching* and *Creating
     a patch assessment template*. For scheduled patches, it is recommended to have
     machine groups created before we start the process.
+  id: totrans-158
   prefs: []
   type: TYPE_NORMAL
+  zh: 我们需要一台具备Internet连接的VCM服务器，并且已经完成了早期的配置，如*为Windows修补配置VCM*和*创建修补评估模板*。对于定时修补，建议在开始之前先创建机器组。
 - en: How to do it...
+  id: totrans-159
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 如何操作...
 - en: As seen in the previous recipe, we need to follow four steps to completely perform
     the patching job; hence, we will schedule four tasks for completing one single
     patch maintenance window.
+  id: totrans-160
   prefs: []
   type: TYPE_NORMAL
+  zh: 正如在之前的操作中看到的，我们需要遵循四个步骤才能完全执行修补任务；因此，我们将为一个修补维护窗口安排四个任务。
 - en: 'The tasks will be as follows:'
+  id: totrans-161
   prefs: []
   type: TYPE_NORMAL
+  zh: 任务安排如下：
 - en: '**Initial collection**: Collecting patch status data from machines before patching'
+  id: totrans-162
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '**初始收集**：在修补程序之前从机器收集修补状态数据'
 - en: '**Initial assessment**: Comparing collected data against the assessment template
     before patching'
+  id: totrans-163
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '**初步评估**：在修补程序之前，将收集到的数据与评估模板进行比较'
 - en: '**Deploying patches**: Installing patches according to schedule'
+  id: totrans-164
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '**部署修补程序**：根据计划安装修补程序'
 - en: '**Final assessment**: Comparing collected data against the assessment template
     after patching'
+  id: totrans-165
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '**最终评估**：在修补程序之后，将收集到的数据与评估模板进行比较'
 - en: 'This is a planned schedule that will look like this:'
+  id: totrans-166
   prefs: []
   type: TYPE_NORMAL
+  zh: 这是一个计划的时间表，具体如下：
 - en: '| **Sr. no.** | **Name** | **Schedule** | **Reason** |'
+  id: totrans-167
   prefs: []
   type: TYPE_TB
+  zh: '| **序号** | **名称** | **时间安排** | **原因** |'
 - en: '| **1** | Initial collection  | First Sunday at 08:00 am | 12 hours before
     the actual patch |'
+  id: totrans-168
   prefs: []
   type: TYPE_TB
+  zh: '| **1** | 初始收集 | 每月第一个星期天早上08:00 | 实际修补程序前12小时 |'
 - en: '| **2** | Initial assessment  | First Sunday at 02:00 pm | 6 hours before the
     actual patch |'
+  id: totrans-169
   prefs: []
   type: TYPE_TB
+  zh: '| **2** | 初步评估 | 每月第一个星期天下午02:00 | 实际修补程序前6小时 |'
 - en: '| **3** | Deploy patch | First Sunday at 08:00 pm | Scheduled patch maintenance
     window |'
+  id: totrans-170
   prefs: []
   type: TYPE_TB
+  zh: '| **3** | 部署修补程序 | 每月第一个星期天晚上08:00 | 定时修补维护窗口 |'
 - en: '| **4** | Final assessment | First Sunday at 11:00 pm | 3 hours after patching
     to give time for automated collection (happens after 30 minutes of patching and
     reboot) |'
+  id: totrans-171
   prefs: []
   type: TYPE_TB
+  zh: '| **4** | 最终评估 | 每月第一个星期天晚上11:00 | 修补后3小时，以便进行自动化收集（发生在修补和重启后30分钟） |'
 - en: Initial collection
+  id: totrans-172
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
+  zh: 初始收集
 - en: We can't install a patch unless VCM knows whether it is required; in the initial
     collection, we will update the VCM database with this information. VCM creates
     a filter set called **Patching - Windows Security Bulletins** and updates it after
     each new patch released by Microsoft.
+  id: totrans-173
   prefs: []
   type: TYPE_NORMAL
+  zh: 我们无法安装修补程序，除非VCM知道是否需要它；在初始收集中，我们将使用这些信息更新VCM数据库。VCM创建一个名为**修补 - Windows安全公告**的过滤器集，并在每次Microsoft发布新修补程序后更新该过滤器。
 - en: In this example, we will use a machine group called `VCM-CookBook-MW01`, which
     we have created for this demonstration.
+  id: totrans-174
   prefs: []
   type: TYPE_NORMAL
+  zh: 在这个示例中，我们将使用一个名为`VCM-CookBook-MW01`的机器组，这是我们为本演示创建的。
 - en: 'Follow these steps to start automatic Windows patch deployment configuration:'
+  id: totrans-175
   prefs: []
   type: TYPE_NORMAL
+  zh: 按照以下步骤开始自动化Windows修补部署配置：
 - en: To perform initial collection, we need to log in to VCM with admin privileges
     and go to **Administration** | **Job Manager** | **Scheduled**, click on **Add**,
     and select **Collection***.*
+  id: totrans-176
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 要执行初始收集，我们需要以管理员权限登录到VCM，进入**管理** | **任务管理器** | **已安排**，点击**添加**，然后选择**收集**。
 - en: Provide a proper name and add description.
+  id: totrans-177
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 提供合适的名称并添加描述。
 - en: Make sure you select **Patching - Windows Security Bulletins** as the **Filter
     Set**.
+  id: totrans-178
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 确保选择**补丁管理 - Windows 安全公告**作为**筛选集**。
 - en: Select the correct machine group for this scheduled maintenance window.
+  id: totrans-179
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 选择正确的机器组以便进行此计划的维护窗口。
 - en: Provide a proper schedule, as described in the table at the start of this recipe.
+  id: totrans-180
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 提供与本配方开始时表格中描述的相符的时间表。
 - en: Once the initial collection against the required filter set has been scheduled,
     we can move to the next step, initial assessment*.*
+  id: totrans-181
   prefs: []
   type: TYPE_NORMAL
+  zh: 一旦按照要求的筛选集安排了初始数据收集，我们可以进入下一个步骤，初始评估。
 - en: Initial assessment
+  id: totrans-182
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
+  zh: 初始评估
 - en: 'The initial assessment involves checking the status of patches against the
     machines whose data has been collected in the previous step. We are giving 6 hours
     to VCM to properly collect the data from all the machines; hence, this job can
     be scheduled after 6 hours of initial data collection and 6 hours before actual
     patch time. Follow these steps:'
+  id: totrans-183
   prefs: []
   type: TYPE_NORMAL
+  zh: 初始评估涉及检查前一步收集的数据中，机器上补丁的状态。我们给VCM六个小时的时间来从所有机器上正确收集数据，因此，此任务可以在初始数据收集后的六小时内，和实际补丁时间前的六小时内安排。请按照以下步骤进行：
 - en: Navigate to **Patching** | **Job Management** | **Windows** | **Scheduled** | **Assessment**
     and click on **Add**.
+  id: totrans-184
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 导航到**补丁管理** | **任务管理** | **Windows** | **已安排** | **评估**，然后点击**添加**。
 - en: Provide a proper job name related to the maintenance window and a proper description.
+  id: totrans-185
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 提供与维护窗口相关的合适任务名称和描述。
 - en: Select the correct template.![Initial assessment](img/image_04_018.jpg)
+  id: totrans-186
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 选择正确的模板。![初始评估](img/image_04_018.jpg)
 - en: Select an associated machine group.
+  id: totrans-187
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 选择相关的机器组。
 - en: Select an appropriate schedule, as discussed at the start of this recipe.
+  id: totrans-188
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 选择合适的时间表，如本配方开始时所讨论的。
 - en: Deploying patches
+  id: totrans-189
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
+  zh: 部署补丁
 - en: 'At this moment, the VCM server has information about which patches are missing
     on the machines that are a part of the machine group, and now, we can schedule
     the actual patch deployment task by following these steps:'
+  id: totrans-190
   prefs: []
   type: TYPE_NORMAL
+  zh: 此时，VCM 服务器已经知道哪些补丁在属于该机器组的机器上缺失，现在我们可以通过以下步骤安排实际的补丁部署任务：
 - en: Navigate to **Patching** | **Windows** | **Automatic Deployment**. Click on
     **Add**.
+  id: totrans-191
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 导航到**补丁管理** | **Windows** | **自动部署**。点击**添加**。
 - en: Select the correct machine group responding to the maintenance window.
+  id: totrans-192
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 选择与维护窗口相应的正确机器组。
 - en: Select the required assessment template.
+  id: totrans-193
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 选择所需的评估模板。
 - en: On this page, select **Scheduled Automatic Deployment**** Run** and, if your
     company policy approves, select **Reboot immediately after deployment**.
+  id: totrans-194
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 在此页面上，选择**计划的自动部署** **运行**，如果公司的政策允许，选择**部署后立即重启**。
 - en: For **Threshold Data Age**, we can go ahead with the default of `2`, as we have
     already scheduled jobs to collect data and perform the assessment 12 hours before
     the actual patch time.![Deploying patches](img/image_04_019.jpg)
+  id: totrans-195
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 对于**阈值数据年龄**，我们可以使用默认值`2`，因为我们已经安排了任务来收集数据并在实际补丁时间前12小时进行评估。![部署补丁](img/image_04_019.jpg)
 - en: Finally, select the schedule we decided on at the start of the recipe and click
     on **Next**.
+  id: totrans-196
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 最后，选择我们在本配方开始时决定的时间表，并点击**下一步**。
 - en: We will be done with the third step once we click on **OK**.
+  id: totrans-197
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 第三步完成后，我们点击**确定**。
 - en: Final assessment
+  id: totrans-198
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
+  zh: 最终评估
 - en: 'So far, we have scheduled data collection and assessment and then done the
     actual patching. Now, we will schedule a task that will update the VCM database
     with these updates. In the previous recipe, we learned that after performing a
@@ -977,474 +1391,682 @@
     and it is scheduled some time after the patch installation (3 hours, as decided
     at the start) to give some time to the VCM server to finish the job. Follow these
     steps:'
+  id: totrans-199
   prefs: []
   type: TYPE_NORMAL
+  zh: 到目前为止，我们已经计划了数据收集和评估，并完成了实际的补丁安装。现在，我们将安排一个任务，使用这些更新来更新VCM数据库。在前面的步骤中，我们了解到，在执行补丁部署后，当机器重启时，VCM会启动数据收集任务，收集补丁安装后的机器详细信息。因此，我们只需要按照最初评估步骤中所做的方式安排评估任务；只需确保名称和描述表明这是最终评估，并且它被安排在补丁安装后的某个时间（如开始时决定的3小时后），以便给VCM服务器一些时间完成任务。按照以下步骤操作：
 - en: Navigate to **Patching** | **Job Management** | **Windows** | **Scheduled** | **Assessment**
     and click on **Add**.
+  id: totrans-200
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 导航到**补丁管理** | **作业管理** | **Windows** | **已计划** | **评估**，然后点击**添加**。
 - en: Provide a proper job name related to the maintenance window and a proper description.
+  id: totrans-201
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 提供一个与维护窗口相关的适当作业名称以及合适的描述。
 - en: Select the correct template.
+  id: totrans-202
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 选择正确的模板。
 - en: Select the associated machine group.
+  id: totrans-203
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 选择关联的机器组。
 - en: Select the appropriate schedule, as discussed at the start.
+  id: totrans-204
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 选择合适的计划，正如开始时所讨论的那样。
 - en: Once we are done with the final assessment, VCM will update the current details
     on the user interface and in the reports.
+  id: totrans-205
   prefs: []
   type: TYPE_NORMAL
+  zh: 完成最终评估后，VCM将更新用户界面上的当前详细信息并生成报告。
 - en: How it works...
+  id: totrans-206
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 它是如何工作的……
 - en: This makes life much easier for the admins, who are responsible for patching.
     All the activities required for patching can be and are scheduled so that admins
     don't need to sit in front of the VCM console and push patches.
+  id: totrans-207
   prefs: []
   type: TYPE_NORMAL
+  zh: 这让负责补丁管理的管理员的工作变得轻松许多。所有补丁管理所需的活动都可以被计划，这样管理员就不需要一直坐在VCM控制台前手动推送补丁。
 - en: We scheduled an initial collection, which used the **Patching - Windows Security
     Bulletins** filter set, which made sure we have the latest details of the managed
     servers in the VCM database. Based on the data collected, we performed an initial
     assessment. This performed a check against the patching template and provided
     us with information about the patch requirements.
+  id: totrans-208
   prefs: []
   type: TYPE_NORMAL
+  zh: 我们计划了初始数据收集，使用了**补丁管理 - Windows 安全公告**筛选集，确保我们在VCM数据库中拥有托管服务器的最新详细信息。根据收集的数据，我们进行了初步评估。此评估会检查补丁模板并为我们提供补丁需求信息。
 - en: This is followed by actual patches being downloaded from the Internet if missing
     on the collector server and then being staged on the managed machine. Once the
     time is right, the VCM agent installs the patches and performs a reboot as configured.
     After the patches are installed, VCM initiates the data collection again using
     the same filter set, **Patching - Windows Security Bulletins**, but this time,
     we have updated details as the patches have been installed now.
+  id: totrans-209
   prefs: []
   type: TYPE_NORMAL
+  zh: 接下来，如果收集服务器缺少补丁，它会从互联网下载实际的补丁，并将其阶段性地安装到托管的机器上。一旦时间合适，VCM代理就会安装补丁，并根据配置执行重启操作。补丁安装完成后，VCM会使用相同的筛选集重新启动数据收集，筛选集为**补丁管理
+    - Windows 安全公告**，但这一次，我们会得到更新后的详细信息，因为补丁已安装。
 - en: This updated information is added to the VCM database and used in the final
     assessment to obtain the status of the current patch.
+  id: totrans-210
   prefs: []
   type: TYPE_NORMAL
+  zh: 这些更新的信息会添加到VCM数据库中，并在最终评估中使用，以获取当前补丁的状态。
 - en: There's more...
+  id: totrans-211
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 还有更多……
 - en: Apart from the regular options, there are some additional settings that you
     should pay attention to if you plan to manage a medium-to-large infrastructure.
+  id: totrans-212
   prefs: []
   type: TYPE_NORMAL
+  zh: 除了常规选项外，如果您计划管理中到大型基础设施，还应该注意一些附加设置。
 - en: Here are the details you need to configure your infrastructure. You need to
     log in with VCM admin privilege and go to **Administration** | **General Settings** | **Patching**
     | **Windows** | **Additional Settings**.
+  id: totrans-213
   prefs: []
   type: TYPE_NORMAL
+  zh: 以下是配置基础设施所需的详细信息。您需要以VCM管理员权限登录，并进入**管理** | **常规设置** | **补丁管理** | **Windows**
+    | **附加设置**。
 - en: '| **Sr. no.** | **Setting** | **Explanation** |'
+  id: totrans-214
   prefs: []
   type: TYPE_TB
+  zh: '| **序号** | **设置** | **说明** |'
 - en: '| **1** | Automatic patch deployment - the threshold data age (days) | This
     sets the automatic patch deployment to trigger based on the threshold data age.
     When the data age of the patch bulletin is greater than the threshold data age,
     VCM does not deploy the patches. To update the data age for the patch bulletin,
     you must run a new collection and assessment.The default is `2` days, which you
     can modify if required. |'
+  id: totrans-215
   prefs: []
   type: TYPE_TB
+  zh: '| **1** | 自动补丁部署 - 阈值数据年龄（天） | 此项设置自动补丁部署的触发条件，基于阈值数据年龄。当补丁公告的数据年龄大于阈值时，VCM不会部署补丁。要更新补丁公告的数据年龄，必须运行新的收集和评估。默认值为`2`天，必要时可以修改。
+    |'
 - en: '| **2** | The timeout in minutes for the entire patch deployment job | The
     time for which to run the patch deployment job before the process times out.The
     default is `60`; if you have large number of machines getting patched in one go,
     then this needs to be changed to a higher value, such as `120` or `180`, depending
     upon how many machines you have and the approved maintenance window. |'
+  id: totrans-216
   prefs: []
   type: TYPE_TB
+  zh: '| **2** | 整个补丁部署作业的超时时间（分钟） | 运行补丁部署作业的时间，直到进程超时。默认值为`60`；如果你一次性修补大量机器，则需要将此值更改为更高的值，例如`120`或`180`，具体取决于机器数量和批准的维护窗口。
+    |'
 - en: '| **3** | The wait time (in minutes) before performing the post collection,
     for patches that require a reboot | This determines how long VCM will wait before
     collecting patch status data from rebooted managed machines after the patch deployment
     is finished.The default is `30` minutes; if you think this is too much or too
     little, you can change it. |'
+  id: totrans-217
   prefs: []
   type: TYPE_TB
+  zh: '| **3** | 执行补丁后收集前的等待时间（分钟） | 这决定了补丁部署完成后，VCM在从重启的托管机器收集补丁状态数据之前等待的时间。默认值为`30`分钟；如果你觉得这个时间太长或太短，可以进行更改。
+    |'
 - en: '![There''s more...](img/image_04_020.jpg)'
+  id: totrans-218
   prefs: []
   type: TYPE_IMG
+  zh: '![还有更多...](img/image_04_020.jpg)'
 - en: You need to log in with VCM admin privileges and go to **Administration** | **General
     Settings** | **Patching** | **Windows** | **Deployments**.
+  id: totrans-219
   prefs: []
   type: TYPE_NORMAL
+  zh: 你需要以VCM管理员权限登录，并进入**管理** | **常规设置** | **补丁** | **Windows** | **部署**。
 - en: Change the value of the maximum concurrent agent installs from `21` to a higher
     value.
+  id: totrans-220
   prefs: []
   type: TYPE_NORMAL
+  zh: 将最大并发代理安装的值从`21`更改为更高的值。
 - en: If in the additional settings you have selected `60` minutes as the timeout
     in minutes for the entire patch deployment job and you have this maximum concurrent
     set to the default `21`, then there are chances that some machines might get a
     timeout and not get the patches deployed if you have a very large assessment template.
     This can create some issues, as we might have some machines without patches in
     a month.
+  id: totrans-221
   prefs: []
   type: TYPE_NORMAL
+  zh: 如果在附加设置中你选择了`60`分钟作为整个补丁部署作业的超时时间，并且将最大并发设置为默认的`21`，那么如果你有一个非常大的评估模板，一些机器可能会超时而未部署补丁。这可能会造成问题，因为一个月后可能会有一些机器没有补丁。
 - en: '![There''s more...](img/image_04_021.jpg)'
+  id: totrans-222
   prefs: []
   type: TYPE_IMG
+  zh: '![还有更多...](img/image_04_021.jpg)'
 - en: Patching machines in multi-domain environments and workgroups
+  id: totrans-223
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 在多域环境和工作组中修补机器
 - en: Typically, in medium-to-large organizations, more than one Active Directory
     domain exists. We can use VCM to patch servers in multiple domains. Here is what
     you need to do that.
+  id: totrans-224
   prefs: []
   type: TYPE_NORMAL
+  zh: 通常，在中型到大型的组织中，会存在多个Active Directory域。我们可以使用VCM修补多个域中的服务器。以下是你需要做的步骤。
 - en: Apart from multiple domains, there are machines that are part of none, or they
     are in a workgroup. To manage and patch the machines in a workgroup, you need
     a network authority account assigned to a machine group populated with machines
     in a workgroup.
+  id: totrans-225
   prefs: []
   type: TYPE_NORMAL
+  zh: 除了多个域外，还有一些机器不属于任何域，或者它们在工作组中。要管理和修补工作组中的机器，你需要为机器组分配一个网络权限帐户，该机器组中包含位于工作组中的机器。
 - en: Getting ready
+  id: totrans-226
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 准备工作
 - en: We need to follow the *Adding a network authority account to manage machines
     in multiple domains* recipe in [Chapter 2](ch02.html "Chapter 2. Configuring VCM
     to Manage Your Infrastructure"), *Configuring VCM to Manage Your Infrastructure*,
     with correct domains and their respective NAA accounts for patching multi-domain
     servers.
+  id: totrans-227
   prefs: []
   type: TYPE_NORMAL
+  zh: 我们需要遵循[第2章](ch02.html "第2章 配置VCM以管理你的基础设施")中*将网络权限帐户添加到管理多个域中的机器*的流程，*配置VCM以管理你的基础设施*，并为修补多域服务器提供正确的域及其相应的NAA帐户。
 - en: For patching machines in a workgroup, we need to create a machine group with
     static memberships and add all machines that are not in the domain.
+  id: totrans-228
   prefs: []
   type: TYPE_NORMAL
+  zh: 为了修补工作组中的机器，我们需要创建一个具有静态成员资格的机器组，并将所有不在域中的机器添加到该组。
 - en: Open the necessary ports between the VCM server and the managed servers either
     in a workgroup or in another domain.
+  id: totrans-229
   prefs: []
   type: TYPE_NORMAL
+  zh: 在VCM服务器和托管服务器之间打开必要的端口，无论是在工作组中还是在其他域中。
 - en: How to do it...
+  id: totrans-230
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 如何操作...
 - en: 'We will approach this recipe in two ways:'
+  id: totrans-231
   prefs: []
   type: TYPE_NORMAL
+  zh: 我们将以两种方式接近此方法：
 - en: First, we will discuss multiple domains.
+  id: totrans-232
   prefs: []
   type: TYPE_NORMAL
+  zh: 首先，我们将讨论多个域。
 - en: The first thing we need to do is configure all the required **Network Access
     Account** (**NAA**) accounts as per the *Adding a network authority account to
     manage machines in multiple domains* recipe from [Chapter 2](ch02.html "Chapter 2. Configuring
     VCM to Manage Your Infrastructure"), *Configuring VCM to Manage Your Infrastructure*.
+  id: totrans-233
   prefs: []
   type: TYPE_NORMAL
+  zh: 我们需要做的第一件事是根据[第2章](ch02.html "第2章。配置VCM管理您的基础设施")的*将网络权限帐户添加到多个域中管理机器* 配方配置所有所需的**网络访问帐户**（**NAA**）帐户，*配置VCM管理您的基础设施*。
 - en: Then, you can follow the *Windows patching – on demand* recipe from this chapter
     for on-demand patching or the *Windows patching – scheduled* recipe for scheduled
     patching.
+  id: totrans-234
   prefs: []
   type: TYPE_NORMAL
+  zh: 然后，您可以按需从本章的*Windows补丁-按需* 配方进行补丁，或者按计划进行的*Windows补丁-定期* 配方进行补丁。
 - en: The second way is for workgroup servers.
+  id: totrans-235
   prefs: []
   type: TYPE_NORMAL
+  zh: 第二种方法适用于工作组服务器。
 - en: 'We need to add an available account with a `.` (dot) domain and a username
     and password common to the workgroup machines. Follow these steps:'
+  id: totrans-236
   prefs: []
   type: TYPE_NORMAL
+  zh: 我们需要添加一个带有`.`（点）域和用户名及密码通用于工作组机器的可用帐户。按照以下步骤进行：
 - en: Go to **Administration** | **Settings** | **Network Authority**, under **Available
     Accounts** and click on **Add**.![How to do it...](img/image_04_022.jpg)
+  id: totrans-237
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 转到**管理** | **设置** | **网络权限**，在**可用帐户**下点击**添加**。![如何操作...](img/image_04_022.jpg)
 - en: Once the accounts have been added, we need to associate them with the machine
     group created for workgroup machines.
+  id: totrans-238
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 添加帐户后，我们需要将其与为工作组机器创建的机器组关联。
 - en: If there are no common accounts available, then we can add one account per server
     in following format. Here, **Domain** is the name of the machine:![How to do it...](img/image_04_023.jpg)
+  id: totrans-239
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 如果没有通用帐户可用，则可以按以下格式为每台服务器添加一个帐户。在这里，**域**是机器的名称：![如何操作...](img/image_04_023.jpg)
 - en: So now, go to **Assigned Accounts** by **Machine Group**, select a machine group
     for the workgroup machines, and assign the accounts added earlier.![How to do
     it...](img/image_04_024.jpg)
+  id: totrans-240
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 现在，转到**按机器组分配的帐户**，为工作组机器选择一个机器组，并分配先前添加的帐户。![如何操作...](img/image_04_024.jpg)
 - en: As explained in the previous recipe, VCM tries all the accounts until it finds
     a working account; there is no problem in assigning all the accounts to the machine
     group.
+  id: totrans-241
   prefs: []
   type: TYPE_NORMAL
+  zh: 如前面的配方所述，VCM尝试所有帐户，直到找到一个有效帐户；将所有帐户分配给机器组没有问题。
 - en: Note
+  id: totrans-242
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
+  zh: 注意
 - en: Note that we cannot have multiple accounts with the same account name and domain,
     so for the `.` (dot) domain, we can't have more than one administrator as a user
     registered in the available accounts.
+  id: totrans-243
   prefs: []
   type: TYPE_NORMAL
+  zh: 请注意，我们不能有多个具有相同帐户名和域的帐户，因此对于`.`（点）域，我们不能在可用帐户中注册超过一个管理员作为用户。
 - en: 'There is another alternative: if, for some reason, you do not wish to assign
     all the accounts to the machine group, you can create network authority accounts
     and then assign one account to each machine, making sure that when adding the
     available account, the domain is defined as the machine name.'
+  id: totrans-244
   prefs: []
   type: TYPE_NORMAL
+  zh: 还有另一种选择：如果出于某种原因，您不希望将所有帐户分配给机器组，可以创建网络权限帐户，然后为每台机器分配一个帐户，并确保在添加可用帐户时，将域定义为机器名称。
 - en: Once you have added the required accounts, go to **Administration **| **Licensed
     Machines** | **Licensed Windows Machines**.
+  id: totrans-245
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 一旦添加了所需的帐户，进入**管理** | **授权机器** | **授权的Windows机器**。
 - en: Select the machine whose network authority account needs to be changed; click
     on the ![How to do it...](img/image_04_025.jpg)symbol in the menu, and it will
     launch the wizard.
+  id: totrans-246
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 选择需要更改网络权限帐户的机器；在菜单中点击![如何操作...](img/image_04_025.jpg)符号，将启动向导。
 - en: Make sure the machine whose NAA we are changing is available under **Selected**.![How
     to do it...](img/image_04_026.jpg)
+  id: totrans-247
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 确保我们要更改其NAA的机器在**选定**下是可用的。![如何操作...](img/image_04_026.jpg)
 - en: Select the associated network authority account for this machine.![How to do
     it...](img/image_04_027.jpg)
+  id: totrans-248
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 选择此机器的关联网络权限帐户。![如何操作...](img/image_04_027.jpg)
 - en: Click on **Next** and then complete the wizard.
+  id: totrans-249
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 点击**下一步**，然后完成向导。
 - en: To make sure the account has been changed correctly, scroll to the extreme right
     and validate under the **Network Authority** column for the machine.![How to do
     it...](img/image_04_028.jpg)
+  id: totrans-250
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 为确保帐户已正确更改，请向右滚动，并在**网络权限**列下验证该机器。![如何操作...](img/image_04_028.jpg)
 - en: After this change, we can successfully manage the machine from VCM, which includes
     collecting data, installing software and patches, and checking and enforcing compliance.
+  id: totrans-251
   prefs: []
   type: TYPE_NORMAL
+  zh: 完成此更改后，我们可以通过VCM成功管理机器，包括数据收集、软件和补丁安装以及合规性检查和强制执行。
 - en: Then, you can follow either the *Windows patching – on demand* or *Windows patching
     – scheduled* recipes, based on your requirements.
+  id: totrans-252
   prefs: []
   type: TYPE_NORMAL
+  zh: 然后，您可以根据需求选择*按需进行Windows补丁*或*定时进行Windows补丁*的方法。
 - en: How it works...
+  id: totrans-253
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 工作原理...
 - en: The defined network authority account will be used by VCM to manage the patching
     of the machines in the workgroup.
+  id: totrans-254
   prefs: []
   type: TYPE_NORMAL
+  zh: 定义的网络授权帐户将被VCM用于管理工作组中机器的补丁。
 - en: Patching VM templates
+  id: totrans-255
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 对VM模板进行补丁
 - en: It is essential that when VMs are first provisioned, the virtual machine template
     to be used is up to date. This will reduce the downtime for the end consumer of
     the VM when they come to patch, and reduce system-wide vulnerabilities.
+  id: totrans-256
   prefs: []
   type: TYPE_NORMAL
+  zh: 当VM首次创建时，使用的虚拟机模板必须是最新的。这将减少VM最终用户进行补丁时的停机时间，并减少系统范围内的漏洞。
 - en: How to do it...
+  id: totrans-257
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 如何操作...
 - en: 'Follow these steps to patch a VM template:'
+  id: totrans-258
   prefs: []
   type: TYPE_NORMAL
+  zh: 按照以下步骤对VM模板进行补丁：
 - en: To patch a VM template, convert it into a VM, provide an IP, and make sure it
     can reach the VCM server.
+  id: totrans-259
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 要对VM模板进行补丁，将其转换为VM，提供IP，并确保能够访问VCM服务器。
 - en: The agent installer should be available on each template.
+  id: totrans-260
   prefs:
   - PREF_IND
   type: TYPE_NORMAL
+  zh: 每个模板上都应该有代理安装程序可用。
 - en: Once the agent has been installed, license the machine in VCM and perform a
     collection.
+  id: totrans-261
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 一旦代理程序安装完成，请在VCM中为机器许可证并进行收集。
 - en: The machine should be a part of a machine group called **Template Patching**. Perform
     on-demand patching.
+  id: totrans-262
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 机器应该作为**模板补丁**的一部分进行管理。执行按需补丁。
 - en: After patches have been installed and the VM rebooted and validated by VCM for
     the patch status, uninstall the agent.
+  id: totrans-263
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 安装补丁并重新启动VM并由VCM验证补丁状态后，卸载代理。
 - en: Purge the VM in VCM.
+  id: totrans-264
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 在VCM中清除VM。
 - en: Convert the VM back into a template.
+  id: totrans-265
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 将VM转换回模板。
 - en: How it works
+  id: totrans-266
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 工作原理
 - en: This is a completely manual process, where we convert the template in to a virtual
     machine, install the agent, and then install patches. After patching is over,
     we purge the machine from the VCM console after uninstalling the agent and finally
     convert the machine to a vCenter template.
+  id: totrans-267
   prefs: []
   type: TYPE_NORMAL
+  zh: 这是一个完全手动的过程，我们将模板转换成虚拟机，安装代理，然后安装补丁。补丁完成后，在卸载代理并最终将机器转换为vCenter模板后，我们从VCM控制台清除该机器。
 - en: Patching reports
+  id: totrans-268
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 补丁报告
 - en: Once the infrastructure has been patched, what we need are fancy reports to
     show to the management that we are all green in terms of patching. VCM does not
     disappoint you when it comes to reports–there are multiple preconfigured reports,
     which can be either scheduled or run on demand and exported to multiple formats
     such as `.xls`, `.doc`, `.csv`, and `.pd`f.
+  id: totrans-269
   prefs: []
   type: TYPE_NORMAL
+  zh: 基础设施补丁完成后，我们需要一些精美的报告来向管理层展示我们在补丁方面的绿色情况。在报告方面，VCM不会让您失望——有多个预配置报告可供选择，可以定期或按需运行，并导出到多种格式，如`.xls`、`.doc`、`.csv`和`.pdf`。
 - en: Getting ready
+  id: totrans-270
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 准备工作
 - en: We must have a compliance template ready before we can begin with the recipe.
+  id: totrans-271
   prefs: []
   type: TYPE_NORMAL
+  zh: 在进行操作之前，我们必须准备一个合规性模板。
 - en: How to do it...
+  id: totrans-272
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 如何操作...
 - en: Once logged in to VCM, go to the reporting section.
+  id: totrans-273
   prefs: []
   type: TYPE_NORMAL
+  zh: 登录VCM后，转到报告部分是必要的。
 - en: Navigate to **Reports **| **Machine Group Reports** | **VCM Patching**.
+  id: totrans-274
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 导航至**报告** | **机器组报告** | **VCM补丁**。
 - en: 'These are the default reports available in VCM for Windows patching:'
+  id: totrans-275
   prefs:
   - PREF_IND
   type: TYPE_NORMAL
+  zh: 这些是VCM用于Windows补丁的默认报告：
 - en: '| **Ser** | **Name** | **Description** |'
+  id: totrans-276
   prefs:
   - PREF_IND
   type: TYPE_TB
+  zh: '| **序号** | **名称** | **描述** |'
 - en: '| **1** | VCM Patching Assessment Based | These reports use data generated
     by VCM patching assessments (on the VCM Patching slider) to generate their patch
     status results |'
+  id: totrans-277
   prefs:
   - PREF_IND
   type: TYPE_TB
+  zh: '| **1** | 基于VCM补丁评估的VCM补丁评估 | 这些报告使用由VCM补丁评估（在VCM补丁滑块上）生成的数据来生成其补丁状态结果 |'
 - en: '| **2** | Patch Status Summary | This displays the patching status across the
     enterprise for Windows and Unix |'
+  id: totrans-278
   prefs:
   - PREF_IND
   type: TYPE_TB
+  zh: '| **2** | 补丁状态摘要 | 显示企业范围内Windows和Unix的补丁状态 |'
 - en: '| **3** | VCVP Windows Patch Status Details | This displays details of virtualization
     machines'' Windows patch statuses |'
+  id: totrans-279
   prefs:
   - PREF_IND
   type: TYPE_TB
+  zh: '| **3** | VCVP Windows补丁状态详细信息 | 显示虚拟化机器的Windows补丁状态详细信息 |'
 - en: '| **4** | Windows Patch Assessment by Bulletin Information | This enables VCM
     patching by bulletin |'
+  id: totrans-280
   prefs:
   - PREF_IND
   type: TYPE_TB
+  zh: '| **4** | 按公告信息进行Windows补丁评估 | 这使得可以通过公告信息对VCM进行补丁修复 |'
 - en: '| **5** | Windows Patch Assessment by Product Information | This enables VCM
     patching by product information |'
+  id: totrans-281
   prefs:
   - PREF_IND
   type: TYPE_TB
+  zh: '| **5** | Windows产品信息补丁评估 | 这使得通过产品信息对VCM进行补丁修复成为可能。'
 - en: '| **6** | Windows Patch Assessment Results Details | This displays the details
     of the VCM patching assessment by machine, bulletin, or template |'
+  id: totrans-282
   prefs:
   - PREF_IND
   type: TYPE_TB
+  zh: '| **6** | Windows 补丁评估结果详细信息 | 这显示按机器、通告或模板分组的 VCM 补丁评估详细信息 |'
 - en: '| **7** | Windows Patch Assessment Results Details By Bulletin | This displays
     Windows patch assessment results details grouped by bulletin |'
+  id: totrans-283
   prefs:
   - PREF_IND
   type: TYPE_TB
+  zh: '| **7** | 按通告显示的 Windows 补丁评估结果详细信息 | 这显示按通告分组的 Windows 补丁评估结果详细信息 |'
 - en: '| **8** | Windows Patch Assessment Results Details By Machine | This displays
     Windows patch assessment results details grouped by machine |'
+  id: totrans-284
   prefs:
   - PREF_IND
   type: TYPE_TB
+  zh: '| **8** | 按机器显示的 Windows 补丁评估结果详细信息 | 这显示按机器分组的 Windows 补丁评估结果详细信息 |'
 - en: '| **9** | Windows Patch Assessment Results Details By Template | This displays
     Windows patch assessment results details grouped by template |'
+  id: totrans-285
   prefs:
   - PREF_IND
   type: TYPE_TB
+  zh: '| **9** | 按模板显示的 Windows 补丁评估结果详细信息 | 这显示按模板分组的 Windows 补丁评估结果详细信息 |'
 - en: '| **10** | Windows Patch Assessment Results Trends | This displays the trends
     for VCM patching assessment templates by day, week, month, or quarter |'
+  id: totrans-286
   prefs:
   - PREF_IND
   type: TYPE_TB
+  zh: '| **10** | 按模板显示的 Windows 补丁评估结果趋势 | 这显示按天、周、月或季度的 VCM 补丁评估模板趋势 |'
 - en: '| **11** | Windows Patch Assessment Trends | This displays the trends for VCM
     patching assessments by day, week, month, or quarter |'
+  id: totrans-287
   prefs:
   - PREF_IND
   type: TYPE_TB
+  zh: '| **11** | Windows 补丁评估趋势 | 这显示按天、周、月或季度的 VCM 补丁评估趋势 |'
 - en: '| **12** | Windows Patch Status | This displays the Windows patch status |'
+  id: totrans-288
   prefs:
   - PREF_IND
   type: TYPE_TB
+  zh: '| **12** | Windows 补丁状态 | 这显示 Windows 补丁状态 |'
 - en: '| **13** | Windows Patch Status by Template Details | This provides the VCM
     patching patch status by template details |'
+  id: totrans-289
   prefs:
   - PREF_IND
   type: TYPE_TB
+  zh: '| **13** | 按模板显示的 Windows 补丁状态详细信息 | 这提供按模板分组的 VCM 补丁状态详细信息 |'
 - en: '| **14** | Windows Patch Status by Template Summary | This provides the VCM
     patching patch status by template summary |'
+  id: totrans-290
   prefs:
   - PREF_IND
   type: TYPE_TB
+  zh: '| **14** | 按模板显示的 Windows 补丁状态概述 | 这提供按模板分组的 VCM 补丁状态概述 |'
 - en: '| **15** | Windows Patch Status Details | This provides Windows patch status
     details |'
+  id: totrans-291
   prefs:
   - PREF_IND
   type: TYPE_TB
+  zh: '| **15** | Windows 补丁状态详细信息 | 这提供 Windows 补丁状态的详细信息 |'
 - en: From the VCM console, select the report you want to run, and click on **Run**;
     the wizard will start. Once the details are filled in, it will show the report.
     As discussed, the report can be exported into multiple formats to be used by the
     administrator.![How to do it...](img/image_04_029.jpg)
+  id: totrans-292
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 从 VCM 控制台中，选择你要运行的报告，并点击 **运行**；向导将开始。一旦填充了详细信息，它将显示报告。如前所述，报告可以导出为多种格式供管理员使用。![如何操作...](img/image_04_029.jpg)
 - en: The important thing we need to remember here is the machine group selection
     on the top; this filters the machines that will be included in the report.
+  id: totrans-293
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 我们需要记住的一个重要点是顶部的机器组选择；这会筛选出将包含在报告中的机器。
 - en: We can schedule reports as well. We will have more details about that in [Chapter
     8](ch08.html "Chapter 8. Integration with vROps and Scheduling"), *Integration
     with vROps and Scheduling*, in the *Scheduling reports* recipe.![How to do it...](img/image_04_030.jpg)
+  id: totrans-294
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 我们也可以安排报告的生成。我们将在 [第 8 章](ch08.html "第 8 章. 与 vROps 的集成和调度")中的*调度报告*配方里介绍更多细节，*与
+    vROps 的集成和调度*。![如何操作...](img/image_04_030.jpg)
 - en: How it works...
+  id: totrans-295
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 它是如何工作的...
 - en: There is a big list of existing reports that we can run and export. We can even
     schedule those reports, and then, they can be either exported to a location or
     mailed to a specified e-mail id if working SMTP is configured.
+  id: totrans-296
   prefs: []
   type: TYPE_NORMAL
+  zh: 这里有一个很大的现有报告列表，我们可以运行并导出这些报告。我们甚至可以安排这些报告的定期生成，然后，它们可以被导出到指定位置，或者如果配置了有效的 SMTP
+    邮件服务，还可以发送到指定的电子邮件地址。
 - en: There's more...
+  id: totrans-297
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 还有更多...
 - en: You can have a look at scheduling reports in the *Scheduling patching reports*
     recipe of [Chapter 8](ch08.html "Chapter 8. Integration with vROps and Scheduling"),
     *Integration with vROps and Scheduling*.
+  id: totrans-298
   prefs: []
   type: TYPE_NORMAL
+  zh: 你可以查看 [第 8 章](ch08.html "第 8 章. 与 vROps 的集成和调度")中的*调度补丁报告*配方，了解如何调度报告，*与 vROps
+    的集成和调度*。
