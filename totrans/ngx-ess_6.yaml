@@ -507,6 +507,7 @@
   id: totrans-72
   prefs: []
   type: TYPE_NORMAL
+  zh: 只要没有空闲的缓冲区并且输入数据可用，就会分配新的缓冲区。一旦分配了最大数量的缓冲区，Nginx 会等待直到使用的缓冲区被清空，然后重新使用它们。这确保了无论数据流多长，都不会消耗比相应指令所指定的更多内存（缓冲区数量乘以大小）。
 - en: The smaller the buffers, the higher the allocation overhead. Nginx needs to
     spend more CPU cycles to allocate and free buffers. The larger the buffers, the
     larger memory consumption overhead. If a response occupies only a fraction of
@@ -515,12 +516,14 @@
   id: totrans-73
   prefs: []
   type: TYPE_NORMAL
+  zh: 缓冲区越小，分配开销越大。Nginx 需要消耗更多的 CPU 周期来分配和释放缓冲区。缓冲区越大，内存消耗的开销也越大。如果一个响应只占用了缓冲区的一部分，剩余部分则没有被使用——即使整个缓冲区必须从堆中分配。
 - en: The minimum portion of the configuration that the buffer size directives can
     be applied to is a location. This means that if mixtures of large and small responses
     share the same location, the combined buffer usage pattern will vary.
   id: totrans-74
   prefs: []
   type: TYPE_NORMAL
+  zh: 缓冲区大小指令可以应用的最小配置部分是一个位置。这意味着，如果大响应和小响应混合在同一个位置，它们的缓冲区使用模式将有所不同。
 - en: 'Static files are read into buffers controlled by the `output_buffers` directive
     unless `sendfile` is set to `on`. For static files, multiple output buffers don''t
     make much sense, as they are filled in the blocking mode anyway (this means a
@@ -529,6 +532,7 @@
   id: totrans-75
   prefs: []
   type: TYPE_NORMAL
+  zh: 静态文件会被读取到由 `output_buffers` 指令控制的缓冲区中，除非 `sendfile` 被设置为 `on`。对于静态文件，多个输出缓冲区意义不大，因为它们无论如何都会以阻塞模式填充（这意味着一个缓冲区无法在另一个正在填充时被清空）。然而，较大的缓冲区会导致更低的系统调用率。考虑以下示例：
 - en: '[PRE9]'
   id: totrans-76
   prefs: []
@@ -539,12 +543,14 @@
   id: totrans-77
   prefs: []
   type: TYPE_NORMAL
+  zh: 如果输出缓冲区大小过大且没有线程或 AIO，可能会导致长时间阻塞的读取，从而影响工作进程的响应能力。
 - en: When a response body is pipelined from a proxied server, FastCGI, UWCGI, or
     SCGI server, Nginx is able to read data into one part of the buffers and simultaneously
     send the other part to the client. This makes the most sense for long replies.
   id: totrans-78
   prefs: []
   type: TYPE_NORMAL
+  zh: 当响应体从代理服务器、FastCGI、UWCGI 或 SCGI 服务器进行流水线传输时，Nginx 能够将数据读取到缓冲区的一部分，并同时将另一部分发送到客户端。这对于长时间的回复最为有效。
 - en: 'Assume you tuned your TCP stack before reading this chapter. The total size
     of a buffer chain is then connected to the kernel socket''s read and write buffer
     sizes. On Linux, the maximum size of a kernel socket read buffer can be examined
@@ -552,6 +558,7 @@
   id: totrans-79
   prefs: []
   type: TYPE_NORMAL
+  zh: 假设在阅读本章之前，你已经调优了你的 TCP 堆栈。那么，缓冲区链的总大小与内核套接字的读写缓冲区大小相关联。在 Linux 上，可以使用以下命令检查内核套接字读缓冲区的最大大小：
 - en: '[PRE10]'
   id: totrans-80
   prefs: []
@@ -562,6 +569,7 @@
   id: totrans-81
   prefs: []
   type: TYPE_NORMAL
+  zh: 可以使用以下命令检查内核套接字写缓冲区的最大大小：
 - en: '[PRE11]'
   id: totrans-82
   prefs: []
@@ -572,6 +580,7 @@
   id: totrans-83
   prefs: []
   type: TYPE_NORMAL
+  zh: 这些设置可以使用 `sysctl` 命令或通过在系统启动时编辑 `/etc/sysctl.conf` 来更改。
 - en: In my case, both of them are set to `163840` (160 KB). This is low for a real
     system, but let's use it as an example. This number is the maximum amount of data
     Nginx can read from or write to a socket in one system call without the socket
@@ -581,12 +590,15 @@
   id: totrans-84
   prefs: []
   type: TYPE_NORMAL
+  zh: 在我的例子中，两个设置都为 `163840`（160 KB）。对于一个真实的系统来说，这个值偏低，但我们可以作为例子使用。这个数字是 Nginx 可以在一个系统调用中从套接字读取或写入的最大数据量，而不会使套接字挂起。在异步读写的情况下，为了获得最佳的系统调用率，我们需要的缓冲区空间不少于
+    `rmem_max` 和 `wmem_max` 的总和。
 - en: 'Assume that the preceding Nginx proxies long files with `rmem_max` and `wmem_max`
     settings. The following configuration must yield the lowest system call rate with
     the minimum amount of memory per request in the most extreme case:'
   id: totrans-85
   prefs: []
   type: TYPE_NORMAL
+  zh: 假设前面的 Nginx 代理长文件，并设置了 `rmem_max` 和 `wmem_max`。在最极端的情况下，以下配置必须能够以最少的内存和最低的系统调用率处理每个请求：
 - en: '[PRE12]'
   id: totrans-86
   prefs: []
@@ -597,6 +609,7 @@
   id: totrans-87
   prefs: []
   type: TYPE_NORMAL
+  zh: 相同的考虑也适用于 `fastcgi_buffers`、`uwcgi_buffers` 和 `scgi_buffers` 指令。
 - en: For short response bodies, the buffer size has to be a bit larger than the predominant
     size of a response. In this case, all replies will fit into one buffer—only one
     allocation per request will be needed.
