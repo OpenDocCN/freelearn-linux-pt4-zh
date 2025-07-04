@@ -1,0 +1,4007 @@
+- en: Design and Deployment Considerations
+  id: totrans-0
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 设计和部署考虑因素
+- en: Now that we have provided a comprehensive overview of the different components
+    of VMware Horizon in the first couple of chapters, in this chapter, we are going
+    to concentrate on how to put those components to use by introducing you to some
+    of the design and deployment techniques that you need to consider when undertaking
+    your VMware Horizon project.
+  id: totrans-1
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 现在，我们已经在前几章提供了 VMware Horizon 各个组件的全面概述，在本章中，我们将集中讲解如何将这些组件付诸实践，介绍一些在进行 VMware
+    Horizon 项目时需要考虑的设计和部署技术。
+- en: First, we are going to discuss techniques that you can use to prove the technology
+    and understand how it needs to work inside your business, starting with how to
+    assess your current environment and then how to use this information to design
+    your Horizon deployment.
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 首先，我们将讨论一些可以用来验证技术并了解它如何在您的业务中发挥作用的技术，首先从如何评估当前环境开始，然后如何利用这些信息来设计您的 Horizon
+    部署。
+- en: Once you fully understand what it is you need to achieve for the business, we
+    will then take a deeper dive into the design elements of your Horizon solution,
+    including, but not limited to, ESXi host design, memory and CPU allocations for
+    virtual desktops, storage considerations, clients, and other best practices and
+    tips.
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 一旦您完全理解了业务需求，接下来我们将深入探讨 Horizon 解决方案的设计要素，包括但不限于 ESXi 主机设计、虚拟桌面的内存和 CPU 配置、存储考虑、客户端以及其他最佳实践和技巧。
+- en: 'We are going to look at both the business and the technical elements of a project,
+    and then discuss each one and see how it fits into the overall project. To make
+    this easier and more logical, we will break these down into three distinct project
+    phases, as shown in the following diagram:'
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 我们将同时探讨项目的业务和技术要素，然后讨论每一项，看看它如何融入整体项目。为了使这个过程更简单、更具逻辑性，我们将这些内容拆分为三个明确的项目阶段，如下图所示：
+- en: '![](img/bd58431e-8c73-4027-a2a3-b277f417c402.png)'
+  id: totrans-5
+  prefs: []
+  type: TYPE_IMG
+  zh: '![](img/bd58431e-8c73-4027-a2a3-b277f417c402.png)'
+- en: In the following sections, we are going to explore and discuss these three phases
+    in more detail.
+  id: totrans-6
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在接下来的章节中，我们将更详细地探讨和讨论这三个阶段。
+- en: 'In this chapter, we will cover the following topics:'
+  id: totrans-7
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在本章中，我们将涵盖以下主题：
+- en: Phase I – Project definition
+  id: totrans-8
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 阶段 I – 项目定义
+- en: Phase II – Proving the technology
+  id: totrans-9
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 阶段 II – 技术验证
+- en: Phase III – Designing a production environment
+  id: totrans-10
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 阶段 III – 生产环境设计
+- en: Technology choices
+  id: totrans-11
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 技术选择
+- en: Horizon View pod and block architecture
+  id: totrans-12
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: Horizon View pod 和 block 架构
+- en: Cloud Pod Architecture
+  id: totrans-13
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 云 Pod 架构
+- en: vSphere design for Horizon View
+  id: totrans-14
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: vSphere 设计用于 Horizon View
+- en: Horizon View design specifics
+  id: totrans-15
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: Horizon View 设计细节
+- en: Supporting infrastructure design
+  id: totrans-16
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 支持基础设施设计
+- en: Printing
+  id: totrans-17
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 打印
+- en: Thin clients and other endpoint devices
+  id: totrans-18
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 瘦客户端和其他终端设备
+- en: Desktop design considerations
+  id: totrans-19
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 桌面设计考虑因素
+- en: Example solution scenario
+  id: totrans-20
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 示例解决方案场景
+- en: Phase I – Project definition
+  id: totrans-21
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 阶段 I – 项目定义
+- en: 'In this first phase, we are going to look at how you can approach a project.
+    Phase one is broken down into four individual steps, as shown in the following
+    diagram:'
+  id: totrans-22
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在这个第一阶段，我们将探讨如何处理一个项目。第一阶段分为四个单独的步骤，如下图所示：
+- en: '![](img/3809e88b-a1f7-4289-8a45-f89ef7952eb0.png)'
+  id: totrans-23
+  prefs: []
+  type: TYPE_IMG
+  zh: '![](img/3809e88b-a1f7-4289-8a45-f89ef7952eb0.png)'
+- en: Let's look at each individual step in more detail, starting with the business
+    drivers and understanding what your business requirements look like.
+  id: totrans-24
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 让我们更详细地看一下每个单独的步骤，从业务驱动因素和理解您的业务需求开始。
+- en: Step 1 – Identifying business drivers – understanding your needs and requirements
+  id: totrans-25
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 第一步 – 确定业务驱动因素 – 了解您的需求和要求
+- en: Before you jump headlong into your Horizon project, take a step back and ensure
+    that you start to document what you are trying to achieve. Often, it can be very
+    easy to get carried away with all the new, shiny, technological aspects of the
+    solution, such as the installation and configuration of new hardware and software,
+    which means that the end goal is either lost or is not relevant to the business.
+  id: totrans-26
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在您全身心投入 Horizon 项目之前，先退一步，确保开始记录您想要达成的目标。通常情况下，很容易被解决方案中所有新的技术方面吸引，例如安装和配置新硬件和软件，而忽视了最终目标，导致目标丢失或与业务无关。
+- en: It may be an obvious point to make, but the key to identifying the business
+    drivers is to really understand what you want to evaluate. By this, we mean, is
+    it a strategic decision based on the need to transform your organization with
+    new working initiatives, or is there a more compelling event, such as the end
+    of life of an operating system or application? It may even simply be the need
+    to reduce costs. Whatever the case, you need to get that nailed down, written
+    up, and documented on day one so that the project has meaning and direction, and
+    even more importantly, provides a baseline to refer to when it comes to reviewing
+    time in order to gauge whether the project has been successful.
+  id: totrans-27
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 可能这是一个显而易见的观点，但识别业务驱动因素的关键在于真正理解你想要评估的内容。我们所说的是，这是否是基于需要通过新的工作举措来转型组织的战略决策，还是有一个更具迫切性的事件，比如操作系统或应用程序的生命周期结束？甚至可能仅仅是为了降低成本。无论是哪种情况，你都需要在第一天就把这些明确下来、写好并记录下来，以便项目具有意义和方向，更重要的是，在审查时为项目提供一个参考基准，从而评估项目是否成功。
+- en: Start by writing a document of requirements that lists the business needs, the
+    current problems you need to solve, the vision, and any compromises and assumptions.
+    As you progress through your project, you should regularly refer to this document
+    to keep yourself focused on the end goal.
+  id: totrans-28
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 从编写一份需求文档开始，列出业务需求、当前需要解决的问题、愿景，以及任何妥协和假设。在项目进行过程中，你应该定期参考此文档，以确保自己始终专注于最终目标。
+- en: Step 2 – Building the business case
+  id: totrans-29
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 第二步 – 构建商业案例
+- en: Once you have defined the drivers behind an initiative or the compelling event
+    that's kicked off the project, and also understood the high-level objectives,
+    the next stage is to start building the business case around these. This requires
+    you to go to the next level of detail and start drilling into the specific areas
+    the solution needs to address. To do this, you need to understand the business
+    strategy and then identify the key stakeholders for the project. You can then
+    start to define the high-level requirements of each of the areas identified as
+    drivers and start to define user segmentation. For example, you can look at what
+    different user types you have, how they work today, and what they need going forward.
+    At the end of the day, it will be the end users that decide whether the project
+    is a success, not you! This leads us into the next section, which is the assessment
+    phase.
+  id: totrans-30
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 一旦你定义了驱动一个项目的因素或促使项目启动的关键事件，并且理解了高层目标，下一阶段是围绕这些内容开始构建商业案例。这要求你进入更高层次的细节，开始深入挖掘解决方案需要解决的具体领域。为了做到这一点，你需要理解商业战略，并确定项目的关键利益相关者。然后，你可以开始定义每个被识别为驱动因素的领域的高层需求，并开始定义用户细分。例如，你可以查看你有哪些不同类型的用户，他们今天如何工作，以及未来他们需要什么。归根结底，决定项目是否成功的将是最终用户，而不是你！这将引导我们进入下一个部分——评估阶段。
+- en: Step 3 – Assessment
+  id: totrans-31
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 第三步 – 评估
+- en: Once you have built and validated your business case against your strategy and
+    identified that there is a requirement for a new way of delivering a desktop environment,
+    then the next stage is to run an assessment. Although often called a desktop assessment,
+    what you are actually doing is on-boarding an end user so that you can map their
+    entire life cycle through infrastructure—not just today, but by continuously monitoring
+    them to ensure that they continue to have the best user experience possible as
+    they move through the OS, app migrations, and updates.
+  id: totrans-32
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 一旦你构建并验证了符合战略的商业案例，并确认有需求为桌面环境提供新的交付方式，下一步就是进行评估。虽然通常被称为桌面评估，但实际上你在做的是引导最终用户入驻，以便你能够通过基础设施映射他们的整个生命周期——不仅仅是今天，而是通过持续监控，确保他们在操作系统、应用程序迁移和更新过程中，始终获得最佳的用户体验。
+- en: So, what do we mean by an assessment, or in this instance, how do we on-board
+    end users so that we can assess and monitor them throughout their working life
+    cycle? What exactly is involved? It comes down to several things that we are looking
+    for. This includes examining your current desktop landscape by gathering key metrics
+    so that you can understand what is currently being delivered, to whom it is being
+    delivered, and more importantly, how resource-intensive it is. The assessment
+    is designed to build a complete and accurate picture of what the current end user
+    environment looks like.
+  id: totrans-33
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 那么，我们说的评估是什么意思？或者在这种情况下，我们如何将终端用户接入，以便在他们的工作生命周期中进行评估和监控？到底涉及哪些内容？这可以归结为几个方面，包括通过收集关键指标来检查你当前的桌面环境，从而了解当前交付的内容、交付对象，以及更重要的是，这些内容消耗了多少资源。评估的目的是构建一个完整且准确的当前终端用户环境的图景。
+- en: 'It''s not just about an inventory report—you need to understand exactly what
+    the end users are doing, and how they are working. Some of the key metrics we
+    are looking for include the following:'
+  id: totrans-34
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 这不仅仅是一个清单报告——你需要准确了解终端用户正在做什么，以及他们是如何工作的。我们关注的一些关键指标包括：
+- en: Which users are using which applications (when, from where, and how often?)
+  id: totrans-35
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 哪些用户在使用哪些应用（何时、从哪里、以及多频繁？）
+- en: Resource consumption (CPU, memory, disk, and network are key)
+  id: totrans-36
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 资源消耗（CPU、内存、磁盘和网络是关键）
+- en: Unsuitable applications/use cases for remote delivery or VDI
+  id: totrans-37
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 不适合远程交付或VDI的应用/使用案例
+- en: Which client operating systems are being used?
+  id: totrans-38
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 哪些客户端操作系统正在使用？
+- en: Hardware inventory of existing devices
+  id: totrans-39
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 现有设备的硬件清单
+- en: Machine boot times and login process breakdown
+  id: totrans-40
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 机器启动时间和登录过程拆解
+- en: Current delivery methods (RDSH, XenApp, VDI, physical PCs, and so on)
+  id: totrans-41
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 当前的交付方式（RDSH、XenApp、VDI、物理PC等）
+- en: User profile details
+  id: totrans-42
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 用户档案详细信息
+- en: What you are ultimately looking to achieve is the creation of a baseline of
+    what your environment looks like today. Then, as you move into defining the success
+    criteria and proving the technology, you have a baseline as a reference point
+    to demonstrate how you have improved current functionality and delivered on both
+    the business case and strategy.
+  id: totrans-43
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 你最终要达成的目标是创建一个基准，展示当前环境的状态。然后，在你进入定义成功标准和验证技术的阶段时，你就有了一个基准作为参考点，可以展示你如何改善当前功能，并实现业务案例和战略目标。
+- en: If you have deployed a VDI solution already, and this new project is for something
+    like a migration, or upgrading, then you should have most of this data available.
+    However, if this was a while ago, then it's worth re-running the assessment so
+    that you have up-to-date data, especially around the applications in your environment.
+    Ideally, you would have been monitoring the infrastructure continuously from day
+    one to help plan for such events.
+  id: totrans-44
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果你已经部署了VDI解决方案，而这个新项目是迁移或升级之类的任务，那么你应该有大部分数据可用。然而，如果这是较早之前进行的项目，建议重新运行评估，以便获得最新的数据，尤其是关于你环境中的应用程序数据。理想情况下，从一开始你就应该持续监控基础设施，以便为此类事件做好规划。
+- en: User experience and desktop analysis tools
+  id: totrans-45
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 用户体验和桌面分析工具
+- en: There are several different third-party, complementary products on the market
+    that you can use to conduct the analysis. You are often able to use the services
+    of a partner to assist with this process to help you understand the information
+    and data that's been gathered.
+  id: totrans-46
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 市场上有许多不同的第三方补充产品，你可以用它们来进行分析。你通常可以使用合作伙伴的服务来协助这一过程，帮助你理解收集到的信息和数据。
+- en: One of the most popular solutions is the Liquidware Stratusphere solution. Stratusphere
+    not only provides you with a detailed breakdown of the current user environment,
+    with highlights such as a detailed breakdown of the login process, consumption
+    reports, and a score to easily identify which users are virtualization candidates—it
+    also provides that complete end user life cycle picture.
+  id: totrans-47
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 其中一个最受欢迎的解决方案是Liquidware Stratusphere解决方案。Stratusphere不仅为你提供当前用户环境的详细拆解，重点包括登录过程的详细分解、消耗报告和易于识别哪些用户是虚拟化候选人的分数——它还提供了完整的终端用户生命周期图景。
+- en: 'Stratusphere takes the baseline data and then uses that to continuously monitor
+    the end user experience so that you can ensure that your VDI solution is optimized,
+    as shown in the following screenshot. We will discuss this in more detail later
+    in this book:'
+  id: totrans-48
+  prefs: []
+  type: TYPE_NORMAL
+  zh: Stratusphere会获取基准数据，然后利用这些数据持续监控终端用户体验，从而确保你的VDI解决方案得到优化，如下图所示。本书后面会更详细地讨论这一点：
+- en: '![](img/9dc86a13-cacd-4ae7-b117-10c06254a77a.png)'
+  id: totrans-49
+  prefs: []
+  type: TYPE_IMG
+  zh: '![](img/9dc86a13-cacd-4ae7-b117-10c06254a77a.png)'
+- en: Stratusphere monitor the end user experience
+  id: totrans-50
+  prefs: []
+  type: TYPE_NORMAL
+  zh: Stratusphere 监控最终用户体验
+- en: One thing to ensure is that the assessment solution is designed specifically
+    for measuring desktops and not servers. The two technologies, although both virtualization
+    technologies, are completely different, and while you could probably use desktop
+    assessment software to plan your server virtualization project, it simply would
+    not work the other way around.
+  id: totrans-51
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 需要确保评估解决方案是专门为测量桌面而设计的，而不是为服务器设计的。这两种技术虽然都是虚拟化技术，但完全不同，虽然你可能可以使用桌面评估软件来规划你的服务器虚拟化项目，但反过来却行不通。
+- en: As well as actually collecting the assessment data, there are several other
+    points that you should take into consideration and look at. This will help you
+    understand what some of the raw assessment data is telling you. For example, it
+    might tell you that a specific user is unsuitable to have a virtual desktop due
+    to the number of resources it consumes; however, when you speak to them, you may
+    find that whatever they are doing isn't going to be relevant in VDI.
+  id: totrans-52
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 除了实际收集评估数据之外，还有几个其他方面你应该考虑并查看。这将帮助你理解一些原始评估数据所告诉你的内容。例如，它可能会告诉你，由于消耗的资源量，某个特定用户不适合使用虚拟桌面；然而，当你与他们交谈时，可能会发现他们的工作内容在虚拟桌面环境中并不相关。
+- en: Understanding what do your users really do
+  id: totrans-53
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 了解你的用户到底做什么
+- en: Working in an IT department will often give you a good level of understanding
+    of the tasks that users undertake and the software that they use to achieve these
+    tasks daily. However, this can usually be a lot more complex than it might first
+    appear. By undertaking a desktop assessment, you gather a more granular level
+    of understanding about the processes, applications, and experience your end users
+    are getting from their existing desktops. This will likely include the applications
+    they use, and those that they don't use, including the installed versions and
+    capacity and performance requirements, as well as user experience metrics, such
+    as login times and application load times.
+  id: totrans-54
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在 IT 部门工作通常能让你对用户执行的任务以及他们为完成这些任务而使用的软件有一个较为清晰的理解。然而，这通常比它初看起来要复杂得多。通过进行桌面评估，你能够更加细致地了解最终用户从现有桌面环境中获得的流程、应用程序和使用体验。这可能包括他们使用的应用程序，以及他们没有使用的应用程序，包括安装的版本、容量和性能要求，以及用户体验指标，比如登录时间和应用加载时间。
+- en: Applications
+  id: totrans-55
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 应用程序
+- en: Understanding your current applications is a key part of the assessment phase.
+    Not only could this impact end user productivity—after all, it's the apps that
+    keep the users working—it will also impact many other areas when it comes to design,
+    including the number of pools, pool design, application virtualization, and, potentially,
+    whether the desktop that gets assigned to the user can be non-persistent or whether
+    you need to allocate a persistent desktop.
+  id: totrans-56
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 了解你当前的应用程序是评估阶段的关键部分。这不仅可能会影响最终用户的生产力——毕竟，是应用程序让用户保持工作状态——它还将影响设计的许多其他方面，包括池的数量、池的设计、应用虚拟化，以及是否需要为用户分配一个持久性桌面，或是否可以分配一个非持久性桌面。
+- en: In some environments, you may well have legacy apps still running, and it's
+    important to understand this as these apps may not be able to run in a virtual
+    desktop environment and would, therefore, stall or derail your project completely.
+    Often, when moving to virtual desktops, you would move from an older operating
+    system as part of the project—which again would cause issues with application
+    compatibility.
+  id: totrans-57
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在某些环境中，你可能仍然有遗留的应用程序在运行，了解这一点非常重要，因为这些应用程序可能无法在虚拟桌面环境中运行，从而完全拖延或破坏你的项目进程。通常，在迁移到虚拟桌面时，你需要从较旧的操作系统开始，这同样可能会导致应用程序兼容性问题。
+- en: With the metrics gathered from the assessment, you will be able to fully understand
+    the current situation of your desktop estate. It's not uncommon to find many disparate
+    versions of software, meaning potential security risks, and in other cases, key
+    applications crashing on a regular basis. This information will help you build
+    a business case for change and help you prioritize your rollout to the users with
+    the biggest security holes or the worst user experience.
+  id: totrans-58
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 通过从评估中收集的指标，你将能够全面了解当前桌面环境的状况。发现许多不同版本的软件并不罕见，这意味着潜在的安全风险，而在其他情况下，关键应用程序可能会定期崩溃。这些信息将帮助你构建变革的商业案例，并帮助你优先考虑向那些安全漏洞最大或用户体验最差的用户推广新系统。
+- en: Performance
+  id: totrans-59
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 性能
+- en: Without actual performance metrics, it will be near on impossible to size your
+    virtual desktops. If you don't have this data, then it will be likely that your
+    desktops will be sized in one of two ways. The first would be by oversizing your
+    desktops. Oversizing often occurs when virtualizing as it is so simple to configure
+    a virtual machine that we sometimes get carried away and start adding more CPU
+    and memory than we really need. The result is that we need more infrastructure
+    to resource this and so the costs goes up. This also happens when we guesstimate
+    the size of the desktop, and then add ten or twenty percent on top of that, just
+    in case. Pushing the costs up could mean that the project is not financially viable.
+  id: totrans-60
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 没有实际的性能指标，你几乎不可能正确配置虚拟桌面。如果没有这些数据，你的桌面可能会通过两种方式之一来配置。第一种是过度配置桌面。过度配置通常发生在虚拟化时，因为配置虚拟机非常简单，有时我们会不自觉地加入比实际需要更多的CPU和内存。结果是，我们需要更多的基础设施来支持这些资源，成本也随之上涨。还会出现这种情况：我们大致估算桌面的大小，然后再在其基础上加上十到二十个百分点以防万一。推动成本上涨可能意味着项目在财务上不可行。
+- en: The flipside would be to undersize your desktops, potentially causing performance
+    issues and a poor end user experience. If you then base your infrastructure on
+    this lower spec and you end up having to add more resources, it may be a difficult
+    conversation to secure more budget to increase the spec of the host servers or
+    even add more servers.
+  id: totrans-61
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 另一面是低配桌面可能会导致性能问题和不佳的最终用户体验。如果你基于这些低配置进行基础设施设计，并且最终需要增加更多资源，争取更多预算以提高主机服务器的规格或增加更多服务器可能会是一场艰难的对话。
+- en: This is one to watch out for if you are looking at a Desktop as a Service solution.
+    On paper, the desktops look like they're good value for money, maybe costing somewhere
+    around $30 to $50 per month. But after you have signed on the dotted line and
+    your end users start ramping up and consuming more resources, the costs start
+    to ramp up too. We have seen many a customer invoice with a much larger monthly
+    payment than budgeted for because of taking low-spec desktops.
+  id: totrans-62
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果你在寻找桌面即服务（Desktop as a Service）解决方案，这个问题是需要注意的。从纸面上看，这些桌面似乎物有所值，可能每月花费在$30到$50之间。但在你签订合同并且最终用户开始增加资源消耗时，成本也会开始上涨。我们见过很多客户的账单，因为选择了低配置桌面，导致月度付款远超预算。
+- en: By performing a desktop assessment, you will understand what the performance
+    looks like throughout the working day. How many resources are being consumed,
+    and when? You are likely to see many dips and spikes throughout the day, such
+    as login storms, AV scans, logoff storms, and other metrics, such as increased
+    internet usage during lunch breaks.
+  id: totrans-63
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 通过执行桌面评估，你将了解整个工作日的性能情况。多少资源被消耗了？什么时候消耗的？你可能会看到全天有许多波动和峰值，比如登录高峰、AV扫描、注销高峰以及其他指标，比如午餐时间增加的互联网使用量。
+- en: If you work in an education environment, you might see many login and logoff
+    storms during the day. It is important to understand this, as you will need to
+    ensure that your solution is designed to meet these requirements. This information
+    can be used to help guide you when sizing the relevant desktop pools, but bear
+    in mind that, potentially, you are going to be making changes to the desktops
+    between the assessment phase and deploying VDI desktops. This may be something
+    such as migrating from Windows 7 to Windows 10, or the upgrade of an application.
+    In these cases, the assessment will have been performed on the previous version
+    of the operating system and therefore may not give you 100% accurate information
+    on the resources required. Some third-party assessment tools can take care of
+    this and allow you to model "what if" type scenarios.
+  id: totrans-64
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果你在教育环境中工作，你可能会看到很多登录和注销高峰。理解这一点非常重要，因为你需要确保你的解决方案设计能够满足这些需求。这些信息可以帮助你在配置相关桌面池时做出指导，但请记住，可能会在评估阶段和部署VDI桌面之间做出一些更改。比如，从Windows
+    7迁移到Windows 10，或应用程序的升级。在这些情况下，评估是基于之前版本的操作系统进行的，因此可能无法为你提供100%准确的资源需求信息。一些第三方评估工具可以处理这些问题，并允许你模拟“如果发生这种情况”的情景。
+- en: End user experience
+  id: totrans-65
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 最终用户体验
+- en: Above all else, what matters is user experience, which is the measurement of
+    how good or how poor the end user's experience of using their virtual desktop
+    is. When you undertake a server virtualization project, if done correctly, the
+    users will probably not even realize it has happened.
+  id: totrans-66
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 最重要的是，用户体验才是关键，它衡量了最终用户使用虚拟桌面时的体验好坏。当你进行服务器虚拟化项目时，如果做得正确，用户可能甚至没有意识到变化发生了。
+- en: With a desktop virtualization or any other EUC-type project that is very focused
+    on the end users, it is more likely that they will realize a change has happened,
+    and you need to ensure that this is a positive experience for the project to be
+    a success. To do this, you need to almost get inside the head of the users to
+    see exactly how they use the environment today. The measurements of user experience
+    will be wide, varied, and often subjective, but will include elements such as
+    boot time, application load time, login time, page load time, app failures, and
+    finally, how intuitive it is to use. This is something that assessment tools are
+    unlikely to tell you.
+  id: totrans-67
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于桌面虚拟化或任何其他非常注重最终用户的EUC类型项目，用户更可能意识到变化的发生，你需要确保这对项目来说是一次积极的体验，这样项目才能成功。为了做到这一点，你需要几乎进入用户的思维方式，准确地看到他们今天是如何使用这个环境的。用户体验的衡量标准将是广泛的、多样的，且通常是主观的，但将包括诸如启动时间、应用加载时间、登录时间、页面加载时间、应用故障，以及最终使用的直观性等要素。这些是评估工具不太可能告诉你的。
+- en: As you are progressing through the **proof of concept** (**POC**), pilot, and
+    tuning processes, you need to ensure that the user experience is constantly improving.
+    Failing to take end user experience into consideration will result in a definite
+    failure of the project. To do this, you need to be interactive with the end user
+    community.
+  id: totrans-68
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在进行**概念验证**（**POC**）、试点和调优的过程中，你需要确保用户体验不断改善。忽视最终用户体验将导致项目的彻底失败。为了做到这一点，你需要与最终用户社区进行互动。
+- en: Floor walks, interviews, and department champions
+  id: totrans-69
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 走访、访谈和部门冠军
+- en: As we outlined previously, while performing desktop assessments and gathering
+    data on your environment are important parts of any EUC project, they should not
+    replace the need to interact with your users. The benefit of human involvement
+    is that you can pick up elements that simply would not be possible with software
+    alone.
+  id: totrans-70
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 正如我们之前所述，虽然进行桌面评估并收集你的环境数据是任何EUC项目的重要组成部分，但它们不应取代与用户互动的必要性。人类参与的好处在于，你能够发现一些仅凭软件无法捕捉到的要素。
+- en: Start by simply walking through your office, noting what the users are doing,
+    what applications they are using, what accessories, how many screens, whether
+    they are using laptops or PCs, and so on.
+  id: totrans-71
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 首先，简单地走访你的办公室，注意用户在做什么，使用什么应用程序，使用了哪些配件，有多少个显示器，他们是使用笔记本电脑还是台式电脑，等等。
+- en: Once you have this high level of understanding, consider booking meetings with
+    key business leaders in each department to understand their needs, requirements,
+    and the problems they have with their desktops today. You should also start considering
+    who your department champions are going to be.
+  id: totrans-72
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 一旦你对这一层次的情况有了了解，可以考虑与各部门的关键业务领导安排会议，以了解他们的需求、要求，以及他们当前使用桌面时遇到的问题。你还应该开始考虑你部门的“部门冠军”是谁。
+- en: What are department champions?
+  id: totrans-73
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 什么是部门冠军？
+- en: If you are going to make a list of the key considerations from this book, then
+    department champions should be high on your list. A department champion is an
+    end user who is going to be the go-to person within the department for everything
+    to do with their department's desktop, design, testing, and support. They don't
+    need to be IT experts, but they should have a desire to help you improve the overall
+    desktop experience. You should work with these champions to help with the design
+    of their desktops, as they will be your first port of call for testing, and then
+    testing again after you have listened to and implemented any of the feedback.
+  id: totrans-74
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果你打算列出本书中的关键考虑因素，那么“部门冠军”应该排在你的清单上。部门冠军是一个最终用户，将成为该部门所有与桌面相关的设计、测试和支持事务的主要联系人。他们不需要是IT专家，但应该有帮助你改善整体桌面体验的愿望。你应该与这些冠军合作，帮助他们设计桌面，因为他们将是你进行测试的首选人选，并且在你听取并实施任何反馈之后，还需要进行再次测试。
+- en: By working with a department champion, you will have a sponsor within the department.
+    They will have a sense of pride over what is being rolled out and will be there
+    to help you shape the desktop and be the user on your side to help explain why
+    certain decisions have been made.
+  id: totrans-75
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 与部门冠军合作，你将在部门内拥有一个赞助人。他们会为即将推出的项目感到自豪，并会帮助你塑造桌面环境，作为用户站在你这一边，解释为什么做出某些决策。
+- en: Step 4 – Defining the success criteria
+  id: totrans-76
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 步骤 4 – 定义成功标准
+- en: The key objective in defining the success criteria is to document what a good
+    solution should look like for the project to succeed and become production-ready.
+  id: totrans-77
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 定义成功标准的关键目标是记录项目成功并准备投入生产所需的理想解决方案是什么样的。
+- en: You need to clearly define the elements that need to function correctly to move
+    from POC to POT and then into a pilot phase, before finally deploying into production.
+    You need to fully document what these elements are and get the end users or other
+    project stakeholders to sign up to them. It's almost like creating a statement
+    of work with a clearly defined list of tasks. If you don't have any success criteria
+    in place, then you should not start the testing!
+  id: totrans-78
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 你需要明确定义那些必须正常运行的元素，才能从POC（概念验证）阶段过渡到POT（性能验证）阶段，再到试点阶段，最终部署到生产环境中。你需要全面记录这些元素，并让最终用户或其他项目利益相关者签署确认。这几乎就像是制定一份工作说明书，明确列出任务清单。如果没有成功标准，就不应该开始测试！
+- en: Another important factor is to ensure that during this phase of the project,
+    the success criteria don't start to grow beyond the original scope, which is commonly
+    known as "scope creep." This means that any additional elements should not get
+    added to the success criteria, or at least not without discussing them first.
+    It may well transpire that something key was missed; however, if you have conducted
+    your assessment thoroughly, this shouldn't happen. This is another reason for
+    having the success criteria in place, otherwise you won't know what is on the
+    list, and the list will never end with things continually being added.
+  id: totrans-79
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 另一个重要因素是确保在项目的这一阶段，成功标准不要超出最初的范围，这种现象通常被称为“范围蔓延”。这意味着任何额外的元素都不应加入到成功标准中，或者至少在讨论之前不要加入。如果有重要的内容被遗漏，可能会暴露出来；然而，如果你已经充分进行评估，这种情况不应该发生。这也是设定成功标准的另一个原因，否则你将无法知道清单上有哪些内容，且清单永远不会结束，总会有新内容被加入。
+- en: Another thing that works well at this stage is to, once again, involve the end
+    users. Set up a steering committee or advisory panel by selecting people from
+    different departments to act as sponsors within their area of business. Actively
+    involve them in the testing phases but get them on board early to get their input
+    in shaping the solution from the outset.
+  id: totrans-80
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 另一个有效的方法是在此阶段再次让最终用户参与进来。通过选择来自不同部门的人组成指导委员会或顾问小组，作为各自业务领域的赞助人，积极参与测试阶段，但要早早地让他们参与，获取他们的意见，从一开始就参与塑造解决方案。
+- en: Too many projects fail when a user tries something that didn't work. However,
+    the thing that they tried is not actually a relevant use case or something that
+    is used by the business as a critical line of business app, and therefore shouldn't
+    derail the project.
+  id: totrans-81
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 太多的项目失败是因为用户尝试了某些不起作用的功能。然而，他们尝试的功能实际上并不是一个相关的使用案例，也不是业务中作为关键业务应用的工具，因此不应该使项目脱轨。
+- en: I once saw a VDI project failing due to the unresponsiveness of the mouse when
+    using Microsoft Paint. This knocked the project way off course while the issue
+    was investigated. In the end, it was shown that Paint was not used by anyone,
+    and so was totally irrelevant to the business or use case. However, it still ended
+    up burning precious cycles while the team tried to enhance performance. As this
+    customer had no success criteria defined beforehand, it was difficult to move
+    the project on. If there had of been a list and this application was not on that
+    list, then it could simply be ignored, and the project could have moved on.
+  id: totrans-82
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 我曾经看到过一个VDI项目因为在使用Microsoft Paint时鼠标响应迟缓而失败。这个问题使得项目偏离了轨道，直到问题得到调查。最终，发现没有人使用Paint，因此它与业务或使用案例完全无关。然而，这个问题依然浪费了宝贵的时间和精力，因为团队试图提升性能。由于该客户之前没有定义成功标准，项目很难推进。如果当时有一份清单，而这个应用不在清单上，那么它就可以被简单地忽略，项目也可以继续进行。
+- en: If we have a set of success criteria defined up front that the end users have
+    signed up to, anything outside that criteria is not in scope. If it's not defined
+    in the document, it should be disregarded as not being part of what success should
+    look like.
+  id: totrans-83
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果我们在项目初期定义了一组成功标准，并且最终用户已签署确认，任何超出这些标准的内容都不在范围内。如果文档中没有定义某项内容，它就应该被视为不属于成功的标准。
+- en: Phase II – Proving the technology
+  id: totrans-84
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 第二阶段——证明技术的可行性
+- en: In this section, we are going to discuss the approach to proving that the technology
+    is fit for purpose. This is another very important piece of work that needs to
+    be successfully completed once you have completed Phase I and is somewhat different
+    to how you would typically approach an IT project. This is the same approach you
+    should take for any end user computing type of project.
+  id: totrans-85
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在本节中，我们将讨论如何证明技术是否适合其目的。这是一个非常重要的工作内容，一旦你完成了第一阶段，就需要成功完成这一阶段，且它与通常处理IT项目的方式有所不同。对于任何面向最终用户的计算项目，你都应该采用这种方法。
+- en: As we discussed previously, the starting point is to focus on the end users
+    rather than the IT department. After all, these are the people that will be using
+    the applications daily and know what they need to get their jobs done. Rather
+    than giving them what you think they need, why not ask them what they really need
+    and then, within reason, deliver their requirements. As the saying goes, don't
+    try and fit a square peg into a round hole, as no matter how hard you try, it's
+    just never going to fit.
+  id: totrans-86
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 正如我们之前讨论的，起点是关注最终用户，而不是IT部门。毕竟，使用应用程序的将是这些人，他们最清楚自己需要什么才能完成工作。与其根据自己的理解提供他们可能需要的东西，为什么不直接问他们真正需要什么，然后在合理范围内交付他们的需求。正如谚语所说，别试图将方钉钉进圆孔，因为无论你多么努力，它都永远不可能合适。
+- en: First and foremost, you need to design the solution around the requirements
+    of the end user rather than spending time and money on building an infrastructure
+    only to find out at the end of the project that it doesn't deliver what the users
+    require.
+  id: totrans-87
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 首先，你需要围绕最终用户的需求来设计解决方案，而不是花费时间和金钱去构建一个基础设施，最终却发现它无法满足用户的需求。
+- en: Once the previous steps have been discussed and documented, you should be able
+    to build a picture around what's driving the project. You will understand what
+    you are trying to achieve/deliver and, based upon hard and fast facts from the
+    assessment phase, be able to work on what success should look like. From there,
+    you can then move into testing the technology in some shape or form.
+  id: totrans-88
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 一旦前述步骤讨论并记录完毕，你应该能够勾画出推动项目的核心内容。你将明白你希望实现或交付的目标，并根据评估阶段得出的确凿事实，明确成功应该是什么样的。从那里，你就可以进入某种形式的技术测试阶段。
+- en: 'There are three distinct roads we can take within the testing cycle, and it
+    might be the case that you don''t need all of them. In fact, it is usually best
+    to jump straight to the last one if you can and look at deploying a pilot to save
+    time and cost, and get the end users engaged early. The three stages we are talking
+    about are as follows:'
+  id: totrans-89
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在测试周期中，我们可以选择三条不同的路径，并且可能并不需要所有这些路径。事实上，如果可以的话，通常最好直接跳到最后一个阶段，部署一个试点项目以节省时间和成本，并提前让最终用户参与进来。我们所讨论的这三个阶段如下：
+- en: '![](img/237dd66a-1f99-4f84-b5c6-1cbac5a2cea7.png)'
+  id: totrans-90
+  prefs: []
+  type: TYPE_IMG
+  zh: '![](img/237dd66a-1f99-4f84-b5c6-1cbac5a2cea7.png)'
+- en: In the following sections, we are going to briefly cover what each of these
+    stages mean and why you may or may not need them.
+  id: totrans-91
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在接下来的章节中，我们将简要介绍每个阶段的含义，以及你可能需要或不需要它们的原因。
+- en: Proof of concept (POC)
+  id: totrans-92
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 概念验证（POC）
+- en: A POC typically refers to a partial solution, which is often built and installed
+    on any old hardware kicking about the IT department. In terms of end user testing,
+    a POC usually involves a small number of users, who are typically those in the
+    IT teams, acting in business roles to establish whether the solution satisfies
+    some aspect of the purpose it was designed for and is fit for purpose.
+  id: totrans-93
+  prefs: []
+  type: TYPE_NORMAL
+  zh: POC通常指部分解决方案，通常是在IT部门的任何旧硬件上构建和安装的。在最终用户测试方面，POC通常涉及少数几个用户，通常是IT团队中的成员，他们担任业务角色，以确定解决方案是否满足其设计目标的某些方面，并且是否适合使用。
+- en: At the end of the POC, one of two things tend to happen. Firstly, nothing happens
+    as it's just the IT department playing with technology and there wasn't a real
+    business driver in the first place. This is usually down to not having a defined
+    business case. In a similar way, by not having any success criteria, it will also
+    fail, as you don't know exactly what you are setting out to prove.
+  id: totrans-94
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在POC结束时，通常会发生两种情况之一。首先，什么都没有发生，因为IT部门只是在玩技术，最初并没有真正的业务驱动。这通常是因为没有定义明确的业务案例。类似地，若没有成功标准，POC也会失败，因为你不知道自己究竟在证明什么。
+- en: The second outcome is that the project moves into a pilot phase, which we will
+    discuss in a later section. You could consider moving directly into this phase
+    and bypassing the POC altogether—after all, the vendor has already proved the
+    concept, and to be honest if it's a production-ready solution that you can buy
+    off the shelf today, then there is nothing conceptual about it. Maybe a demonstration
+    of the technology would suffice and using a demo environment over a longer period
+    would show you enough of how the technology works. Most vendors these days have
+    a cloud-based test environment that can be used for prospective customers.
+  id: totrans-95
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 第二种结果是项目进入试点阶段，我们将在后面的章节中讨论这一部分。你可以考虑直接进入这一阶段，跳过POC——毕竟，供应商已经证明了这个概念，老实说，如果这是一个可以直接购买的生产就绪解决方案，那就没有什么概念上的问题了。也许一个技术演示就足够了，使用一个长期的演示环境可以让你看到足够多的技术运作方式。如今大多数供应商都提供云测试环境，潜在客户可以使用。
+- en: Proof of technology (POT)
+  id: totrans-96
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 技术验证（POT）
+- en: In contrast to POC, the objective of POT is to determine whether the proposed
+    solution or technology will integrate into your existing environment and therefore
+    demonstrate compatibility. POT should highlight any technical problems that are
+    specific to your environment, such as how your bespoke systems might integrate.
+    Similar to POC, POT is typically run by the IT department and no business users
+    are usually involved. A POT is purely a technical validation exercise.
+  id: totrans-97
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 与POC（概念验证）相比，POT的目标是确定提议的解决方案或技术是否能与现有环境集成，从而展示兼容性。POT应突出与环境相关的技术问题，例如定制系统如何集成。与POC类似，POT通常由IT部门进行，通常不会涉及业务用户。POT纯粹是一次技术验证。
+- en: Pilot
+  id: totrans-98
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 试点
+- en: A pilot refers to what is almost a small-scale rollout of the solution, in a
+    production-like environment, to be tested by real end users. The scope may be
+    limited by the number of users who can access the pilot system, the business processes
+    affected, or the business partners involved. The purpose of a pilot is to test
+    whether the system is working as it was designed to, while limiting business exposure
+    and risk. It should also touch real users so that you can gauge their feedback
+    from what might ultimately become a live, production solution.
+  id: totrans-99
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 试点指的是在一个接近生产环境的小规模解决方案推出，供真实终端用户进行测试。试点的范围可能会受到能访问试点系统的用户数量、受影响的业务流程或涉及的业务伙伴的限制。试点的目的是测试系统是否按设计运行，同时将业务暴露和风险控制到最小。它还应该涉及真实用户，以便收集他们的反馈，这些反馈可能最终会影响到实际生产环境中的解决方案。
+- en: This is a critical step in achieving success as the end users are the people
+    that will use the systems daily, and are the reason why you should set up some
+    form of working group so that you can gather their feedback. This would also mitigate
+    project failure, as the solution may deliver everything the IT department could
+    ever wish for, but when it goes live, and the first user logs on and reports a
+    bad experience or performance, you may as well have not bothered.
+  id: totrans-100
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 这是实现成功的关键步骤，因为终端用户是每天使用系统的人，他们的反馈非常重要，因此你应该成立一个工作小组来收集他们的意见。这也有助于减轻项目失败的风险，因为即使解决方案可能满足IT部门的所有要求，但当它上线并且第一个用户登录后报告体验差或性能问题时，所有的努力可能就白费了。
+- en: 'The pilot should be carefully scoped, sized, and implemented, which breaks
+    down nicely into the following four steps toward a successful pilot, as shown
+    in the following workflow diagram:'
+  id: totrans-101
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 试点应仔细规划、定义规模并实施，这些步骤可以清晰地分解成以下四个步骤，朝着成功的试点迈进，如下图所示：
+- en: '![](img/81edd764-6003-4fff-a422-f4573ac3363d.png)'
+  id: totrans-102
+  prefs: []
+  type: TYPE_IMG
+  zh: '![](img/81edd764-6003-4fff-a422-f4573ac3363d.png)'
+- en: Let's have a look at these steps in a bit more detail.
+  id: totrans-103
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 让我们更详细地看看这些步骤。
+- en: Step 1 – Pilot design
+  id: totrans-104
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 第一步 – 试点设计
+- en: The pilot infrastructure should be designed on the same hardware platforms that
+    the production solution is going to be deployed on. For example, the same servers
+    and storage should be used. This takes into account any anomalies between platforms
+    and configuration differences that could affect things such as scalability, or
+    more importantly, performance.
+  id: totrans-105
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 试点基础设施应该在生产解决方案将要部署的相同硬件平台上设计。例如，应使用相同的服务器和存储。这考虑到不同平台之间的异常以及配置差异，这些差异可能会影响可扩展性，或者更重要的是，性能。
+- en: Even at the pilot stage, design is key, and you should make sure that you consider
+    production design, even at this stage. Why? Basically, we do this because many
+    pilot solutions end up going straight into production and more and more users
+    get added above and beyond those that have been scoped for the pilot. It's great
+    going live with the solution and not having to go back and rebuild it, but when
+    you start to scale by adding more users and applications, you might have some
+    issues due to the initial sizing, given that it was meant to be a pilot. It may
+    sound obvious, but often with a successful pilot you just keep going, with end
+    users continuing to work and IT adding more and more users. Well, until it breaks!
+    If it's only ever going to be a pilot, that's fine, but keep this in mind and
+    bear this in mind—if you are planning on taking the pilot straight into production,
+    design it for production right at the very start.
+  id: totrans-106
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 即使在试点阶段，设计也是关键，你应该确保即使在这一阶段也考虑到生产设计。为什么？基本上，我们这么做是因为许多试点解决方案最终会直接进入生产，而且越来越多的用户会超出试点范围而被加入进来。上线并不需要返回重建是很棒的，但当你通过添加更多用户和应用程序来扩展时，由于最初的配置是为了试点设计的，你可能会遇到一些问题。这听起来可能很显然，但通常一个成功的试点会让你一直进行下去，最终用户继续工作，IT部门继续添加用户。直到它崩溃！如果它只会是一个试点，那也没问题，但请记住——如果你计划将试点直接投入生产，从一开始就要为生产设计它。
+- en: 'It is always useful to work from a prerequisite document to understand the
+    different elements that need to be taken into consideration in the design. Design
+    elements include the following:'
+  id: totrans-107
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 从前提文档开始工作总是很有用，这样你可以了解设计中需要考虑的不同元素。设计元素包括以下内容：
+- en: Hardware sizing (servers—CPU, memory, and consolidation ratios)
+  id: totrans-108
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 硬件规格（服务器——CPU、内存和整合比率）
+- en: Pool design (based on user segmentation)
+  id: totrans-109
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 池设计（基于用户分层）
+- en: Storage design (local SSD, SAN, and acceleration technologies)
+  id: totrans-110
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 存储设计（本地SSD、SAN和加速技术）
+- en: Image creation (rebuild from scratch and optimize for VDI)
+  id: totrans-111
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 镜像创建（从头开始重建并优化VDI）
+- en: Network design (load balancing and external access)
+  id: totrans-112
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 网络设计（负载均衡和外部访问）
+- en: Antivirus considerations
+  id: totrans-113
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 防病毒考虑事项
+- en: Application delivery (delivering virtually and/or layering versus installing
+    in the base image)
+  id: totrans-114
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 应用交付（虚拟交付和/或分层交付与基础镜像安装的区别）
+- en: User profile management
+  id: totrans-115
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 用户配置文件管理
+- en: Persistent or non-persistent desktop user assignments
+  id: totrans-116
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 持久性或非持久性桌面用户分配
+- en: Linked Clone, Full Clone, or Instant Clone desktop builds
+  id: totrans-117
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 链接克隆、完整克隆或即时克隆桌面构建
+- en: Once you have all of this information, you can start to deploy the pilot environment.
+  id: totrans-118
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 一旦你收集了所有这些信息，你就可以开始部署试点环境了。
+- en: Step 2 – Deploying the pilot
+  id: totrans-119
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 第二步——部署试点
+- en: In the deployment phase of the pilot, you are going to start building out the
+    infrastructure, deploying the test users, and building the OS images. After this,
+    you will start the testing phase.
+  id: totrans-120
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在试点的部署阶段，你将开始构建基础设施，部署测试用户，并构建操作系统镜像。之后，你将进入测试阶段。
+- en: Step 3 – Testing the pilot
+  id: totrans-121
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 第三步——测试试点
+- en: During the testing phase, you need to work closely with the end users and your
+    sponsors, showing them the solution and how it works, closely monitoring the users,
+    and assessing the solution as it's being used. This allows you to keep in contact
+    with the users and give them the opportunity to continually provide real-time
+    feedback. This, in turn, allows you to answer questions and adjust and make enhancements
+    on the fly rather than waiting until the end of the project, only to be told it
+    didn't work or they just simply didn't understand something.
+  id: totrans-122
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在测试阶段，你需要与最终用户和赞助人密切合作，向他们展示解决方案及其工作原理，密切监控用户，并评估解决方案的使用情况。这让你能够与用户保持联系，并给他们提供实时反馈的机会。这反过来使你能够回答问题、进行调整并即时优化，而不是等到项目结束时才被告知某些功能没有效果或他们根本不理解某些内容。
+- en: This then leads us onto the last section, reviewing the pilot.
+  id: totrans-123
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 这将引导我们进入最后一个部分——评审试点。
+- en: Step 4 – Reviewing the pilot
+  id: totrans-124
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 第四步——评审试点
+- en: This final stage sometimes tends to get forgotten. You have deployed the solution,
+    the users have been testing it, and then it ends there for whatever reason. However,
+    there is one very important last thing to do to enable you to move into production.
+  id: totrans-125
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 这个最终阶段有时容易被遗忘。你已经部署了解决方案，用户已经进行了测试，但无论出于什么原因，测试就停在了这里。然而，有一件非常重要的事情必须完成，才能让你进入生产阶段。
+- en: You need to measure user experience and the IT department's experience against
+    the success criteria that you set out at the start of this process. You need to
+    get customer sign-off and agreement that you have successfully met all of the
+    objectives and requirements. If this is not the case, you need to understand the
+    reasons why. Have you missed something in the use case, have the user requirements
+    changed, or is it simply a perception issue?
+  id: totrans-126
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 你需要根据在这个过程开始时设定的成功标准，衡量用户体验和IT部门的体验。你需要获得客户的签字并达成协议，确认你已经成功地满足了所有目标和要求。如果没有达到这一点，你需要理解原因。是你在用例中遗漏了什么，用户需求发生了变化，还是仅仅存在感知问题？
+- en: Whatever the case, you need to cycle around the process again. Go back to the
+    use case, understand and reevaluate the user requirements (what it is that is
+    seemingly failing or not behaving as expected), and then tweak the design or make
+    the required changes and get the users to test the solution again.
+  id: totrans-127
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 无论如何，你需要再次回到这个过程。回到用例，理解并重新评估用户需求（看看是什么似乎没有按预期工作），然后调整设计或进行必要的更改，让用户再次测试解决方案。
+- en: You need to continue this process, repeating again and again until you get acceptance
+    and sign-off, otherwise you will not get to the final solution deployment phase.
+  id: totrans-128
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 你需要继续这个过程，反复进行，直到获得接受和签署，否则你将无法进入最终的解决方案部署阶段。
+- en: When the project has been signed off after a successful pilot test, there is
+    no reason why you cannot deploy the technology in production. However, it is useful
+    to come back and revisit this occasionally to ensure that nothing has changed.
+  id: totrans-129
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当项目在成功的试点测试后获得签字批准后，就没有理由不将技术部署到生产环境中。然而，定期回过头来重新审视这个过程是有益的，以确保没有发生变化。
+- en: Now that we have talked about how to prove the technology and successfully demonstrated
+    that it delivers against both your business case and your user requirements, in
+    the following sections, we are going to start looking at designing a production
+    environment.
+  id: totrans-130
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 现在我们已经讨论了如何验证技术并成功展示它能够满足你的商业需求和用户需求，接下来的部分，我们将开始着手设计生产环境。
+- en: Phase III – Designing a production environment
+  id: totrans-131
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 第三阶段 – 设计生产环境
+- en: Now that you have proved that the solution works within your environment, you
+    can take all of the findings from both the assessment and the pilot phases and
+    start building out a design for production. In this section, we are going to cover
+    the main considerations for a successful design and discuss the general rules
+    of thumb and best practices, before moving on to the specifics of sizing the storage
+    requirement, scalability, availability, and how to architect the solution.
+  id: totrans-132
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 现在你已经证明了解决方案在你的环境中能够正常工作，你可以将评估阶段和试点阶段的所有发现拿出来，开始构建生产环境的设计。在这一部分，我们将讨论成功设计的主要考虑因素，讨论一些通用规则和最佳实践，然后再深入讨论存储需求的大小、可扩展性、可用性，以及如何架构解决方案。
+- en: Before we do that, we are going to look at a few different example scenarios
+    that could have been highlighted during the assessment and pilot phases, and look
+    at which technology you should consider deploying.
+  id: totrans-133
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在此之前，我们将查看一些在评估和试点阶段可能会突出显示的不同示例场景，并考虑应该部署哪些技术。
+- en: Technology choices
+  id: totrans-134
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 技术选择
+- en: With VMware Horizon, there is no one-product-fits-all solution to meet the needs
+    of your end users, so it is important to consider the use cases carefully and
+    match the different use cases to the different technologies that are available
+    within the VMware Horizon portfolio. Once you have collected key information from
+    assessments and user interaction, you will be able to make some technology solutions
+    around which elements of the solution are going to deliver end user requirements.
+    Choices include whether you should deliver full VDI desktops or published desktops,
+    and how to deliver applications with ThinApp or App Volumes. You also need to
+    consider third-party solutions, and how they are going to integrate. These technology
+    decisions will influence your final design.
+  id: totrans-135
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 使用VMware Horizon时，并没有一种单一的产品能够满足所有最终用户的需求，因此仔细考虑使用案例，并将不同的使用案例与VMware Horizon产品组合中可用的不同技术匹配起来非常重要。一旦你收集了评估和用户互动的关键信息，你就能围绕哪些解决方案能够满足最终用户需求做出技术决策。选择包括是否应提供完整的VDI桌面或发布桌面，以及如何通过ThinApp或App
+    Volumes交付应用程序。你还需要考虑第三方解决方案及其如何集成。这些技术决策将影响最终设计。
+- en: In the following sections, we will discuss some sample scenarios and the likely
+    technology decisions that will enable you to deliver a working solution.
+  id: totrans-136
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在接下来的部分中，我们将讨论一些示例场景以及可能的技术决策，这些决策将帮助你交付一个可行的解决方案。
+- en: Use case example – Scenario 1
+  id: totrans-137
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 使用案例示例 – 场景 1
+- en: In this example, the end users are based in a call center that operates 24/7
+    and use a Windows desktop to access a customer relationship database log. They
+    are also using a web browser to access an intranet page. These users work set
+    hours in a shift pattern of three shifts per day across the call center, and they
+    all work from hot desks, utilizing whichever desk and devices are available at
+    the time they start their shift.
+  id: totrans-138
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在这个示例中，最终用户位于一个全天候24小时运营的呼叫中心，使用Windows桌面访问客户关系数据库日志。他们还使用Web浏览器访问内部网页。这些用户按照三班倒的工作模式，每天在呼叫中心内轮班工作，他们都使用热桌面，在开始班次时利用当时可用的桌面和设备。
+- en: Solution recommendation
+  id: totrans-139
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 解决方案建议
+- en: This would seem to be the ideal scenario for a Horizon View VDI desktop. However,
+    with such a simple use case, it would make more sense to deliver these desktops
+    using the Horizon View hosted desktop feature, which is done by using Microsoft
+    RDS. This would allow for greater levels of consolidation and potential cost savings
+    as you would only need to deliver enough sessions to cover one of the three shifts.
+  id: totrans-140
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 这看起来是一个理想的Horizon View VDI桌面场景。然而，对于这样一个简单的使用案例，使用Horizon View托管桌面功能来交付这些桌面会更为合理，托管桌面功能是通过使用Microsoft
+    RDS实现的。这将允许更高程度的合并和潜在的成本节约，因为你只需要提供足够的会话来覆盖三班中的其中一个班次。
+- en: If they did not require any of the functionality of the underlying operating
+    system, then you could just publish the CRM client app and a browser to allow
+    them access to the intranet.
+  id: totrans-141
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果他们不需要操作系统底层的任何功能，那么你可以仅发布CRM客户端应用程序和浏览器，以便他们访问内部网。
+- en: Use case example – Scenario 2
+  id: totrans-142
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 使用案例示例 – 场景 2
+- en: There are several engineering users who currently use a laptop, both online
+    and offline. When offline, they will be utilizing bespoke software to program
+    machinery. Often, this work is carried out in areas of poor mobile signal and
+    no Wi-Fi. They rarely come into the office, but do work from home once or twice
+    a week, where they have good internet access. They also need access to a job allocation
+    system when they have access to the internet. At the time of writing this book,
+    this is accessed via connecting to a work VPN and running a Windows client application
+    on their laptops. They would like to be able to adopt iPads or smartphones to
+    access the job allocation system, but are restricted by the need to use the Windows
+    client.
+  id: totrans-143
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 有几位工程用户目前使用笔记本电脑进行在线和离线工作。离线时，他们将使用定制的软件来编程机器。通常，这项工作在信号较差且没有Wi-Fi的区域进行。他们很少到办公室，但每周一到两次在家工作，家里有良好的互联网连接。他们还需要在能够访问互联网时访问工作分配系统。在写本书时，用户通过连接工作VPN并在笔记本电脑上运行Windows客户端应用程序来访问该系统。他们希望能够使用iPad或智能手机访问工作分配系统，但由于需要使用Windows客户端，受到了限制。
+- en: Solution recommendation
+  id: totrans-144
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 解决方案建议
+- en: This scenario highlights the exact type of user that does not suit a VDI desktop
+    alone. Previously, if you had tried to make VDI work in this scenario, it would
+    have led to a poor user experience, given the lack of connectivity. With the diversity
+    now available in the Horizon Suite, you can use individual components to deliver
+    a solution that can be seamless to the user and offer them a genuine productivity
+    advantage.
+  id: totrans-145
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 这个场景突出了不适合仅使用VDI桌面的用户类型。如果之前你试图在这个场景中使用VDI，可能会因为连接问题导致糟糕的用户体验。现在，借助Horizon Suite的多样性，你可以使用单独的组件提供一个无缝的解决方案，为用户带来真正的生产力优势。
+- en: In this scenario, you would be looking to centralize and manage laptop images
+    using VMware Mirage. This would allow you to not only store a copy of the devices
+    locally in the case of failure or loss, but it would also allow you to update
+    and deliver new software when a connection to the Mirage server is available over
+    the internet.
+  id: totrans-146
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在这个场景中，你将考虑使用VMware Mirage集中管理和管理笔记本镜像。这不仅可以让你在设备发生故障或丢失时存储设备的本地副本，还可以在通过互联网连接到Mirage服务器时更新和交付新软件。
+- en: However, there is a key requirement, and that is that you need to access an
+    online application in the form of a job allocation system. You could, of course,
+    deliver this in the same way as it is delivered today, but you could also consider
+    delivering this with Horizon View as a published application. This would give
+    you the advantage of this application being accessible through a variety of devices,
+    without the complexity of a second desktop that VDI would bring. You could also
+    consider AirWatch by VMware to manage iPad and smartphone devices and add a layer
+    of security.
+  id: totrans-147
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 然而，有一个关键需求，那就是需要访问一个在线应用程序，具体是一个工作分配系统。当然，你可以像现在一样交付该应用程序，但你也可以考虑使用Horizon View将其作为发布应用程序交付。这将使你能够通过多种设备访问该应用程序，而不必承担VDI所带来的第二台桌面的复杂性。你还可以考虑使用VMware的AirWatch来管理iPad和智能手机设备，并增加一层安全性。
+- en: Use case example – Scenario 3
+  id: totrans-148
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 使用案例示例 – 场景 3
+- en: In this scenario, you have a marketing department with 10 users, all using desktop
+    PCs with dual screens running Windows 7\. These desktops are typically running
+    the same apps, but each desktop also has a few individual applications that have
+    been installed by IT for users over the years. They are now looking to start making
+    use of several SaaS applications and services such as WebEx and would also like
+    to have the ability to work from home.
+  id: totrans-149
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在这个场景中，你有一个营销部门，里面有10个用户，所有人都在使用运行Windows 7的双屏桌面PC。这些桌面通常运行相同的应用程序，但每个桌面也都有一些IT部门为用户安装的个别应用程序。这些用户现在希望开始使用多个SaaS应用程序和服务，如WebEx，并且还希望能够在家工作。
+- en: Solution recommendation
+  id: totrans-150
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 解决方案推荐
+- en: With the end of support for Windows 7 rapidly approaching, you are going to
+    want to move these users to Windows 10\. As such, you are going to want to check
+    the compatibility of their applications with the new operating system version,
+    and where possible, try and standardize the applications as much as possible without
+    affecting the user. Where there are applications that don't support the latest
+    operating system, you could see whether VMware ThinApp would allow them to be
+    virtualized and run on the new operating system. As the user has no offline requirements
+    and they actually need to be online for the SaaS apps, this would seem like a
+    good fit for VDI, and as there is a large commonality across the desktops, you
+    should try and see how a non-persistent Linked Clone pool would work for these
+    users.
+  id: totrans-151
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 随着Windows 7的支持即将结束，你需要将这些用户迁移到Windows 10。因此，你需要检查他们的应用程序与新操作系统版本的兼容性，并在可能的情况下，尽量标准化应用程序，而不影响用户体验。如果有一些应用程序不支持最新的操作系统，你可以查看VMware
+    ThinApp是否允许它们虚拟化，并在新操作系统上运行。由于用户没有离线需求，并且实际上需要在线使用SaaS应用程序，这似乎非常适合VDI，并且由于桌面之间有很大的共同性，你应该尝试看看一个非持久性的Linked
+    Clone池如何适用于这些用户。
+- en: You could deliver these common applications by installing them in the base image
+    and then delivering the individual bespoke applications where possible using App
+    Volumes. Additionally, you should look at Workspace ONE for delivering a unified
+    workspace, from where they can access all apps and desktops from a single web-based
+    portal.
+  id: totrans-152
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 你可以通过将这些常见的应用程序安装到基础镜像中，并在可能的情况下使用App Volumes提供个性化的定制应用程序。此外，你还应该考虑使用Workspace
+    ONE来提供一个统一的工作区，用户可以通过这个工作区从一个基于Web的门户访问所有的应用程序和桌面。
+- en: Use case example – Scenario 4
+  id: totrans-153
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 用例示例 – 场景4
+- en: There's a small CAD and engineering department with 10 users utilizing Autodesk
+    AutoCAD products. Their last purchase was a year ago, and was for five workstations
+    with high-end graphics cards for half of their users. The users must be able to
+    install their own software, and they also keep a lot of data locally while they
+    are working on designs.
+  id: totrans-154
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 这里有一个小型的CAD和工程部门，共有10名用户正在使用Autodesk AutoCAD产品。他们的上一次购买是在一年前，购买了五台带有高端显卡的工作站，以供其中一半用户使用。这些用户必须能够自行安装软件，并且在进行设计工作时，会将大量数据保存在本地。
+- en: Solution recommendation
+  id: totrans-155
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 解决方案建议
+- en: There are several options for this scenario. With Horizon and NVIDIA GRID graphics
+    cards, it is likely that you would be able to offer these users a good experience
+    using a virtual desktop machine. With AutoCAD, it is likely that the users will
+    need access to a GPU, and so you need to look closely at the graphics requirements
+    and match them to a vGPU profile or deliver a dedicated GPU with vDGA.
+  id: totrans-156
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于这种情况，有几种选择。使用Horizon和NVIDIA GRID显卡，您很可能能够为这些用户提供良好的虚拟桌面体验。使用AutoCAD时，用户可能需要访问GPU，因此您需要仔细查看图形需求，并将其匹配到vGPU配置文件，或使用vDGA提供专用GPU。
+- en: Since half of the workstations have recently been refreshed, you would likely
+    recommend that these be kept in use until they are due to be replaced, but maybe
+    use Horizon Mirage for data protection and to manage updates and software rollouts.
+    When machines are due to be replaced, you could now consider replacing them with
+    thin clients.
+  id: totrans-157
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 由于一半的工作站最近已经更新，您可能会建议继续使用这些工作站，直到它们需要更换，但可以使用Horizon Mirage进行数据保护，并管理更新和软件发布。当设备需要更换时，您可以考虑将它们替换为瘦客户端。
+- en: For the remaining users, you could consider virtual desktop machines that are
+    persistent as they are saving a lot of local data and are installing their own
+    apps. You could also consider non-persistent desktops and use App Volumes and
+    the Writable Volume feature for them so that they can save data and install apps.
+    Once you move to VDI for everyone, then it gives you the option for remote working.
+  id: totrans-158
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于剩余的用户，您可以考虑使用持久性的虚拟桌面机器，因为他们保存了大量本地数据，并且正在安装自己的应用程序。您也可以考虑使用非持久性的桌面，并使用App
+    Volumes和Writable Volume功能，以便他们能够保存数据并安装应用程序。一旦您为所有用户转向VDI，就可以为远程工作提供选项。
+- en: It is recommended that this scenario is heavily tested during the POC and pilot
+    stages so that you fully understand the type of graphics card required, along
+    with the CPU and memory resources.
+  id: totrans-159
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 强烈建议在POC（概念验证）和试点阶段对该场景进行大量测试，以便您充分了解所需的图形卡类型，以及CPU和内存资源。
+- en: Conclusions
+  id: totrans-160
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 结论
+- en: The scenarios that we have given demonstrate that there is no one-size-fits-all
+    solution that can be deployed over diverse businesses requirements. If you were
+    to try and shoehorn some of these scenarios into a single solution, it would result
+    in a poor user experience. With the Horizon Suite, you are not only able to have
+    commonality across the solutions for the users and administrators, but are also
+    able to offer a diverse range of solutions to meet the differing and diverse requirements
+    of the end users.
+  id: totrans-161
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 我们提供的这些场景表明，没有一种适用于所有业务需求的通用解决方案。如果您试图将其中一些场景强行套入单一解决方案，最终会导致较差的用户体验。使用Horizon套件，您不仅可以为用户和管理员提供统一的解决方案，还可以提供多种多样的解决方案，以满足最终用户不同和多样化的需求。
+- en: Preparing for production
+  id: totrans-162
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 准备生产环境
+- en: You now have all of the necessary information about the current environment,
+    business requirements, and goals, and have considered the different scenarios
+    to meet the needs of the end users. You can now consider what the production environment
+    will look like. This is where things start to get serious. You have tested your
+    solution, proved the concept, piloted with a subset of your users, built a business
+    case, and signed it off. Now is the time to start rolling out to your agreed user
+    base.
+  id: totrans-163
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 现在，您已经获得了关于当前环境、业务需求和目标的所有必要信息，并且已经考虑了不同的场景，以满足最终用户的需求。现在，您可以开始考虑生产环境的样子。这是一个开始变得严肃的时刻。您已经测试了您的解决方案，验证了概念，进行了用户子集的试点，建立了商业案例，并已通过审批。现在是时候开始向约定的用户群体推出了。
+- en: This will happen in several ways, but initially, it's worth starting this slowly
+    and gathering momentum over time. By gathering momentum in this way, you can guarantee
+    success, and less tuning is required along the way. The big bang approach will
+    end in a world of pain, both for the users and for you when you have so many things
+    to consider when looking at issues.
+  id: totrans-164
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 这将以几种方式发生，但最初，值得慢慢开始并随着时间的推移积累势头。通过这种方式积累势头，你可以确保成功，并且在过程中需要的调整较少。大爆炸式的方法会导致用户和你自己都面临困境，因为你需要考虑的问题太多。
+- en: In the next section, we are going to look at designing for production deployment.
+  id: totrans-165
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在接下来的部分，我们将讨论如何为生产部署设计。
+- en: Horizon View pod and block architecture
+  id: totrans-166
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: Horizon View Pod 和 Block 架构
+- en: 'We are going to start by discussing the core concept of a Horizon View design:
+    **the** **pod and block reference architecture.** This provides the underpinnings
+    to all Horizon View deployments.'
+  id: totrans-167
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 我们将从讨论Horizon View设计的核心概念开始：**Pod 和 Block 参考架构**。这为所有Horizon View部署提供了基础。
+- en: The Horizon View pod and block architecture provide you with a reference architecture
+    that can support up to 10,000 users. This is achieved by taking a modular approach
+    to infrastructure deployment by creating separate Horizon View blocks that are
+    designed to support up to 2,000 users each. These contain all the infrastructure
+    components that are required to support and run those 2,000 virtual desktop machines.
+  id: totrans-168
+  prefs: []
+  type: TYPE_NORMAL
+  zh: Horizon View Pod 和 Block 架构为你提供了一种参考架构，能够支持多达10,000个用户。通过采用模块化的基础设施部署方式，创建单独的Horizon
+    View Block，每个Block设计用于支持最多2,000个用户。这些Block包含了支持和运行这些2,000个虚拟桌面所需的所有基础设施组件。
+- en: The management components are also deployed as a module called the management
+    block, as well as hosts components such as the Connection Servers and Security
+    Servers.
+  id: totrans-169
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 管理组件也作为一个名为管理Block的模块进行部署，另外还有诸如连接服务器（Connection Servers）和安全服务器（Security Servers）等主机组件。
+- en: The blocks then scale up in multiples of 2,000 until they reach the limit of
+    10,000 (five blocks). This configuration of five blocks is called a pod and gives
+    you one large, unified virtual desktop environment to manage.
+  id: totrans-170
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 这些Block按2,000的倍数扩展，直到达到10,000的上限（五个Block）。这种由五个Block组成的配置被称为一个Pod，它为你提供了一个大型、统一的虚拟桌面环境进行管理。
+- en: If you were to then introduce the Cloud Pod Architecture into the mix, you could
+    scale even further—up to 200,000 users in total!
+  id: totrans-171
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果你随后将Cloud Pod架构引入混合环境，你甚至可以进一步扩展——总用户数可达200,000！
+- en: Now, you might be reading this thinking, "I only have 500 desktops to create
+    in my environment, so this pod and block architecture does not matter to me,"
+    but I would urge you to carry on and understand the design principle, since it's
+    core to understanding how to deploy Horizon View.
+  id: totrans-172
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 现在，你可能在想，“我只需要在我的环境中创建500台桌面，所以这个Pod和Block架构对我来说并不重要，”但我还是建议你继续阅读并理解这个设计原则，因为它是理解如何部署Horizon
+    View的核心。
+- en: 'If you are creating a VDI solution for 500 desktops, you will still be utilizing
+    the concepts within the pod and block architecture but on a smaller scale, as
+    you will only be creating one pod that contains a single block. However, if you
+    want to add DR into the mix, then this is based on this architecture. The following
+    diagram depicts an individual Horizon View block:'
+  id: totrans-173
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果你为500台桌面创建VDI解决方案，你仍然会使用Pod和Block架构中的概念，但规模较小，因为你只会创建一个包含单个Block的Pod。然而，如果你想在其中加入灾难恢复（DR），那么这将基于该架构。下图展示了一个独立的Horizon
+    View Block：
+- en: '![](img/8e696297-362b-437c-9368-450341443c99.png)'
+  id: totrans-174
+  prefs: []
+  type: TYPE_IMG
+  zh: '![](img/8e696297-362b-437c-9368-450341443c99.png)'
+- en: 'As we mentioned previously, the management block contains all of the Horizon
+    View infrastructure components, such as the **Connection Servers** and **Security
+    Servers** that support the desktop blocks. This is depicted in the following diagram:'
+  id: totrans-175
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 正如我们之前提到的，管理Block包含所有Horizon View基础设施组件，如**Connection Servers**和**Security Servers**，它们支持桌面Block。下图展示了这一点：
+- en: '![](img/27585389-cd39-42a5-817a-3b879945e622.png)'
+  id: totrans-176
+  prefs: []
+  type: TYPE_IMG
+  zh: '![](img/27585389-cd39-42a5-817a-3b879945e622.png)'
+- en: If you are starting out with one block in your pod, you will want to ensure
+    that you still have at least two View Connection Servers for resilience.
+  id: totrans-177
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果你从一个Block开始在Pod中部署，你将希望确保至少有两个View Connection Servers，以确保高可用性。
+- en: VMware does not support the configuration of blocks across a WAN link as the
+    JMS that's utilized for communication is very susceptible to network latency.
+    However, from Horizon 6 onward, VMware added support for the Cloud Pod Architecture,
+    which allows you to further scale out and provide high availability across multiple
+    sites.
+  id: totrans-178
+  prefs: []
+  type: TYPE_NORMAL
+  zh: VMware 不支持跨 WAN 链接配置区块，因为用于通信的 JMS 非常容易受到网络延迟的影响。然而，从 Horizon 6 开始，VMware 增加了对云
+    Pod 架构的支持，允许你进一步扩展，并在多个站点之间提供高可用性。
+- en: Within each desktop block, as well as having several ESXi hosts of enough capacity
+    to be able to accommodate the number of virtual desktop machines, there is also
+    a vCenter Server to manage these virtual desktop machines. In addition, there
+    are a couple of other components that are not depicted.
+  id: totrans-179
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在每个桌面区块内，除了需要多个具有足够容量的 ESXi 主机来容纳虚拟桌面机器外，还需要一个 vCenter 服务器来管理这些虚拟桌面机器。此外，还有一些未展示的其他组件。
+- en: You will also need a View Composer server instance for deploying Linked Clone
+    virtual desktop machines, along with a supporting SQL database that will host
+    the View Composer database and the View Events database. This should be made highly
+    available and should also be backed up as the Composer database keeps track of
+    all the virtual desktop machines that are built. The final requirement is a shared
+    storage platform that can either be exclusive to the block or shared across multiple
+    blocks.
+  id: totrans-180
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 你还需要一个 View Composer 服务器实例来部署链接克隆虚拟桌面机器，以及一个支持的 SQL 数据库，用于托管 View Composer 数据库和
+    View Events 数据库。这个数据库应该具备高可用性，并且应进行备份，因为 Composer 数据库会跟踪所有已构建的虚拟桌面机器。最后的需求是一个共享存储平台，可以是仅限于某个区块，也可以跨多个区块共享。
+- en: It's worth pointing out that, as of VMware View 5.2, it is possible to scale
+    a block up to 10,000 users when there are multiple Connection Servers being used
+    to overcome the 2,000-connection limit of View Connection Servers. However, this
+    would result in a large, single point of failure in the vCenter Server itself.
+    You should consider this risk to your business should vCenter fail and design
+    your architecture accordingly to mitigate any failures. Would you really want
+    to bring down 10,000 users all at once?
+  id: totrans-181
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 值得指出的是，从 VMware View 5.2 开始，当使用多个 Connection Servers 时，可以将一个区块扩展到 10,000 个用户，以克服
+    View Connection Servers 的 2,000 连接限制。然而，这会导致 vCenter Server 本身成为一个大的单点故障。你应该考虑到
+    vCenter 故障对业务的风险，并相应地设计架构来减轻任何故障的影响。你真的希望一次性让 10,000 个用户无法使用吗？
+- en: It would be recommended by VMware that, where possible, you limit your pods
+    to 2,000 users to limit the risk of failure.
+  id: totrans-182
+  prefs: []
+  type: TYPE_NORMAL
+  zh: VMware 建议在可能的情况下，将每个 Pod 限制为 2,000 个用户，以减少故障风险。
+- en: With a single vCenter Server, you will also be limited to the number of concurrent
+    operations that you are able to undertake. This will be of major significance,
+    for example, when powering up large numbers of desktops or recomposing a large
+    number of desktop pools. If you have multiple vCenter Servers, you will be able
+    to further increase the number of parallel operations that could happen across
+    the vCenter Servers rather than the serial nature of a single vCenter Server.
+  id: totrans-183
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 使用单个 vCenter Server 时，你还将受到并发操作数量的限制。例如，当启动大量桌面或重新组成大量桌面池时，这将具有重要意义。如果你有多个 vCenter
+    Server，将能进一步增加跨 vCenter Servers 执行并行操作的数量，而不像单个 vCenter Server 那样是串行操作。
+- en: Inside the pod, the Horizon View Connection Servers are configured in a cluster,
+    and they replicate their data using Microsoft's lightweight directory services
+    and the **Java Message Service** (**JMS**). VMware recommends a limit of seven
+    View Connection Servers in a single pod. These are installed as one per block,
+    plus two additional blocks for availability and/or external connectivity.
+  id: totrans-184
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在 Pod 内，Horizon View Connection Servers 配置为集群，并使用微软的轻量级目录服务和 **Java 消息服务**（**JMS**）来复制其数据。VMware
+    建议在单个 Pod 中限制最多七个 View Connection Servers。这些服务器每个区块安装一个，再加上两个额外的区块，以便提供可用性和/或外部连接。
+- en: 'The following diagram shows the high-level overview of the Horizon View block
+    and pod architecture, complete with the management block. When implemented in
+    a production environment, the users would connect to the View Connection Servers,
+    Security Servers, or Access Point appliance via third-party load balancers:'
+  id: totrans-185
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 以下图表显示了 Horizon View 区块和 Pod 架构的高层概览，完整包括了管理区块。当在生产环境中实施时，用户将通过第三方负载均衡器连接到 View
+    Connection Servers、Security Servers 或 Access Point 设备：
+- en: '![](img/b5e7a900-b07e-4e8f-8753-557b8bef0a22.png)'
+  id: totrans-186
+  prefs: []
+  type: TYPE_IMG
+  zh: '![](img/b5e7a900-b07e-4e8f-8753-557b8bef0a22.png)'
+- en: In the next section, we are going to look at how you can extend pods over multiple
+    sites to allow for disaster recovery scenarios, and how to scale beyond the 10,000-user
+    limit by configuring your environment with the Cloud Pod Architecture.
+  id: totrans-187
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在下一节中，我们将探讨如何在多个站点之间扩展pods，以实现灾难恢复场景，并通过配置Cloud Pod架构来突破10,000用户限制，实现更大规模的部署。
+- en: Cloud Pod Architecture
+  id: totrans-188
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: Cloud Pod架构
+- en: In the latest Horizon 7 release, the Cloud Pod Architecture extends on the scalability
+    and feature set from the previous version. You can now federate up to 25 pods
+    across 10 sites, allowing you to deliver a single desktop solution for up to 200,000
+    users.
+  id: totrans-189
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在最新的Horizon 7版本中，Cloud Pod架构在上一版本的可扩展性和功能集的基础上进行了扩展。现在，您可以在10个站点之间最多联合25个pod，从而为最多200,000名用户提供单一的桌面解决方案。
+- en: When connecting multiple pods in this manner, you will be able to entitle users
+    across pools on both pods and sites. So, if you have currently scaled past a single
+    pod, either for scaling on one site or to deliver a Horizon View environment on
+    multiple sites, you can now administer users through a global user entitlement
+    layer. You can also deliver DR to your virtual desktops, in the event of failure,
+    through the global user entitlement layer.
+  id: totrans-190
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当以这种方式连接多个pods时，您将能够跨两个pod和站点为用户授权池。因此，如果您当前已经扩展超过一个pod，无论是为了单站点扩展，还是为了在多个站点上提供Horizon
+    View环境，您现在可以通过全局用户授权层管理用户。通过全局用户授权层，您还可以在发生故障时为虚拟桌面提供灾难恢复（DR）。
+- en: 'You can also configure the scope to set whether View shows a user''s resources
+    based only being local to them, on the same site but across pods, or in all pods
+    across both sites. The following diagram depicts the Cloud Pod Architecture:'
+  id: totrans-191
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 您还可以配置范围设置，以决定View是否仅显示本地用户资源，或者在同一站点但跨pods，或者在两个站点的所有pods中显示用户资源。下图展示了Cloud
+    Pod架构：
+- en: '![](img/146dfd01-d23b-41de-857f-dd94d6b4b6e3.png)'
+  id: totrans-192
+  prefs: []
+  type: TYPE_IMG
+  zh: '![](img/146dfd01-d23b-41de-857f-dd94d6b4b6e3.png)'
+- en: Microsoft Active Directory Lightweight Service and the new **View Interpod API**
+    (**VIPA**) are used for interpod communications. VIPA is enabled when you enable
+    the Cloud Pod Architecture from the command line on the View Connection Servers
+    and is used when virtual desktops are launched to send health information and
+    to find existing desktops.
+  id: totrans-193
+  prefs: []
+  type: TYPE_NORMAL
+  zh: Microsoft Active Directory Lightweight Service和新的**View Interpod API**（**VIPA**）用于pod之间的通信。当您从View连接服务器的命令行启用Cloud
+    Pod架构时，VIPA将被启用，并在启动虚拟桌面时用于发送健康信息并查找现有桌面。
+- en: By default, when a user connects to Horizon View, and they have a global entitlement,
+    there will be a preference applied by the global entitlement to utilize virtual
+    desktops at the local site rather than across a secondary site where possible.
+    However, this is fully customizable by the administrator when creating the global
+    entitlement.
+  id: totrans-194
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 默认情况下，当用户连接到Horizon View并且拥有全局授权时，系统会根据全局授权的偏好设置，优先使用本地站点的虚拟桌面，而不是跨二级站点使用虚拟桌面。但是，管理员在创建全局授权时可以完全自定义这一点。
+- en: 'With the scope configuration options, you can specify where the View Connection
+    Server looks for virtual desktops or hosted applications to satisfy a request
+    from the global entitlement. You can configure the following:'
+  id: totrans-195
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 使用范围配置选项，您可以指定View连接服务器在何处查找虚拟桌面或托管应用，以满足来自全局授权的请求。您可以配置以下内容：
+- en: '**All sites**: View will look for virtual desktops or hosted applications on
+    any pod within the federation'
+  id: totrans-196
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '**所有站点**：View将在联盟中的任何pod内查找虚拟桌面或托管应用。'
+- en: '**Within a site**: View will look for virtual desktops or hosted applications
+    that are only on pods that are in the same site as the pod that the user is connected
+    to'
+  id: totrans-197
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '**在站点内**：View将只在与用户连接的pod所在的同一站点内查找虚拟桌面或托管应用。'
+- en: '**Within a pod**: View will look for virtual desktops or hosted applications
+    that are only in the pod that the user is connected to'
+  id: totrans-198
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '**在一个pod内**：View将只在用户所连接的pod内查找虚拟桌面或托管应用。'
+- en: In addition to these scopes, you can configure an option called **home site.**
+    This allows you to configure a site that acts as the end user's default site and
+    when the user logs in, the View Connection Server will look for virtual desktops
+    in that user's home site.
+  id: totrans-199
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 除了这些范围之外，您还可以配置一个名为**主页站点**的选项。这允许您配置一个作为终端用户默认站点的站点，当用户登录时，视图连接服务器将查找该用户在主页站点中的虚拟桌面。
+- en: Along with configuring the Cloud Pod Architecture, you will need to utilize
+    third-party load balancing technologies to allow the benefits of this technology
+    to be seamless to the end users. However, this gives us a way of unifying our
+    multiple View deployments that would have been separate entities previously. We
+    will look at how this is configured in later chapters.
+  id: totrans-200
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 配置云 Pod 架构时，你还需要利用第三方负载均衡技术，以便让这种技术的优势对最终用户来说是无缝的。然而，这为我们提供了一种统一多个以前分离的 View
+    部署的方法。我们将在后续章节中讨论如何进行配置。
+- en: vSphere design for Horizon View
+  id: totrans-201
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: Horizon View 的 vSphere 设计
+- en: Now that we have looked at some of the reference architectures, it's time to
+    turn our attention to some of the components that are part of that architecture,
+    namely our vSphere virtualization platform, and look at some of the high-level
+    considerations for your design.
+  id: totrans-202
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 现在我们已经看过一些参考架构，是时候将注意力转向这些架构中的一些组件，特别是我们的 vSphere 虚拟化平台，并关注设计中的一些高层次考虑因素。
+- en: In this book, we aren't going into the intricacies of how to install and configure
+    ESXi hosts. However, we will briefly discuss the recommendations on how you should
+    configure vCenter Server, as well as the hosts and clusters for your Horizon environment.
+  id: totrans-203
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 本书不涉及如何安装和配置 ESXi 主机的细节。但是，我们会简要讨论如何配置 vCenter Server 以及 Horizon 环境中的主机和集群的建议。
+- en: It is technically possible to run your Horizon View and virtual server environments
+    from one set of infrastructures, with one vCenter Server, and one or more ESXi
+    clusters. By doing this, you could create several points of contention and a lot
+    of difficulty during the time of upgrades.
+  id: totrans-204
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 从技术上讲，完全可以使用一套基础设施、一个 vCenter Server 和一个或多个 ESXi 集群来运行 Horizon View 和虚拟服务器环境。这样做可能会在升级过程中产生多个争用点，并且增加很多困难。
+- en: 'As we discussed previously, there are two infrastructure areas when it comes
+    to Horizon View: the management block that runs the vCenter Server, View Composers,
+    and View Connection Servers, and so on, and the second one, which runs the virtual
+    desktops themselves. The recommendation is that these two components are separated
+    physically on different ESXi hosts and clusters, minimizing any risk of there
+    being performance issues with the server components during heavy use periods or
+    large desktop provisioning processes. From a licensing perspective, this is covered,
+    as it is included with Horizon is the vSphere for desktop entitlement, which allows
+    you to deploy as many ESXi hosts and vCenter Servers as you need to support your
+    environment.'
+  id: totrans-205
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 正如我们之前讨论的，Horizon View 在基础设施方面分为两个区域：一个是管理区，运行 vCenter Server、View Composer
+    和 View Connection Server 等组件；另一个是运行虚拟桌面的区域。建议这两个组件在不同的 ESXi 主机和集群上物理分离，以最小化在高负载时期或大规模桌面配置过程中出现服务器组件性能问题的风险。从许可角度来看，这是被覆盖的，因为
+    Horizon 包括了 vSphere for desktop 权限，它允许你根据需要部署多个 ESXi 主机和 vCenter 服务器，以支持你的环境。
+- en: You should also run the Horizon View components on a different vCenter Server
+    from your production vSphere environment. Separating the Horizon View components
+    onto a separate vCenter Server will mean fewer clashes of priorities and prerequisites
+    when it comes to upgrading either environment.
+  id: totrans-206
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 你还应该在与生产 vSphere 环境不同的 vCenter 服务器上运行 Horizon View 组件。将 Horizon View 组件分离到独立的
+    vCenter 服务器上，将意味着在升级任何一个环境时，优先级和前提条件的冲突会更少。
+- en: 'You should also run the Horizon View components on a different vCenter Server
+    from your production vSphere environment. Separating the Horizon View components
+    onto a separate vCenter Server will mean less clashes of priorities and prerequisites
+    when it comes to upgrading either environment. The following diagram shows an
+    example of how your virtual environments could be designed:'
+  id: totrans-207
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 你还应该在与生产 vSphere 环境不同的 vCenter 服务器上运行 Horizon View 组件。将 Horizon View 组件分离到独立的
+    vCenter 服务器上，将意味着在升级任何一个环境时，优先级和前提条件的冲突会更少。以下图示展示了虚拟环境设计的一个示例：
+- en: '![](img/da3f9eb4-5f4c-49b9-b6dc-57104a6b49dd.png)'
+  id: totrans-208
+  prefs: []
+  type: TYPE_IMG
+  zh: '![](img/da3f9eb4-5f4c-49b9-b6dc-57104a6b49dd.png)'
+- en: In the following section, we are going to look at the maximum values that can
+    be configured.
+  id: totrans-209
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在接下来的部分，我们将查看可以配置的最大值。
+- en: Configuration maximums
+  id: totrans-210
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 配置最大值
+- en: When building any VDI infrastructure, you very quickly and easily hit the configuration
+    maximums that have been set by the product vendors. When it comes to vSphere and
+    vCenter Server, there are a few maximums that you should be aware of.
+  id: totrans-211
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在构建任何VDI基础设施时，你会非常快速且轻松地达到产品厂商设定的配置最大值。关于vSphere和vCenter Server，有一些最大值是你需要了解的。
+- en: 'To check out the latest configuration maximums for VMware vSphere, see the
+    following link: [https://configmax.vmware.com/guest](https://configmax.vmware.com/guest).'
+  id: totrans-212
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要查看VMware vSphere的最新配置最大值，请参阅以下链接：[https://configmax.vmware.com/guest](https://configmax.vmware.com/guest)。
+- en: You should also keep in mind that the Horizon View has specific maximums. We
+    will discuss those later in this chapter. Don't forget that these maximums are
+    not goals to try and hit, but maximum limits. When designing your architecture,
+    you should also keep in mind the risk of losing an individual component such as
+    a vCenter Server or a View Connection Server.
+  id: totrans-213
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 你还应当记住，Horizon View有特定的最大值。我们将在本章稍后讨论这些限制。不要忘记，这些最大值不是要追求的目标，而是最高限制。在设计架构时，你还需要考虑丢失某个单独组件的风险，比如vCenter
+    Server或View Connection Server。
+- en: ESXi host servers
+  id: totrans-214
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: ESXi主机服务器
+- en: In this section, we are going to cover some recommendations on the sizing and
+    quantities of host servers that might be required to host and support your infrastructure.
+  id: totrans-215
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在这一部分，我们将介绍一些关于可能需要的主机服务器的大小和数量的建议，这些主机服务器用于托管和支持你的基础设施。
+- en: As with any virtual infrastructure, you need to ensure that redundancy is built-in
+    as standard. This means ensuring that your chosen servers have redundant power
+    supplies, RAID hard disks, or mirrored SD cards for ESXi, and multiple network
+    cards for network failovers in the case of a card or switch failure.
+  id: totrans-216
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 和任何虚拟基础设施一样，你需要确保冗余是标准配置。这意味着你要确保所选的服务器具有冗余电源供应、RAID硬盘或镜像SD卡用于ESXi，并且有多个网卡以便在卡片或交换机故障时进行网络故障转移。
+- en: You also need to look at how many hosts are likely to be required to support
+    your environment, and then add the relative amount of hosts to allow for the N+
+    capacity that you require. In most environments, this will be N+1, meaning that
+    you will have the number of hosts you require to run your virtual desktops, plus
+    one additional host to allow for a host failure. This ensures that any outage
+    does not impact your end users.
+  id: totrans-217
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 你还需要查看预计支持你的环境所需的主机数量，然后再增加相应数量的主机，以确保你所需的N+容量。在大多数环境中，这通常是N+1，这意味着你将拥有运行虚拟桌面所需的主机数量，并额外增加一台主机以应对主机故障。这可以确保任何故障不会影响最终用户。
+- en: Remember that you are effectively going to be sizing for two different environment
+    profiles; one will host the management block infrastructure, and the other will
+    host the virtual desktop machines.
+  id: totrans-218
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 请记住，你实际上将为两个不同的环境配置进行大小调整；一个将托管管理块基础设施，另一个将托管虚拟桌面机器。
+- en: In the next section, we are going to cover some of the generic points that you
+    should consider for your design.
+  id: totrans-219
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在下一部分，我们将讨论你在设计中应考虑的一些通用要点。
+- en: CPU and memory requirements for ESXi
+  id: totrans-220
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: ESXi的CPU和内存要求
+- en: The next thing we are going to look at is CPU and memory configurations and
+    recommendations.
+  id: totrans-221
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 接下来我们要看的内容是CPU和内存的配置和建议。
+- en: Overcommitting CPU and memory resources
+  id: totrans-222
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 超额配置CPU和内存资源
+- en: As a rule of thumb, never overcommit memory in a VDI environment. This can have
+    many negative knock-on effects if memory is not granted when required, which will
+    ultimately affect the end user experience.
+  id: totrans-223
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 一条经验法则是在VDI环境中永远不要超额配置内存。如果在需要时没有分配内存，这可能会带来许多负面影响，最终会影响最终用户的体验。
+- en: When it comes to CPUs, while it would be nice to also not to have an overcommitment,
+    this would simply not be affordable. CPU overcommitment, if done carefully and
+    not pushed too far, can usually be allowed with little to no effect on the end
+    users. However, the question is, how far is not too far? This will generally depend
+    on the type of workload you are running within your environment. If you look at
+    various resources on the internet, you will find different answers to this question,
+    with some claiming figures of more than 10 **virtual CPUs** (**vCPUs**) per physical
+    core. The only true way to find out what is going to be acceptable in your environment
+    is by reviewing the CPU Ready figure; you can review this metric via vCenter,
+    ESXTOP, or similar tools. When reviewing the CPU Ready figures, you should initially
+    be looking to ensure that you are keeping CPU Ready below 5% per vCPU for the
+    desktops in your environment. Your environment might be able to accept CPU Ready
+    higher than 5%, but this should only be after testing during your POC and pilot
+    stages. Generally, if CPU Ready is as high as 10% per vCPU, the environment is
+    going to struggle enough so that it affects user experience considerably.
+  id: totrans-224
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 关于 CPU，虽然最好避免过度承诺，但这显然是无法负担的。如果 CPU 过度承诺得当并且没有过度推进，通常对最终用户几乎没有影响。然而，问题是，怎样才算“不过度”？这通常取决于您在环境中运行的工作负载类型。如果您查看互联网上的各种资源，您会找到不同的答案，有些人声称每个物理核心可以支持超过
+    10 个 **虚拟 CPU**（**vCPU**）。要真正了解在您的环境中什么是可接受的，唯一的办法是查看 CPU Ready 指标；您可以通过 vCenter、ESXTOP
+    或类似工具查看此指标。在查看 CPU Ready 数值时，您应该首先确保将每个 vCPU 的 CPU Ready 保持在 5% 以下，尤其是对于您的桌面环境。您的环境可能能够接受高于
+    5% 的 CPU Ready，但这应该仅在您的 POC 和试点阶段经过测试之后。通常，如果每个 vCPU 的 CPU Ready 高达 10%，环境将面临足够大的压力，影响用户体验。
+- en: CPU and memory sizing
+  id: totrans-225
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: CPU 和内存配置
+- en: The number of hosts that are required for your Horizon View infrastructure is
+    usually dictated by the number of desktops required, the amount of CPU and RAM
+    these desktops require, what overcommit ratio you can allow for the CPU within
+    your infrastructure, and how much CPU and memory you can physically fit into your
+    chosen host servers.
+  id: totrans-226
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 您的 Horizon View 基础设施所需的主机数量通常由所需的桌面数量、这些桌面所需的 CPU 和内存、在基础设施中可以接受的 CPU 超额承诺比例，以及您能在所选主机服务器中实际安装的
+    CPU 和内存数量决定。
+- en: Taking that into consideration, you should be looking to include the amount
+    of memory and CPU cores across the infrastructure that allows you to balance these
+    in a cost-effective way without too much wastage.
+  id: totrans-227
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在考虑这些因素时，您应该考虑将内存和 CPU 核心的数量纳入基础设施设计中，以便在不浪费资源的前提下，做到成本效益的平衡。
+- en: When selecting your host server platform, you should also consider what effect
+    it would have on the business if that one host was to fail. As such, sometimes,
+    you might consider hosts with two physical CPUs to be a better design decision
+    than having four physical CPUs, especially as the number of cores per CPU continues
+    to increase.
+  id: totrans-228
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 选择主机服务器平台时，您还应该考虑，如果某台主机发生故障，会对业务造成什么影响。因此，有时，您可能会认为选择配备两个物理 CPU 的主机比选择配备四个物理
+    CPU 的主机更合适，尤其是当每个 CPU 的核心数不断增加时。
+- en: This may well become a financial consideration as well as a technical one, and
+    introduces the scale-up or scale-out argument of should you have fewer, larger
+    servers, or spread the load across more, lower spec servers.
+  id: totrans-229
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 这不仅可能成为一个技术上的问题，也可能变成一个财务上的问题，并引入了是否应该选择更少、更大的服务器，还是将负载分散到更多、更低规格的服务器的规模扩展或扩展性问题。
+- en: Within your calculations, ensure that you are considering the overheads that
+    the ESXi hypervisor requires to be able to run your virtual machines, as well
+    as memory to be dedicated as graphics memory to virtual machines if required.
+  id: totrans-230
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在计算时，确保考虑到 ESXi 超级管理程序（hypervisor）运行虚拟机所需的开销，以及如果需要，为虚拟机专用的显存。
+- en: 'The following table details some typical overhead values (in MB) that are required
+    per VM:'
+  id: totrans-231
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 下表列出了每个虚拟机所需的一些典型开销值（以 MB 为单位）：
+- en: '![](img/7d2bf389-d22e-41dc-86ea-c68bff69fca6.png)'
+  id: totrans-232
+  prefs: []
+  type: TYPE_IMG
+  zh: '![](img/7d2bf389-d22e-41dc-86ea-c68bff69fca6.png)'
+- en: Next, we will look at the networking considerations.
+  id: totrans-233
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 接下来，我们将讨论网络相关的考虑事项。
+- en: Networking
+  id: totrans-234
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 网络
+- en: There are generally two considerations for networking in your ESXi hosts, which
+    is whether to use 1 Gbps or 10 Gbps NICs. You could always consider a 40-Gbps
+    network as well. No matter what, you will always want to ensure that you have
+    at least two multiport network cards to separate your traffic, which will allow
+    the resilient network design that you require. Regarding the speed of the network
+    that you require, this will depend on the VM LAN traffic within your infrastructure,
+    and that completely depends on your use case.
+  id: totrans-235
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在你的ESXi主机网络设置中，通常有两个考虑因素，即是选择使用1 Gbps还是10 Gbps网卡。你也可以考虑使用40 Gbps网络。不管怎样，你始终需要确保至少有两张多端口网卡来分隔流量，这样才能实现你所需的弹性网络设计。至于你所需的网络速度，这将取决于你基础架构中的虚拟机局域网流量，而这完全取决于你的使用案例。
+- en: If you are streaming a lot of HD media into your VDI desktops, then 10 or 40
+    Gbps may well be required. Whatever the case, ensure that you really understand
+    the network requirements, as getting this wrong will result in a poor end user
+    experience.
+  id: totrans-236
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果你要将大量高清视频媒体流传输到VDI桌面，那么可能需要10 Gbps或40 Gbps的速度。不管怎样，确保你真正理解网络需求，因为如果弄错了，最终用户的体验会很差。
+- en: Graphics
+  id: totrans-237
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 图形
+- en: A lot of information has already been covered regarding the hardware and software
+    graphics offload and accelerating options in [Chapter 2](5d942e5b-dda5-4e5a-8278-62a64210aeef.xhtml),
+    *Understanding Horizon 7 Architecture and Components.*
+  id: totrans-238
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在[第二章](5d942e5b-dda5-4e5a-8278-62a64210aeef.xhtml)，*理解Horizon 7架构和组件*中，已经涵盖了许多关于硬件和软件图形卸载与加速选项的信息。
+- en: The requirements for graphics in your environment should be carefully considered
+    and tested during the POC and pilot stages of your project. You should consider
+    all of the elements we mentioned in the previous chapter, and then decide what
+    is required with regard to PCI cards in your ESXi hosts. The requirement for PCI
+    cards for graphics acceleration or offloading will affect the hardware you choose
+    for your ESXi hosts due to the limitations of some of these cards with regard
+    to power and cooling, along with the number of PCIe slots available.
+  id: totrans-239
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在你的环境中，图形需求应在项目的POC（概念验证）和试点阶段仔细考虑和测试。你应考虑我们在前一章中提到的所有要素，然后决定在ESXi主机中需要什么样的PCI卡。用于图形加速或卸载的PCI卡要求将影响你选择的ESXi主机硬件，因为这些卡在功率和散热方面的限制，以及可用PCIe插槽的数量。
+- en: 'NVIDIA publishes a list of supported servers, with the number of cards that
+    can be configured into specific servers. This list can be found by clicking on
+    the following link: [http://www.nvidia.com/object/grid-partners.html](http://www.nvidia.com/object/grid-partners.html).'
+  id: totrans-240
+  prefs: []
+  type: TYPE_NORMAL
+  zh: NVIDIA发布了支持的服务器列表，并列出了可以配置到特定服务器中的网卡数量。你可以通过点击以下链接查看该列表：[http://www.nvidia.com/object/grid-partners.html](http://www.nvidia.com/object/grid-partners.html)。
+- en: Storage
+  id: totrans-241
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 存储
+- en: We could probably write a whole book on storage considerations, designs, and
+    options regarding your VDI environment. Along with the network, storage is probably
+    among the most important areas to get right. The most obvious reason is that you
+    don't want to end up with insufficient storage for your planned rollout, and secondly,
+    failure to specify a storage solution that is going to meet your performance requirements
+    will leave you with unhappy users and a failed project. This is particularly key
+    when deploying Linked Clone desktops, as we will now discuss.
+  id: totrans-242
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 我们可能可以写一本关于存储考虑、设计和选项的书，特别是针对你的VDI环境。与网络一起，存储可能是最需要正确配置的重要领域。最明显的原因是，你不想在计划的部署过程中遇到存储不足的问题，其次，未能指定满足性能要求的存储解决方案将导致用户不满，项目失败。特别是在部署Linked
+    Clone桌面时，这一点尤为关键，正如我们接下来将讨论的。
+- en: 'When it comes to storage, we need to look at two aspects: performance and capacity.'
+  id: totrans-243
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当涉及到存储时，我们需要从两个方面来看待：性能和容量。
+- en: Storage capacity
+  id: totrans-244
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 存储容量
+- en: Your first consideration will be how much storage space you need for your Horizon
+    View environment. You will need to consider where the relative elements of your
+    virtual infrastructure are to be located. The first and easy bit is going to be
+    totalling the required space for any server components. Often, the server components
+    will live on the same storage device as the rest of your virtual infrastructure,
+    and the desktops will live on a dedicated storage device. However, this is not
+    compulsory and will depend on the type of storage you are utilizing and the levels
+    of separation you desire. You will then need to understand the required storage
+    for your desktops based upon the technologies being used to deploy the desktops,
+    such as Linked Clones, Full Clones, or Instant Clones, not forgetting to include
+    persistent disks for user data if you plan on using them.
+  id: totrans-245
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 您的首要考虑将是为 Horizon View 环境需要多少存储空间。您需要考虑虚拟基础设施中各个元素的存放位置。首先并且相对简单的是计算所有服务器组件所需的空间。通常，服务器组件将与虚拟基础设施的其余部分存放在同一存储设备上，而桌面将存放在专用存储设备上。然而，这并非强制要求，具体取决于您所使用的存储类型以及您所希望的隔离程度。接下来，您需要根据用于部署桌面的技术来了解桌面所需的存储空间，例如
+    Linked Clones、Full Clones 或 Instant Clones，如果您计划使用持久磁盘存储用户数据，也不要忘记将其考虑在内。
+- en: An important point to remember is to think beyond just the virtual desktops.
+    If you are planning on delivering apps with App Volumes, then you will also need
+    space to store App Stacks.
+  id: totrans-246
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 一个重要的提醒是，不仅要考虑虚拟桌面。如果您计划通过 App Volumes 提供应用程序，那么您还需要存储 App Stacks 的空间。
+- en: 'With Linked Clones, you need to understand the growth of the Linked Clone between
+    the refresh and recompose operations. The following diagram gives an example of
+    some areas for consideration regarding storage for a typical desktop pool that''s
+    utilizing Linked Clones and persistent disks:'
+  id: totrans-247
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 使用 Linked Clones 时，您需要了解 Linked Clone 在刷新和重组操作之间的增长。以下图示提供了关于存储的一些考虑因素，涉及使用
+    Linked Clones 和持久磁盘的典型桌面池：
+- en: '![](img/0f78a924-094d-432e-9505-292d413299ce.png)'
+  id: totrans-248
+  prefs: []
+  type: TYPE_IMG
+  zh: '![](img/0f78a924-094d-432e-9505-292d413299ce.png)'
+- en: The replica from which a Linked Clone originates needs to be located on fast
+    storage, either local to the host server or via a SAN. To enable this in Horizon
+    View, you can choose the location of where the replica should live, and one of
+    the recommendations is that the replica sits on fast storage, such as local SSD,
+    for example.
+  id: totrans-249
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 生成 Linked Clone 的副本需要位于快速存储上，可以是本地主机服务器上的存储，也可以通过 SAN 实现。为了在 Horizon View 中启用此功能，您可以选择副本存放的位置，推荐的做法是将副本存放在快速存储上，例如本地
+    SSD。
+- en: 'The recommendation is that during your POC and pilot stages, you collect this
+    type of storage usage information. Once you have this information, you will be
+    able to use a spreadsheet to create a model to predict storage utilization, and
+    then you can grow your environment. The following table depicts a sample Excel
+    spreadsheet outlining the storage requirement across three desktop pools:'
+  id: totrans-250
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 推荐在 POC 和试点阶段收集此类存储使用信息。一旦获取了这些信息，您将能够使用电子表格创建模型来预测存储使用情况，然后可以扩展您的环境。下表展示了一个示例
+    Excel 电子表格，概述了三个桌面池的存储需求：
+- en: '![](img/51cc6d05-492e-4f41-8f50-fceb6e1c9e73.png)'
+  id: totrans-251
+  prefs: []
+  type: TYPE_IMG
+  zh: '![](img/51cc6d05-492e-4f41-8f50-fceb6e1c9e73.png)'
+- en: During the POC, we have been able to understand the capacity that's required
+    per desktop for the Linked Clones. This is a key component for understanding the
+    overall capacity required for the solution moving forward.
+  id: totrans-252
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在 POC 阶段，我们已经能够了解每个虚拟桌面所需的 Linked Clone 容量。这是理解解决方案所需总体容量的关键组成部分。
+- en: This now leads to the other part of the storage story, that is, storage performance.
+  id: totrans-253
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 这现在引出了存储故事的另一个部分，即存储性能。
+- en: Storage performance
+  id: totrans-254
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 存储性能
+- en: Once you have worked out how much capacity you require for your Horizon View
+    environment, you can start considering your performance needs. As always, it is
+    recommended that you understand your performance requirements during the POC and
+    pilot stages and use this to size your storage. When examining your virtual environment,
+    you are looking to keep the read and write latency as low as possible to guarantee
+    a good user experience. The amount of latency that's acceptable will depend greatly
+    on the workload of your users and the tolerances of the applications they are
+    using. However, keeping your average latency as low as 25 ms will often deliver
+    a good user experience for your users.
+  id: totrans-255
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 一旦你确定了Horizon View环境所需的容量，就可以开始考虑你的性能需求了。像往常一样，建议你在POC和试点阶段了解你的性能需求，并用这些数据来调整存储容量。在检查虚拟环境时，你需要尽量将读取和写入延迟保持在最低，以保证良好的用户体验。可接受的延迟量将大大取决于用户的工作负载以及他们所使用应用程序的容忍度。然而，将平均延迟保持在25毫秒以内通常能为用户提供良好的体验。
+- en: The question is, how do you ensure that you can deliver this type of performance?
+    The first thing to look at would be to deploy some form of storage acceleration
+    technology to drive the IOPS requirements. Horizon View also has its own integrated
+    solution called the **View Storage Accelerator** (**VSA**) or **Content-Based
+    Read Cache** (**CBRC**). This feature allows you to allocate up to 2 GB of memory
+    from the underlying ESXi host server, which can be used as a cache for the most
+    commonly read blocks. As we are talking about booting up desktop operating systems,
+    the same blocks are required, and since these can be retrieved from memory, the
+    process is accelerated.
+  id: totrans-256
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 问题是，如何确保你能够提供这种类型的性能？首先要考虑的是部署某种形式的存储加速技术，以驱动IOPS需求。Horizon View还提供了一个集成的解决方案，叫做**视图存储加速器**（**VSA**）或**基于内容的读取缓存**（**CBRC**）。该功能允许你从底层的ESXi主机服务器中分配最多2
+    GB的内存，这些内存可以用作最常读取的块的缓存。因为我们讨论的是启动桌面操作系统，所需的块是相同的，并且由于这些块可以从内存中获取，整个过程得以加速。
+- en: Remember that CBRC is not required when using Instant Clones.
+  id: totrans-257
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 请记住，在使用Instant Clones时不需要CBRC。
+- en: Another solution is to use **View Composer Array Integration** (**VCAI**), which
+    allows built Linked Clones to be offloaded to the storage array and its native
+    snapshot mechanism, rather than having to take CPU cycles from the host server.
+  id: totrans-258
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 另一个解决方案是使用**视图组合器数组集成**（**VCAI**），它允许将内建的链接克隆卸载到存储阵列及其原生快照机制中，而不是占用主机服务器的CPU周期。
+- en: Instant Clones does not support VCAI.
+  id: totrans-259
+  prefs: []
+  type: TYPE_NORMAL
+  zh: Instant Clones不支持VCAI。
+- en: There are also several other third-party solutions that resolve the storage
+    performance bottleneck and increase the overall storage I/O. These are software-defined
+    solutions such as ThinScale ThinIO, or hardware-based solutions such as deploying
+    an all-flash array. So, the question is, how many IOPS do you need?
+  id: totrans-260
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 还有一些其他的第三方解决方案可以解决存储性能瓶颈并提高整体存储I/O。这些是软件定义的解决方案，如ThinScale ThinIO，或基于硬件的解决方案，如部署全闪存阵列。那么问题是，你需要多少IOPS？
+- en: As with the question of how many virtual desktop machines can you configure
+    per core, the answer to the IOPS question is also "it depends!". If you read some
+    of the guides and white papers on the subject, you will probably see something
+    like Windows 7 needing 20 to 25 IOPS. That might be correct for a steady state,
+    but what about for peak disk activity? The only way you will know the answer to
+    how many IOPS you need is by analyzing your assessment report data.
+  id: totrans-261
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 与每个核心可以配置多少虚拟桌面机器的问题类似，关于IOPS的问题的答案也是“视情况而定！”如果你阅读一些关于这个主题的指南和白皮书，你可能会看到类似于Windows
+    7需要20到25 IOPS的说法。这对于稳定状态可能是正确的，但在磁盘活动高峰期又如何呢？你了解需要多少IOPS的唯一方法是通过分析你的评估报告数据。
+- en: The following graph depicts a sample storage environment, which shows a sample
+    workload as the desktops are booted. Users log in and then continue to use the
+    desktops. On the vertical axis, you can see the IOPS, and on the horizontal axis,
+    you can see time.
+  id: totrans-262
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 以下图表展示了一个示例存储环境，其中显示了桌面启动时的示例工作负载。用户登录后继续使用桌面。在纵轴上，你可以看到IOPS，横轴上则显示时间。
+- en: 'As you can see, the boot storm is heavily read-intensive, with the login storm
+    and steady state being heavily write-intensive. You need to size accordingly and
+    based on your assessment data:'
+  id: totrans-263
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如你所见，启动风暴是高度读密集型的，而登录风暴和稳定状态则是高度写密集型的。你需要根据你的评估数据适当调整容量：
+- en: '![](img/cfb9f9e2-efb4-4ba4-b5b8-c25a88373371.png)'
+  id: totrans-264
+  prefs: []
+  type: TYPE_IMG
+  zh: '![](img/cfb9f9e2-efb4-4ba4-b5b8-c25a88373371.png)'
+- en: While the desktop may well drive 25 IOPS, what about any applications running
+    on that desktop? How many IOPS will the application require? You don't want to
+    find out the answer to this after you have deployed your solution.
+  id: totrans-265
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 虽然桌面可能只需要 25 IOPS，但运行在该桌面上的应用程序呢？这些应用程序会需要多少 IOPS？您不希望在部署解决方案后才发现这个问题。
+- en: There is also the debate around the split of IOPS between read and write. It
+    is often quoted that the split is 80:20, with 80 writes and 20 reads, but this
+    again will be dependent on your environment and the actual answer will be in your
+    assessment data. It may well transpire that you have 70:30 or even 60:40.
+  id: totrans-266
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 还有关于读取和写入之间 IOPS 分配的争论。通常引用的分配比例是 80:20，即 80% 为写入，20% 为读取，但这一比例会根据您的环境而有所不同，实际答案将体现在您的评估数据中。结果可能是
+    70:30，甚至 60:40。
+- en: As the IOPS requirements are a key part to the sizing exercise and can have
+    a hit on the virtual desktop machine's performance, you need to get this right,
+    so let's take a closer look at some actual sizing calculations.
+  id: totrans-267
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 由于 IOPS 要求是资源配置中的关键因素，并且可能会影响虚拟桌面机的性能，因此您需要正确配置这一点。让我们仔细看看一些实际的资源配置计算。
+- en: One thing that gets forgotten when sizing is the RAID penalty or IOPS penalty
+    when writing to the disks. This means that, for every read operation, there will
+    be multiple write operations occurring, depending on the RAID level being used.
+  id: totrans-268
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在进行资源配置时，往往会忽视 RAID 惩罚或写入磁盘时的 IOPS 惩罚。这意味着对于每次读取操作，会有多个写入操作发生，具体取决于使用的 RAID
+    级别。
+- en: 'For our example, let''s take RAID 5, which has a write penalty of 4, and you
+    need to deliver 200 IOPS with a 60:40 read/write ratio. To calculate this, you
+    can use the following formula:'
+  id: totrans-269
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在我们的示例中，假设使用 RAID 5，其写入惩罚为 4，且您需要以 60:40 的读写比提供 200 IOPS。为此，您可以使用以下公式进行计算：
+- en: '![](img/1e609379-a41e-4f1e-84fd-0065612b9888.png)'
+  id: totrans-270
+  prefs: []
+  type: TYPE_IMG
+  zh: '![](img/1e609379-a41e-4f1e-84fd-0065612b9888.png)'
+- en: 'Going back to our example, the calculation would look something like the following:'
+  id: totrans-271
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 回到我们的示例，计算可能如下所示：
+- en: '![](img/6959fb99-8383-4aa8-9af8-afb71bed20c0.png)'
+  id: totrans-272
+  prefs: []
+  type: TYPE_IMG
+  zh: '![](img/6959fb99-8383-4aa8-9af8-afb71bed20c0.png)'
+- en: In this example, you would need to configure a RAID 5 array that could deliver
+    the 600 IOPS that is required.
+  id: totrans-273
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在此示例中，您需要配置一个 RAID 5 阵列，以满足所需的 600 IOPS。
+- en: Once you understand what performance and capacity you require for your VDI environment,
+    you can browse the market to find a suitable solution that will work for you.
+  id: totrans-274
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 一旦您了解了 VDI 环境所需的性能和容量，就可以浏览市场，找到适合您的解决方案。
+- en: Horizon View design specifics
+  id: totrans-275
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: Horizon View 设计细节
+- en: Now that we have looked at some of the more general elements of your infrastructure,
+    and the vSphere platform that is going to support your environment, it's now time
+    to turn your attention to the Horizon View-specific components of the infrastructure.
+  id: totrans-276
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 现在我们已经看过了基础设施中的一些更通用的元素，以及将支持您环境的 vSphere 平台，接下来是时候将注意力转向 Horizon View 特定组件的基础设施了。
+- en: Let's start by looking at the requirements of those components before looking
+    at sizing the actual VDI desktops themselves.
+  id: totrans-277
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 让我们先看看这些组件的需求，再来考虑实际配置 VDI 桌面的资源。
+- en: The Horizon View Connection Server
+  id: totrans-278
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: Horizon View 连接服务器
+- en: 'The View Connection Server is a Windows Server with Horizon View installed
+    as an application. In this instance, the application would be that of the View
+    Connection Server role. This server would be hosted as a virtual machine on the
+    management block, and has a recommended configuration, as shown in the following
+    table:'
+  id: totrans-279
+  prefs: []
+  type: TYPE_NORMAL
+  zh: View Connection Server 是一款安装了 Horizon View 应用程序的 Windows Server。在这个例子中，该应用程序将作为
+    View Connection Server 角色运行。此服务器将作为虚拟机托管在管理块上，并有推荐的配置，如下表所示：
+- en: '![](img/679fe476-c2c6-44ee-a18b-d1bdf7f2bd57.png)'
+  id: totrans-280
+  prefs: []
+  type: TYPE_IMG
+  zh: '![](img/679fe476-c2c6-44ee-a18b-d1bdf7f2bd57.png)'
+- en: As we have touched on previously, if this is purely for a POC or pilot with
+    a limited number of users, you can lower the specification to maybe two vCPUs
+    and 4 GB of memory. You can't resize this afterwards, which is the reason why
+    you should size appropriately should you want to move straight into production
+    without reinstalling.
+  id: totrans-281
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如前所述，如果这是仅限少量用户的 POC 或试点，您可以将配置降低到可能的两个 vCPU 和 4 GB 内存。之后无法调整配置，这也是为什么如果您希望直接进入生产环境而不重新安装系统，就必须适当配置的原因。
+- en: The Horizon View Replica Server
+  id: totrans-282
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: Horizon View 副本服务器
+- en: The View Replica Server is essentially the same as the View Connection Server,
+    as it acts as a backup to the main Connection Server. As such, it should be sized
+    in the same way as the View Connection Server.
+  id: totrans-283
+  prefs: []
+  type: TYPE_NORMAL
+  zh: View Replica Server 本质上与 View Connection Server 相同，因为它作为主 Connection Server
+    的备份。因此，其大小应与 View Connection Server 相同。
+- en: The Horizon View Security Server
+  id: totrans-284
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: Horizon View 安全服务器
+- en: As with the Replica Server, the Security Server is just another role of the
+    Connection Server, meaning that it should be sized in the same way as these components.
+  id: totrans-285
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 与 Replica Server 相同，Security Server 也是 Connection Server 的另一种角色，意味着它的大小应该与这些组件相同。
+- en: The Horizon View Enrolment Server
+  id: totrans-286
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: Horizon View 注册服务器
+- en: Again, the Enrolment Server is another role of the Connection Server, meaning
+    that it should be sized the same as these components.
+  id: totrans-287
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 同样，注册服务器是 Connection Server 的另一个角色，意味着它的大小应与这些组件相同。
+- en: The Horizon View Composer
+  id: totrans-288
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: Horizon View Composer
+- en: 'The View Composer is slightly different from the Connection Server roles. It
+    can either be installed on the same server that vCenter Server is running on or
+    as a standalone server. You would typically install it as standalone server for
+    performance or if you are using the vCenter Server Appliance. The configuration
+    recommendations for View Composer are detailed in the following table:'
+  id: totrans-289
+  prefs: []
+  type: TYPE_NORMAL
+  zh: View Composer 与 Connection Server 角色略有不同。它可以安装在 vCenter Server 所在的同一服务器上，也可以作为独立服务器安装。通常，为了性能考虑，或者在使用
+    vCenter Server Appliance 时，会选择将其作为独立服务器安装。View Composer 的配置建议在下表中详细列出：
+- en: '![](img/539249b7-d57e-482c-999a-8a749910cdd0.png)'
+  id: totrans-290
+  prefs: []
+  type: TYPE_IMG
+  zh: '![](img/539249b7-d57e-482c-999a-8a749910cdd0.png)'
+- en: vCenter Servers
+  id: totrans-291
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: vCenter 服务器
+- en: 'With the latest version of Horizon View, you can manage all 10,000 users with
+    a single vCenter Server. However, that is probably not the best way of doing it,
+    as you have no failover should your vCenter Server fail. The configuration recommendations
+    for vCenter Server are detailed in the following table:'
+  id: totrans-292
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 使用最新版本的 Horizon View，你可以通过单个 vCenter Server 管理所有 10,000 个用户。然而，这可能不是最佳方式，因为如果
+    vCenter Server 故障，便没有故障转移机制。vCenter Server 的配置建议在下表中详细列出：
+- en: '![](img/0a39fc75-253b-4f24-a061-8df75dbc26c6.png)'
+  id: totrans-293
+  prefs: []
+  type: TYPE_IMG
+  zh: '![](img/0a39fc75-253b-4f24-a061-8df75dbc26c6.png)'
+- en: VMware Access Point
+  id: totrans-294
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: VMware 访问点
+- en: 'The VMware Access Point is a Linux-based appliance and not a Windows application.
+    Therefore, it gets deployed via the vCenter Server. As an appliance, the configuration
+    is fixed, and the recommendation is not to change it. You will need enough free
+    resources to host it, as detailed in the following table:'
+  id: totrans-295
+  prefs: []
+  type: TYPE_NORMAL
+  zh: VMware 访问点是基于 Linux 的设备，而非 Windows 应用程序。因此，它是通过 vCenter Server 部署的。作为设备，其配置是固定的，建议不要更改配置。你需要足够的空闲资源来托管它，具体要求详见下表：
+- en: '![](img/0d584913-a97c-4fae-a0fc-1d61973d0c91.png)'
+  id: totrans-296
+  prefs: []
+  type: TYPE_IMG
+  zh: '![](img/0d584913-a97c-4fae-a0fc-1d61973d0c91.png)'
+- en: In the next section, we will look at the configuration maximums for the Horizon
+    View components.
+  id: totrans-297
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在下一节中，我们将讨论 Horizon View 组件的配置最大值。
+- en: Configuration maximums
+  id: totrans-298
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 配置最大值
+- en: 'Alongside the configuration maximums we listed earlier in this chapter for
+    vSphere, you need to be aware of the specific configuration maximums for Horizon
+    View. We have listed some of the more important ones to consider in the following
+    table:'
+  id: totrans-299
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 除了本章前面列出的 vSphere 配置最大值外，你还需要注意 Horizon View 的具体配置最大值。我们已经在下表中列出了需要考虑的一些更重要的配置最大值：
+- en: '![](img/c5a1eb0b-ae6c-4228-97a3-9c2e8ba6bc37.png)'
+  id: totrans-300
+  prefs: []
+  type: TYPE_IMG
+  zh: '![](img/c5a1eb0b-ae6c-4228-97a3-9c2e8ba6bc37.png)'
+- en: In the following sections, we'll look at the other supporting infrastructures
+    that are required to host the virtual desktop machines, starting with the networking
+    requirements.
+  id: totrans-301
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在接下来的章节中，我们将探讨托管虚拟桌面机器所需的其他支持基础设施，从网络需求开始。
+- en: Networking
+  id: totrans-302
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 网络
+- en: Network optimization is important for giving the users a great experience, as
+    this is how their virtual desktop machine is going to be delivered. You need to
+    consider a couple of different factors when sizing the network.
+  id: totrans-303
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 网络优化对于提供用户良好的体验非常重要，因为这将决定他们的虚拟桌面机器如何交付。你需要考虑几个不同的因素来确定网络的大小。
+- en: First, you need to look back at your different use cases, paying close attention
+    to where your end users will be connecting from, and whether they are connecting
+    over a LAN, WAN, or the internet. Although there is nothing you can do from a
+    network perspective for internet users, you can configure policies that limit
+    some of the features and capabilities that could potentially consume more bandwidth.
+  id: totrans-304
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 首先，你需要回顾一下你的不同使用场景，特别注意终端用户将从哪里连接，以及他们是通过局域网（LAN）、广域网（WAN）还是互联网连接。虽然从网络角度来说，你无法对互联网用户做出任何改变，但你可以配置策略，限制一些可能会消耗更多带宽的功能和特性。
+- en: On the subject of bandwidth, let's take a closer look at the things you need
+    to think about.
+  id: totrans-305
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 关于带宽，让我们更深入地看看你需要考虑的事项。
+- en: 'When it comes to bandwidth, the question of how much bandwidth is required
+    often pops up in conversation, and again the answer depends on what your end users
+    are doing that, in turn, will determine how much they would consume. This is something
+    that the assessment data will tell you, but VMware has published some guideline
+    figures, which are shown in the following table:'
+  id: totrans-306
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在谈到带宽时，常常会问到需要多少带宽的问题，而答案再次取决于终端用户在做什么，这反过来决定了他们的带宽消耗量。这是评估数据将告诉你的内容，但VMware发布了一些指导性数字，见下表：
+- en: '![](img/9d298925-5c4c-412b-90ca-93f25430cee5.png)'
+  id: totrans-307
+  prefs: []
+  type: TYPE_IMG
+  zh: '![](img/9d298925-5c4c-412b-90ca-93f25430cee5.png)'
+- en: 'The figures in the previous table refer to the bandwidth requirements overall,
+    but depending on the bandwidth that''s available, this will also dictate the audio
+    bandwidth and ultimately the audio quality. This is outlined in the following
+    table:'
+  id: totrans-308
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 前面表格中的数据指的是整体带宽要求，但根据可用的带宽，这也将决定音频带宽，并最终影响音频质量。以下表格对此进行了概述：
+- en: '![](img/6d2e5dc9-2b0d-4f64-b1b7-e73bf5b9cb39.png)'
+  id: totrans-309
+  prefs: []
+  type: TYPE_IMG
+  zh: '![](img/6d2e5dc9-2b0d-4f64-b1b7-e73bf5b9cb39.png)'
+- en: Note that if you can't provide at least the minimum bandwidth requirements for
+    audio, it will be disabled for that session.
+  id: totrans-310
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 请注意，如果你无法提供至少满足音频的最低带宽要求，那么该会话中的音频功能将被禁用。
+- en: You can, however, make configuration changes to enhance the end user's experience.
+    The PCoIP protocol is completely configurable via the use of a Windows group policy
+    so that you can tune the user experience accordingly. We will cover more on how
+    to tune and optimize the virtual desktop machines in [Chapter 10](8ebc54c4-3812-46fe-9534-fe38b78804a9.xhtml),
+    *Fine-Tuning the End User Experience*.
+  id: totrans-311
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 然而，你可以进行配置更改以增强终端用户体验。通过使用Windows组策略，PCoIP协议可以完全配置，这样你就可以根据需要调整用户体验。我们将在[第10章](8ebc54c4-3812-46fe-9534-fe38b78804a9.xhtml)中深入讲解如何调整和优化虚拟桌面机器，*精细调整终端用户体验*。
+- en: There are two other considerations when looking at networking for your View.
+    The first is the latency of the connection.
+  id: totrans-312
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在考虑你的视图的网络时，还有两个其他因素需要注意。第一个是连接的延迟。
+- en: We previously discussed bandwidth and what is required for the different use
+    cases, but latency can also have a big impact on the end user experience. Typically,
+    the maximum tolerance is anything between 250 milliseconds and 300 milliseconds
+    for acceptable performance. Anything above this may well work, but could result
+    in a degraded user experience, but this would depend on the use case. For example,
+    a basic office worker may work fine when compared with a heavy user. Again, this
+    is information you would determine from your pilot with the end users.
+  id: totrans-313
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 我们之前讨论了带宽及不同使用场景的要求，但延迟也会对终端用户体验产生重大影响。通常，最大容忍度为250毫秒到300毫秒之间，才能达到可接受的性能。超过此范围可能仍然能够工作，但可能导致用户体验下降，这取决于使用场景。例如，与重度用户相比，普通办公室工作者可能会感觉良好。再次强调，这些信息是通过与你的终端用户进行试点后得出的。
+- en: The second is load balancing between Connection Servers, which we will discuss
+    in the next section.
+  id: totrans-314
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 第二个是连接服务器之间的负载均衡，我们将在下一部分讨论。
+- en: Load balancing
+  id: totrans-315
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 负载均衡
+- en: Another requirement for Horizon View is the need to use load balancers between
+    View Connection Servers, both for internal and external connections. This not
+    only allows you to scale your solution but also offers high availability, should
+    there be a failure.
+  id: totrans-316
+  prefs: []
+  type: TYPE_NORMAL
+  zh: Horizon View的另一个要求是，在View连接服务器之间使用负载均衡器，无论是内部连接还是外部连接。这不仅允许你扩展你的解决方案，而且还提供高可用性，以防出现故障。
+- en: It should be noted that there is no load balancer functionality included within
+    Horizon View. As such, you will require third-party load balancers. It is possible
+    to make use of Microsoft **Network Load Balancing** (**NLB**) on small scale and
+    POC deployments, but as your solution starts moving on from POC to the pilot stage,
+    you should consider the need for dedicated physical or virtual load balancers.
+  id: totrans-317
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 应注意，Horizon View 中并未包含负载均衡功能。因此，您将需要第三方负载均衡器。在小规模和 POC 部署中，您可以使用 Microsoft **网络负载均衡**
+    (**NLB**)，但当您的解决方案从 POC 阶段过渡到试点阶段时，您应考虑需要专用的物理或虚拟负载均衡器。
+- en: 'When selecting a load balancer, you need to ensure that it is able to offer
+    session persistence. This ensures that the connected user is already directed
+    to the same View Connection Server or View Security Server during their session.
+    You should also ensure that the load balancing solution that is implemented is
+    highly available. The following diagram shows how a typical load balancing solution
+    for Horizon View could be configured:'
+  id: totrans-318
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在选择负载均衡器时，您需要确保它能够提供会话保持功能。这可以确保已连接的用户在会话期间始终被引导到相同的视图连接服务器或视图安全服务器。您还应确保所实现的负载均衡解决方案具有高可用性。下图展示了
+    Horizon View 的典型负载均衡解决方案如何配置：
+- en: '![](img/a3cfb32d-880a-46c4-aaa1-33a3578e515f.png)'
+  id: totrans-319
+  prefs: []
+  type: TYPE_IMG
+  zh: '![](img/a3cfb32d-880a-46c4-aaa1-33a3578e515f.png)'
+- en: As you can see, there are multiple VMware Horizon Connection Servers being configured
+    for internal and external connections. The internal Connection Servers are load
+    balanced behind an HA pair of load balancers. Externally, there are also two View
+    Connection Servers, each paired with a dedicated View Security Server. The View
+    Security Servers are then load balanced using a dedicated HA pair of load balancers.
+    There's also the optional Access Point that you could deploy in place of the View
+    Security Servers.
+  id: totrans-320
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如您所见，配置了多个 VMware Horizon 连接服务器，用于内部和外部连接。内部连接服务器通过一对高可用性的负载均衡器进行负载均衡。外部也有两个视图连接服务器，每个服务器与一个专用的视图安全服务器配对。然后，这些视图安全服务器通过一对专用的高可用性负载均衡器进行负载均衡。还可以选择部署访问点，以取代视图安全服务器。
+- en: Remote Desktop Session Host (RDSH) design considerations
+  id: totrans-321
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 远程桌面会话主机 (RDSH) 设计考虑事项
+- en: Since Horizon View 6, VMware has supported Microsoft RDS as a means of delivering
+    hosted desktop sessions rather than full virtual desktop machines. Hosted desktops
+    have full support for PCoIP, whereas previously, while session-based desktops
+    had been supported, they were only supported using RDP as the delivery protocol.
+  id: totrans-322
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 自 Horizon View 6 以来，VMware 已支持使用 Microsoft RDS 来交付托管桌面会话，而非完整的虚拟桌面机。托管桌面完全支持
+    PCoIP，而以前虽然支持基于会话的桌面，但仅支持使用 RDP 作为传输协议。
+- en: Along with the support for RDS as a desktop source, you also use RDS servers
+    to present published applications to your users. This is referred to as Horizon
+    View Hosted Applications. We will cover hosted desktop sessions and hosted applications
+    in [Chapter 11](0eba1087-348f-4f36-a0af-3a4d8b80f7c9.xhtml), *Delivering Published
+    Apps with Horizon 7*, and [Chapter 18](https://www.packtpub.com/sites/default/files/downloads/Delivering_Published_Desktops_with_Horizon_7.pdf),
+    *Delivering Published Desktops with Horizon 7*. In those chapters, we will look
+    at installing and configuring these features, but for now, let's concentrate on
+    the design considerations for RDS-based environments.
+  id: totrans-323
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 除了支持 RDS 作为桌面来源外，您还可以使用 RDS 服务器将发布的应用程序呈现给用户。这被称为 Horizon View 托管应用程序。在[第 11
+    章](0eba1087-348f-4f36-a0af-3a4d8b80f7c9.xhtml)，*使用 Horizon 7 发布应用程序*，以及[第 18 章](https://www.packtpub.com/sites/default/files/downloads/Delivering_Published_Desktops_with_Horizon_7.pdf)，*使用
+    Horizon 7 发布桌面*中，我们将讨论托管桌面会话和托管应用程序。在这些章节中，我们将研究如何安装和配置这些功能，但现在，让我们集中关注基于 RDS
+    的环境设计考虑事项。
+- en: Horizon View uses the concept of farms to place hosts that provide a common
+    set of applications or desktops for users. When you are creating applications
+    or desktop pools, you will point them at the specific farms that you have created.
+    A farm might contain anywhere between 1 and 200 RDS hosts.
+  id: totrans-324
+  prefs: []
+  type: TYPE_NORMAL
+  zh: Horizon View 使用农场的概念，将主机放置在农场中，以为用户提供一组公共应用程序或桌面。在创建应用程序或桌面池时，您将指向您创建的特定农场。一个农场可能包含
+    1 到 200 个 RDS 主机。
+- en: 'With Horizon View, the RDS servers are able to be either physical or virtual.
+    An important point to consider when designing your RDS servers in a virtual environment
+    is to ensure that you do not over commit virtual CPUs to the underlying physical
+    CPUs. In the following diagram, we will try and illustrate why:'
+  id: totrans-325
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 使用 Horizon View 时，RDS 服务器可以是物理的或虚拟的。设计虚拟环境中的 RDS 服务器时需要考虑一个重要的点，即确保不要将虚拟 CPU
+    过度分配给底层的物理 CPU。以下图示中，我们将尝试说明原因：
+- en: '![](img/9f1a0ae4-e758-4a9f-8a79-c4c05cf2858c.png)'
+  id: totrans-326
+  prefs: []
+  type: TYPE_IMG
+  zh: '![](img/9f1a0ae4-e758-4a9f-8a79-c4c05cf2858c.png)'
+- en: With VDI, you can achieve good levels of consolidation by over-allocating virtual
+    CPUs to physical cores. With RDS, you can achieve good levels of consolidation
+    by over-allocating users to physical or virtual cores. If you over-allocate virtual
+    CPUs to physical CPUs, it will ultimately result in poor performance for your
+    end users. As ever, you don't want to place memory over-allocation into the design
+    as standard.
+  id: totrans-327
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 使用 VDI 时，通过将虚拟 CPU 分配给物理核心，可以实现良好的资源整合。使用 RDS 时，通过将用户分配到物理或虚拟核心上，也可以实现良好的资源整合。如果你将虚拟
+    CPU 分配给物理 CPU 过多，最终会导致终端用户的性能不佳。和往常一样，你不希望将内存过度分配作为标准设计的一部分。
+- en: If you are utilizing RDS for published applications, you need to consider the
+    design regarding application deployment. Will all of your applications be deployed
+    on one server farm, or are there going to be separate server farms for different
+    applications? You need to consider resources such as CPU, memory, and disk, which
+    are required for each of your RDS servers, depending on their workload.
+  id: totrans-328
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果你使用 RDS 发布应用程序，你需要考虑关于应用程序部署的设计。所有应用程序会部署在一个服务器集群上，还是不同的应用程序会部署在不同的服务器集群上？你需要考虑每个
+    RDS 服务器所需的资源，如 CPU、内存和磁盘，这取决于它们的工作负载。
+- en: 'Consideration regarding how many PCoIP or Blast Extreme connections are required
+    based on your application and desktop design should also be made. In the following
+    diagram, you can see that the end user has a View virtual desktop and is also
+    running an application from **Server Farm A** and another application from **Server
+    Farm B**. In total, this user will be utilizing three connections—one for the
+    View virtual desktop, one for the application from **Server Farm A**, and one
+    for the application from **Server Farm B**. As a result, you will need to be sure
+    that you understand the maximum connections for one View Connection Server and
+    decide how you are going to scale the solution to meet your design needs:'
+  id: totrans-329
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 还需要考虑根据你的应用程序和桌面设计需要多少 PCoIP 或 Blast Extreme 连接。在以下图示中，你可以看到最终用户有一个 View 虚拟桌面，并且还在运行来自**服务器集群
+    A**的应用程序以及来自**服务器集群 B**的另一个应用程序。总的来说，这个用户将使用三条连接——一条用于 View 虚拟桌面，一条用于来自**服务器集群
+    A**的应用程序，一条用于来自**服务器集群 B**的应用程序。因此，你需要确保了解一个 View 连接服务器的最大连接数，并决定如何扩展解决方案以满足你的设计需求：
+- en: '![](img/5fd8ffba-cf7a-4ad6-b542-902f84cb75de.png)'
+  id: totrans-330
+  prefs: []
+  type: TYPE_IMG
+  zh: '![](img/5fd8ffba-cf7a-4ad6-b542-902f84cb75de.png)'
+- en: With RDS, the Connection Server supports a maximum of 150 sessions, based on
+    a configuration of 4 vCPUs and 64 GB of memory.
+  id: totrans-331
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 使用 RDS 时，连接服务器支持最多 150 个会话，基于 4 个 vCPU 和 64 GB 内存的配置。
+- en: Please note that you can also use Horizon Workspace ONE to deliver published
+    applications to virtual or physical desktops. Your VDI or RDS desktops could be
+    in a separate View environment to that of your hosted applications.
+  id: totrans-332
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 请注意，你也可以使用 Horizon Workspace ONE 来将发布的应用程序提供给虚拟桌面或物理桌面。你的 VDI 或 RDS 桌面可以位于与托管应用程序不同的
+    View 环境中。
+- en: Supporting infrastructure design
+  id: totrans-333
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 支持基础设施设计
+- en: Outside of the virtual infrastructure components—and by this we mean the VMware
+    specific components—there are several other components or third-party tools and
+    services that Horizon View is reliant on, which we will discuss in the coming
+    sections.
+  id: totrans-334
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 除了虚拟基础设施组件——在此我们指的是 VMware 特定组件——还有一些其他组件或第三方工具和服务是 Horizon View 所依赖的，接下来我们将讨论这些内容。
+- en: Database requirements
+  id: totrans-335
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 数据库要求
+- en: Microsoft SQL Server or an Oracle database are key components for View Composer
+    and the View Events database, as well as vCenter. Without the View Composer database
+    being available, View is unable to undertake any provisioning or recompose operations.
+    As such, you might wish to consider the availability of the database server and
+    split the environment up as per the block architecture so that you can use multiple
+    database servers at one per block. You should also ensure that you have regular
+    and up-to-date backups of the View Composer database in case of loss or corruption.
+  id: totrans-336
+  prefs: []
+  type: TYPE_NORMAL
+  zh: Microsoft SQL Server 或 Oracle 数据库是 View Composer、View Events 数据库以及 vCenter 的关键组件。如果
+    View Composer 数据库不可用，View 将无法执行任何配置或重组操作。因此，您可能需要考虑数据库服务器的可用性，并根据块架构划分环境，以便每个块使用一个数据库服务器。您还应确保定期备份并保持
+    View Composer 数据库的最新备份，以防丢失或损坏。
+- en: 'Horizon View supports several different Microsoft SQL and Oracle databases.
+    The latest support matrix can be found at the following link: [https://bit.ly/2QyH362](https://bit.ly/2QyH362).'
+  id: totrans-337
+  prefs: []
+  type: TYPE_NORMAL
+  zh: Horizon View 支持多种不同的 Microsoft SQL 和 Oracle 数据库。最新的支持矩阵可以在以下链接找到：[https://bit.ly/2QyH362](https://bit.ly/2QyH362)。
+- en: File servers
+  id: totrans-338
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 文件服务器
+- en: File servers are often overlooked when it comes to creating a Horizon View environment,
+    but often play a critical role in the overall functionality of the VDI environment.
+  id: totrans-339
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在创建 Horizon View 环境时，文件服务器常常被忽视，但它们在 VDI 环境的整体功能中往往起着至关重要的作用。
+- en: For example, they will be storing things like ThinApp packages, user profiles,
+    or application layers from App Volumes. First, size your file server for performance,
+    ensure that your file server has enough RAM and CPU to meet user demands, particularly
+    at peak times, and then continue to monitor utilization, and ensure that you add
+    extra capacity as and when it is required.
+  id: totrans-340
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 例如，它们将存储像 ThinApp 包、用户配置文件或来自 App Volumes 的应用程序层。首先，针对性能对文件服务器进行规划，确保文件服务器有足够的内存和
+    CPU 来满足用户需求，特别是在高峰时段，然后持续监控资源利用率，并确保在需要时增加额外的容量。
+- en: It's not just about CPU and memory performance—the hard disk performance associated
+    with your file server will also be critical.
+  id: totrans-341
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 这不仅仅是关于 CPU 和内存性能——与文件服务器相关的硬盘性能也将至关重要。
+- en: With your applications and personas being saved on the file servers, we need
+    to consider the effect of these resources being unavailable when the users are
+    trying to use their desktops. In the case of the layered applications, App Volumes
+    app layers may not attach or might fail midway through the user using an application
+    if the file server goes offline. With the end user's persona stored on a file
+    server, this could have a severe impact on the users accessing their data, or
+    there may be unconsidered effects, such as the application data being unable to
+    load or reduced performance of the desktop.
+  id: totrans-342
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 由于您的应用程序和用户配置文件保存在文件服务器上，我们需要考虑当用户尝试使用桌面时，这些资源不可用的影响。对于分层应用程序，如果文件服务器离线，App
+    Volumes 应用层可能无法附加，或者在用户使用应用程序时可能会失败。由于最终用户的配置文件存储在文件服务器上，这可能会对用户访问其数据产生严重影响，或者可能会有未考虑到的影响，例如应用数据无法加载或桌面性能下降。
+- en: As such, the availability of file servers needs to be a serious consideration
+    if you plan on using a shared storage device that supports CIFS shares. You could
+    consider storing these files on this device; otherwise, a clustered file server
+    or a DFS share should probably be considered to ensure availability. Of course,
+    these decisions need to be taken alongside the business needs. If your View environment
+    is going to be small initially, and your file server is stored on a virtual environment,
+    the built-in HA functionality might be enough for your requirements.
+  id: totrans-343
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 因此，如果您计划使用支持 CIFS 共享的共享存储设备，则需要认真考虑文件服务器的可用性。您可以考虑将这些文件存储在该设备上；否则，可能需要考虑使用集群文件服务器或
+    DFS 共享来确保可用性。当然，这些决策需要根据业务需求做出。如果您的 View 环境最初较小，并且文件服务器存储在虚拟环境中，那么内建的高可用性（HA）功能可能足以满足您的需求。
+- en: IP addressing
+  id: totrans-344
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: IP 地址规划
+- en: Often overlooked in a VDI rollout are IP addressing, subnets, and DHCP requirements.
+    Quite often, in a large company, you are going to use multiple subnets across
+    the business as you separate areas with VLANs. When you slowly start scaling your
+    deployment, it can sometimes be easy to forget that your subnets or DHCP scopes
+    won't be large enough until it is too late, and you run out of IP addresses.
+  id: totrans-345
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在VDI部署中，IP地址、子网和DHCP要求常常被忽视。在大型公司中，你通常会使用多个子网，将不同区域通过VLAN分隔。当你开始逐步扩展部署时，有时容易忘记，直到为时已晚，你的子网或DHCP范围可能不足，导致IP地址耗尽。
+- en: You should consider how you are going to configure your VDI desktops with IP
+    schemes. By default, through the View Administrator, it is only possible to assign
+    each pool with a single network tag. As such, when the desktops are rolled out,
+    they will use the same network tag that the golden image is configured to use.
+    However, it is possible to configure multiple network tags to pools via the View
+    PowerCLI.
+  id: totrans-346
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 你需要考虑如何配置VDI桌面和IP方案。默认情况下，通过View Administrator，只能为每个池分配一个网络标签。因此，当桌面被部署时，它们将使用黄金镜像配置使用的相同网络标签。然而，也可以通过View
+    PowerCLI为池配置多个网络标签。
+- en: Horizon 7 supports IPv6, but be aware that when you configure the Horizon View
+    infrastructure components, such as the Connection Server, you must also use either
+    IPv4 or IPv6 and not a mixed mode. Mixing IP versions across the Horizon View
+    components is not supported.
+  id: totrans-347
+  prefs: []
+  type: TYPE_NORMAL
+  zh: Horizon 7支持IPv6，但请注意，当你配置Horizon View基础设施组件（如连接服务器）时，必须选择IPv4或IPv6中的一种，而不能混合使用。Horizon
+    View组件之间混用IP版本是不被支持的。
+- en: Antivirus
+  id: totrans-348
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 防病毒
+- en: Antivirus can often be the nemesis of a good VDI design. If the antivirus solution
+    is not configured in a way that is understanding of the shared nature of the VDI
+    solution, it can often be the cause of large performance issues across the environment.
+  id: totrans-349
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 防病毒常常成为良好VDI设计的克星。如果防病毒解决方案未能理解VDI解决方案的共享性质，往往会成为整个环境中性能问题的根源。
+- en: The first consideration with any optimized desktop solution is to ensure that
+    you optimize your antivirus solution to be considerate to the use cases of the
+    users and the applications that they are using. With a VDI solution, you often
+    want to deliver just the right amount of resources to ensure that it meets the
+    users' needs while not over-delivering resources that can have a knock-on effect
+    on the overall cost of the solution. We have personally seen in VDI environments
+    with misconfigured antivirus that double the CPU, RAM, and disk resources are
+    required. Clearly, this could have a massive effect on the cost of the overall
+    solution and, ultimately, your ability to deliver the project on a budget.
+  id: totrans-350
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在任何优化桌面解决方案中，首要考虑的是确保你优化了防病毒解决方案，以考虑到用户的使用场景和他们正在使用的应用程序。在VDI解决方案中，你通常希望提供适当的资源，以确保它能够满足用户需求，同时不会过度提供资源，从而对解决方案的整体成本产生连锁效应。我们亲眼见过在VDI环境中，防病毒配置错误时，所需的CPU、RAM和磁盘资源是正常的两倍。显然，这会对整个解决方案的成本产生巨大的影响，最终也会影响你在预算范围内交付项目的能力。
+- en: Secondly, full desktop scans need to be considered. You need to consider whether
+    full scans are required at all on the desktops if they are being refreshed daily.
+    If full AV scans are a defined requirement, ensure that they are run out of hours
+    and staggered across the desktops. Simultaneously starting scans across all the
+    desktops will affect the RAM, CPU, and the IOPS being consumed, and potentially
+    cause knock-on effects across the environment.
+  id: totrans-351
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 其次，需要考虑全面的桌面扫描。你需要考虑是否需要对桌面进行全面扫描，尤其是当它们每天都在刷新时。如果全面的防病毒扫描是一个明确定义的需求，确保它们在非工作时间运行，并在桌面之间错开进行。所有桌面同时开始扫描会影响RAM、CPU和IOPS的消耗，并可能导致环境中产生连锁效应。
+- en: Active Directory Group Policy
+  id: totrans-352
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 活动目录组策略
+- en: As ever, group policy can have a major effect on your desktops, irrespective
+    of whether they are physical or virtual. When designing any EUC solution, there
+    are three main areas you should consider when designing your group policies, namely
+    functionality, lockdown, and performance.
+  id: totrans-353
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 一如既往，组策略对你的桌面有重要影响，无论它们是物理桌面还是虚拟桌面。在设计任何EUC解决方案时，设计组策略时应该考虑三个主要方面，即功能性、锁定和性能。
+- en: Functionality
+  id: totrans-354
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 功能性
+- en: Group policy can be your best friend, particularly when implementing non-persistent
+    desktops. Correctly configured, you should be looking to use group policy to configure
+    first-use settings for your desktops and Microsoft applications, alongside the
+    obvious login scripts and mapped drives.
+  id: totrans-355
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 组策略可以是你最好的朋友，尤其是在实施非持久性桌面时。正确配置后，你应该利用组策略来配置桌面的首次使用设置和Microsoft应用程序的设置，同时也要配置显而易见的登录脚本和映射驱动器。
+- en: Lockdown
+  id: totrans-356
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 锁定
+- en: Using group policy to lock down virtual desktops can offer an advantage in a
+    VDI environment, particularly for non-persistent desktops where you don't want
+    users saving documents in areas that won't be redirected, or customizations that
+    probably won't be saved, but there can be downsides. Our advice would be, in a
+    new VDI environment, try not to use the implementation of your new VDI infrastructure
+    as an opportunity to introduce new strict lockdowns while implementing VDI itself.
+    Often, when these kinds of stringent lockdowns are implemented at the same time
+    as VDI, the VDI solution will be blamed for any disruptions or reduction in user
+    experience that's caused by the new lockdowns.
+  id: totrans-357
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 使用组策略来锁定虚拟桌面可以在VDI环境中提供优势，特别是对于非持久性桌面，在这些桌面上你不希望用户将文档保存在无法重定向的区域，或将自定义内容保存在可能无法保存的位置，但这也可能带来一些负面影响。我们的建议是，在新的VDI环境中，尽量不要利用新VDI基础设施的实施机会来引入新的严格锁定措施。通常，当这些严格的锁定措施与VDI同时实施时，任何由新锁定措施引起的中断或用户体验下降都会被归咎于VDI解决方案。
+- en: If a new stringent lockdown policy is required, either try to implement it on
+    the physical desktops prior to the migration to VDI or implement the VDI solution
+    first, before introducing the new lockdowns.
+  id: totrans-358
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果需要实施新的严格锁定策略，最好是在迁移到VDI之前先在物理桌面上实现，或者先实施VDI解决方案，再引入新的锁定措施。
+- en: You will also find that it can be difficult to troubleshoot where a problem
+    may reside by introducing too many changes at once, particularly when it comes
+    to what users can and can't access. It may be one policy too far.
+  id: totrans-359
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 你还会发现，当一次性引入过多更改时，特别是在涉及用户可以访问和不能访问的内容时，可能会很难排查问题所在。可能是多了一个策略。
+- en: Performance and management
+  id: totrans-360
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 性能和管理
+- en: We aren't going to use this book to write about the A to Z of group policy configuration
+    for optimal performance. There are already several resources on the internet and
+    multiple topics on this subject. However, we recommend that you keep on top of
+    your group policies, ensuring that old unnecessary policies are removed wherever
+    possible. Use a functional design, where you group together GPOs into functional
+    groups but don't take them to the nth degree by creating a GPO per setting. This
+    will ensure ease of management and will reduce performance effects when changes
+    are made.
+  id: totrans-361
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 我们不会在本书中写关于如何配置组策略以实现最佳性能的A到Z指南。互联网上已有多个关于此主题的资源和文章。然而，我们建议你保持对组策略的关注，确保尽可能移除不必要的旧策略。使用功能性设计，将GPO按功能分组，但不要过度创建每个设置一个GPO。这样可以确保管理的简便性，并减少在更改时对性能的影响。
+- en: Key Management Server (KMS)
+  id: totrans-362
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 密钥管理服务器（KMS）
+- en: To ensure seamless license activation between recompose operations of Windows
+    and Office, a Microsoft KMS is imperative to your VDI design. Your desktop will
+    find the KMS via DNS or via manual assignment, which you can preconfigure into
+    the base image and will then be assigned the relevant keys to gain activation.
+  id: totrans-363
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 为了确保Windows和Office的重组操作之间的许可激活无缝进行，Microsoft KMS在你的VDI设计中至关重要。你的桌面将通过DNS或手动分配来找到KMS，你可以将其预配置到基础镜像中，然后为其分配相关密钥以完成激活。
+- en: If you wish to activate Microsoft Office products using the KMS server, you
+    also need to install the Microsoft Office 2013 Volume License Pack on your KMS
+    server. This can be downloaded from the Microsoft Download Center.
+  id: totrans-364
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果你希望通过KMS服务器激活Microsoft Office产品，你还需要在KMS服务器上安装Microsoft Office 2013批量许可包。你可以从Microsoft下载中心下载此包。
+- en: Microsoft KMS is quickly and easily configured as a role within Windows Server
+    and earlier versions of Windows. As part of the configuration, you will need your
+    KMS license key from Microsoft. This key will be used during configuration, and
+    your KMS will need to be activated by Microsoft over the web or via the phone.
+    Once the role has been configured, you are ready to start rolling out and activating
+    your desktops with KMS. However, you should be aware that there is a threshold
+    for activations prior to KMS going live of 25 client machines. If you want to
+    give this a try, ensure that your first pool is larger than 25 machines. Once
+    the threshold has been reached, you will be able to activate single machines one
+    at a time, if required.
+  id: totrans-365
+  prefs: []
+  type: TYPE_NORMAL
+  zh: Microsoft KMS可以快速且轻松地作为Windows Server和早期版本Windows中的一个角色进行配置。作为配置的一部分，你将需要从Microsoft获得KMS许可证密钥。此密钥将在配置过程中使用，KMS需要通过网络或电话激活。角色配置完成后，你可以开始使用KMS推出和激活桌面。但是，你应该注意，在KMS正式启用之前，激活的客户端机器有一个25台的阈值。如果你想尝试此操作，确保你的第一个池包含大于25台的机器。一旦达到阈值，你就可以逐个激活单台机器（如有需要）。
+- en: Printing
+  id: totrans-366
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 打印
+- en: Printing is often a tricky subject, and working with any VDI or RDS can often
+    be even more complicated. Included with Horizon View is the ThinPrint technology
+    that allows several configurations when it comes to printing from your desktop
+    pools. We covered ThinPrint in some detail in [Chapter 2](5d942e5b-dda5-4e5a-8278-62a64210aeef.xhtml),
+    *Understanding Horizon 7 Architecture and Components*.
+  id: totrans-367
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 打印通常是一个棘手的问题，与任何VDI或RDS一起工作时，往往更加复杂。Horizon View包含了ThinPrint技术，允许在从桌面池进行打印时进行多种配置。我们在[第2章](5d942e5b-dda5-4e5a-8278-62a64210aeef.xhtml)中详细介绍了ThinPrint，*理解Horizon
+    7架构与组件*。
+- en: 'However, often, the simplest solution across the board is to implement a follow-me
+    printing solution. With a solution such as PaperCut, users print to a virtual
+    follow-me printer. They are then able to release the document to the printer from
+    a localized **Release Station** or compatible printer, which can be explained
+    by the following diagram:'
+  id: totrans-368
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 然而，通常情况下，最简单的解决方案是实现一个随行打印解决方案。像PaperCut这样的解决方案可以让用户将文件打印到一个虚拟的随行打印机。然后，他们可以通过本地**释放站**或兼容打印机释放文件，具体说明见下图：
+- en: '![](img/c7fdf589-2b91-41ac-b756-6b650adb7b0c.png)'
+  id: totrans-369
+  prefs: []
+  type: TYPE_IMG
+  zh: '![](img/c7fdf589-2b91-41ac-b756-6b650adb7b0c.png)'
+- en: Thin clients and other endpoint devices
+  id: totrans-370
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 瘦客户端和其他终端设备
+- en: We will discuss thin clients and how end users will connect to their VDI desktop
+    in [Chapter 12](e1944fcc-6ae9-4db7-b51b-db75e37e01ab.xhtml), *Horizon Client Options*.
+  id: totrans-371
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 我们将在[第12章](e1944fcc-6ae9-4db7-b51b-db75e37e01ab.xhtml)中讨论瘦客户端以及最终用户如何连接到他们的VDI桌面，*Horizon客户端选项*。
+- en: Desktop design considerations
+  id: totrans-372
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 桌面设计考虑因素
+- en: You might think that once you have spent your time considering and designing
+    all of the elements we mentioned earlier that the hard work is over. Realistically,
+    it has only just begun. Your VDI solution, without the desktops, is just a virtual
+    infrastructure, and the design and functionality of the desktops are critical
+    to a successful implementation. There are a great number of choices we need to
+    make around the design for the desktops within Horizon View. This will be affected
+    by the way the users need to use the desktops and is likely to have a knock-on
+    effect on the way you are going to manage the desktops and the resources the desktops
+    require.
+  id: totrans-373
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 你可能认为，在考虑和设计完我们之前提到的所有元素之后，艰苦的工作已经结束。实际上，这只是刚刚开始。没有桌面的VDI解决方案仅仅是一个虚拟基础设施，桌面的设计和功能对于成功的实施至关重要。在Horizon
+    View中，我们需要做出大量关于桌面设计的选择。这将受到用户如何使用桌面方式的影响，并可能对你管理桌面及其所需资源的方式产生连锁反应。
+- en: Pool design
+  id: totrans-374
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 池设计
+- en: You will want to design your desktop pools based on the similarities between
+    the desktops, which will ultimately allow you to group desktops together. You
+    should use information that's been collected by the desktop assessment and other
+    sources to start designing how your desktop pools are going to look. While analyzing
+    this data, you are going to look for similarities between the applications and
+    use cases, and make decisions based on information regarding how you will design
+    these pools. To make management and maintenance easier, you should create the
+    smallest number of pools possible, but you also won't want to take this to the
+    nth degree and have thousands of desktops in a pool, as trying to recompose ridiculously
+    large pools with large numbers of virtual desktop machines could be difficult
+    and will likely affect performance. As you can see, it is going to be a very careful
+    balancing act to get the pool design correct.
+  id: totrans-375
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 你需要根据桌面之间的相似性来设计桌面池，这将最终帮助你将桌面分组。你应使用桌面评估和其他来源收集的信息来开始设计桌面池的布局。在分析这些数据时，你需要寻找应用程序和使用场景之间的相似性，并根据如何设计这些池的信息做出决策。为了简化管理和维护，你应尽量创建最少数量的池，但也不希望将这个原则执行到极限，不要将数千个桌面放入同一个池中，因为重新组合如此庞大的池，包含大量虚拟桌面机器，可能会很困难，并且可能影响性能。如你所见，正确设计池将是一项非常精细的平衡工作。
+- en: Sizing the virtual desktop machines
+  id: totrans-376
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 配置虚拟桌面机器
+- en: 'The following table gives a list of some of the recommendations for base desktop
+    sizing, which have been collected from several different VMware documents. Obviously,
+    the resources that are required for the desktops will be greatly affected by the
+    applications being used within the desktops as well:'
+  id: totrans-377
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 以下表格列出了一些基础桌面配置的建议，这些建议来自于不同的VMware文档。显然，桌面所需的资源将受到桌面内使用的应用程序的极大影响：
+- en: '![](img/c90192f1-0118-4764-b024-7e3d0108a7e5.png)'
+  id: totrans-378
+  prefs: []
+  type: TYPE_IMG
+  zh: '![](img/c90192f1-0118-4764-b024-7e3d0108a7e5.png)'
+- en: In this chapter, we have already covered some of the high-level host server
+    considerations, but now that you have an idea of what desktop resources you need
+    to deploy, you can go to the next level of detail and look at the clock speeds
+    of the CPUs and determine how many hosts you will need, along with the RAM requirements.
+  id: totrans-379
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在本章中，我们已经涵盖了一些高级的主机服务器考虑事项，但现在，既然你已经了解了部署桌面所需的资源，你可以进入下一个层次的细节，查看CPU的时钟速度，并确定你需要多少台主机服务器，同时考虑RAM的需求。
+- en: Sizing the host server's CPU requirements to run virtual desktops
+  id: totrans-380
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 为虚拟桌面配置主机服务器的CPU要求
+- en: One of the most frequently asked questions when sizing the servers that are
+    hosting the virtual desktop machines is, how many can I fit on each host server,
+    or how many virtual desktops per core? Well, the answer is, it depends!
+  id: totrans-381
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在为承载虚拟桌面机器的服务器配置时，最常被问到的问题之一就是，如何计算每台主机服务器可以容纳多少虚拟桌面，或者每个核心可以支持多少虚拟桌面？答案是，这取决于！
+- en: First, it depends on the CPU resources that your desktops are going to consume,
+    and the answer to that question will only come from your assessment data.
+  id: totrans-382
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 首先，这取决于你的桌面将消耗多少CPU资源，答案只有通过你的评估数据才能得出。
+- en: Second, and more obviously, it will depend on the CPU you configure in the host
+    servers. This is usually chosen on price/performance, as there is usually a CPU
+    that makes more financial sense and the best cost-per-desktop model.
+  id: totrans-383
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 第二，更显而易见的是，这将取决于你在主机服务器中配置的CPU。这通常是根据价格/性能来选择的，因为通常有一款CPU在财务上更为合理，并且能够提供最佳的每台桌面的成本效益。
+- en: For this section, as we don't have any actual assessment data to work from,
+    we will use some assumptions on the types of users and CPU requirements for each
+    type of user, just to give you an example to work with. The users are then grouped
+    into light usage, medium usage, and heavy usage. We will base our calculations
+    on an industry-standard, rack-mounted server that's been configured with two Intel
+    Xeon E5-2660 v3 CPUs that run at 2.6 GHz and have 10 cores per CPU, giving us
+    a total of 20 cores per host server.
+  id: totrans-384
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 由于在这一部分，我们没有实际的评估数据可供参考，我们将假设不同类型用户的CPU需求，并根据每种类型用户的需求做一个示例。用户被分为轻度使用、中度使用和重度使用三类。我们将以一台行业标准的机架式服务器为基础，该服务器配置了两颗Intel
+    Xeon E5-2660 v3 CPU，运行频率为2.6 GHz，每颗CPU有10个核心，总共提供20个核心。
+- en: In the example calculations, you will also notice that we have subtracted two
+    of the cores from the total available cores on the host server. The reason for
+    this is that the hypervisor layer (ESXi) also needs CPU resources to run.
+  id: totrans-385
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在示例计算中，您还会注意到我们从主机服务器的可用核心总数中减去了两个核心。这是因为虚拟化层（ESXi）也需要CPU资源来运行。
+- en: The following sections classify a typical user profile and then give an indication
+    of the per-core ratio and how it was calculated.
+  id: totrans-386
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 以下部分将对典型用户配置文件进行分类，并给出每个核心比率及其计算方法。
+- en: Light user
+  id: totrans-387
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 轻度用户
+- en: Typical utilization is around 300 MHz of CPU resource. It's also worth adding
+    some additional resources to cover any peaks in workload and other tasks such
+    as sounds and USB devices. For this example, we will add 10 percent to the 300
+    MHz.
+  id: totrans-388
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 典型的CPU资源利用率约为300 MHz。此外，还值得增加一些额外资源，以应对工作负载的高峰期及其他任务，例如声音和USB设备。对于本示例，我们将300
+    MHz增加10%。
+- en: 'The profile of this user type would be somebody working in a call center, an
+    administrator, or the basic web-browser-type user. These desktops might be suspended
+    for long periods of time and have very low utilization, running just one or two
+    light applications. We can work out the CPU requirements with the following quick
+    calculation:'
+  id: totrans-389
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 这种用户类型的配置文件通常是呼叫中心的工作人员、管理员或基本的网页浏览器型用户。这些桌面可能会长时间挂起，且利用率极低，仅运行一两个轻量级应用程序。我们可以通过以下快速计算来确定CPU需求：
+- en: '![](img/c437b105-01d3-47de-8561-e84a3299ff4d.png)'
+  id: totrans-390
+  prefs: []
+  type: TYPE_IMG
+  zh: '![](img/c437b105-01d3-47de-8561-e84a3299ff4d.png)'
+- en: In this user scenario, using the standard sever we described previously, you
+    could host approximately 141 virtual desktop machines, which gives you approximately
+    17 users per core.
+  id: totrans-391
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在此用户场景中，使用我们之前描述的标准服务器，您可以托管大约141台虚拟桌面，达到每个核心大约17个用户。
+- en: Medium user
+  id: totrans-392
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 中度用户
+- en: 'Typical utilization is around 500 MHz of CPU resource, plus 10 percent. This
+    type of user would be someone like a data entry personnel, doctors, students,
+    Microsoft Office users, or a help desk operator. These desktops will mainly be
+    used during business/office hours and not heavily utilized. We can work out the
+    CPU requirements with the following quick calculation:'
+  id: totrans-393
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 典型的CPU资源利用率约为500 MHz，再加上10%。这种用户可能是数据录入员、医生、学生、Microsoft Office用户或帮助台操作员。这些桌面主要在工作时间使用，且不会被大量利用。我们可以通过以下快速计算来确定CPU需求：
+- en: '![](img/ab23944d-4b1e-487b-969c-12167ca9dc2c.png)'
+  id: totrans-394
+  prefs: []
+  type: TYPE_IMG
+  zh: '![](img/ab23944d-4b1e-487b-969c-12167ca9dc2c.png)'
+- en: In this user scenario, using the standard sever we described previously, you
+    can host approximately 85 virtual desktop machines, giving you five users per
+    core.
+  id: totrans-395
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在此用户场景中，使用我们之前描述的标准服务器，您可以托管大约85台虚拟桌面，达到每个核心5个用户。
+- en: Heavy user
+  id: totrans-396
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 重度用户
+- en: 'Typical utilization is around 750 MHz of CPU resource, plus 10 percent. This
+    type of user would be something like a developer, system administrator, IT worker,
+    database administrator, or engineer. These desktops will more than likely be heavily
+    utilized throughout the day and after normal business hours. They may also be
+    running more graphically intensive or Java-based applications that increase the
+    utilization of the desktop. We can work out the CPU requirements with the following
+    quick calculation:'
+  id: totrans-397
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 典型的CPU资源利用率约为750 MHz，再加上10%。这种用户可能是开发人员、系统管理员、IT工作人员、数据库管理员或工程师。这些桌面可能会在一天中以及正常工作时间后被大量使用。它们也可能运行更多图形密集型或基于Java的应用程序，增加桌面的利用率。我们可以通过以下快速计算来确定CPU需求：
+- en: '![](img/e5936c7d-0ea7-4be8-8e9b-f6f0e60f77c0.png)'
+  id: totrans-398
+  prefs: []
+  type: TYPE_IMG
+  zh: '![](img/e5936c7d-0ea7-4be8-8e9b-f6f0e60f77c0.png)'
+- en: In this user scenario, using the standard server we described previously, you
+    can host approximately 65 virtual desktop machines, giving you three users per
+    core.
+  id: totrans-399
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在此用户场景中，使用我们之前描述的标准服务器，您可以托管大约65台虚拟桌面，达到每个核心3个用户。
+- en: What we have highlighted in the previous user scenarios is based on assumptions
+    and example use cases. This is where your assessment data becomes critical, as
+    it will tell you the actual resource requirement figures for your own environment.
+  id: totrans-400
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 我们在之前的用户场景中所突出显示的内容是基于假设和示例用例的。这时，您的评估数据变得至关重要，因为它将告诉您自己环境中的实际资源需求数据。
+- en: Sizing the host server's memory requirements to run virtual desktops
+  id: totrans-401
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 为虚拟桌面运行配置主机服务器内存要求
+- en: Sizing the memory for the servers hosting the virtual desktop machine is somewhat
+    easier than the CPU, although you might need to play a balancing act with the
+    chosen server. The reason for this is that, just because it can accommodate the
+    number of desktops from a CPU perspective, it might not have the memory capacity
+    to serve that number.
+  id: totrans-402
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 为托管虚拟桌面机器的服务器配置内存要比配置CPU容易一些，尽管你可能需要与所选服务器进行一定的平衡。原因在于，虽然从CPU的角度来看，服务器能够容纳一定数量的桌面，但它可能没有足够的内存容量来支撑这些桌面。
+- en: If you take a virtual desktop that requires 2 GB of memory and look at the light
+    user scenario from the previous section as an example, you would be hosting 141
+    virtual desktop machines. That means that the host server will need 282 GB of
+    memory just to host the virtual desktop machine, plus enough memory to run the
+    hypervisor too.
+  id: totrans-403
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果你拿一台需要2GB内存的虚拟桌面，按照前一部分的轻度用户场景来举例，你将托管141台虚拟桌面机器。这意味着主机服务器仅需282GB的内存来托管这些虚拟桌面机器，还需要足够的内存来运行虚拟化管理程序。
+- en: Depending on your choice of server hardware, you might not be able to configure
+    this amount of memory or it might be too expensive, in which case you might end
+    up deploying more, but lower-configuration servers.
+  id: totrans-404
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 根据你选择的服务器硬件，你可能无法配置所需的内存量，或者它可能太昂贵，在这种情况下，你可能最终会部署更多、更低配置的服务器。
+- en: Don't forget that when sizing and configuring memory for the virtual desktop
+    machines, never over-commit the memory and set the memory reservation to 100 percent.
+    This stops the swap file from being created, saves storage capacity, and helps
+    performance.
+  id: totrans-405
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 别忘了，在为虚拟桌面机器配置和调整内存时，切勿过度分配内存，并将内存预留设置为100%。这样可以防止交换文件的创建，节省存储容量，并提高性能。
+- en: Linked Clone, Instant Clone, or Full Clone
+  id: totrans-406
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: Linked Clone（连接克隆）、Instant Clone（即时克隆）或 Full Clone（完全克隆）
+- en: 'As we have already discussed in [Chapter 2](5d942e5b-dda5-4e5a-8278-62a64210aeef.xhtml),
+    *Understanding Horizon 7 Architecture and Components*, there are three ways to
+    build virtual desktops from golden images: Linked Clones, Instant Clones, or Full
+    Clones. To recap briefly, Linked Clones are created by replicating a golden image
+    into a thin provisioned replica VM. This VM will be the same size as the used
+    space within the golden image; all reads come from this VM and, no matter how
+    many desktops we have within the pool within limits, each desktop will have a
+    delta disk for writes that will continue to grow until the Linked Clone is recomposed,
+    refreshed, or deleted. With a Full Clone, it does exactly what it says on the
+    tin and will represent a copy of the golden image itself and consume the same
+    amount of space. Finally, Instant Clones essentially take a snapshot of the memory
+    of a running virtual desktop machine.'
+  id: totrans-407
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 正如我们在[第2章](5d942e5b-dda5-4e5a-8278-62a64210aeef.xhtml)《理解Horizon 7架构与组件》中讨论的那样，*有三种方法可以通过黄金镜像来构建虚拟桌面：Linked
+    Clones（连接克隆）、Instant Clones（即时克隆）或Full Clones（完全克隆）。* 简单回顾一下，Linked Clones通过将黄金镜像复制到一个精简配置的副本虚拟机中来创建。这个虚拟机的大小与黄金镜像中已用空间相同；所有读取操作都来自这个虚拟机，无论我们在池中有多少桌面，在限制范围内，每个桌面都会有一个用于写入的增量磁盘，直到Linked
+    Clone被重组、刷新或删除。Full Clone则完全按照字面意思创建，代表黄金镜像的完整副本，并消耗相同的存储空间。最后，Instant Clones本质上是对正在运行的虚拟桌面机器的内存进行快照。
+- en: As such, to save space on our storage device where possible, Linked Clones or
+    Instant Clones are the best options. However, there are a few important use cases
+    where using clones will simply not make sense, such as desktops where regular
+    refresh or recompose is not possible.
+  id: totrans-408
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 因此，为了在可能的情况下节省我们的存储设备空间，Linked Clones（连接克隆）或 Instant Clones（即时克隆）是最佳选择。然而，有一些重要的使用场景，在这些情况下使用克隆是没有意义的，例如那些无法进行常规刷新或重组的桌面。
+- en: As you can see, while clones are possibly the most attractive from the outside
+    and should be able to be widely used, they are not always going to be possible
+    or the right design choice. When your design utilizes full clone desktops, you
+    should be considering your storage design carefully so that it is in-line with
+    this design choice. There are many storage manufacturers that offer re-duplication,
+    compression, and single instance storage that allows you to minimize the storage
+    impact of this type of desktop.
+  id: totrans-409
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如你所见，尽管从外部来看，克隆可能是最具吸引力的，并且应该能够被广泛使用，但它们并不总是可行的或是最佳的设计选择。当你的设计使用了Full Clone桌面时，你应该仔细考虑你的存储设计，使其与此设计选择相一致。许多存储厂商提供重去重、压缩和单实例存储，使你能够最小化这类桌面对存储的影响。
+- en: Persistent versus non-persistent
+  id: totrans-410
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 持久性与非持久性
+- en: Along with deciding whether you are going to use Linked Clones or full clones,
+    you will also need to decide whether you are going to use persistent or non-persistent
+    desktops. With persistent desktops, the user is allocated a desktop, either manually
+    or automatically, and will always be directed to that desktop when connecting
+    to their desktop pool. With non-persistent desktops, the users will be directed
+    to any desktop in the given pool. In a lot of designs, Linked Clone and Instant
+    Clone desktops will be configured as non-persistent and Full Clone desktops will
+    be configured as persistent, but this is not always the case and will come down
+    to your own specific use case.
+  id: totrans-411
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 除了决定是使用联动克隆还是完全克隆外，你还需要决定是否使用持久性桌面或非持久性桌面。对于持久性桌面，用户会被分配到一个桌面，无论是手动分配还是自动分配，并且在连接到桌面池时总是会被引导到该桌面。对于非持久性桌面，用户将被引导到给定池中的任何桌面。在许多设计中，联动克隆和即时克隆桌面将被配置为非持久性桌面，而完全克隆桌面将被配置为持久性桌面，但这并非总是如此，具体取决于你自己的特定用例。
+- en: The recommendation would be, wherever possible, to utilize non-persistent desktops
+    that are built on-demand using Linked Clones or Instant Clones. The user's profile
+    would be delivered using View Persona Management/UEM or an AD group policy to
+    configure the desktops. Applications would be delivered using App Volumes. This
+    offers you the easiest way to maintain and refresh the desktops with minimal effect
+    on the users. If your design does not allow this, consider your use case carefully;
+    if you do have to configure persistent desktops due to some value of data or a
+    configuration held within the desktop, consider whether a Full Clone persistent
+    desktop managed by Horizon Mirage for protection and maintenance might be a better
+    approach.
+  id: totrans-412
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 推荐的做法是，在可能的情况下，利用按需构建的非持久性桌面，使用联动克隆或即时克隆。用户的个人资料将通过View Persona Management/UEM或AD组策略来配置桌面。应用程序将通过App
+    Volumes来交付。这为你提供了最简便的方式来维护和刷新桌面，对用户的影响最小。如果你的设计不允许这种方式，请仔细考虑你的用例；如果由于数据或桌面中的配置需要配置持久性桌面，请考虑是否通过Horizon
+    Mirage来管理完全克隆的持久性桌面，以进行保护和维护，可能会是一种更好的方法。
+- en: Building a composite desktop
+  id: totrans-413
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 构建复合桌面
+- en: The key to a flexible desktop design is being able to build and customize the
+    desktops in layers. In this context, layers are delivering the individual component
+    parts of the desktop, such as the OS, persona, and applications.
+  id: totrans-414
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 灵活的桌面设计的关键在于能够以层次的方式构建和定制桌面。在这个上下文中，层次是指桌面的各个组成部分，如操作系统、个性化设置和应用程序。
+- en: 'By achieving this, the desktops can not only be more flexible to allow one
+    base image to be used for many more users or pools, but also allow you to configure
+    more Linked Clone or Instant Clone desktop pools. The following screenshot depicts
+    a user''s desktop and where all the key elements are being controlled and managed:'
+  id: totrans-415
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 通过实现这一点，桌面不仅可以更加灵活，使一个基础映像可以用于更多的用户或池，还可以让你配置更多的联动克隆或即时克隆桌面池。以下截图显示了一个用户的桌面，以及所有关键元素的控制和管理位置：
+- en: '![](img/e8a32bef-63ec-45bc-94a0-21c4b7e1608b.png)'
+  id: totrans-416
+  prefs: []
+  type: TYPE_IMG
+  zh: '![](img/e8a32bef-63ec-45bc-94a0-21c4b7e1608b.png)'
+- en: Desktop showing key components
+  id: totrans-417
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 显示关键组件的桌面
+- en: Base layer
+  id: totrans-418
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 基础层
+- en: Your base layer will consist of an optimized operating system that's been configured
+    to the needs of your business. Agents such as the View agent and AV will be installed
+    into the base image, along with any applications. You will need to decide as to
+    what applications should be installed into the base image and which ones are going
+    to be delivered by other means. Often, the applications that will get installed
+    into the base image will be applications that are used across the organization
+    or a complete pool, such as the Microsoft Office suite. You will also want to
+    consider the nature of the application; if the application is unable to be virtualized
+    with ThinApp since it contains drivers, or integrate with the shell, these applications
+    will also need to be installed in your base image.
+  id: totrans-419
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 你的基础层将包括一个经过优化的操作系统，已经根据你的业务需求进行了配置。代理程序，如View代理和AV，将被安装到基础映像中，以及任何应用程序。你需要决定哪些应用程序应该安装到基础映像中，哪些应用程序将通过其他方式提供。通常，将安装到基础映像中的应用程序是整个组织或完整池中使用的应用程序，如Microsoft
+    Office套件。你还需要考虑应用程序的性质；如果某个应用程序由于包含驱动程序或与外壳集成而无法使用ThinApp虚拟化，这些应用程序也需要安装到基础映像中。
+- en: You need to get the base image correct, especially if you are using Linked Clones
+    or Instant Clones, otherwise you could end up creating hundreds of desktops very
+    quickly that are configured incorrectly.
+  id: totrans-420
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 你需要确保基础镜像的正确性，特别是如果你使用的是链接克隆或即时克隆，否则你可能会很快创建数百个配置错误的桌面。
+- en: Applications
+  id: totrans-421
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 应用程序
+- en: You need to have also built an application delivery strategy. This will detail
+    how each application is going to be delivered to the end user. Some applications
+    will be delivered as part of the base operating system, whereas others may be
+    packaged using ThinApp, or layered in using App Volumes.
+  id: totrans-422
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 你还需要制定一个应用程序交付策略。这将详细说明如何将每个应用程序交付给最终用户。有些应用程序将作为基础操作系统的一部分交付，而其他应用程序可能通过 ThinApp
+    打包，或使用 App Volumes 层叠交付。
+- en: There is also the option of Workspace ONE, which would deliver a web-based portal
+    containing additional application delivery methods such as Citrix XenApp or SaaS-based
+    applications.
+  id: totrans-423
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 还有一个选项是 Workspace ONE，它提供一个基于 Web 的门户，包含其他应用程序交付方法，如 Citrix XenApp 或基于 SaaS
+    的应用程序。
+- en: User profiles and user environment management
+  id: totrans-424
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 用户配置文件和用户环境管理
+- en: Finally, let's look at delivering the Persona, or a user's profile on top of
+    the desktop. Think of the Persona as everything that makes the desktop personal;
+    for example, application settings, the contents of my documents, and icons on
+    the desktop. There are a number of ways to achieve this, including redirected
+    profiles, group policy, View Persona Management, VMware UEM, and other third-party
+    products, such as Liquidware Labs ProfileUnity. Wherever possible, keeping the
+    solution as simple as possible and not having to combine third-party products
+    is often the easiest way to reduce management overheads. However, depending on
+    the levels of customization needed, you might need to introduce third-party solutions
+    to achieve this level of customization.
+  id: totrans-425
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 最后，让我们来看看如何在桌面上交付个人资料或用户的配置文件。可以将个人资料视为使桌面个性化的一切；例如，应用程序设置、我的文档内容以及桌面上的图标。实现这一目标有多种方式，包括重定向的配置文件、组策略、View
+    个人资料管理、VMware UEM 和其他第三方产品，如 Liquidware Labs ProfileUnity。尽可能保持解决方案简单，避免结合第三方产品，通常是减少管理开销的最简单方法。然而，根据所需的定制级别，你可能需要引入第三方解决方案来实现这种定制。
+- en: With View Persona Management, the users' profiles are redirected by a set of
+    group policies to a dedicated file server. When a user logs into their VDI desktop,
+    elements of the profile are downloaded from the file server to the VDI desktop
+    as they are required. As such, once a file has been called from the profile, it
+    is cached on the local VDI desktop for future use. Any changes to the profile
+    are stored locally on the VDI desktop but periodically uploaded back to the file
+    server.
+  id: totrans-426
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 使用 View 个人资料管理时，用户的配置文件通过一组组策略被重定向到专用的文件服务器。当用户登录到其 VDI 桌面时，配置文件的部分元素会根据需要从文件服务器下载到
+    VDI 桌面。因此，一旦文件从配置文件中被调用，它会被缓存到本地 VDI 桌面以供未来使用。对配置文件的任何更改都将存储在本地 VDI 桌面上，但会定期上传回文件服务器。
+- en: Disaster recovery and backup
+  id: totrans-427
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 灾难恢复和备份
+- en: As with any solution, fully understanding the backup and disaster recovery options
+    is highly important. With Horizon View, there are multiple areas where you should
+    understand the backup and recovery options, as well as the options that are available
+    to you if a DR event should occur.
+  id: totrans-428
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 和任何解决方案一样，全面了解备份和灾难恢复选项是至关重要的。使用 Horizon View 时，你需要理解多个领域的备份和恢复选项，以及在发生灾难恢复事件时可以使用的选项。
+- en: Backup and recovery options
+  id: totrans-429
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 备份和恢复选项
+- en: 'There are several elements that you need to ensure are backed up when it comes
+    to a Horizon View solution, which are as follows:'
+  id: totrans-430
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 你需要确保在 Horizon View 解决方案中进行备份的几个元素如下：
+- en: View Connection Servers
+  id: totrans-431
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: View 连接服务器
+- en: View Security Servers
+  id: totrans-432
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: View 安全服务器
+- en: Microsoft Lightweight Directory Service
+  id: totrans-433
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: Microsoft 轻量级目录服务
+- en: View Composer Database
+  id: totrans-434
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: View Composer 数据库
+- en: vCenter Database
+  id: totrans-435
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: vCenter 数据库
+- en: vCenter Server(s)
+  id: totrans-436
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: vCenter 服务器
+- en: File servers containing ThinApp, View Persona Data, UEM, and App Stacks
+  id: totrans-437
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 包含 ThinApp、View 个人资料数据、UEM 和 App Stacks 的文件服务器
+- en: Golden images
+  id: totrans-438
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 黄金镜像
+- en: Full Clone and persistent desktop images
+  id: totrans-439
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 完整克隆和持久桌面镜像
+- en: As you can see, there are several areas that you need to ensure are protected
+    on a daily basis, if not more often.
+  id: totrans-440
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 正如你所看到的，你需要确保每天（如果不是更频繁的话）保护的多个区域。
+- en: 'Through the Horizon View Administrator, you can configure the scheduled backup
+    of the LDAP repository and the View Composer Database. These will be backed up
+    to the following location on your View Connection Servers:'
+  id: totrans-441
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 通过Horizon View管理员，你可以配置LDAP存储库和View Composer数据库的定期备份。这些将被备份到View连接服务器上的以下位置：
+- en: '[PRE0]'
+  id: totrans-442
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: You should ensure that these backup files are regularly backed up to an external
+    backup solution. We will investigate the configuration and restoration of the
+    View LDAP repository and View Composer Database in [Chapter 4](a85150f1-1f32-4c91-87f0-1e8c700b9b96.xhtml),
+    *Installing and Configuring Horizon 7 - Part 1*.
+  id: totrans-443
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 你应该确保这些备份文件定期备份到外部备份解决方案。我们将在[第4章](a85150f1-1f32-4c91-87f0-1e8c700b9b96.xhtml)中探讨View
+    LDAP存储库和View Composer数据库的配置与恢复，*安装与配置Horizon 7 - 第一部分*。
+- en: It is highly recommended that all server components are protected by some form
+    of backup software solution, such as Veeam Backup and Replication, or VMware Data
+    Protection. As we mentioned previously, you could consider protecting and maintaining
+    your full clones using Horizon Mirage.
+  id: totrans-444
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 强烈建议所有服务器组件都受到某种形式的备份软件保护，例如Veeam备份与复制，或VMware数据保护。如前所述，你可以考虑使用Horizon Mirage保护并维护完整克隆。
+- en: Disaster recovery options
+  id: totrans-445
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 灾难恢复选项
+- en: Due to the integration of Horizon View with View Composer and vCenter Server,
+    it is not recommended or supported to replicate View environments from production
+    to a DR site. Likewise, Horizon View is not supported for use with VMware SRM.
+    You need to ensure that you design a DR strategy for your Horizon View environment
+    in a different manner. There are several ways you could consider offering DR for
+    View, but let's just cover one of those for now.
+  id: totrans-446
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 由于Horizon View与View Composer和vCenter Server的集成，不建议或不支持将View环境从生产站点复制到灾难恢复站点。同样，Horizon
+    View也不支持与VMware SRM一起使用。你需要确保为你的Horizon View环境设计一种不同的灾难恢复策略。你可以考虑为View提供灾难恢复的几种方法，但我们现在只讨论其中一种。
+- en: 'First, we need to think of the components that are important to our View environment.
+    Typically, these are things such as the following:'
+  id: totrans-447
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 首先，我们需要考虑对View环境重要的组件。通常，这些组件包括以下内容：
+- en: User profiles
+  id: totrans-448
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 用户个人资料
+- en: ThinApp applications or app layers
+  id: totrans-449
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: ThinApp应用程序或应用层
+- en: Golden images
+  id: totrans-450
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 黄金镜像
+- en: Full Clone desktops
+  id: totrans-451
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 完整克隆桌面
+- en: If you have these components available at DR, then you can start recovering
+    your View environment at the DR site with relative ease. The DR site will be configured
+    with a dedicated View environment, preconfigured with all the required components
+    such as vCenter Server, View Connection Servers, and View Security Servers. You
+    then need to understand what you need to do to roll out the VDI solution that's
+    been customized for your business needs during a DR event.
+  id: totrans-452
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果在灾难恢复（DR）站点有这些组件，那么你可以相对轻松地在DR站点恢复你的View环境。DR站点将配置一个专用的View环境，并预先配置所有必需的组件，如vCenter
+    Server、View连接服务器和View安全服务器。接下来，你需要了解在DR事件中，如何部署为你的业务需求定制的VDI解决方案。
+- en: As the users' personas, ThinApp applications, and App Volumes AppStacks are
+    all located on a file server, you can consider using technology such as Microsoft's
+    **Distributed FileSystem Replication** (**DFSR**) or similar technology. This
+    allows you to have a copy of this data at both the production and disaster recovery
+    sites.
+  id: totrans-453
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 由于用户的个人资料、ThinApp应用程序和App Volumes AppStacks都位于文件服务器上，你可以考虑使用像微软的**分布式文件系统复制**（**DFSR**）或类似的技术。这允许你在生产站点和灾难恢复站点都拥有该数据的副本。
+- en: Once you have your ThinApp packages, AppStacks, and Persona at the DR site,
+    you need to understand how you are going to deliver the desktops. Since the desktops
+    will be rolled out from the golden images, you should consider replicating the
+    golden image from production to DR by utilizing replication that's been integrated
+    into the storage device. You could even do something as primitive as exporting
+    the golden image as an **Open Virtualization Format** (**OVF**) and moving it
+    to the DR site. You are then able to recompose the desktop pools from this golden
+    image at the DR site.
+  id: totrans-454
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 一旦你将ThinApp包、AppStacks和个人资料放置在DR站点，你需要了解如何提供桌面。由于桌面将从黄金镜像中推出，因此你应该考虑利用存储设备中集成的复制功能，将黄金镜像从生产站点复制到DR站点。你甚至可以使用一种原始的方法，将黄金镜像导出为**开放虚拟化格式**（**OVF**），然后将其移动到DR站点。接着，你可以在DR站点重新组合桌面池。
+- en: When it comes to full clone desktops, as these are just standard VMs, you could
+    simply consider replicating these directly from the SAN and utilizing SRM to mount
+    them online at the DR site, ready to be added back into Horizon View.
+  id: totrans-455
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于完全克隆桌面，因为这些只是标准的虚拟机，你可以考虑直接从SAN复制这些虚拟机，并利用SRM在灾难恢复站点上将其挂载，准备重新加入到Horizon View中。
+- en: Finally, you should think about how users are going to connect to your DR site
+    in the event of a failure. This could be something as simple as getting the users
+    to connect their client device to a different address, or you could make use of
+    global load balancing technology to redirect the regular URL to the DR site.
+  id: totrans-456
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 最后，你应该考虑在发生故障时，用户将如何连接到你的灾难恢复站点。这可以是让用户将他们的客户端设备连接到一个不同的地址，或者你可以利用全球负载均衡技术将常规的URL重定向到灾难恢复站点。
+- en: As you can see, there isn't a simple solution to building a DR site for your
+    Horizon View solution, but if you break it down to its component level, you can
+    easily configure a solution that will work to deliver the desktops and relevant
+    files for our users, should the need arise. You could also consider utilizing
+    the Cloud Pod Architecture to help enable the cross-site management of users between
+    production and DR, and deploy a global namespace and allow View to direct the
+    user to the appropriate desktop resource.
+  id: totrans-457
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 正如你所看到的，为你的Horizon View解决方案建立一个灾难恢复站点并没有简单的解决方案，但如果你将其分解到组件级别，你可以轻松配置一个方案，在需要时为用户提供桌面和相关文件。你还可以考虑利用云Pod架构，帮助实现跨站点管理，支持生产和灾难恢复之间的用户管理，并部署全球命名空间，使View能够将用户引导到适当的桌面资源。
+- en: VMware is also able to deliver desktops as a service as part of their Horizon
+    Air Cloud-Hosted Desktops and Apps service. You could consider utilizing this
+    technology in some way to offer DR for your on-premises Horizon View environment.
+  id: totrans-458
+  prefs: []
+  type: TYPE_NORMAL
+  zh: VMware还能够作为服务提供桌面，作为其Horizon Air云托管桌面和应用服务的一部分。你可以考虑以某种方式利用这项技术，为你的本地Horizon
+    View环境提供灾难恢复。
+- en: Example solution scenario
+  id: totrans-459
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 示例解决方案场景
+- en: To finish up this chapter, we wanted to give you an example of a real-life scenario
+    so that you have the opportunity to put all the elements that we've covered in
+    this chapter into action and see how they would all fit together. You will see
+    that we have put together a mock scenario. Read through it and make some notes
+    about the elements that you would be configuring and how you would design the
+    architecture for a production environment.
+  id: totrans-460
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 为了结束本章内容，我们希望给你一个现实场景的示例，让你有机会将我们在本章中讨论的所有元素付诸实践，看看它们如何组合在一起。你会看到我们已构建了一个模拟场景，阅读它并做一些笔记，思考你会配置哪些元素，以及你会如何设计生产环境的架构。
+- en: 'We are going to build an example design based on a fictitious company called
+    PVO Engineering Inc. and their requirements for deploying a VDI solution. This
+    is shown in the following topology diagram of their current network environment
+    and locations:'
+  id: totrans-461
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 我们将基于一个虚构公司PVO Engineering Inc.的需求，构建一个VDI解决方案的示例设计。以下是该公司当前网络环境和位置的拓扑图：
+- en: '![](img/f817ef27-43a9-4a13-9da6-62ba1e092447.png)'
+  id: totrans-462
+  prefs: []
+  type: TYPE_IMG
+  zh: '![](img/f817ef27-43a9-4a13-9da6-62ba1e092447.png)'
+- en: 'The company has three office locations: an HQ office and two remote sites for
+    the app development teams. To serve these, they have two data centers that are
+    running active/active. Data center A supports the mobile and HQ workers, while
+    data center B supports the app development teams. Each data center can support
+    the entire environment in the event of a data center failure.'
+  id: totrans-463
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 公司有三个办公地点：一个总部办公室和两个远程应用开发团队的站点。为了服务这些地点，他们有两个运行活跃/活跃模式的数据中心。数据中心A支持移动和总部工作人员，而数据中心B支持应用开发团队。在数据中心出现故障时，每个数据中心都能支持整个环境。
+- en: End user requirements
+  id: totrans-464
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 最终用户需求
+- en: 'In this example, we have conducted an assessment to gather information on the
+    current user install base of 5,750 users, and we have built up a picture of the
+    types of users and their requirements, along with their location. This is detailed
+    in the following table:'
+  id: totrans-465
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在这个示例中，我们已经进行了评估，收集了当前用户安装基数为5,750个用户的信息，并绘制了用户类型及其需求，以及用户的位置。详细信息如下表所示：
+- en: '![](img/3d4960d4-03f9-44b6-a29f-038f1c1ad97f.png)'
+  id: totrans-466
+  prefs: []
+  type: TYPE_IMG
+  zh: '![](img/3d4960d4-03f9-44b6-a29f-038f1c1ad97f.png)'
+- en: We now have information on the different types of user and their requirements,
+    and can now start to consider how we are going to deliver the requirements to
+    the end users.
+  id: totrans-467
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 我们现在已经收集了关于不同类型用户及其需求的信息，可以开始考虑如何将这些需求传递给最终用户。
+- en: Application developers
+  id: totrans-468
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 应用程序开发人员
+- en: In the example scenario, there are two remote development sites, but from the
+    network topology, you can see that they are WAN-based and connect to data center
+    B. They will only use their desktops from within the office and therefore do not
+    require external access.
+  id: totrans-469
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在示例场景中，有两个远程开发站点，但从网络拓扑可以看出，它们是基于WAN并连接到数据中心B。它们仅在办公室内使用桌面，因此不需要外部访问权限。
+- en: They do, however, need the ability to install software on their desktops. To
+    deliver this, in this example scenario, we configured a dedicated pool with persistent
+    desktops. The other option would be to configure floating, non-persistent desktops
+    and use App Volumes to deliver Writable Volumes for the users to install their
+    applications onto.
+  id: totrans-470
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 然而，他们确实需要在其桌面上安装软件的能力。为了实现这一点，在这个示例场景中，我们配置了一个带有持久性桌面的专用池。另一个选项是配置浮动的非持久性桌面，并使用App
+    Volumes交付可写卷，以便用户将应用程序安装到这些卷中。
+- en: Whichever option you choose, the virtual desktops themselves need to be of a
+    high specification in terms of memory.
+  id: totrans-471
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 无论你选择哪个选项，虚拟桌面本身的内存规格都需要很高。
+- en: Office workers
+  id: totrans-472
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 办公室工作人员
+- en: These end users are your basic task workers and require a basic desktop configuration
+    (2 CPUs and 2 GB memory). They are also perfect candidates for non-persistent
+    virtual desktops. The core Office applications would be installed as part of the
+    base image, with any of the additional applications being delivered via published
+    applications or app layering using App Volumes AppStacks.
+  id: totrans-473
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 这些终端用户是你的基础任务工作者，需要一个基础的桌面配置（2个CPU和2GB内存）。他们也是非持久性虚拟桌面的理想候选人。核心的Office应用程序将作为基础镜像的一部分进行安装，而任何额外的应用程序则通过发布的应用程序或App
+    Volumes AppStacks进行交付。
+- en: Contractors
+  id: totrans-474
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 承包商
+- en: With contractors, it might be difficult to understand what they are coming into
+    the business to work on, and so since one size doesn't fit all, it's probably
+    best to err on the side of caution when it comes to the configuration. Therefore,
+    we will size for the most intensive role they could perform. In the example scenario,
+    this would be the application development role. That being the case, they will
+    have the same configuration as the internal applications developers; however,
+    they will need external access.
+  id: totrans-475
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于承包商来说，可能很难理解他们将要从事的工作内容，因此，由于“一刀切”的做法并不适用，最好在配置时保持谨慎。因此，我们将根据他们可能承担的最密集的角色来进行配置。在示例场景中，这将是应用开发角色。既然如此，他们将拥有与内部应用开发人员相同的配置；然而，他们需要外部访问权限。
+- en: Engineering
+  id: totrans-476
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 工程
+- en: There are two teams in the engineering department. Team one are heavy CAD users
+    and design products, and team two create the engineering training material. Team
+    one, therefore, requires a high-end graphics solution to run the CAD software,
+    whereas team two doesn't need quite as many graphics resources; however, they
+    still need substantially more than a standard user would need. The solution for
+    engineering would include NVIDIA accelerated graphics technology, which requires
+    dedicated desktops.
+  id: totrans-477
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 工程部门有两个团队。团队一是重度CAD用户，负责设计产品，而团队二则创建工程培训材料。因此，团队一需要一个高端图形解决方案来运行CAD软件，而团队二不需要那么多图形资源；然而，他们仍然需要比普通用户更多的图形资源。工程解决方案将包括NVIDIA加速图形技术，这需要专用桌面。
+- en: Sales
+  id: totrans-478
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 销售
+- en: The sales department follows a similar work pattern to the standard office workers
+    and therefore would use a floating, non-persistent desktop pool. The key difference
+    is that the sales teams would need external access from the internet.
+  id: totrans-479
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 销售部门的工作模式与标准办公室工作人员类似，因此将使用浮动的非持久性桌面池。关键区别在于，销售团队需要从互联网访问外部资源。
+- en: Now that we have the user requirements, we can start to look at creating a pool
+    design based on delivering these use cases.
+  id: totrans-480
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 现在我们已经有了用户需求，我们可以开始根据这些使用案例创建池设计。
+- en: Desktop pool design
+  id: totrans-481
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 桌面池设计
+- en: 'The pool design reflects the use cases, and any similar desktops will be included
+    in a single pool. Based on the information we''ve gathered, we can start building
+    the pool design, based on the information in the following table:'
+  id: totrans-482
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 池设计反映了使用案例，任何类似的桌面将被包含在一个池中。根据我们收集到的信息，我们可以开始构建池设计，基于下表中的信息：
+- en: '![](img/1b6b9cf7-c57d-447c-95bf-28068eb3534b.png)'
+  id: totrans-483
+  prefs: []
+  type: TYPE_IMG
+  zh: '![](img/1b6b9cf7-c57d-447c-95bf-28068eb3534b.png)'
+- en: All the office workers in the design are part of the same desktop pool, along
+    with sales, even though they have different application requirements. We will
+    look at delivering these applications outside of the core virtual desktop machine
+    image using either ThinApp, the Horizon published apps, or App Volumes.
+  id: totrans-484
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 设计中的所有办公室员工与销售人员共享同一个桌面池，尽管他们的应用需求不同。我们将通过ThinApp、Horizon发布应用程序或App Volumes将这些应用程序交付到核心虚拟桌面镜像之外。
+- en: Using the pod and block architecture, we are going to deploy two View pods,
+    one in data center A and the other in data center B. The reason for this is that
+    it makes more sense from a network perspective to have these desktops nearer to
+    the users; however, we will take advantage of the Cloud Pod Architecture since
+    the developers travel between sites, and will configure a global pool for these
+    users. Although in this example we have decided to configure a dedicated pool
+    for the developers, we could deploy floating desktops and use App Volumes to deliver
+    the ability for the developers to install their own software using the Writeable
+    Volumes feature.
+  id: totrans-485
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 使用Pod和区块架构，我们将部署两个View Pod，一个在数据中心A，另一个在数据中心B。这样做的原因是，从网络角度来看，将这些桌面放置在离用户更近的地方更为合理；然而，由于开发者需要在不同站点之间旅行，我们将利用Cloud
+    Pod架构，为这些用户配置一个全球池。尽管在本示例中，我们决定为开发者配置一个专用池，但我们也可以部署浮动桌面，并利用App Volumes提供开发者安装自己软件的能力，通过可写卷功能。
+- en: Now that we have an idea of the pools, we can start to shape the pod's design
+    and size the management blocks and the desktop hosting blocks. Let's start with
+    the desktop blocks.
+  id: totrans-486
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 现在我们对桌面池有了一个大致的了解，可以开始规划Pod的设计，并调整管理区块和桌面托管区块的大小。我们先从桌面区块开始。
+- en: Sizing the desktop blocks
+  id: totrans-487
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 桌面区块的大小
+- en: In data center A with pod 1, we have 5,500 virtual desktop machines. As there
+    are 2,000 virtual desktop machines supported per block, we would need to configure
+    three blocks with approximately 1,800 virtual desktop machines per block.
+  id: totrans-488
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在数据中心A的Pod 1中，我们有5,500台虚拟桌面机器。由于每个区块支持2,000台虚拟桌面机器，因此我们需要配置三个区块，每个区块约1,800台虚拟桌面机器。
+- en: In data center B, we have 250 virtual desktop machines, so we only need one
+    block. The next question is, how many servers do we need to host the virtual desktop
+    machines? For this example, we will use the users-per-core figures we previously
+    discussed in this chapter to cover light users for the office and sales workers,
+    and very heavy users for the developers and engineering users. This means that,
+    for office users, we can configure 98 virtual desktop machines per host and, for
+    the very heavy users, we can configure 50 virtual desktop machines per host.
+  id: totrans-489
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在数据中心B，我们有250台虚拟桌面机器，因此我们只需要一个区块。下一个问题是，我们需要多少台服务器来托管这些虚拟桌面机器？在这个示例中，我们将使用前面章节中讨论的每核心用户数量来覆盖办公室和销售人员的轻度用户，以及开发者和工程类用户的重度用户。这意味着，对于办公室用户，我们可以为每台主机配置98台虚拟桌面机器，而对于重度用户，我们可以为每台主机配置50台虚拟桌面机器。
+- en: 'We also need to remember that we have some distinct differences in the host
+    server requirements, as the engineering users require access to hardware-based
+    GPU. This would result in deploying a cluster for each. The number of hosts required
+    for pod 1 could look something like what''s shown in the following screenshot.
+    Note that the users per core ratios in these examples are based on servers with
+    two 3-GHz, 10-core CPUs, and user profiles of 300 MHz for light users and 1.1
+    GHz for power users:'
+  id: totrans-490
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 我们还需要记住，主机服务器的要求存在一些明显的差异，因为工程类用户需要访问硬件加速的GPU。这将导致为每个用户组部署一个集群。Pod 1所需的主机数量可能如下图所示。请注意，这些示例中的用户每核心比率是基于具有两颗3
+    GHz、10核CPU的服务器，以及轻度用户的300 MHz和重度用户的1.1 GHz配置文件：
+- en: '![](img/988a0d14-4b1e-4f0b-be7e-11ddf8c11ba5.png)'
+  id: totrans-491
+  prefs: []
+  type: TYPE_IMG
+  zh: '![](img/988a0d14-4b1e-4f0b-be7e-11ddf8c11ba5.png)'
+- en: For the GPU-based virtual desktop machines, two configuration options have been
+    used, both using NVIDIA GRID K1 graphics cards and vGPU. The CAD users will use
+    a K180Q profile, and the video users will use a K140Q profile.
+  id: totrans-492
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于基于GPU的虚拟桌面机器，使用了两种配置选项，均使用NVIDIA GRID K1显卡和vGPU。CAD用户将使用K180Q配置文件，视频用户将使用K140Q配置文件。
+- en: There is no DR option for the GRID-enabled servers due to the high cost of the
+    hardware. In the event of a failure, users can continue to work, but with lower
+    graphics capabilities.
+  id: totrans-493
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 由于硬件成本较高，启用GRID的服务器没有灾难恢复选项。在发生故障时，用户仍然可以继续工作，但图形处理能力较低。
+- en: 'Pod 2 in data center B contains just the virtual desktop machines for the application
+    development users and would look something like the following:'
+  id: totrans-494
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 数据中心B中的pod 2仅包含应用开发用户的虚拟桌面机器，其布局大致如下所示：
+- en: '![](img/ad528765-3c7e-430f-b4ff-c52ae8d59f2c.png)'
+  id: totrans-495
+  prefs: []
+  type: TYPE_IMG
+  zh: '![](img/ad528765-3c7e-430f-b4ff-c52ae8d59f2c.png)'
+- en: With pod 1, we have exceeded the number of hosts we can support in a cluster,
+    the limit being 32\. Therefore, we would deploy two clusters per desktop block
+    with the number of host servers divided across the clusters, while a separate
+    cluster will support the graphics enabled users.
+  id: totrans-496
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在pod 1中，我们已经超过了一个集群能够支持的主机数量，限制为32台。因此，我们将为每个桌面块部署两个集群，将主机服务器数量分配到各个集群中，同时另设一个独立集群来支持图形启用用户。
+- en: 'The design is now starting to look like the following diagram:'
+  id: totrans-497
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 现在设计开始看起来像下图所示：
+- en: '![](img/35957a8a-093b-47f1-ab44-c0571f963597.png)'
+  id: totrans-498
+  prefs: []
+  type: TYPE_IMG
+  zh: '![](img/35957a8a-093b-47f1-ab44-c0571f963597.png)'
+- en: Sizing the storage requirements
+  id: totrans-499
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 存储需求的规模
+- en: 'Using the calculations we detailed previously, you can work out the IOPS requirements
+    you need to deliver. In this example scenario, we will base the calculation on
+    a requirement of 30 IOPS per virtual desktop machine, a 30/70 read/write ratio,
+    a RAID 5 array, and a 10 GB disk capacity. Given those variables, we can work
+    out what the storage requirements are, as shown in the following table:'
+  id: totrans-500
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 利用我们之前详细说明的计算方法，你可以算出所需的IOPS要求。在这个示例场景中，我们将基于每台虚拟桌面机器需要30个IOPS、30/70的读写比例、RAID
+    5阵列和10GB磁盘容量来进行计算。根据这些变量，我们可以算出存储需求，如下表所示：
+- en: '![](img/59f456b6-4648-479a-be9b-e57e4b216946.png)'
+  id: totrans-501
+  prefs: []
+  type: TYPE_IMG
+  zh: '![](img/59f456b6-4648-479a-be9b-e57e4b216946.png)'
+- en: These storage requirements are for hosting the desktops only. If you are using
+    components such as App Volumes, or ThinApp for delivering applications, you will
+    need to think about the capacity and performance requirements to support those
+    environments.
+  id: totrans-502
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 这些存储需求仅用于托管桌面。如果你使用了如App Volumes或ThinApp这样的组件来交付应用程序，你还需要考虑支持这些环境的容量和性能需求。
+- en: Sizing the management blocks
+  id: totrans-503
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 管理模块的规模
+- en: 'Once we have configured the desktop blocks and know the pool configuration,
+    we can look at sizing the management blocks to provide the supporting infrastructure.
+    This infrastructure component configuration will look something like what''s shown
+    in the following table:'
+  id: totrans-504
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 一旦我们配置了桌面块并了解了池配置，我们就可以着手调整管理模块的规模，以提供支持基础设施。这个基础设施组件的配置大致如下表所示：
+- en: '![](img/43b7dcd4-0ea6-4467-8a17-d1c1a7af2fdd.png)'
+  id: totrans-505
+  prefs: []
+  type: TYPE_IMG
+  zh: '![](img/43b7dcd4-0ea6-4467-8a17-d1c1a7af2fdd.png)'
+- en: The final element to look at is the network. You need to assess whether the
+    current network configuration will support the users. If not, then you may need
+    to look at some form of a network upgrade.
+  id: totrans-506
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 最后一个要考虑的元素是网络。你需要评估当前的网络配置是否能够支持用户。如果不能，那么你可能需要考虑某种形式的网络升级。
+- en: Network sizing and requirements
+  id: totrans-507
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 网络规模和需求
+- en: 'Now that we have our pool design, management and desktop blocks, and the storage
+    requirements, we can look at the network requirements, as shown in the following
+    table:'
+  id: totrans-508
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 现在我们已经有了池设计、管理和桌面模块，以及存储需求，我们可以查看网络需求，如下表所示：
+- en: '![](img/5958c7d6-ce8b-425b-b95f-963aa0a6408f.png)'
+  id: totrans-509
+  prefs: []
+  type: TYPE_IMG
+  zh: '![](img/5958c7d6-ce8b-425b-b95f-963aa0a6408f.png)'
+- en: Summary
+  id: totrans-510
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 总结
+- en: In this chapter, we have covered some of the essential tasks in designing and
+    building out our Horizon View infrastructure.
+  id: totrans-511
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在这一章中，我们介绍了设计和构建Horizon View基础设施中的一些关键任务。
+- en: We started at a high level, discussing the approach to a VDI project and the
+    different phases to work through to plan and test an environment. The most important
+    of these phases is the assessment phase.
+  id: totrans-512
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 我们从高层次开始，讨论了VDI项目的实施方法以及为规划和测试环境所需经过的不同阶段。其中最重要的阶段是评估阶段。
+- en: Once we worked through these, we looked at the pod and block reference architecture,
+    before examining the sizing of the key Horizon View components, such as the View
+    Connection Server, View Security Server, and View Composer.
+  id: totrans-513
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在完成这些工作后，我们查看了pod和块参考架构，然后研究了关键Horizon View组件的规模调整，例如View Connection Server、View
+    Security Server和View Composer。
+- en: Following on from the management architecture, we looked at some of the considerations
+    for sizing and configuring the virtual desktop machines and the user assignments,
+    before putting all of this together in a high-level example design.
+  id: totrans-514
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在管理架构之后，我们查看了一些关于如何对虚拟桌面机器和用户分配进行规模调整和配置的考虑因素，然后将这些内容整合到一个高层次的示例设计中。
+- en: You should now have a methodology for approaching a project, coupled with the
+    knowledge to be able to start sizing an environment that's specific to your end
+    user's requirements.
+  id: totrans-515
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 现在，你应该已经具备了处理项目的思路，并且掌握了能够根据最终用户需求来开始评估环境规模的知识。
+- en: In the next chapter, we will discuss how to install all of the components that
+    make up the Horizon View solution. We will take a deep dive into installation
+    and follow this process using step-by-step screenshots. By the end of this chapter,
+    we will have a fully functional View infrastructure up and running.
+  id: totrans-516
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在下一章中，我们将讨论如何安装构成 Horizon View 解决方案的所有组件。我们将深入研究安装过程，并通过逐步截图来演示这一过程。在本章结束时，我们将拥有一个完全可用的
+    View 基础设施。
