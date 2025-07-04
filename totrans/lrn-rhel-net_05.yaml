@@ -1,7 +1,9 @@
 - en: Chapter 5. Implementing btrfs
+  id: totrans-0
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 第 5 章：实现 `btrfs`
 - en: In this chapter, we will investigate what is on offer with `btrfs` (pronounced
     as *Better FS*). Although not directly related to networking, we will soon look
     at how to share filesystems; for this reason and as `btrfs` is so incredibly good,
@@ -11,59 +13,90 @@
     by Red Hat and ships as a technology preview; it has to be said that Red Hat is
     cautious on this matter because SUSE has had `btrfs` as their default filesystem
     since Enterprise Linux 11 SP2 and continues on SLES 12.
+  id: totrans-1
   prefs: []
   type: TYPE_NORMAL
+  zh: 在本章中，我们将探讨 `btrfs`（发音为 *Better FS*）提供的功能。尽管与网络无关，我们很快会讨论如何共享文件系统；正因为如此，且 `btrfs`
+    如此强大，我们现在就来看看它。`Btrfs` 是一个本地文件系统，提供集成的卷管理操作、易于扩展以及内置容错功能。它并未完全得到 Red Hat 的支持，并作为技术预览发布；必须说，Red
+    Hat 对此非常谨慎，因为 SUSE 从 Enterprise Linux 11 SP2 开始便将 `btrfs` 作为默认文件系统，并且在 SLES 12
+    上继续使用。
 - en: 'In this chapter, we will cover the following topics:'
+  id: totrans-2
   prefs: []
   type: TYPE_NORMAL
+  zh: 本章将涵盖以下主题：
 - en: Overview of `btrfs`
+  id: totrans-3
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '`btrfs` 概述'
 - en: Overview of the lab environment
+  id: totrans-4
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 实验环境概述
 - en: Creating the `btrfs` filesystem
+  id: totrans-5
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 创建 `btrfs` 文件系统
 - en: The copy-on-write technology
+  id: totrans-6
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 写时复制技术
 - en: Resizing the `btrfs` filesystem
+  id: totrans-7
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 调整 `btrfs` 文件系统大小
 - en: Adding devices to the `btrfs` filesystem
+  id: totrans-8
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 向 `btrfs` 文件系统添加设备
 - en: Mounting multidisk `btrfs` volumes from `/etc/fstab`
+  id: totrans-9
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 从 `/etc/fstab` 挂载多磁盘 `btrfs` 卷
 - en: Implementing RAID with `btrfs`
+  id: totrans-10
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 使用 `btrfs` 实现 RAID
 - en: Optimizing solid state drives
+  id: totrans-11
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 优化固态硬盘
 - en: Point-in-time data backups using snapshots
+  id: totrans-12
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 使用快照进行时间点数据备份
 - en: Snapshot management with snappers
+  id: totrans-13
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 使用 snappers 进行快照管理
 - en: Overview of btrfs
+  id: totrans-14
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: '`btrfs` 概述'
 - en: 'If there is one thing that Linux is able to offer you at present, it''s a choice
     of filesystems with over 55 kernel-based filesystems on the Linux kernel tree.
     So, why do we need more? We are already seeing that older filesystems such as
@@ -78,323 +111,485 @@
     logical volumes or `mdadm` for RAID. Scalability is also a major factor in choosing
     `btrfs`. This scales to 16 EB (Exabytes) and brings the following reliability
     features not found previously:'
+  id: totrans-15
   prefs: []
   type: TYPE_NORMAL
+  zh: 如果现在有一样东西是 Linux 能够提供的，那就是拥有超过 55 个基于内核的文件系统，在 Linux 内核树上。那我们为什么还需要更多呢？我们已经看到，像
+    `xfs` 这样的老旧文件系统正在复苏，Red Hat 正在大力推广这个来自 SGI 的原始文件系统。`btrfs` 文件系统提供了一种独特的解决方案，将卷管理和文件系统合并为一个统一的解决方案。`Btrfs`
+    采用 **通用公共许可证**（**GPL**）授权，并作为标准随 Red Hat Enterprise 7 和 7.1 提供。它不仅提供文件管理访问，还提供卷管理和
+    **冗余廉价磁盘阵列**（**RAID**）管理。这种简单的管理方式意味着你可以通过单个命令创建 RAID 设备或扩展卷，而不需要依赖 LVM 进行逻辑卷管理或使用
+    `mdadm` 进行 RAID 管理。可扩展性也是选择 `btrfs` 的一个重要因素。它可以扩展到 16 EB（艾字节），并带来了以下以前未见过的可靠性特性：
 - en: Very fast filesystem creation
+  id: totrans-16
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 非常快速的文件系统创建
 - en: Data and metadata checksums
+  id: totrans-17
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 数据和元数据校验和
 - en: Snapshotting
+  id: totrans-18
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 快照功能
 - en: Online scrub to fix issues
+  id: totrans-19
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 在线清理以修复问题
 - en: When you look at organizations that use `btrfs` in production, which includes
     Facebook and TripAdvisor among others, you will understand the importance of including
     it in this book.
+  id: totrans-20
   prefs: []
   type: TYPE_NORMAL
+  zh: 当你看到像 Facebook 和 TripAdvisor 等使用 `btrfs` 作为生产环境的组织时，你就会理解将它纳入本书的重要性。
 - en: In many ways, the `btrfs` filesystem was born from the failing of the ReiserFS
     file system after it lost its lead developer, Hans Reiser. Chris Mason, who had
     helped develop ReiserFS before moving on to SUSE, was hired by Oracle to develop
     high-end filesystems. This was the start of `btrfs`.
+  id: totrans-21
   prefs: []
   type: TYPE_NORMAL
+  zh: 在许多方面，`btrfs` 文件系统诞生于 ReiserFS 文件系统的失败，该文件系统在失去其首席开发者 Hans Reiser 后陷入困境。Chris
+    Mason 曾在 SUSE 转向开发高端文件系统前参与了 ReiserFS 的开发，他被 Oracle 雇佣来开发高端文件系统。`btrfs` 的诞生正是从此开始的。
 - en: Overview of the lab environment
+  id: totrans-22
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 实验环境概述
 - en: 'The Red Hat Enterprise Linux 7.1 virtual machine we will use for this book
     will have additional drives added for this section. Currently, we will use three
     disks:'
+  id: totrans-23
   prefs: []
   type: TYPE_NORMAL
+  zh: 本书中使用的Red Hat Enterprise Linux 7.1虚拟机将为本节添加额外的磁盘。目前，我们将使用三块磁盘：
 - en: '`/dev/sda`: This disk is used by the root filesystem'
+  id: totrans-24
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '`/dev/sda`：此磁盘用于根文件系统'
 - en: '`/dev/sdb`: This disk is used to house the yum repository'
+  id: totrans-25
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '`/dev/sdb`：此磁盘用于存储yum仓库'
 - en: '`/dev/sdc`: This disk is used as the iSCSI LUN store'
+  id: totrans-26
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '`/dev/sdc`：此磁盘作为iSCSI LUN存储'
 - en: 'To demonstrate some key features of `btrfs`, we will add four additional virtual
     disks to the system so that we can use them while demonstrating the `btrfs` filesystem.
     Feel free to do the same if you are using a virtualized system. The different
     drives that we will add are as follows:'
+  id: totrans-27
   prefs: []
   type: TYPE_NORMAL
+  zh: 为了演示`btrfs`的关键功能，我们将向系统添加四个额外的虚拟磁盘，以便在演示`btrfs`文件系统时使用。如果你使用的是虚拟化系统，也可以进行相同的操作。我们将添加的不同磁盘如下：
 - en: '`/dev/sdd`'
+  id: totrans-28
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '`/dev/sdd`'
 - en: '`/dev/sde`'
+  id: totrans-29
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '`/dev/sde`'
 - en: '`/dev/sdf`'
+  id: totrans-30
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '`/dev/sdf`'
 - en: '`/dev/sdg`'
+  id: totrans-31
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '`/dev/sdg`'
 - en: 'Using the `lsblk` command on the demonstration system, you will be able to
     view the starting configuration that we will use from this point onward, as shown
     in the following screenshot:'
+  id: totrans-32
   prefs: []
   type: TYPE_NORMAL
+  zh: 在演示系统上使用`lsblk`命令，你将能够查看我们从此时起将要使用的初始配置，正如以下截图所示：
 - en: '![Overview of the lab environment](img/image00239.jpeg)'
+  id: totrans-33
   prefs: []
   type: TYPE_IMG
+  zh: '![实验环境概览](img/image00239.jpeg)'
 - en: Installing btrfs
+  id: totrans-34
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 安装btrfs
 - en: 'Using Red Hat Enterprise Linux 7 or later, you will find that `btrfs` is installed
     by default even on a minimal installation. However, if you are using earlier versions,
     you can install the `btrfs` filesystem with yum in the normal way, as shown in
     the following command:'
+  id: totrans-35
   prefs: []
   type: TYPE_NORMAL
+  zh: 使用Red Hat Enterprise Linux 7或更高版本时，即使是最小安装，`btrfs`也会默认安装。然而，如果你使用的是早期版本，可以像通常一样通过yum安装`btrfs`文件系统，如下所示：
 - en: '[PRE0]'
+  id: totrans-36
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE0]'
 - en: 'With the filesystem installed, we can check the version that we have implemented
     using the following command:'
+  id: totrans-37
   prefs: []
   type: TYPE_NORMAL
+  zh: 文件系统安装完成后，我们可以使用以下命令检查已实现的版本：
 - en: '[PRE1]'
+  id: totrans-38
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE1]'
 - en: On RHEL 7, the version is `3.12`, whereas on RHEL 7.1, the version is `3.16.2`.
+  id: totrans-39
   prefs: []
   type: TYPE_NORMAL
+  zh: 在RHEL 7中，版本为`3.12`，而在RHEL 7.1中，版本为`3.16.2`。
 - en: Now that we understand a little of the power behind `btrfs`, let's begin with
     some simple implementation examples.
+  id: totrans-40
   prefs: []
   type: TYPE_NORMAL
+  zh: 现在我们对`btrfs`背后的强大功能有了些许了解，接下来让我们开始一些简单的实现示例。
 - en: Creating the btrfs filesystem
+  id: totrans-41
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 创建btrfs文件系统
 - en: 'To begin with, we will create a `btrfs` filesystem on the `/dev/sdd` complete
     disk. We do not need to partition the disk first, saving us time from the outset.
     This is shown in the following command line:'
+  id: totrans-42
   prefs: []
   type: TYPE_NORMAL
+  zh: 首先，我们将在`/dev/sdd`整个磁盘上创建一个`btrfs`文件系统。我们无需先分区，从一开始就节省了时间。以下是命令行展示：
 - en: '[PRE2]'
+  id: totrans-43
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE2]'
 - en: 'With the filesystem created, we can take the time to become familiar with the
     integrity check tool:'
+  id: totrans-44
   prefs: []
   type: TYPE_NORMAL
+  zh: 文件系统创建完成后，我们可以花些时间熟悉完整性检查工具：
 - en: '[PRE3]'
+  id: totrans-45
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE3]'
 - en: 'The following screenshot shows the output from my system:'
+  id: totrans-46
   prefs: []
   type: TYPE_NORMAL
+  zh: 以下截图显示了我的系统的输出：
 - en: '![Creating the btrfs filesystem](img/image00240.jpeg)'
+  id: totrans-47
   prefs: []
   type: TYPE_IMG
+  zh: '![创建btrfs文件系统](img/image00240.jpeg)'
 - en: 'To verify that the `btrfs` filesystem is in operation, we will create a directory
     and mount it therein. We will also copy some data and display the usage information
     for the disk:'
+  id: totrans-48
   prefs: []
   type: TYPE_NORMAL
+  zh: 为了验证`btrfs`文件系统是否在运行，我们将创建一个目录并挂载它。我们还将复制一些数据，并显示磁盘的使用情况信息：
 - en: '[PRE4]'
+  id: totrans-49
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE4]'
 - en: 'The output from the final command is shown in the following screenshot. We
     can see that we have 5.96 MiB of file space used:'
+  id: totrans-50
   prefs: []
   type: TYPE_NORMAL
+  zh: 最后一个命令的输出显示在以下截图中。我们可以看到，已经使用了5.96 MiB的文件空间：
 - en: '![Creating the btrfs filesystem](img/image00241.jpeg)'
+  id: totrans-51
   prefs: []
   type: TYPE_IMG
+  zh: '![创建btrfs文件系统](img/image00241.jpeg)'
 - en: The additional space used (which shows as `138.38MiB`) includes typical metadata
     related to any filesystem, but additionally, by default, the `btrfs` filesystem
     stores free space information on the disk so that it's quick to retrieve it rather
     than searching the disk. This is controlled through the `space_cache` mount option,
     which is set by default. If you would like to disable this feature, use the `nospace_cache`
     mount option.
+  id: totrans-52
   prefs: []
   type: TYPE_NORMAL
+  zh: 额外使用的空间（显示为`138.38MiB`）包括与任何文件系统相关的典型元数据，但另外，默认情况下，`btrfs`文件系统将空闲空间信息存储在磁盘上，以便快速检索，而不是扫描磁盘。这是通过`space_cache`挂载选项控制的，默认情况下已经设置。如果你希望禁用此功能，可以使用`nospace_cache`挂载选项。
 - en: The Copy-On-Write technology
+  id: totrans-53
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 写时复制技术
 - en: One of the underpinning technologies that helps with the success of the `btrfs`
     filesystem is **Copy-On-Write** (**CoW**). `CoW` is used in logical volume management
     filesystems, including **ZFS** used in Solaris (an Oracle product), Microsoft's
     **Volume Shadow Copy**, and `btrfs`.
+  id: totrans-54
   prefs: []
   type: TYPE_NORMAL
+  zh: '`btrfs` 文件系统成功的一个基础技术是 **写时复制**（**CoW**）。`CoW` 被用在逻辑卷管理文件系统中，包括 Solaris 中使用的
+    **ZFS**（一个 Oracle 产品）、微软的 **卷影复制**（Volume Shadow Copy）和 `btrfs`。'
 - en: These CoW filesystems allow you to take instant snapshots or backups. This is
     due to the fact that as a file is written and a copy of it is made; hence, Copy-on-Write.
     As traditional filesystems implement this, the virtual disk technology can also
     implement this `CoW` technology in `qcow2`. In this way, any allocated disk space
     in the `qcow2` disk file is not used on the host until it's written to.
+  id: totrans-55
   prefs: []
   type: TYPE_NORMAL
+  zh: 这些 CoW 文件系统允许你进行即时快照或备份。这是因为在写入文件时会创建其副本，因此称为写时复制（Copy-on-Write）。当传统文件系统实现此功能时，虚拟磁盘技术也可以在
+    `qcow2` 中实现这一 `CoW` 技术。这样，`qcow2` 磁盘文件中分配的任何磁盘空间，在写入之前不会在主机上使用。
 - en: For generic filesystems, you will find the `CoW` technology very useful. Being
     able to revert to previous file versions is like gold dust on traditional file
     servers. However, if you use `btrfs` to host very large data files, such as virtual
     disk files, the `CoW` technology can perform slow writes.
+  id: totrans-56
   prefs: []
   type: TYPE_NORMAL
+  zh: 对于通用文件系统，你会发现 `CoW` 技术非常有用。能够恢复到先前的文件版本，就像传统文件服务器上的黄金一样。然而，如果你使用 `btrfs` 来存储非常大的数据文件，比如虚拟磁盘文件，`CoW`
+    技术可能会导致写入速度变慢。
 - en: 'Using the `chattr` command in Linux, we can set or change the attributes of
     files and/or directories. Supported for `btrfs` filesystems, there is a file attribute
     to disable CoW. This attribute is useful only when it is set on an empty file.
     To ensure its effectiveness, we generally set this on a directory, so that all
     the files inherit this attribute at the time of file creation. The following commands
     show how to achieve this:'
+  id: totrans-57
   prefs: []
   type: TYPE_NORMAL
+  zh: 在 Linux 中使用 `chattr` 命令，我们可以设置或更改文件和/或目录的属性。`btrfs` 文件系统支持一个禁用 CoW 的文件属性。这个属性仅在设置为空文件时有效。为了确保其有效性，我们通常将此属性设置在目录上，以便所有文件在创建时都会继承此属性。以下命令展示了如何实现这一点：
 - en: '[PRE5]'
+  id: totrans-58
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE5]'
 - en: 'In the following screenshot, we can see that creating a new file will automatically
     assign the `NoDataCoW` option. It does not matter how this file was created:'
+  id: totrans-59
   prefs: []
   type: TYPE_NORMAL
+  zh: 在以下截图中，我们可以看到，创建新文件时会自动分配 `NoDataCoW` 选项。无论该文件是如何创建的，这一点都不重要：
 - en: '![The Copy-On-Write technology](img/image00242.jpeg)'
+  id: totrans-60
   prefs: []
   type: TYPE_IMG
+  zh: '![写时复制技术](img/image00242.jpeg)'
 - en: Resizing btrfs filesystems
+  id: totrans-61
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 调整 btrfs 文件系统大小
 - en: 'With `btrfs`, it''s possible to resize the `btrfs` filesystem when it is online
     and is being accessed by users. The size of a filesystem will grow automatically
     if we add or remove devices; we will see this in the next subsection of this chapter;
     however; we can resize the filesystem should we need to even on a single device
     that we have created. Using the following command, we will shrink the assigned
     space to the filesystem by 500MiB:'
+  id: totrans-62
   prefs: []
   type: TYPE_NORMAL
+  zh: 使用 `btrfs` 时，当文件系统在线并且被用户访问时，可以调整 `btrfs` 文件系统的大小。如果我们添加或移除设备，文件系统的大小会自动增长；我们将在本章的下一小节中看到这一点；然而，即使在我们创建的单个设备上，我们也可以根据需要调整文件系统的大小。使用以下命令，我们将文件系统分配的空间缩小
+    500MiB：
 - en: '[PRE6]'
+  id: totrans-63
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE6]'
 - en: 'If we check the size of the filesystem before and after, we can see the dynamic
     change that takes place:'
+  id: totrans-64
   prefs: []
   type: TYPE_NORMAL
+  zh: 如果我们检查文件系统大小的变化，可以看到动态变化的过程：
 - en: '![Resizing btrfs filesystems](img/image00243.jpeg)'
+  id: totrans-65
   prefs: []
   type: TYPE_IMG
+  zh: '![调整 btrfs 文件系统大小](img/image00243.jpeg)'
 - en: Adding devices to the btrfs filesystem
+  id: totrans-66
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 向 btrfs 文件系统添加设备
 - en: We have already seen a little of volume management using LVM when we looked
     at iSCSI in [Chapter 4](part0032.xhtml#aid-UGI01 "Chapter 4. Implementing iSCSI
     SANs"), *Implementing iSCSI SANs*, and it's not exactly simple.
+  id: totrans-67
   prefs: []
   type: TYPE_NORMAL
+  zh: 我们已经在第 [4 章](part0032.xhtml#aid-UGI01 "第 4 章. 实现 iSCSI SANs")《实现 iSCSI SANs》中略微了解了使用
+    LVM 的卷管理，*实现 iSCSI SANs*，它并不简单。
 - en: Volume management the old way
+  id: totrans-68
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 传统方式的卷管理
 - en: 'The following commands are used in order to manage the disk volumes in the
     old, traditional way:'
+  id: totrans-69
   prefs: []
   type: TYPE_NORMAL
+  zh: 以下命令用于以传统的方式管理磁盘卷：
 - en: '[PRE7]'
+  id: totrans-70
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE7]'
 - en: Volume management with btrfs
+  id: totrans-71
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 使用 btrfs 进行卷管理
 - en: 'To start with, we will return the volume back to its original size before we
     add the second disk. Using the `max` option, we will ensure that the `btrfs` filesystem
     uses the maximum space available on the single disk we have in place so far:'
+  id: totrans-72
   prefs: []
   type: TYPE_NORMAL
+  zh: 首先，我们将卷恢复到原始大小，然后再添加第二个磁盘。使用 `max` 选项，我们将确保 `btrfs` 文件系统使用我们目前拥有的单个磁盘上的最大可用空间：
 - en: '[PRE8]'
+  id: totrans-73
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE8]'
 - en: 'In LVM and traditional filesystems, there were a total of four commands to
     be executed. In `btrfs`, we can perform this with a single command:'
+  id: totrans-74
   prefs: []
   type: TYPE_NORMAL
+  zh: 在LVM和传统文件系统中，需要执行四个命令。在`btrfs`中，我们可以用一个命令来完成这一切：
 - en: '[PRE9]'
+  id: totrans-75
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE9]'
 - en: 'This is all we need to do. The device is added and the filesystem is automatically
     increased to the available maximum space. We can use the `btrfs filesystem show`
     command against either `/dev/sdd` or /`sdv/sde` because both devices will hold
     a copy of the metadata by default. In the following commands, we can see that
     this in place and the screenshot will reinforce this message:'
+  id: totrans-76
   prefs: []
   type: TYPE_NORMAL
+  zh: 这就是我们需要做的。设备被添加后，文件系统会自动扩展到可用的最大空间。我们可以使用`btrfs filesystem show`命令来检查`/dev/sdd`或`/dev/sde`，因为默认情况下，这两个设备都会保存元数据的副本。在以下命令中，我们可以看到这一点，截图也会进一步验证这个信息：
 - en: '[PRE10]'
+  id: totrans-77
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE10]'
 - en: 'After reviewing the following screenshot, we can see the command and output
     that is generated:'
+  id: totrans-78
   prefs: []
   type: TYPE_NORMAL
+  zh: 在查看以下截图后，我们可以看到生成的命令和输出：
 - en: '![Volume management with btrfs](img/image00244.jpeg)'
+  id: totrans-79
   prefs: []
   type: TYPE_IMG
+  zh: '![使用btrfs进行卷管理](img/image00244.jpeg)'
 - en: 'Having the metadata stored on both devices allow for fault-tolerance and weakens
     the device to be queried:'
+  id: totrans-80
   prefs: []
   type: TYPE_NORMAL
+  zh: 将元数据存储在两个设备上可实现容错，并减弱了对设备的查询需求：
 - en: '[PRE11]'
+  id: totrans-81
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE11]'
 - en: Tip
+  id: totrans-82
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
+  zh: 提示
 - en: Note that some subcommands can be shortened; in this case, `fi` is equivalent
     to filesystem.
+  id: totrans-83
   prefs: []
   type: TYPE_NORMAL
+  zh: 请注意，一些子命令可以缩短；在这种情况下，`fi`相当于文件系统。
 - en: Balancing the btrfs filesystem
+  id: totrans-84
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 平衡btrfs文件系统
 - en: 'If the need to add the additional disk to the volume was due to it running
     out of disk space, then we may choose to help performance by spreading the data
     across both devices. This is achieved using the `balance` subcommand:'
+  id: totrans-85
   prefs: []
   type: TYPE_NORMAL
+  zh: 如果添加额外磁盘到卷中的原因是磁盘空间不足，那么我们可以选择通过将数据分散到两个设备来提升性能。这是通过使用`balance`子命令来实现的：
 - en: '[PRE12]'
+  id: totrans-86
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE12]'
 - en: The `-m` argument represents metadata and `-d` represents data. In this way,
     the disks are used at an equal ratio.
+  id: totrans-87
   prefs: []
   type: TYPE_NORMAL
+  zh: '`-m`参数代表元数据，`-d`代表数据。这样，磁盘就能以相等的比例使用。'
 - en: 'The output from the demonstration system is shown in the following command;
     note that you can omit `filesystem` from the `balance` subcommand because it''s
     optional in this case:'
+  id: totrans-88
   prefs: []
   type: TYPE_NORMAL
+  zh: 演示系统的输出在以下命令中显示；请注意，您可以在`balance`子命令中省略`filesystem`，因为在这种情况下它是可选的：
 - en: '![Balancing the btrfs filesystem](img/image00245.jpeg)'
+  id: totrans-89
   prefs: []
   type: TYPE_IMG
+  zh: '![平衡btrfs文件系统](img/image00245.jpeg)'
 - en: Mounting multidisk btrfs volumes from /etc/fstab
+  id: totrans-90
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 从`/etc/fstab`挂载多磁盘btrfs卷
 - en: 'If we are mounting the `btrfs` volumes from the `/etc/fstab` file, we need
     to ensure that a `btrfs` scan is effected before we mount the `/data/simple` directory.
     This will locate all the devices that participate within the volume. The `initramfs`
@@ -403,58 +598,88 @@
     your current `initramfs`. If `btrfs` is new to your system, you will need to generate
     a new initial RAM disk. Make sure that you use the correct `initramfs` and kernel
     version for your system when running the following command:'
+  id: totrans-91
   prefs: []
   type: TYPE_NORMAL
+  zh: 如果我们是从`/etc/fstab`文件挂载`btrfs`卷，则需要确保在挂载`/data/simple`目录之前执行`btrfs`扫描。这将定位所有参与卷的设备。`initramfs`文件系统可以在稍后的系统中为我们完成此任务，包括RHEL
+    7。如果您的现有文件系统已经使用了`btrfs`，那么扫描将被内建在您当前的`initramfs`中。如果`btrfs`是您的新系统，您需要生成一个新的初始RAM磁盘。运行以下命令时，请确保使用与您的系统相匹配的`initramfs`和内核版本：
 - en: '[PRE13]'
+  id: totrans-92
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE13]'
 - en: 'We can then add an entry into the `/etc/fstab` file similar to the following:'
+  id: totrans-93
   prefs: []
   type: TYPE_NORMAL
+  zh: 然后，我们可以在`/etc/fstab`文件中添加类似以下的条目：
 - en: '[PRE14]'
+  id: totrans-94
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE14]'
 - en: Creating a RAID1 mirror
+  id: totrans-95
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 创建RAID1镜像
 - en: 'The **RAID** (**Redundant Array of Inexpensive Disks**) software is also supported
     by `btrfs`. The following are the currently supported RAID levels:'
+  id: totrans-96
   prefs: []
   type: TYPE_NORMAL
+  zh: '**RAID**（**廉价磁盘冗余阵列**）软件也得到了`btrfs`的支持。以下是当前支持的RAID级别：'
 - en: '**RAID 0**: Striping without redundancy'
+  id: totrans-97
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '**RAID 0**：没有冗余的条带化'
 - en: '**RAID 1**: Disk mirroring'
+  id: totrans-98
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '**RAID 1**：磁盘镜像'
 - en: '**RAID 10**: Striped mirror'
+  id: totrans-99
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '**RAID 10**：条带化镜像'
 - en: 'Currently, we have a multidisk `btrfs` filesystem, but without fault-tolerance.
     The implementation we used is RAID 0 / striping without parity. We can convert
     this to a RAID 1 system and mirror the metadata and the filesystem data as follows:'
+  id: totrans-100
   prefs: []
   type: TYPE_NORMAL
+  zh: 目前，我们有一个多磁盘的`btrfs`文件系统，但没有容错功能。我们使用的实现方式是RAID 0 / 条带化，没有奇偶校验。我们可以将其转换为RAID
+    1系统，并通过以下方式镜像元数据和文件系统数据：
 - en: '[PRE15]'
+  id: totrans-101
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE15]'
 - en: As you can see from the preceding command, the metadata and the filesystem data
     are converted to the software mirror of RAID 1.
+  id: totrans-102
   prefs: []
   type: TYPE_NORMAL
+  zh: 正如您从上面的命令中看到的，元数据和文件系统数据已被转换为RAID 1的软镜像。
 - en: 'We can create a mirrored device using `btrfs` from the outset easily and quickly.
     Mirroring does not give us extra disk space, but this does provide great fault-tolerance
     if the worst happens and we experience a disk failure. We can demonstrate this
     on our demonstration system using the extra disk that we have not used so far:'
+  id: totrans-103
   prefs: []
   type: TYPE_NORMAL
+  zh: 我们可以很容易且快速地使用`btrfs`从一开始就创建一个镜像设备。镜像不会为我们提供额外的磁盘空间，但如果发生最坏情况，比如磁盘故障，它可以提供很好的容错性。我们可以使用目前未使用的额外磁盘在演示系统上展示这一点：
 - en: '[PRE16]'
+  id: totrans-104
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE16]'
 - en: 'To create a mirror, we will use RAID1 for the metadata and the `-m` and `-d`
     data, as we did in the preceding convert example. The disk space available is
     1 GB. Whatever we write to `/dev/sdf` is mirrored to `/dev/sdg`; with mirror,
@@ -463,102 +688,154 @@
     raid system mounts correctly at boot time. As `initramfs` now supports `btrfs`
     by running the device scan for us, there is no requirement to create `initramfs`
     at this stage:'
+  id: totrans-105
   prefs: []
   type: TYPE_NORMAL
+  zh: 要创建一个镜像，我们将使用RAID1来处理元数据和`-m`、`-d`数据，正如我们在前面的转换示例中所做的那样。可用的磁盘空间是1 GB。我们写入`/dev/sdf`的数据会被镜像到`/dev/sdg`；使用镜像时，我们会失去50%的数据存储空间，但却获得了高度的冗余。我们同样需要在`/etc/fstab`文件中添加一项条目，以确保RAID系统在启动时能正确挂载。由于`initramfs`现在通过设备扫描来支持`btrfs`，因此在此阶段不需要创建`initramfs`：
 - en: '[PRE17]'
+  id: totrans-106
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE17]'
 - en: 'Displaying the free disk space with standard tools—such as `df`—will not supply
     correct information; we need to use `btrfs` tools. The following command will
     list the free space available to the `/data/mirror` mount point:'
+  id: totrans-107
   prefs: []
   type: TYPE_NORMAL
+  zh: 使用标准工具（如`df`）显示空闲磁盘空间不会提供正确的信息；我们需要使用`btrfs`工具。以下命令将列出`/data/mirror`挂载点的可用空闲空间：
 - en: '[PRE18]'
+  id: totrans-108
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE18]'
 - en: 'The output from the command is shown in the following screenshot:'
+  id: totrans-109
   prefs: []
   type: TYPE_NORMAL
+  zh: 以下截图显示了命令的输出：
 - en: '![Creating a RAID1 mirror](img/image00246.jpeg)'
+  id: totrans-110
   prefs: []
   type: TYPE_IMG
+  zh: '![创建RAID1镜像](img/image00246.jpeg)'
 - en: I know that we risk 7 years of bad luck even talking about it; however, mirrors
     can break. Part of the reason to create a mirror is to provide fault-tolerance.
     This is in itself an acceptance that hard disks can and do fail.
+  id: totrans-111
   prefs: []
   type: TYPE_NORMAL
+  zh: 我知道，甚至谈论它都会带来七年的霉运；然而，镜像确实可能会损坏。创建镜像的部分原因是为了提供容错能力。这本身就是对硬盘可能出现故障的接受。
 - en: 'For this demonstration, we will destroy the `/data/simple/` volume and reuse
     the devices that we employed for the simple volume. To destroy the `btrfs` metadata,
     the preferred utility is `wipefs`, which is part of the `util-linux` package.
     Firstly, we need to run the `wipefs` command against the disk or partition we
     need to wipe and then use the offset value with the `-o` option. Take a look at
     how we can wipe `/dev/sdd` and `/dev/sde`:'
+  id: totrans-112
   prefs: []
   type: TYPE_NORMAL
+  zh: 在这个演示中，我们将销毁`/data/simple/`卷，并重新使用之前用于简单卷的设备。为了销毁`btrfs`元数据，推荐使用`wipefs`，它是`util-linux`包的一部分。首先，我们需要运行`wipefs`命令，作用于我们需要清除的磁盘或分区，然后使用`-o`选项指定偏移量。看看如何清除`/dev/sdd`和`/dev/sde`：
 - en: '[PRE19]'
+  id: totrans-113
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE19]'
 - en: 'The output from the first drive is listed for convenience in the following
     screenshot; the sequence is repeated from the second drive. Do not forget to remove
     the entry from the `/etc/fstab` file:'
+  id: totrans-114
   prefs: []
   type: TYPE_NORMAL
+  zh: 第一个磁盘的输出如下所示，方便起见，截图中列出了此输出；第二个磁盘的操作会重复进行。别忘了从`/etc/fstab`文件中删除相应条目：
 - en: '![Creating a RAID1 mirror](img/image00247.jpeg)'
+  id: totrans-115
   prefs: []
   type: TYPE_IMG
+  zh: '![创建RAID1镜像](img/image00247.jpeg)'
 - en: With these disks wiped, we can reuse them in other arrays.
+  id: totrans-116
   prefs: []
   type: TYPE_NORMAL
+  zh: 清除这些磁盘后，我们可以将它们重新用于其他阵列。
 - en: 'We will add data to the mirror volume in the same way that we did with the
     simple volume. In this way, we can be sure that data stays intact:'
+  id: totrans-117
   prefs: []
   type: TYPE_NORMAL
+  zh: 我们将以与简单卷相同的方式向镜像卷中添加数据。通过这种方式，我们可以确保数据保持完整：
 - en: '[PRE20]'
+  id: totrans-118
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE20]'
 - en: 'We will unmount the mirror volume now and emulate the failure of one of the
     disks as follows:'
+  id: totrans-119
   prefs: []
   type: TYPE_NORMAL
+  zh: 我们现在将卸载镜像卷，并模拟其中一个磁盘的故障，具体步骤如下：
 - en: '[PRE21]'
+  id: totrans-120
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE21]'
 - en: 'We will now experience a problem when we try to remount the mirror volume using
     the mount command, and we will have to mount the mirror volume using the `-o`
     degraded option:'
+  id: totrans-121
   prefs: []
   type: TYPE_NORMAL
+  zh: 当我们尝试使用mount命令重新挂载镜像卷时，会遇到问题，我们需要使用`-o`降级选项挂载镜像卷：
 - en: '[PRE22]'
+  id: totrans-122
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE22]'
 - en: 'At this stage, our data is available, so we can breathe a sigh of relief:'
+  id: totrans-123
   prefs: []
   type: TYPE_NORMAL
+  zh: 在此阶段，我们的数据是可用的，因此可以松一口气：
 - en: '[PRE23]'
+  id: totrans-124
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE23]'
 - en: 'We still have a RAID 1 array and the minimum number of members for this is
     two, so we need to add a new device as follows:'
+  id: totrans-125
   prefs: []
   type: TYPE_NORMAL
+  zh: 我们仍然有一个RAID 1阵列，创建这个阵列的最少成员数量是两个，因此我们需要按如下方式添加一个新设备：
 - en: '[PRE24]'
+  id: totrans-126
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE24]'
 - en: 'We can now remove the failed or missing device:'
+  id: totrans-127
   prefs: []
   type: TYPE_NORMAL
+  zh: 现在我们可以移除故障或缺失的设备：
 - en: '[PRE25]'
+  id: totrans-128
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE25]'
 - en: The `missing` keyword will search for the first missing member in the array.
     We can then delete this device. The RAID 1 array is now fully operational, provisioning
     software mirroring across two devices again.
+  id: totrans-129
   prefs: []
   type: TYPE_NORMAL
+  zh: '`missing` 关键字将搜索数组中第一个缺失的成员。我们可以删除此设备。RAID 1 阵列现在已经完全投入使用，并通过两个设备重新提供软件镜像。'
 - en: Using btrfs snapshots
+  id: totrans-130
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 使用 btrfs 快照
 - en: 'Hopefully, what you have seen so far in `btrfs` will be of interest, but, of
     course, there is always much more to see and learn. We will now look at snapshots.
     Btrfs snapshots can be used as read-only or read/write copies of your data. With
@@ -567,348 +844,523 @@
     the original data is linked to the new location. In this way, a snapshot of a
     large filesystem can be taken instantly. Snapshots can be put to use in a couple
     of ways:'
+  id: totrans-131
   prefs: []
   type: TYPE_NORMAL
+  zh: 希望到目前为止，您在 `btrfs` 中看到的内容能引起您的兴趣，但当然，总有更多的内容等待您去探索和学习。接下来，我们将讨论快照。Btrfs 快照可以作为数据的只读或读写副本使用。由于
+    `btrfs` 是基于写时复制（Copy-on-Write）的文件系统，因此无需复制大量数据，因为我们只需在数据发生变化时复制它。与此同时，原始数据会链接到新位置。通过这种方式，可以瞬间创建大型文件系统的快照。快照可以通过以下几种方式使用：
 - en: As part of a backup solution where you may be concerned with open files affecting
     the backup; the snapshot will be created as read-only. Subsequently, you will
     implement a backup of the snapshot. In this way, the backup will be of the host
     filesystem at the point in time that the snapshot was created.
+  id: totrans-132
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 作为备份解决方案的一部分，您可能担心打开的文件会影响备份；快照将以只读方式创建。随后，您将实施对快照的备份。通过这种方式，备份将是快照创建时的主机文件系统状态。
 - en: Snapshots can be useful where you feel that rolling back to the original data
     may be useful, perhaps in a testing environment where you need to implement many
     changes and easily be able to restore back to the original data very quickly.
+  id: totrans-133
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 快照在需要恢复到原始数据时非常有用，特别是在测试环境中，您可能需要进行大量更改，并能够非常快速地恢复到原始数据。
 - en: Btrfs snapshots rely on subvolumes; source and destination subvolumes need to
     be within the same filesystem. If you'll recall the data is just linked until
     it's changed; this is handled in the same way as traditional hard links.
+  id: totrans-134
   prefs: []
   type: TYPE_NORMAL
+  zh: Btrfs 快照依赖于子卷；源子卷和目标子卷必须位于同一文件系统内。如果您还记得，数据仅在发生变化时才会被复制；这与传统硬链接的处理方式相同。
 - en: 'Subvolumes within the `btrfs` filesystem are discrete management identities,
     which allow more granular control of elements of a single filesystem. We will
     begin by creating a single subvolume so that we may gain a little understanding
     of this technology before creating snapshots. We will re-employ the `/dev/sde`
     disk to be mounted as our simple volume and start by reformatting the mirror volume:'
+  id: totrans-135
   prefs: []
   type: TYPE_NORMAL
+  zh: '`btrfs` 文件系统中的子卷是离散的管理单元，使得对单一文件系统的元素能够更精细地控制。我们将首先创建一个单一的子卷，以便在创建快照之前对这项技术有一些了解。我们将重新使用
+    `/dev/sde` 磁盘作为我们的简单卷，并从头开始重新格式化镜像卷：'
 - en: '[PRE26]'
+  id: totrans-136
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE26]'
 - en: At this stage, the complete filesystem for `/dev/sde` is available and mounted
     at the `/data/simple` directory. There is no data stored here yet, but we effectively
     have a single view of the filesystem with the simple directory. Subvolumes allow
     you to view the same filesystem in different ways by mounting elements of the
     filesystem (subvolumes) to the directories that we choose and with selected mount
     options appropriate for the data.
+  id: totrans-137
   prefs: []
   type: TYPE_NORMAL
+  zh: 此时，`/dev/sde` 的完整文件系统已可用，并挂载在 `/data/simple` 目录下。这里尚未存储任何数据，但我们实际上已经通过简单目录拥有了文件系统的单一视图。子卷使您能够通过将文件系统的元素（子卷）挂载到我们选择的目录并使用适当的挂载选项，以不同的方式查看同一个文件系统。
 - en: 'We will create a new subvolume after the existing `/data/simple` directory:'
+  id: totrans-138
   prefs: []
   type: TYPE_NORMAL
+  zh: 我们将在现有的 `/data/simple` 目录后创建一个新的子卷：
 - en: '[PRE27]'
+  id: totrans-139
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE27]'
 - en: 'The output is quite minimal, as shown in the following screenshot:'
+  id: totrans-140
   prefs: []
   type: TYPE_NORMAL
+  zh: 输出非常简洁，如下图所示：
 - en: '![Using btrfs snapshots](img/image00248.jpeg)'
+  id: totrans-141
   prefs: []
   type: TYPE_IMG
+  zh: '![使用 btrfs 快照](img/image00248.jpeg)'
 - en: 'We can list the subvolumes, as shown in the following command and screenshot:'
+  id: totrans-142
   prefs: []
   type: TYPE_NORMAL
+  zh: 我们可以列出子卷，如以下命令和截图所示：
 - en: '[PRE28]'
+  id: totrans-143
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE28]'
 - en: 'The following screenshot shows the output of the preceding command:'
+  id: totrans-144
   prefs: []
   type: TYPE_NORMAL
+  zh: 以下截图显示了前述命令的输出：
 - en: '![Using btrfs snapshots](img/image00249.jpeg)'
+  id: totrans-145
   prefs: []
   type: TYPE_IMG
+  zh: '![使用 btrfs 快照](img/image00249.jpeg)'
 - en: We can also see that creating the subvolume also created the directory within
     the filesystem itself. We will not be able to remove the directory from the filesystem
     because this is not only a directory, but also a subvolume. To delete a directory,
     you will need to delete the subvolume.
+  id: totrans-146
   prefs: []
   type: TYPE_NORMAL
+  zh: 我们还可以看到，创建子卷也在文件系统内创建了目录。由于这不仅仅是一个目录，还是一个子卷，我们将无法从文件系统中删除该目录。要删除目录，你需要删除子卷。
 - en: 'We won''t delete the directory, but should we need to delete it at a later
     stage, the command to delete it will be as follows:'
+  id: totrans-147
   prefs: []
   type: TYPE_NORMAL
+  zh: 我们不会删除该目录，但如果以后需要删除它，删除命令如下：
 - en: '[PRE29]'
+  id: totrans-148
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE29]'
 - en: This will delete the subvolume along with the directory in very much the same
     way as creating the subvolume also created the directory within the filesystem.
+  id: totrans-149
   prefs: []
   type: TYPE_NORMAL
+  zh: 这将删除子卷及其中的目录，方式与创建子卷时也在文件系统内创建目录的方式非常相似。
 - en: 'We will now add some data to the subvolume; if you did delete it, you can simply
     recreate it again. We can copy the PDF files that we have become familiar with
     to this volume:'
+  id: totrans-150
   prefs: []
   type: TYPE_NORMAL
+  zh: 现在我们将向子卷添加一些数据；如果你删除了它，可以重新创建它。我们可以将已经熟悉的PDF文件复制到这个卷中：
 - en: '[PRE30]'
+  id: totrans-151
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE30]'
 - en: 'If we need to make this data available elsewhere, we can mount the subvolume
     wherever we need and with mount options that we feel appropriate. For example,
     we have documentation in this directory so that we can mount it as read-only in
     another directory:'
+  id: totrans-152
   prefs: []
   type: TYPE_NORMAL
+  zh: 如果我们需要将这些数据提供到其他地方，我们可以将子卷挂载到任何需要的位置，并使用我们认为合适的挂载选项。例如，我们在这个目录中有文档，因此可以将其以只读方式挂载到另一个目录：
 - en: '[PRE31]'
+  id: totrans-153
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE31]'
 - en: At the root of the `/mnt` mount point, we will see the PDF files we added to
     the `vol1` directory. They are still available in the original location under
     `/data/simple/vol1`. In this way, we can control access to the data from how it's
     mounted.
+  id: totrans-154
   prefs: []
   type: TYPE_NORMAL
+  zh: 在`/mnt`挂载点的根目录下，我们将看到我们添加到`vol1`目录中的PDF文件。它们仍然可以在原始位置`/data/simple/vol1`中访问。通过这种方式，我们可以通过挂载的方式控制对数据的访问。
 - en: Now that we have some knowledge of subvolumes, we will investigate snapshots.
     The snapshot must be created in the same filesystem as the target data; as we
     mentioned before, the instant generation of a snapshot is affected by a form of
     internal linking within the filesystem.
+  id: totrans-155
   prefs: []
   type: TYPE_NORMAL
+  zh: 现在我们已经了解了子卷，接下来我们将研究快照。快照必须在与目标数据相同的文件系统中创建；如前所述，快照的即时生成受到文件系统内一种内部链接形式的影响。
 - en: 'We will generate the snapshot of the existing `vol1` data and also specify
     the option `-r` to ensure that the backup is read-only. In this way, we can return
     to this *point in time* backup by copying the data back from the `backup` directory.
     No additional disk space is used unless the original data is changed:'
+  id: totrans-156
   prefs: []
   type: TYPE_NORMAL
+  zh: 我们将生成现有`vol1`数据的快照，并指定`-r`选项以确保备份为只读。通过这种方式，我们可以通过将数据从`backup`目录复制回来，恢复到这个*时间点*的备份。除非原始数据被更改，否则不会使用额外的磁盘空间：
 - en: '[PRE32]'
+  id: totrans-157
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE32]'
 - en: 'We can list the subvolumes easily using the following command:'
+  id: totrans-158
   prefs: []
   type: TYPE_NORMAL
+  zh: 我们可以使用以下命令轻松列出子卷：
 - en: '[PRE33]'
+  id: totrans-159
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE33]'
 - en: We may base the backup scenario around the fact that the documentation may be
     written too frequently. Also, we want a solution to be able to recover from poorly
     executed edits quickly.
+  id: totrans-160
   prefs: []
   type: TYPE_NORMAL
+  zh: 我们可能会将备份场景建立在文档可能频繁写入的事实基础上。此外，我们希望有一个解决方案，能够迅速恢复不当编辑带来的损失。
 - en: 'To create a read-only snapshot of the working subvolume, use the following
     command:'
+  id: totrans-161
   prefs: []
   type: TYPE_NORMAL
+  zh: 要创建工作子卷的只读快照，请使用以下命令：
 - en: '[PRE34]'
+  id: totrans-162
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE34]'
 - en: 'Listing the contents of the working directory and the backup directory should
     reveal that the contents are the same:'
+  id: totrans-163
   prefs: []
   type: TYPE_NORMAL
+  zh: 列出工作目录和备份目录的内容应该会发现它们的内容是相同的：
 - en: '[PRE35]'
+  id: totrans-164
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE35]'
 - en: The name `backup` is not important, but useful in the context of its use. As
     always, a good naming scheme can help understand the directory's purpose unlike
     the name we gave to `vol1`.
+  id: totrans-165
   prefs: []
   type: TYPE_NORMAL
+  zh: '`backup`的名称并不重要，但在其使用的上下文中是有用的。像往常一样，一个好的命名方案有助于理解目录的用途，而不是像我们给`vol1`取的名称那样。'
 - en: 'Should we accidently delete all the files from `/data/simple/vol1`, the CoW
     technology in `btrfs` will then write the changed data to the backup snapshot:
     `/data/simple/backup`. This will also be the case if the files were modified in
     any way rather than deleted; the snapshot holds files as they were at the time
     the snapshot was created. We can simply copy the files back to the original location
     in the event of a catastrophe.'
+  id: totrans-166
   prefs: []
   type: TYPE_NORMAL
+  zh: 如果我们不小心删除了`/data/simple/vol1`中的所有文件，`btrfs`中的CoW技术会将变更后的数据写入备份快照`/data/simple/backup`。如果文件以任何方式被修改而不是删除，也会发生这种情况；快照会保留创建快照时的文件状态。在发生灾难时，我们可以简单地将文件复制回原始位置。
 - en: 'For the moment, we will look at how to delete this snapshot. Later in this
     chapter, we will see how to use snapper as a simple mechanism in order to manage
     snapshots on LVM and `btrfs` systems:'
+  id: totrans-167
   prefs: []
   type: TYPE_NORMAL
+  zh: 目前，我们将看看如何删除此快照。本章后面，我们将看到如何在 LVM 和 `btrfs` 系统上使用 snapper 作为简单的机制来管理快照：
 - en: '[PRE36]'
+  id: totrans-168
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE36]'
 - en: Optimizing btrfs for solid state drives
+  id: totrans-169
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 优化用于固态驱动器的 btrfs
 - en: 'When creating a `btrfs` filesystem on multiple SSDs, using the single `-m`
     option will ensure that the metadata is not duplicated. On an SSD, duplicating
     metadata is thought of as a waste of space and has an overhead that can lessen
     the life of the disk, as shown in the following code:'
+  id: totrans-170
   prefs: []
   type: TYPE_NORMAL
+  zh: 在多个 SSD 上创建 `btrfs` 文件系统时，使用单一 `-m` 选项将确保元数据不会重复。在 SSD 上，重复元数据被认为是一种空间浪费，并且有一个会减少磁盘寿命的开销，如以下代码所示：
 - en: '[PRE37]'
+  id: totrans-171
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE37]'
 - en: 'The second way is to use the `ssd` mount option. This option will set a few
     performance options:'
+  id: totrans-172
   prefs: []
   type: TYPE_NORMAL
+  zh: 第二种方法是使用 `ssd` 挂载选项。此选项将设置一些性能选项：
 - en: Allows large metadata clusters
+  id: totrans-173
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 允许大的元数据簇
 - en: Allows more sequential data allocation
+  id: totrans-174
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 允许更多的顺序数据分配
 - en: Disables leaf writing to match key and block order in the b-tree database
+  id: totrans-175
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 禁用叶写入以匹配 b 树数据库中的键和块顺序
 - en: Commits b-tree log fragments without batching multiple processes
+  id: totrans-176
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 提交 b 树日志片段而不批处理多个进程
 - en: Managing snapshots with snapper
+  id: totrans-177
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 使用 snapper 管理快照
 - en: The snapshot command is included on RHEL 7 and can be used to manage snapshots
     and view their differences with the original data easily. It can be employed along
     with LVM or btrfs `systems.h`.
+  id: totrans-178
   prefs: []
   type: TYPE_NORMAL
+  zh: 快照命令包含在 RHEL 7 中，可用于轻松管理快照并查看其与原始数据的差异。它可以与 LVM 或 btrfs `systems.h` 一起使用。
 - en: 'To install snapper, we fall back to RHEL''s package management:'
+  id: totrans-179
   prefs: []
   type: TYPE_NORMAL
+  zh: 要安装 snapper，我们回到 RHEL 的包管理：
 - en: '[PRE38]'
+  id: totrans-180
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE38]'
 - en: 'Currently, there seems to be a bug or feature on SELinux that prevents snapper
     from working if SELinux is enforced. We could allow the correct SELinux access
     to our resources by creating a new policy or simply set `snapperd_t` to a permissive
     domain. In this way, we can still use the power and security of SELinx, but just
     have it disabled for snapper as follows:'
+  id: totrans-181
   prefs: []
   type: TYPE_NORMAL
+  zh: 目前，如果 SELinux 强制执行，似乎存在一个防止 snapper 工作的 bug 或功能。我们可以通过创建一个新的策略或简单地将 `snapperd_t`
+    设置为宽容域来允许正确的 SELinux 访问我们的资源。这样，我们仍然可以使用 SELinx 的强大安全性，但只是对 snapper 禁用如下：
 - en: '[PRE39]'
+  id: totrans-182
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE39]'
 - en: 'At a later date, you can use the `-d` option to delete the enabled snapper
     and the SELinux support:'
+  id: totrans-183
   prefs: []
   type: TYPE_NORMAL
+  zh: 以后，您可以使用 `-d` 选项来删除启用的 snapper 和 SELinux 支持：
 - en: '[PRE40]'
+  id: totrans-184
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE40]'
 - en: 'For the moment, we will leave snapper in the permissive mode and proceed to
     create a configuration for snapper and our `/data/simple/vol1` data:'
+  id: totrans-185
   prefs: []
   type: TYPE_NORMAL
+  zh: 目前，我们将把 snapper 留在宽容模式，并继续为 snapper 和我们的 `/data/simple/vol1` 数据创建配置：
 - en: '[PRE41]'
+  id: totrans-186
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE41]'
 - en: 'Using the following command, we can list the configurations that we have:'
+  id: totrans-187
   prefs: []
   type: TYPE_NORMAL
+  zh: 使用以下命令，我们可以列出我们拥有的配置：
 - en: '[PRE42]'
+  id: totrans-188
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE42]'
 - en: 'The following screenshot shows the creation of the configuration and the listing
     command:'
+  id: totrans-189
   prefs: []
   type: TYPE_NORMAL
+  zh: 以下截图显示了配置和列表命令的创建：
 - en: '![Managing snapshots with snapper](img/image00250.jpeg)'
+  id: totrans-190
   prefs: []
   type: TYPE_IMG
+  zh: '![使用 snapper 管理快照](img/image00250.jpeg)'
 - en: Creating the configuration will create a hidden directory `.snapshots` at the
     root `/data/simple/vol1` directory. The configuration itself is stored in `/etc/snapper/configs`;
     a log file exits from troubleshooting located at `/var/log/snapper.log`.
+  id: totrans-191
   prefs: []
   type: TYPE_NORMAL
+  zh: 创建配置将在根目录 `/data/simple/vol1` 下创建一个隐藏目录 `.snapshots`。配置本身存储在 `/etc/snapper/configs`
+    中；来自 `/var/log/snapper.log` 的故障排除日志文件存在。
 - en: 'Now that we have the foundation created, we will create the snapshot:'
+  id: totrans-192
   prefs: []
   type: TYPE_NORMAL
+  zh: 现在我们已经创建了基础，我们将创建快照：
 - en: '[PRE43]'
+  id: totrans-193
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE43]'
 - en: 'We can see that the process is very easy, quick, and saves us a lot of effort.
     If we check the subvolumes that now exits after `/data/simple`, we will see`.snapshots`
     and the numbered subvolume after this:'
+  id: totrans-194
   prefs: []
   type: TYPE_NORMAL
+  zh: 我们可以看到这个过程非常简单、快速，并且节省了我们大量的精力。如果我们检查现在在 `/data/simple` 后存在的子卷，我们会看到 `.snapshots`
+    和此后的编号子卷：
 - en: '[PRE44]'
+  id: totrans-195
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE44]'
 - en: 'The output is shown in the following screenshot:'
+  id: totrans-196
   prefs: []
   type: TYPE_NORMAL
+  zh: 输出显示在以下截图中：
 - en: '![Managing snapshots with snapper](img/image00251.jpeg)'
+  id: totrans-197
   prefs: []
   type: TYPE_IMG
+  zh: '![使用 snapper 管理快照](img/image00251.jpeg)'
 - en: 'More easily and normally though, we use snapper entirely to manage this, and
     we should view snapshots with the following command:'
+  id: totrans-198
   prefs: []
   type: TYPE_NORMAL
+  zh: 更容易和通常情况下，我们完全使用 snapper 来管理这一点，并且我们应该使用以下命令查看快照：
 - en: '[PRE45]'
+  id: totrans-199
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE45]'
 - en: 'To show how we can view the difference in data, we will delete a PDF file from
     the original `vol1` location:'
+  id: totrans-200
   prefs: []
   type: TYPE_NORMAL
+  zh: 为了展示我们如何查看数据的差异，我们将从原始 `vol1` 位置删除一个 PDF 文件：
 - en: '[PRE46]'
+  id: totrans-201
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE46]'
 - en: 'With this file removed, we will now have a difference between the original
     data and the snapshot. The CoW system will have the deleted file written to the
     snapshot location as the deletion occurred. We can view the difference in the
     data using the following command, where `0` is the original data and `1` is the
     snapshot:'
+  id: totrans-202
   prefs: []
   type: TYPE_NORMAL
+  zh: 删除这个文件后，我们将拥有原始数据和快照之间的差异。CoW（写时复制）系统会将已删除的文件写入快照位置，正如删除操作所发生的那样。我们可以使用以下命令查看数据的差异，其中`0`代表原始数据，`1`代表快照：
 - en: '[PRE47]'
+  id: totrans-203
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE47]'
 - en: 'The output of the command is shown in the following screenshot, which indicates
     that the snapshot has the extra file now:'
+  id: totrans-204
   prefs: []
   type: TYPE_NORMAL
+  zh: 命令的输出如下图所示，表明现在快照中已经包含了这个额外的文件：
 - en: '![Managing snapshots with snapper](img/image00252.jpeg)'
+  id: totrans-205
   prefs: []
   type: TYPE_IMG
+  zh: '![使用snapper管理快照](img/image00252.jpeg)'
 - en: 'To restore the deleted file, we will use the `undochange` command; note that
     we need to display the effect from the snapshot, to the original or `1..0`, as
     shown in the following command:'
+  id: totrans-206
   prefs: []
   type: TYPE_NORMAL
+  zh: 为了恢复已删除的文件，我们将使用`undochange`命令；请注意，我们需要显示从快照到原始数据或`1..0`的效果，如以下命令所示：
 - en: '[PRE48]'
+  id: totrans-207
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE48]'
 - en: 'We now have the `tutorial.pdf` file returned to us in the `vol1` directory
     as follows:'
+  id: totrans-208
   prefs: []
   type: TYPE_NORMAL
+  zh: 我们现在可以在`vol1`目录中找到返回给我们的`tutorial.pdf`文件，如下所示：
 - en: '[PRE49]'
+  id: totrans-209
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE49]'
 - en: 'From the following screenshot, you will be able to see the file restore command
     and the listing of the returned file:'
+  id: totrans-210
   prefs: []
   type: TYPE_NORMAL
+  zh: 从下图中，您将能够看到文件恢复命令和返回文件的列表：
 - en: '![Managing snapshots with snapper](img/image00253.jpeg)'
+  id: totrans-211
   prefs: []
   type: TYPE_IMG
+  zh: '![使用snapper管理快照](img/image00253.jpeg)'
 - en: Summary
+  id: totrans-212
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 总结
 - en: In this chapter, we saw the power that can be unleashed with the `btrfs` filesystem
     and the time we can save using it compared with other Linux logical volume systems
     such as LVM. We also saw how to implement software RAID and then combined the
     file management, logical volume management, and RAID management to a single command.
+  id: totrans-213
   prefs: []
   type: TYPE_NORMAL
+  zh: 在本章中，我们了解了使用`btrfs`文件系统能够释放的强大功能，以及与其他Linux逻辑卷系统（如LVM）相比，使用它可以节省的时间。我们还看到了如何实现软件RAID，并将文件管理、逻辑卷管理和RAID管理整合为一个命令。
 - en: Using snapper to help manage snapshots works well for us on LVM and `btrfs`
     systems. We used snapper with the `btrfs` filesystem in this chapter.
+  id: totrans-214
   prefs: []
   type: TYPE_NORMAL
+  zh: 使用snapper帮助管理快照在LVM和`btrfs`系统中都能很好地工作。本章中我们使用了snapper与`btrfs`文件系统。
 - en: In the next chapter, we will see how to share files on the network using **NFS**
     (**Network File System**), the traditional UNIX way to share file resources on
     your network.
+  id: totrans-215
   prefs: []
   type: TYPE_NORMAL
+  zh: 在下一章中，我们将学习如何使用**NFS**（**网络文件系统**）共享文件，这是传统UNIX方式在网络上共享文件资源的方式。

@@ -1,7 +1,9 @@
 - en: Chapter 4. Implementing iSCSI SANs
+  id: totrans-0
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 第 4 章：实现 iSCSI SAN
 - en: 'A really big change that you may notice on RHEL 7 compared with earlier releases
     is that the iSCSI target service is now part of the kernel. This is part and parcel
     of the move to version 3.x.x of the Linux kernel that we see in the latest Enterprise
@@ -9,32 +11,47 @@
     or target is completely revamped. You will soon learn how to share disks and partitions
     with devices on your network. In doing so, we will look at how to configure the
     following prerequisites:'
+  id: totrans-1
   prefs: []
   type: TYPE_NORMAL
+  zh: 在 RHEL 7 中，您可能会注意到一个非常大的变化，相比于早期版本，iSCSI 目标服务现在是内核的一部分。这是随着 Linux 内核版本 3.x.x
+    的发布而来的，这一版本出现在最新的 Raleigh（北卡罗来纳州）企业产品中。iSCSI 服务器或目标的管理和配置已经完全改进。您将很快学习如何与网络上的设备共享磁盘和分区。在这个过程中，我们将研究如何配置以下先决条件：
 - en: The iSCSI target (server)
+  id: totrans-2
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: iSCSI 目标（服务器）
 - en: Logical volumes with LVM
+  id: totrans-3
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 使用 LVM 的逻辑卷
 - en: Installing the `targetd` service and `targetcli` tools
+  id: totrans-4
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 安装 `targetd` 服务和 `targetcli` 工具
 - en: Managing iSCSI targets using `targetcli`
+  id: totrans-5
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 使用 `targetcli` 管理 iSCSI 目标
 - en: The iSCSI initiator client
+  id: totrans-6
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: iSCSI 发起客户端
 - en: The iSCSI target (server)
+  id: totrans-7
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: iSCSI 目标（服务器）
 - en: The iSCSI target is a software that makes disk space available on a network.
     This service shares disks rather than filesystems and establishes a **Storage
     Area Network** (**SAN**). This SAN storage can be used so that servers can share
@@ -45,8 +62,11 @@
     required by the client through logical volumes implemented with LVMs. As well
     as sharing block devices, it's also possible to create files and share the file
     space as disks through the target server.
+  id: totrans-8
   prefs: []
   type: TYPE_NORMAL
+  zh: iSCSI 目标是一个使磁盘空间能够在网络上共享的软件。该服务共享磁盘而非文件系统，并建立了 **存储区域网络**（**SAN**）。这种 SAN 存储可以让服务器共享相同的磁盘，这在其他网络服务集群并需要访问共享磁盘的场景中通常是必要的。通常情况下，任何时刻只有一个服务器可以访问每个共享磁盘。iSCSI
+    目标可以共享整个磁盘，但通过使用 LVM 实现的逻辑卷来共享客户端所需的确切空间通常更高效。除了共享块设备外，还可以创建文件，并通过目标服务器将文件空间作为磁盘共享。
 - en: The disk IO passes through standard network connections to iSCSI servers. So,
     the faster the network connection, the better the storage performance. Although
     iSCSI will work on 1 GB Ethernet networks, 10 GB Ethernet is preferred for Enterprise
@@ -54,329 +74,481 @@
     network speed should be fine (especially if you can define a separate network
     segment to isolate the iSCSI traffic from the rest of your network). The default
     TCP port used by the target is `3260`.
+  id: totrans-9
   prefs: []
   type: TYPE_NORMAL
+  zh: 磁盘 IO 通过标准网络连接传输到 iSCSI 服务器。因此，网络连接越快，存储性能越好。虽然 iSCSI 在 1 GB 以太网网络上也能工作，但企业级应用推荐使用
+    10 GB 以太网。尽管如此，对于家庭或小型办公室的使用，您会发现 1 GB 网络速度应该足够（尤其是当您能为 iSCSI 流量定义一个单独的网络段来与其他网络流量隔离时）。目标默认使用的
+    TCP 端口是 `3260`。
 - en: Managing logical volumes with LVM
+  id: totrans-10
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 使用 LVM 管理逻辑卷
 - en: 'Although we can share the entire disk space or disk partitions, it really makes
     sense to share just the disk space that a client service requires. So, for example,
     if a web server requires 20 GB of space for web files, we can share just that
     absolute space, rather than the whole disk that may be terabytes in size. To do
     so, we will create logical volumes and share these as block devices. To implement
     LVMs, we create three objects:'
+  id: totrans-11
   prefs: []
   type: TYPE_NORMAL
+  zh: 尽管我们可以共享整个磁盘空间或磁盘分区，但实际上，只共享客户端服务所需的磁盘空间才更有意义。例如，如果 Web 服务器需要 20 GB 的空间来存储网站文件，我们可以只共享那部分空间，而不是共享整个可能达到
+    TB 级别的磁盘。为此，我们将创建逻辑卷并将其作为块设备共享。为了实现 LVM，我们需要创建三个对象：
 - en: '**Physical volumes**: This represents the raw disk space as disk partitions.
     When we use partitions, the partition type should be set to `Linux LVM` with an
     ID of `8E` using the `fdisk` partitioning tool.'
+  id: totrans-12
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '**物理卷**：表示原始磁盘空间，作为磁盘分区。当我们使用分区时，分区类型应该设置为 `Linux LVM`，ID 为 `8E`，使用 `fdisk`
+    分区工具进行设置。'
 - en: '**Volume groups**: This aggregates physical volumes together so that the disk
     space can be consumed to logical volumes.'
+  id: totrans-13
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '**卷组**：将物理卷聚合在一起，以便可以将磁盘空间分配给逻辑卷。'
 - en: '**Logical volumes**: This represents the block device that can be shared. It
     consumes space that is allocated from volume groups.'
+  id: totrans-14
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '**逻辑卷**：表示可以共享的块设备。它占用了从卷组分配的空间。'
 - en: On the demonstration RHEL 7.1 system that we will use for this course, I have
     three disks attached currently. We can use part of the space on the third drive
     for the LVM system. We will start by partitioning the third disk (currently unpartitioned)
     so that we can use some elements of this disk for LVM and other elements for other
     filesystems.
+  id: totrans-15
   prefs: []
   type: TYPE_NORMAL
+  zh: 在我们将用于本课程的演示RHEL 7.1系统上，我当前连接了三块磁盘。我们可以使用第三块磁盘的部分空间来配置LVM系统。我们将从分区第三块磁盘（当前未分区）开始，以便将该磁盘的一部分用于LVM，另一部分用于其他文件系统。
 - en: Partitioning the disk
+  id: totrans-16
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 磁盘分区
 - en: 'Using the `fdisk` command, we can partition the disk as required. We will use
     a single extended partition and create logical partitions therein. This is purely
     to allow many partitions that we can use here and in later chapters:'
+  id: totrans-17
   prefs: []
   type: TYPE_NORMAL
+  zh: 使用`fdisk`命令，我们可以根据需要分区磁盘。我们将使用一个扩展分区并在其中创建逻辑分区。这纯粹是为了允许我们在这里以及后续章节中使用多个分区：
 - en: '[PRE0]'
+  id: totrans-18
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE0]'
 - en: Take care with the device name that you use!
+  id: totrans-19
   prefs: []
   type: TYPE_NORMAL
+  zh: 使用时请注意设备名称！
 - en: When you run the `fdisk` command, you will be presented with a menu. The `m`
     command can be used to see menu choices, but we can use `n` to create a new partition
     and then `e` to create an extended partition. We will enter to accept the defaults
     for the partition number and the start and end sectors. We will set the extended
     partition to use the complete disk.
+  id: totrans-20
   prefs: []
   type: TYPE_NORMAL
+  zh: 当你运行`fdisk`命令时，会显示一个菜单。可以使用`m`命令查看菜单选项，但我们可以使用`n`来创建一个新分区，然后用`e`创建扩展分区。我们将按默认设置接受分区号、起始和结束扇区。我们将设置扩展分区使用整个磁盘。
 - en: 'Now, we will use `n` again to create another new partition; this time we will
     choose `l` for logical reasons. The partition number will default to `5`, so `/dev/sdc5`
     in my case3\. We can accept the default starting sector, but we will limit the
     size to 200 M with `+200M` as the ending sector. The following screenshot illustrates
     this setting:'
+  id: totrans-21
   prefs: []
   type: TYPE_NORMAL
+  zh: 现在，我们将再次使用`n`创建另一个新分区，这次我们选择`l`表示逻辑分区。分区号将默认为`5`，因此在我的情况下是`/dev/sdc5`。我们可以接受默认的起始扇区，但将结束扇区限制为200M，使用`+200M`设置。以下截图展示了此设置：
 - en: '![Partitioning the disk](img/image00225.jpeg)'
+  id: totrans-22
   prefs: []
   type: TYPE_IMG
+  zh: '![磁盘分区](img/image00225.jpeg)'
 - en: With the settings entered and still within the interactive `fdisk` command,
     we can use the `t` option to set a type. By default, this will be set to `83`.
     When you enter `t,` you will be asked for the partition number, which will default
     to `5`. To type the partition code, we will use `8e` for LVM. Subsequently, we
     will use `p` to print the configuration and then `w` to save the changes and exit
     the program.
+  id: totrans-23
   prefs: []
   type: TYPE_NORMAL
+  zh: 在输入了设置并仍然处于交互式`fdisk`命令下时，我们可以使用`t`选项设置类型。默认情况下，这将设置为`83`。当你输入`t`时，它会提示你输入分区号，默认是`5`。为了输入分区代码，我们将使用`8e`代表LVM。接着，我们将使用`p`打印配置，然后使用`w`保存更改并退出程序。
 - en: Creating the physical volume
+  id: totrans-24
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 创建物理卷
 - en: 'So far, we have created a partition for LVM to use, but this is not part of
     any LVM system yet. To mark it as available, we will use the `pvcreate` command:'
+  id: totrans-25
   prefs: []
   type: TYPE_NORMAL
+  zh: 到目前为止，我们已经为LVM创建了一个分区，但它还没有成为任何LVM系统的一部分。为了标记它为可用，我们将使用`pvcreate`命令：
 - en: '[PRE1]'
+  id: totrans-26
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE1]'
 - en: 'To display the LVM physical volume on a system, you can use either the `pvs`
     command or the `pvscan` command as the root user. The output of `sudo pvscan`
     is shown in the following screenshot:'
+  id: totrans-27
   prefs: []
   type: TYPE_NORMAL
+  zh: 要在系统上显示LVM物理卷，可以使用`pvs`命令或以root用户身份运行`pvscan`命令。`sudo pvscan`的输出如下截图所示：
 - en: '![Creating the physical volume](img/image00226.jpeg)'
+  id: totrans-28
   prefs: []
   type: TYPE_IMG
+  zh: '![创建物理卷](img/image00226.jpeg)'
 - en: The output shows that we already have LVM in use on this system because this
     is the default on RHEL and many other systems. The new `PV` is shown as `/dev/sdc5`,
     but without any membership of a **volume group** (**VG**).
+  id: totrans-29
   prefs: []
   type: TYPE_NORMAL
+  zh: 输出显示我们系统上已经使用LVM，因为在RHEL及许多其他系统中这是默认设置。新的`PV`显示为`/dev/sdc5`，但尚未属于任何**卷组**（**VG**）。
 - en: Creating the volume group
+  id: totrans-30
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 创建卷组
 - en: 'As we already have a volume group in place, we will use that group and extend
     it to include the new PV using the `vgextend` command. We want to keep this volume
     group separate and solely for space to be shared with the iSCSI Target. For this
     reason, we will create a new volume group with the `vgcreate` command, as shown
     in the following code example:'
+  id: totrans-31
   prefs: []
   type: TYPE_NORMAL
+  zh: 由于我们已经有了一个卷组，我们将使用该卷组并通过`vgextend`命令扩展它，以包括新的PV。我们希望将这个卷组保持独立，仅用于与iSCSI目标共享的空间。因此，我们将使用`vgcreate`命令创建一个新的卷组，如下例所示：
 - en: '[PRE2]'
+  id: totrans-32
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE2]'
 - en: Using this command, we will create a new volume group called `iscsi` and use
     `/dev/sdc5` PV.
+  id: totrans-33
   prefs: []
   type: TYPE_NORMAL
+  zh: 使用此命令，我们将创建一个名为`iscsi`的新卷组，并使用`/dev/sdc5`作为PV。
 - en: 'Similar to physical volumes, we can use `vgscan` or `vgs` to display information
     on the volume groups that are available. The output from `sudo vgs` is shown in
     the following screenshot:'
+  id: totrans-34
   prefs: []
   type: TYPE_NORMAL
+  zh: 与物理卷类似，我们可以使用 `vgscan` 或 `vgs` 来显示可用的卷组信息。`sudo vgs` 命令的输出如下所示的截图：
 - en: '![Creating the volume group](img/image00227.jpeg)'
+  id: totrans-35
   prefs: []
   type: TYPE_IMG
+  zh: '![创建卷组](img/image00227.jpeg)'
 - en: From the preceding output, we can see that our newly created `VG` named `iscsi`
     has a single `PV` connected to it, but as yet, no logical volumes (`LV`), which
     we will create next.
+  id: totrans-36
   prefs: []
   type: TYPE_NORMAL
+  zh: 从上述输出中，我们可以看到我们新创建的名为 `iscsi` 的 `VG` 有一个连接的单个 `PV`，但是尚无逻辑卷 (`LV`)，我们接下来将创建它们。
 - en: Creating logical volumes
+  id: totrans-37
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 创建逻辑卷
 - en: '**Logical volumes** (**LVs**) are block device units that we can use locally
     or (in our case) share via iSCSI. We create LVs using the `lvcreate` command.
     An example is as follows:'
+  id: totrans-38
   prefs: []
   type: TYPE_NORMAL
+  zh: '**逻辑卷** (**LVs**) 是我们可以在本地使用或（在我们的情况下）通过 iSCSI 共享的块设备单元。我们使用 `lvcreate` 命令创建
+    LVs。例如：'
 - en: '[PRE3]'
+  id: totrans-39
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE3]'
 - en: As is normal, we will not use all of the available space and just use the space
     requested by the web team for their new web volume. The `-L` option sets the size
     we allocate. We will allocate `100M`; `-n` sets the name to web in this case,
     whereas the `VG` name is appended to the end of the command string.
+  id: totrans-40
   prefs: []
   type: TYPE_NORMAL
+  zh: 通常情况下，我们不会使用所有可用空间，只会使用 Web 团队为其新的 Web 容量所请求的空间。 `-L` 选项设置我们分配的大小。我们将分配`100M`；
+    `-n` 设置名称为 Web，在这种情况下，`VG` 名称附加在命令字符串的末尾。
 - en: 'This command will create a block device in the `/dev` directory, but this device
     is usually accessed via symbolic links. The following two symbolic links will
     be created:'
+  id: totrans-41
   prefs: []
   type: TYPE_NORMAL
+  zh: 此命令将在 `/dev` 目录中创建一个块设备，但通常通过符号链接访问此设备。将创建以下两个符号链接：
 - en: '`/dev/mapper/iscsi-web`'
+  id: totrans-42
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '`/dev/mapper/iscsi-web`'
 - en: '`/dev/iscsi/web`'
+  id: totrans-43
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '`/dev/iscsi/web`'
 - en: In our case, these link to the `/dev/dm-2` block device. On your system, the
     actual block device name will depend on how many existing LVs you have. This is
     why the OS uses symbolic links because this name is determinable, whereas the
     actual block device name is not so determinable.
+  id: totrans-44
   prefs: []
   type: TYPE_NORMAL
+  zh: 在我们的情况下，这些链接到 `/dev/dm-2` 块设备。在您的系统上，实际的块设备名称将取决于您拥有多少现有的 LVs。这就是为什么操作系统使用符号链接的原因，因为这个名称是可以确定的，而实际的块设备名称并不是那么确定的。
 - en: 'If you can detect a pattern here, you will realize that, in order to display
     information about LVs on a system, we can use `lvs` or `lvscan`. The output of
     the `sudo lvscan` command is shown in the following screenshot:'
+  id: totrans-45
   prefs: []
   type: TYPE_NORMAL
+  zh: 如果您能意识到这里的模式，您会意识到，为了显示系统上 LVs 的信息，我们可以使用 `lvs` 或 `lvscan`。`sudo lvscan` 命令的输出如下所示的截图：
 - en: '![Creating logical volumes](img/image00228.jpeg)'
+  id: totrans-46
   prefs: []
   type: TYPE_IMG
+  zh: '![创建逻辑卷](img/image00228.jpeg)'
 - en: At this stage, we have a working block device that we can use with the iSCSI
     target service to share between servers on the network. We will now look at how
     to configure the iSCSI target on RHEL 7.1.
+  id: totrans-47
   prefs: []
   type: TYPE_NORMAL
+  zh: 在此阶段，我们拥有一个可以与网络上的服务器共享的工作块设备。现在，我们将查看如何在 RHEL 7.1 上配置 iSCSI 目标。
 - en: Installing the targetd service and targetcli tools
+  id: totrans-48
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 安装 `targetd` 服务和 `targetcli` 工具
 - en: 'To manage the kernel-based iSCSI Target service on RHEL 7, we will need to
     install the `targetd` and `targetcli` package, as shown in the following command:'
+  id: totrans-49
   prefs: []
   type: TYPE_NORMAL
+  zh: 要在 RHEL 7 上管理基于内核的 iSCSI 目标服务，我们需要安装 `targetd` 和 `targetcli` 包，如下所示的命令：
 - en: '[PRE4]'
+  id: totrans-50
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE4]'
 - en: 'From the output, we can see that additional packages are installed; however,
     it''s more interesting to see how Python is used as a major tool to manage iSCSI.
     The following screenshot is an extract from the command line output:'
+  id: totrans-51
   prefs: []
   type: TYPE_NORMAL
+  zh: 从输出中，我们可以看到安装了额外的软件包；然而，更有趣的是看到 Python 如何作为管理 iSCSI 的主要工具。以下截图是命令行输出的一部分：
 - en: '![Installing the targetd service and targetcli tools](img/image00229.jpeg)'
+  id: totrans-52
   prefs: []
   type: TYPE_IMG
+  zh: '![安装 `targetd` 服务和 `targetcli` 工具](img/image00229.jpeg)'
 - en: 'Although the iSCSI target runs as part of the kernel, the `targetd` package
     provides a service. This service is used to load the iSCSI target configuration.
     This is all that `targetd` does, so we never need to start this service as such;
     just ensure that `targetd` is enabled for autostart, as shown in the following
     command:'
+  id: totrans-53
   prefs: []
   type: TYPE_NORMAL
+  zh: 尽管 iSCSI 目标作为内核的一部分运行，但 `targetd` 包提供了一个服务。此服务用于加载 iSCSI 目标配置。这就是 `targetd`
+    的全部功能，因此我们无需启动此服务；只需确保 `targetd` 已启用自动启动，如下命令所示：
 - en: '[PRE5]'
+  id: totrans-54
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE5]'
 - en: Tip
+  id: totrans-55
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
+  zh: 提示
 - en: Once the system startup enables the `targetd` service, it ensures that the `targetcli
     restoreconfig` command is executed. It also ensures that the current configuration
     is loaded on boot.
+  id: totrans-56
   prefs: []
   type: TYPE_NORMAL
+  zh: 一旦系统启动时启用了 `targetd` 服务，它确保执行 `targetcli restoreconfig` 命令。它还确保在启动时加载当前配置。
 - en: We have now installed management tools for the `targetcli` iSCSI target and
     the `targetd` service, which provides a mechanism to enable the configuration
     to be read at boot time. We will now move on to how to configure the target with
     `targetcli`.
+  id: totrans-57
   prefs: []
   type: TYPE_NORMAL
+  zh: 我们现在已经安装了 `targetcli` iSCSI 目标和 `targetd` 服务的管理工具，该服务提供了一种机制，可以在启动时读取配置。接下来，我们将介绍如何使用
+    `targetcli` 配置目标。
 - en: Managing iSCSI targets with targetcli
+  id: totrans-58
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 使用 targetcli 管理 iSCSI 目标
 - en: The `targetcli` command is a shell to view, edit, save, and load the iSCSI target
     configuration. When you look at the configuration, you will see that `targetcli`
     provides a hierarchical structure in a similar way to a filesystem.
+  id: totrans-59
   prefs: []
   type: TYPE_NORMAL
+  zh: '`targetcli` 命令是一个用于查看、编辑、保存和加载 iSCSI 目标配置的 shell。当你查看配置时，你会发现 `targetcli` 提供了一种类似于文件系统的层级结构。'
 - en: 'To invoke the `targetcli` shell, we will run this command as root using `sudo`.
     You will see that on the first run of the command, a preferences file is created.
     This is illustrated in the following screenshot:'
+  id: totrans-60
   prefs: []
   type: TYPE_NORMAL
+  zh: 要启动 `targetcli` shell，我们将以 root 用户身份使用 `sudo` 运行此命令。你会看到，在首次运行命令时，会创建一个首选项文件。以下截图说明了这一点：
 - en: '![Managing iSCSI targets with targetcli](img/image00230.jpeg)'
+  id: totrans-61
   prefs: []
   type: TYPE_IMG
+  zh: '![使用 targetcli 管理 iSCSI 目标](img/image00230.jpeg)'
 - en: 'As you can see in the preceding output, you can enter `help` to display a list
     of commands that can be entered. To view the available configuration objects,
     we can use the `ls` command. The output is shown in the following screenshot:'
+  id: totrans-62
   prefs: []
   type: TYPE_NORMAL
+  zh: 如前面的输出所示，你可以输入 `help` 来显示可以输入的命令列表。要查看可用的配置对象，我们可以使用 `ls` 命令。输出如下所示：
 - en: '![Managing iSCSI targets with targetcli](img/image00231.jpeg)'
+  id: totrans-63
   prefs: []
   type: TYPE_IMG
+  zh: '![使用 targetcli 管理 iSCSI 目标](img/image00231.jpeg)'
 - en: We will work with `backstores` objects to start with so that we can add it to
     the LVM block device in the configuration in addition to the `fileio` backstore.
     As the name suggests, this will be a file within the filesystem; we can share
     this to a network as a virtual disk.
+  id: totrans-64
   prefs: []
   type: TYPE_NORMAL
+  zh: 我们将从 `backstores` 对象开始，以便我们可以将其添加到 LVM 块设备的配置中，除了 `fileio` 后端存储外。顾名思义，这将是文件系统中的一个文件；我们可以将其作为虚拟磁盘共享到网络中。
 - en: Creating storage backstores
+  id: totrans-65
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 创建存储后端存储
 - en: We will work from the root of the `targetcli` configuration; this should be
     exactly where we are, but we can always use the `pwd` command to display our working
     directory. If required, we can change it to the root of the configuration with
     `cd /`.
+  id: totrans-66
   prefs: []
   type: TYPE_NORMAL
+  zh: 我们将从 `targetcli` 配置的根目录开始；这应该正是我们所在的位置，但我们始终可以使用 `pwd` 命令来显示我们的工作目录。如果需要，我们可以通过
+    `cd /` 命令将其切换到配置的根目录。
 - en: Tip
+  id: totrans-67
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
+  zh: 提示
 - en: While using the `targetcli` command, we can use *CTRL* + *L* to clear the screen
     as we would in Bash, but most importantly, the *Tab* key completion works, so
     we do not need to type the complete name or path to objects and properties.
+  id: totrans-68
   prefs: []
   type: TYPE_NORMAL
+  zh: 在使用 `targetcli` 命令时，我们可以像在 Bash 中一样使用 *CTRL* + *L* 来清除屏幕，但最重要的是，*Tab* 键补全功能可以使用，所以我们不需要输入对象和属性的完整名称或路径。
 - en: 'To create a new `block`, back store on the LVM LV that we created earlier in
     this section. If we recall, this was `/dev/iscsi/web`:'
+  id: totrans-69
   prefs: []
   type: TYPE_NORMAL
+  zh: 要在我们在本节前面创建的 LVM LV 上创建一个新的 `block` 后端存储。如果我们回忆一下，这个路径是 `/dev/iscsi/web`：
 - en: '[PRE6]'
+  id: totrans-70
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE6]'
 - en: 'This will create the block backstore with a name called `web_lv`. Using the
     `ls` command again will list the additional object within the hierarchy. In the
     following screenshot, we see the creation of the backstore and the subsequent
     listing:'
+  id: totrans-71
   prefs: []
   type: TYPE_NORMAL
+  zh: 这将创建一个名为 `web_lv` 的块后端存储。再次使用 `ls` 命令将列出层级结构中的其他对象。在以下截图中，我们看到后端存储的创建及随后的列出：
 - en: '![Creating storage backstores](img/image00232.jpeg)'
+  id: totrans-72
   prefs: []
   type: TYPE_IMG
+  zh: '![创建存储后端存储](img/image00232.jpeg)'
 - en: 'We will also add a new backstore called `fileio`. The creation of the new backstore
     is similar to the root of the configuration:'
+  id: totrans-73
   prefs: []
   type: TYPE_NORMAL
+  zh: 我们还将添加一个名为 `fileio` 的新后端存储。新后端存储的创建与配置根目录类似：
 - en: '[PRE7]'
+  id: totrans-74
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE7]'
 - en: This command will create the backstore and the physical file, which we will
     use as a virtual disk. If the file already exists, we omit the size parameter.
     Both these objects will show in the listing if we choose to use the `ls` command
     again.
+  id: totrans-75
   prefs: []
   type: TYPE_NORMAL
+  zh: 该命令将创建后端存储和物理文件，我们将其用作虚拟磁盘。如果文件已存在，我们省略大小参数。如果我们再次选择使用 `ls` 命令，这两个对象都会显示在列表中。
 - en: Other backstore types include `pscsi` and `ramdisk`. These represent `Passthrough
     SCSI` connections that refer to physical iSCSI devices and `Memory Based Disks`,
     which, as with `fileio`, can be created on the fly using `targetcli`.
+  id: totrans-76
   prefs: []
   type: TYPE_NORMAL
+  zh: 其他后端存储类型包括 `pscsi` 和 `ramdisk`。这些代表 `Passthrough SCSI` 连接，指向物理 iSCSI 设备，以及 `基于内存的磁盘`，这些磁盘可以像
+    `fileio` 一样，使用 `targetcli` 动态创建。
 - en: Creating iSCSI targets
+  id: totrans-77
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 创建 iSCSI 目标
 - en: 'The iSCSI objects that we see in the main list represents iSCSI targets and
     their properties. Firstly, we will create a simple iSCSI target with default names.
     We can then delete this object and see how to create our own target with the correct
     naming convention:'
+  id: totrans-78
   prefs: []
   type: TYPE_NORMAL
+  zh: 我们在主列表中看到的 iSCSI 对象代表了 iSCSI 目标及其属性。首先，我们将创建一个具有默认名称的简单 iSCSI 目标。然后我们可以删除该对象，并查看如何使用正确的命名约定创建我们自己的目标：
 - en: '[PRE8]'
+  id: totrans-79
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE8]'
 - en: 'This will create an iSCSI target and listen on the TCP port `3260`. There will
     not be any LUNS or backstores connected, and the **IQN** (**iSCSI Qualified Name**)
     will be system generated. We can always add the backstore, but most likely, we
@@ -386,79 +558,120 @@
     to write the complete name while deleting or editing it. The following command
     displays this, but it may wrap when displayed or printed so that it is executed
     as a single line of code:'
+  id: totrans-80
   prefs: []
   type: TYPE_NORMAL
+  zh: 这将创建一个 iSCSI 目标，并监听 TCP 端口 `3260`。此时没有连接任何 LUN 或后端存储，**IQN**（**iSCSI 合格名称**）将由系统生成。我们可以随时添加后端存储，但大多数情况下，我们希望使用自定义名称。因此，在这种情况下，我们将删除该对象。我的系统上生成的
+    IQN 是 `iqn.2003-01.org.linux-iscsi.redhat7.x8664:sn.ce1ebea336a2`，但不要忘记我们可以使用
+    *Tab* 键完成输入。因此，我们在删除或编辑时不需要写出完整的名称。以下命令显示了这一点，但它可能在显示或打印时换行，最终作为一行代码执行：
 - en: '[PRE9]'
+  id: totrans-81
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE9]'
 - en: 'We will now create an iSCSI target by supplying a custom IQN. To perform this,
     we create the object as before, but this time, specify the name that is usually
     written to contain the date and the reversed DNS name. The following command is
     an example that we will use in this book:'
+  id: totrans-82
   prefs: []
   type: TYPE_NORMAL
+  zh: 我们现在将通过提供自定义 IQN 来创建一个 iSCSI 目标。为此，我们像之前一样创建对象，但这次指定通常包含日期和反向 DNS 名称的名称。以下命令是我们在本书中使用的示例：
 - en: '[PRE10]'
+  id: totrans-83
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE10]'
 - en: IQN starts with `iqn`, which is followed by the year and month it was created
     and the reverse DNS name. We can add the description of the target with the `:web`
     at the end, indicating that this is a target for the web server.
+  id: totrans-84
   prefs: []
   type: TYPE_NORMAL
+  zh: IQN 以 `iqn` 开头，后面跟着创建的年份和月份以及反向 DNS 名称。我们可以通过在末尾加上 `:web` 来添加目标描述，表示这是一个面向 Web
+    服务器的目标。
 - en: We can filter what is displayed using the `ls` command by adding the object
     hierarchy that we want to list. For example, to list targets, we will use the
     `ls iscsi` command.
+  id: totrans-85
   prefs: []
   type: TYPE_NORMAL
+  zh: 我们可以通过使用 `ls` 命令并添加我们想要列出的对象层次结构来过滤显示的内容。例如，要列出目标，我们将使用 `ls iscsi` 命令。
 - en: 'The output of this command is shown in the following screenshot:'
+  id: totrans-86
   prefs: []
   type: TYPE_NORMAL
+  zh: 该命令的输出如下面的截图所示：
 - en: '![Creating iSCSI targets](img/image00233.jpeg)'
+  id: totrans-87
   prefs: []
   type: TYPE_IMG
+  zh: '![创建 iSCSI 目标](img/image00233.jpeg)'
 - en: Now we have our customized name for the target, but we still have to add the
     LUNS or logical units to make the **SAN** (**Storage Area Network**) effective.
+  id: totrans-88
   prefs: []
   type: TYPE_NORMAL
+  zh: 现在我们有了目标的自定义名称，但我们仍然需要添加 LUN 或逻辑单元，以使 **SAN**（**存储区域网络**）生效。
 - en: Adding LUNS to the iSCSI target
+  id: totrans-89
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 向 iSCSI 目标添加 LUN
 - en: 'Staying with the `targetcli` shell, we will now move on to our target and **TPG**
     (**Target Portal Group**) object. Similar to the filesystem, this is achieved
     using the `cd` command, as shown in the following command:'
+  id: totrans-90
   prefs: []
   type: TYPE_NORMAL
+  zh: 留在 `targetcli` shell 中，我们现在将转到我们的目标和 **TPG**（**目标门户组**）对象。与文件系统类似，这通过使用 `cd`
+    命令来实现，如以下命令所示：
 - en: '[PRE11]'
+  id: totrans-91
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE11]'
 - en: 'We can run `ls` from here, but the content was included in the previous listing
     that we ran from the root of the configuration. We have one portal that listens
     on all IPv4 interfaces on the TCP port `3260`. Currently, we have no `acls` or
     `luns`. To add a LUN, we will use the following command, which will utilize the
     LVM block backstore:'
+  id: totrans-92
   prefs: []
   type: TYPE_NORMAL
+  zh: 我们可以从这里运行 `ls`，但是内容已经包含在之前从配置根目录运行的列表中了。我们有一个门户，监听所有 IPv4 接口的 TCP 端口 `3260`。目前，我们没有
+    `acls` 或 `luns`。要添加 LUN，我们将使用以下命令，它将利用 LVM 块后端存储：
 - en: '[PRE12]'
+  id: totrans-93
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE12]'
 - en: 'This will have an additional side effect of activating a backstore. This can
     be seen by listing the `/backstores` object. The command and output are shown
     in the following screenshot:'
+  id: totrans-94
   prefs: []
   type: TYPE_NORMAL
+  zh: 这还会有一个额外的副作用，激活一个后端存储。可以通过列出 `/backstores` 对象来查看这一点。命令和输出如下所示：
 - en: '![Adding LUNS to the iSCSI target](img/image00234.jpeg)'
+  id: totrans-95
   prefs: []
   type: TYPE_IMG
+  zh: '![向 iSCSI 目标添加 LUN](img/image00234.jpeg)'
 - en: Adding ACLS
+  id: totrans-96
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 添加 ACL
 - en: We are not required to add ACLS, but often we only want a single host, perhaps
     a virtual cluster device in order to access the LUN. If there is no ACL, we will
     need to set a property so that the LUN does not default to read only.
+  id: totrans-97
   prefs: []
   type: TYPE_NORMAL
+  zh: 我们不需要添加 ACL，但通常我们只想让一个主机，可能是一个虚拟集群设备来访问 LUN。如果没有 ACL，我们需要设置一个属性，以防 LUN 默认变为只读。
 - en: 'To create an ACL, we limit the access from LUN to a given initiator name or
     names that we mention in **Access Control List** (**ACL**). The initiator is the
     iSCSI client and will have a unique client IQN configured on the initiator in
@@ -468,125 +681,187 @@
     operating systems. To add an ACL, we will remain with the current configuration
     hierarchy: `/iscsi/iqn….:web/tpg1` and issue the following command, again written
     as a single line:'
+  id: totrans-98
   prefs: []
   type: TYPE_NORMAL
+  zh: 要创建ACL，我们限制LUN对指定的发起者名称或我们在**访问控制列表**（**ACL**）中提到的名称的访问。发起者是iSCSI客户端，并将在发起者的`/etc/iscsi/initiatorname.iscsi`文件中配置一个唯一的客户端IQN。如果该文件不存在，你需要安装`iscsi-initiator-utils`包。配置发起者名称的文件名在Linux客户端中是统一的，但在其他操作系统中会有所不同。要添加ACL，我们将保持当前的配置层级：`/iscsi/iqn….:web/tpg1`，并发出以下命令，再次作为一行写出：
 - en: '[PRE13]'
+  id: totrans-99
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE13]'
 - en: This ACL restricts access to the initiator listed within the ACL. Be careful
     if you ever change the initiator name because the ACL will also need to be updated.
     The initiator is the iSCSI client.
+  id: totrans-100
   prefs: []
   type: TYPE_NORMAL
+  zh: 这个ACL限制了对ACL中列出的发起者的访问。如果你更改发起者的名称，请小心，因为ACL也需要更新。发起者是iSCSI客户端。
 - en: 'Using the `ls` command from this location in the configuration hierarchy, we
     see the output similar to the following screenshot, which also includes the command
     to create the ACL:'
+  id: totrans-101
   prefs: []
   type: TYPE_NORMAL
+  zh: 使用`ls`命令从当前配置层级中，我们看到类似于以下截图的输出，输出中还包括创建ACL的命令：
 - en: '![Adding ACLS](img/image00235.jpeg)'
+  id: totrans-102
   prefs: []
   type: TYPE_IMG
+  zh: '![添加ACL](img/image00235.jpeg)'
 - en: 'If you do not add an ACL, the LUN will be read only. If you require the LUN
     to be writable, you will need to use the following command in order to set the
     required attribute:'
+  id: totrans-103
   prefs: []
   type: TYPE_NORMAL
+  zh: 如果不添加ACL，LUN将为只读。如果需要使LUN可写，你需要使用以下命令来设置所需的属性：
 - en: '[PRE14]'
+  id: totrans-104
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE14]'
 - en: The iSCSI target is now configured. Exiting `targetcli` should save this configuration,
     but you may feel safer to manually save your changes.
+  id: totrans-105
   prefs: []
   type: TYPE_NORMAL
+  zh: 现在，iSCSI目标已配置。退出`targetcli`应保存此配置，但你可能会觉得手动保存更为安全。
 - en: 'To do this, return to the root of the configuration and enter the `saveconfig`
     command, as shown in the following example:'
+  id: totrans-106
   prefs: []
   type: TYPE_NORMAL
+  zh: 为此，请返回到配置的根目录并输入`saveconfig`命令，如下例所示：
 - en: '[PRE15]'
+  id: totrans-107
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE15]'
 - en: Tip
+  id: totrans-108
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
+  zh: 提示
 - en: The `targetd` service that we enabled earlier in this chapter runs the `restoreconfig`
     command from `targetcli`. This is used to load the configuration when the system
     boots.
+  id: totrans-109
   prefs: []
   type: TYPE_NORMAL
+  zh: 我们在本章前面启用的`targetd`服务从`targetcli`运行`restoreconfig`命令。此命令用于在系统启动时加载配置。
 - en: With the configuration saved, we can migrate to the client in order to look
     at the iSCSI Initiator and see the disk sharing at work on our SAN.
+  id: totrans-110
   prefs: []
   type: TYPE_NORMAL
+  zh: 配置保存后，我们可以迁移到客户端，查看iSCSI发起者并观察SAN上磁盘共享的工作情况。
 - en: Working with the iSCSI Initiator
+  id: totrans-111
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 与iSCSI发起者一起工作
 - en: 'The iSCSI Initiator or client on RHEL 7 is installed with the `iscsi-initiator-utils`
     package; you can verify that this is installed on your system using the `yum`
     command, as shown in the following example:'
+  id: totrans-112
   prefs: []
   type: TYPE_NORMAL
+  zh: RHEL 7上的iSCSI发起者或客户端是通过`iscsi-initiator-utils`包安装的；你可以使用`yum`命令验证该包是否已安装在系统上，如以下示例所示：
 - en: '[PRE16]'
+  id: totrans-113
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE16]'
 - en: If it's listed as `Installed`, all well and good, but if it's listed as `Available`,
     you will need to install it.
+  id: totrans-114
   prefs: []
   type: TYPE_NORMAL
+  zh: 如果显示为`已安装`，那么一切正常，但如果显示为`可用`，你需要安装它。
 - en: 'For the purpose of this exercise, we will use a separate RHEL 7 system as our
     initiator and connect it to the existing target. We will need to edit the `/etc/iscsi/initiatorname.iscsi`
     file on the new RHEL 7 system to ensure that the name is set to match the name
     we added to the ACL in the earlier section of this chapter; we can display this
     using the `cat` command, as shown in the following screenshot:'
+  id: totrans-115
   prefs: []
   type: TYPE_NORMAL
+  zh: 为了进行本练习，我们将使用一个独立的RHEL 7系统作为发起者，并将其连接到现有目标。我们需要在新的RHEL 7系统上编辑`/etc/iscsi/initiatorname.iscsi`文件，确保名称与本章早些部分我们添加到ACL中的名称匹配；我们可以使用`cat`命令显示此内容，如以下截图所示：
 - en: '![Working with the iSCSI Initiator](img/image00236.jpeg)'
+  id: totrans-116
   prefs: []
   type: TYPE_IMG
+  zh: '![与iSCSI发起者一起工作](img/image00236.jpeg)'
 - en: 'We will use the main client tool: `iscsiadm`. This was installed with the previously
     mentioned package. To discover iSCSI LUNS on the target, we will use the following
     command:'
+  id: totrans-117
   prefs: []
   type: TYPE_NORMAL
+  zh: 我们将使用主要客户端工具：`iscsiadm`。这个工具是与前述包一起安装的。要发现目标上的iSCSI LUN，我们将使用以下命令：
 - en: '[PRE17]'
+  id: totrans-118
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE17]'
 - en: 'The output should be similar to the following line:'
+  id: totrans-119
   prefs: []
   type: TYPE_NORMAL
+  zh: 输出应类似于以下行：
 - en: '[PRE18]'
+  id: totrans-120
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE18]'
 - en: 'Now, we have seen that we can connect to the iSCSI target and have it sent
     us the configured LUNS. We should now connect to this LUN and use the same command
     with the following options:'
+  id: totrans-121
   prefs: []
   type: TYPE_NORMAL
+  zh: 现在，我们已经看到我们可以连接到 iSCSI 目标，并让其向我们发送已配置的 LUN。接下来，我们应该连接到此 LUN，并使用相同的命令，添加以下选项：
 - en: '[PRE19]'
+  id: totrans-122
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE19]'
 - en: 'The following screenshot shows the command and output:'
+  id: totrans-123
   prefs: []
   type: TYPE_NORMAL
+  zh: 以下截图显示了命令及其输出：
 - en: '![Working with the iSCSI Initiator](img/image00237.jpeg)'
+  id: totrans-124
   prefs: []
   type: TYPE_IMG
+  zh: '![使用 iSCSI 发起器](img/image00237.jpeg)'
 - en: 'To the initiator, the shared LUN is now a disk. We can partition and format
     this disk in a normal manner. We will use `lsblk` to list the various connected
     block devices. On this system, we can see that it connects as `/dev/sdc` and matches
     the `100M` size that we assigned, as shown in the following screenshot:'
+  id: totrans-125
   prefs: []
   type: TYPE_NORMAL
+  zh: 对于发起端来说，共享的 LUN 现在就是一块磁盘。我们可以以正常方式对这块磁盘进行分区和格式化。我们将使用 `lsblk` 来列出各种连接的块设备。在该系统上，我们可以看到它作为
+    `/dev/sdc` 连接，并且与我们分配的 `100M` 大小匹配，如下截图所示：
 - en: '![Working with the iSCSI Initiator](img/image00238.jpeg)'
+  id: totrans-126
   prefs: []
   type: TYPE_IMG
+  zh: '![使用 iSCSI 发起器](img/image00238.jpeg)'
 - en: Using the traditional `fdisk` or `parted` commands, we can create a partition
     and then format it to be used locally on this system. As we used `fdisk` previously
     in the chapter to create the partition for LVM interactively, we will see how
     to manage this from the command line directly with `parted`.
+  id: totrans-127
   prefs: []
   type: TYPE_NORMAL
+  zh: 使用传统的 `fdisk` 或 `parted` 命令，我们可以创建一个分区，然后格式化它以便在此系统上本地使用。由于我们在本章中使用了 `fdisk`
+    来交互式创建 LVM 分区，现在我们将直接从命令行使用 `parted` 来管理它。
 - en: The command will need a disk label in order to create the partition table. This
     can be set to `msdos` or `gpt`. The `fdisk` command creates the `msdos` label
     automatically, but this is because it can only work with traditional `msdos` partition
@@ -595,29 +870,42 @@
     from the command line and hence, is scriptable. There is an added complication
     here, that is, the sectors to start a new partition are not shown. So, we need
     to figure out the optimal starting sector.
+  id: totrans-128
   prefs: []
   type: TYPE_NORMAL
+  zh: 该命令需要一个磁盘标签才能创建分区表。此标签可以设置为 `msdos` 或 `gpt`。`fdisk` 命令会自动创建 `msdos` 标签，但这是因为它只能处理传统的
+    `msdos` 分区表。`parted` 可以同时支持 `msdos` 和 `gpt`（GUID 分区表）。`parted` 命令还允许通过交互式或直接从命令行创建分区，因此它是可脚本化的。这里有一个额外的复杂性，即无法显示开始新分区的扇区。因此，我们需要计算出最佳的起始扇区。
 - en: Once you know this for a disk of a given type, this will be the same for similar
     disks.
+  id: totrans-129
   prefs: []
   type: TYPE_NORMAL
+  zh: 一旦你知道了某种类型磁盘的这一信息，对于类似的磁盘，它将是相同的。
 - en: 'To establish the starting sector on a disk, we will read the values from two
     files: `/sys/block/sdc/queue/optimal_io_size` and divide this by `/sys/block/sdc/queue/physical_block_size`.'
+  id: totrans-130
   prefs: []
   type: TYPE_NORMAL
+  zh: 要确定磁盘的起始扇区，我们将从两个文件中读取值：`/sys/block/sdc/queue/optimal_io_size`，然后将其除以 `/sys/block/sdc/queue/physical_block_size`。
 - en: 'On the demonstration system, this relates to *4194304 / 512 = 8192*; values
     from files can be read with the `cat` command as a standard user. Once we are
     aware of the optimal alignment details, we can label the disk and create the partition
     with the following commands:'
+  id: totrans-131
   prefs: []
   type: TYPE_NORMAL
+  zh: 在演示系统上，这与 *4194304 / 512 = 8192* 相关；可以使用 `cat` 命令作为普通用户从文件中读取这些值。一旦我们了解了最佳对齐细节，就可以通过以下命令为磁盘打标签并创建分区：
 - en: '[PRE20]'
+  id: totrans-132
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE20]'
 - en: 'We create a single partition: `/dev/sdc1`. When we start with the optimal starting
     sector, this partition uses 100 percent of the used disk space.'
+  id: totrans-133
   prefs: []
   type: TYPE_NORMAL
+  zh: 我们创建一个单一的分区：`/dev/sdc1`。当我们从最佳起始扇区开始时，该分区将使用 100% 的磁盘空间。
 - en: 'With this in place, we can format the partition with the filesystem of our
     choice and mount it in a normal manner. The `iscsid` background service is enabled,
     but it only runs when required. On reboot, the connection will be remade to the
@@ -625,19 +913,28 @@
     the client. This will happen as long as the default setting is not changed on
     the initiator. You should check the `/etc/iscsi/iscsid.conf` file and ensure that
     the setting is done as follows:'
+  id: totrans-134
   prefs: []
   type: TYPE_NORMAL
+  zh: 配置完成后，我们可以将分区格式化为所选择的文件系统，并以正常方式挂载它。`iscsid` 后台服务已启用，但仅在需要时运行。重启后，连接将重新建立到远程
+    iSCSI 存储服务器，以便`/dev/sdc1` 分区在客户端上保持不变。只要发起端没有更改默认设置，便会发生这种情况。你应该检查`/etc/iscsi/iscsid.conf`文件，并确保设置如下：
 - en: '[PRE21]'
+  id: totrans-135
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE21]'
 - en: With this in place, which is the default on RHEL 7, the `iscsid` service will
     reconnect on startup.
+  id: totrans-136
   prefs: []
   type: TYPE_NORMAL
+  zh: 在这种配置下，这是 RHEL 7 的默认设置，`iscsid` 服务将在启动时重新连接。
 - en: Summary
+  id: totrans-137
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 总结
 - en: 'In this chapter, we have seen how ready RHEL 7 is for the Enterprise network
     to act as a SAN server using the new kernel-based iSCSI target server. The management
     of the server is now made through Python-based tools, such as `targetcli`, and
@@ -645,16 +942,24 @@
     disk storage on demand from logical volumes. We also looked at how to use three
     components of LVM to make this happen: physical volumes, volume groups, and logical
     volumes.'
+  id: totrans-138
   prefs: []
   type: TYPE_NORMAL
+  zh: 在本章中，我们已经看到 RHEL 7 如何准备好作为企业网络中的 SAN 服务器，利用基于新内核的 iSCSI 目标服务器。服务器的管理现在是通过基于
+    Python 的工具来完成的，例如`targetcli`，而`targetd`服务则负责在启动时加载配置。我们经常通过逻辑卷按需提供磁盘存储。我们还了解了如何使用
+    LVM 的三个组件来实现这一点：物理卷、卷组和逻辑卷。
 - en: With our storage created and shared, we looked at the second RHEL 7 system and
     how to connect it as an iSCSI Initiator to utilize this shared storage on the
     iSCSI target. This was managed initially using `iscsiadm`, but the connections
     are persisted through the `iscsid` service.
+  id: totrans-139
   prefs: []
   type: TYPE_NORMAL
+  zh: 在创建并共享我们的存储之后，我们查看了第二个 RHEL 7 系统，以及如何将其连接为 iSCSI 发起端，利用 iSCSI 目标上的共享存储。最初是使用`iscsiadm`来管理连接，但这些连接通过`iscsid`服务得以持久化。
 - en: In the next chapter, we will take a look at the **BTRFS** (**Better File System**),
     which makes its first appearance on RHEL with version 7\. I am sure that you will
     be impressed with what is on offer with this filesystem.
+  id: totrans-140
   prefs: []
   type: TYPE_NORMAL
+  zh: 在下一章，我们将介绍**BTRFS**（**更好的文件系统**），它在 RHEL 7 中首次亮相。我相信你一定会对这个文件系统所提供的功能感到印象深刻。
