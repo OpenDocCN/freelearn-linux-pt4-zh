@@ -1,0 +1,1067 @@
+<html><head></head><body>
+        <section>
+
+                            <header>
+                    <h1 class="header-title">Building and Optimizing the Virtual Desktop OS</h1>
+                </header>
+            
+            <article>
+                
+<p><span>Having built the Horizon View infrastructure and its components in the previous chapters of this book, in this chapter, we will focus our attention on virtual desktops. We are going to look at how to create and configure the virtual hardware elements of virtual desktop machines, install a desktop operating system based on best practices for virtual desktop machines, and then configure that operating system to run at its optimum performance levels.</span></p>
+<p>The steps involved in building the core operating system for a virtual desktop machine are not too dissimilar from the process of building a physical desktop machine. However, there are some additional tasks and software components that we need to install within the operating system to turn it into a true virtual desktop machine that's fit for a Horizon View environment, and more importantly for the end users. This chapter will cover each of these steps in more detail and also build several OS images along the way. We will use the example lab to do so. The build process is shown in the following diagram:</p>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/17b74d44-d743-4ae3-abd1-931e6efe7afe.png" style=""/></div>
+<p class="mce-root"/>
+<p><span>We will build</span> a virtual desktop machine for a Windows 7 desktop. It will be configured with a floating-desktop assignment, built using linked clones, and a second virtual desktop machine running Windows 7, which will be configured with a dedicated assignment and built from a full clone. Finally, we will also look at creating an Instant Clone Windows 10-based desktop, before finishing this chapter with a look at delivering a Linux-based virtual desktop machine.</p>
+<p>The following topics will be covered in this chapter:</p>
+<ul>
+<li>Creating a Windows 7 virtual desktop machine</li>
+<li>Creating a Windows 10 virtual desktop machine</li>
+<li>Creating a GPU-enabled virtual desktop machine</li>
+<li><span>Creating a Linux virtual desktop machine</span></li>
+<li><span>Preparing virtual desktops for delivery</span></li>
+</ul>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">Best practices for building virtual desktop images</h1>
+                </header>
+            
+            <article>
+                
+<p><span>In this section, we are going to discuss some of the best practices and processes for building your virtual desktop machine images.</span></p>
+<p><span>In a physical desktop environment, there are a number of ways in which the operating system can be built and deployed. For example, you could use the <strong>Microsoft Deployment Toolkit</strong> (<strong>MDT</strong>) or maybe the Microsoft <strong>System Center Configuration Manager</strong> (<strong>SCCM</strong>). Both of these options can be used along with all the other tools that are available to build desktop images, including VMware's own Mirage product, of course. So, we just talked about a couple of options that you can use to build your desktop images, but let's just highlight the one that you should not use: the <strong>physical-to-virtual tool</strong> (<strong>P2V</strong>), which turns your physical image into a virtual one.</span></p>
+<p>A best practice is to build a new virtual desktop image from scratch, so it starts off life as being designed to be a virtual machine from day one. After all, you would potentially build a new image for a new hardware platform, and that's what you are doing in reality. There are a few reasons to not use your physical image to create your virtual desktop image, though. One of the reasons is the size of the image, which more than likely will have become bloated, with numerous patches and updates being applied over the last year or so. You want your VDI image to be lean and fresh, with just the most recent and relevant software installed.</p>
+<p class="mce-root"/>
+<p>Another reason is that there might be some hardware drivers or other hardware-based software elements within the image, such as a desktop hardware management solution like Intel <strong>Active Management Technology</strong> (<strong>AMT</strong>), which relies on firmware and other components that are built into the chipset of the physical machine. As you are now using a virtual desktop machine, this type of hardware is not present and, therefore, you do not require it to be installed.</p>
+<p>The worst-case scenario is having this type of solution installed, because it will affect the performance of your virtual desktop machine.</p>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">Technical requirements</h1>
+                </header>
+            
+            <article>
+                
+<p>Before we get into the build process, we need to look at the specifications of the virtual desktop machine from a virtual hardware perspective and what we need to configure it. The following screenshot lists the virtual desktop machine requirements:</p>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/0fcdb73e-cfcf-4226-9247-7c9c06ea24f4.png" style=""/></div>
+<p>You should be able to work out the requirements for your particular environment by using the assessment data that you captured at the start of the project. One thing to bear in mind is that you can quite easily change the configuration should you need to when fine-tuning the performance and the end user experience.</p>
+<p>Another important factor when configuring the size of virtual desktop machines is not to fall into the trap of over-sizing. For example, if you only need one CPU, then only give the virtual desktop machine one CPU. Don't be tempted to add unnecessary resources, as you will ultimately end up lowering the number of virtual desktop machines that you can host on your server infrastructure, thus increasing costs and management with the extra hardware. You could also potentially make the virtual desktop performance slower. As we mentioned <span>previously</span>, this is why your assessment data is critical.</p>
+<p>The VDI desktop should be configured using the guidelines for the hardware specifications that were outlined in the previous table.</p>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">Creating a Windows 7 virtual desktop machine</h1>
+                </header>
+            
+            <article>
+                
+<p>In this section, we are going to build a virtual desktop machine with Windows 7. This will be as the operating system to use as the master image that we will create virtual desktops from. We will follow the steps that were outlined in the diagram at the very start of this chapter and the first diagram to optimize and prepare the image that's going to be used as a floating-assigned, linked-clone virtual desktop machine.</p>
+<p class="mce-root"/>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">Creating the virtual desktop machine container</h1>
+                </header>
+            
+            <article>
+                
+<p>The first thing we need to do is build and configure the actual virtual desktop machine on our vCenter server. This will define the virtual hardware configuration. To define the configuration, follow these steps:</p>
+<ol>
+<li>Open a browser and log into the vSphere web client for the vCenter <kbd>vcs1.pvolab.com</kbd>, as follows:</li>
+</ol>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/4cb3ffb4-1882-4cd6-99ea-d317adc20469.png"/></div>
+<p style="padding-left: 60px">Once logged in, you will see the <span class="packt_screen">vSphere Client</span> home page, as shown in the following screenshot:</p>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/eb71271c-48ae-492e-8e62-3fd56c93b5e7.png"/></div>
+<p class="mce-root"/>
+<ol start="2">
+<li>From the navigation shortcuts on the left-hand side of the screen, click on <span class="packt_screen">VMs and Templates</span> (<strong>1</strong>), as shown in the following screenshot:</li>
+</ol>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/ab004f20-061e-46fb-8071-5c0626ea66e3.png"/></div>
+<ol start="3">
+<li><span>Expand the vCenter</span> <kbd>vcs2.pvolab.com</kbd><span>, and then click to highlight the datacenter name of where you want to create the virtual desktop machine. In the example lab, the data center is called</span> <span class="packt_screen">PVO's Datacenter</span> (<strong>2</strong>). Right-click it, and from the contextual menu, click the option for <span class="packt_screen">New Virtual Machine...</span> (<strong>3</strong>). You will now see the <span class="packt_screen">New Virtual Machine</span> configuration box, as shown in the following screenshot:</li>
+</ol>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/877c4057-c290-4c26-8830-ac5f838d2d99.png"/></div>
+<p class="mce-root"/>
+<ol start="4">
+<li>The first task is to <span class="packt_screen">Select a creation type</span>. From the list of options, click to highlight <span class="packt_screen">Create a new virtual machine</span> (<strong>4</strong>), and then click the <span class="packt_screen">NEXT</span> button to continue. You will now see the <span class="packt_screen">Select a name and folder</span> screen, as shown in the following screenshot:</li>
+</ol>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/33258b19-9eb1-4d90-8daf-2c4f35566cfa.png"/></div>
+<ol start="5">
+<li>In the <span class="packt_screen">Virtual machine name</span> box (<strong>5</strong>), type in a name for the new virtual desktop machine. In the example lab, this is called <kbd>Windows 7 Gold Image</kbd>.</li>
+<li>Then, in the <span class="packt_screen">Select a location for the virtual machine</span> section, click to highlight the datacenter where you want this virtual machine to be created. In the example lab, this machine is going to be created in the datacenter called <span class="packt_screen">PVO's Datacenter</span> <span>(<strong>6</strong>)</span>.</li>
+</ol>
+<ol start="7">
+<li>Click the <span class="packt_screen"><strong>NEXT</strong></span> button to continue. You will now see the <span class="packt_screen">Select a compute resource</span> <span>screen, as shown in the following screenshot:</span></li>
+</ol>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/98c0af4d-f0f0-49c2-8509-ae377639dddf.png"/></div>
+<ol start="8">
+<li>Expand the datacenter called <span class="packt_screen">PVO's Datacente</span><strong>r</strong> and then click on the ESX server you want to host this virtual desktop. In the example lab, <span class="packt_screen">192.168.1.131</span> (<strong>7</strong>) is the IP address of the host server we are going to use to host this virtual desktop machine.</li>
+</ol>
+<div class="packt_tip">As this is going to be our gold/master image or parent virtual desktop machine, it's probably not as important in regards to the location compared to the live production virtual desktop machines. So, for the example lab, we will use the management block to host this virtual desktop machine.</div>
+<ol start="9">
+<li>Click the <span class="packt_screen">NEXT</span> button to continue. You will now see the <span class="packt_screen">Select storage</span> screen, as shown in the following screenshot:</li>
+</ol>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/a6fac8ad-43a4-4394-8160-38efe57e1f2b.png"/></div>
+<ol start="10">
+<li>Select the datastore where this virtual desktop machine will be stored. In the example lab, the virtual desktop machine is stored on the default datastore called <span class="packt_screen">VM Datastore</span> (<strong>8</strong>). Click the <span class="packt_screen">NEXT</span> button to continue.</li>
+</ol>
+<ol start="11">
+<li>You will now see the <span class="packt_screen">Select compatibility</span> screen. This is where we will choose the virtual machine version for our virtual desktop machine. As it states, for the best performance, you should use version 13, which means using vSphere 6.5 or later as the hosting platform. If you are using a different hosting platform, then select the one that is relevant to your environment. However, be aware that some features may not be available depending on the version you choose. For example, you will need at least vSphere 6 if you want support for features such as instant clones and vGPU.</li>
+<li>From the dropdown menu (<strong>9</strong>), select <span class="packt_screen">ESXi 6.5 and later,</span> as shown in the following screenshot:</li>
+</ol>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/549aab80-a038-414b-9e9d-1c17e9dbaf89.png"/></div>
+<ol start="13">
+<li>Click the <span class="packt_screen">NEXT</span> button to continue. You will now see the <span class="packt_screen">Select a guest OS</span> screen, as shown in the following screenshot:</li>
+</ol>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/1db62ebe-05f1-4506-8486-d539ab595fe7.png"/></div>
+<ol start="14">
+<li>The next step is to choose the operating system for the virtual desktop machine. In our example, this is the first virtual desktop machine that will be used as the gold image template for Windows 7.</li>
+<li>From the <span class="packt_screen">Guest OS Family</span> box, click the arrow for the dropdown menu (<strong>10</strong>) and select <span class="packt_screen">Windows</span>. Then, from the <span class="packt_screen">Guest OS Version</span> box, click the arrow for the dropdown menu (<strong>11</strong>) and select <span class="packt_screen">Microsoft Windows 7 (64-bit)</span>. The guest OS selection is important to get right, as it determines which drivers get installed when VMware Tools is installed on the virtual desktop machine.</li>
+<li>Click the <span class="packt_screen">NEXT</span> button to continue.</li>
+<li>You will now see the <span class="packt_screen">Customize Hardware</span> screen where you can configure the virtual hardware specification for the virtual desktop machine, as shown in the following screenshot:</li>
+</ol>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/dffc1c04-9486-432d-99bf-aa5a7a4492d3.png"/></div>
+<ol start="18">
+<li>There are a couple of things to change on this configuration screen. First, this virtual desktop machine is going to have two vCPUs. In the <span class="packt_screen">CPU</span> box, click the down arrow (<strong>12</strong>) and select <span class="packt_screen">2</span> from the dropdown menu (<strong>13</strong>) to configure two vCPUs for this virtual desktop machine.</li>
+</ol>
+<ol start="19">
+<li>Next, expand the <span class="packt_screen">New Network</span> option by clicking the arrow (<strong>14</strong>), and then on the <span class="packt_screen">Adapter Type</span> box, click the down arrow (<strong>15</strong>) and select the option for <span class="packt_screen">VMXNET 3</span> (<strong>16</strong>), as shown in the following screenshot:</li>
+</ol>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/ec4c17e9-1891-4a02-a374-4fa9a5151df2.png"/></div>
+<ol start="20">
+<li>Because we are building a new virtual desktop machine we will need to install the operating system. To do this, we are going to attach the install media to the virtual desktop machine so that it can boot from it and start the install. Scroll down to the <span class="packt_screen">New CD/DVD Drive</span> option, as shown in the following screenshot:</li>
+</ol>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/58546dfa-a199-4759-8cd3-3271240e53b0.png"/></div>
+<ol start="21">
+<li>Click on the down arrow (<strong>17</strong>), and from the list of options that are displayed, click on <span class="packt_screen">Datastore ISO File</span> (<strong>18</strong>). In the example lab, we have already uploaded the ISO images for the installation media to a datastore on the host servers.</li>
+</ol>
+<ol start="22">
+<li>You will now see the <span class="packt_screen">Select File</span> screen displayed, as shown in the following screenshot:</li>
+</ol>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/58e5503c-cb48-4aaa-98c9-613bc1067e42.png"/></div>
+<ol start="23">
+<li>Expand the datastore (<strong>19</strong>) and then click on the <kbd>ISO Images</kbd> folder (<strong>20</strong>). Then, click to select the OS that is going to be installed on this virtual desktop machine. In this example, we are going to install Windows 7, so click on the <span class="packt_screen">en_windows_7_professional_with_sp1_x64_dvd</span> option (<strong>21</strong>). You may have your ISO images stored in a different location, so just follow this as a guide using your folder locations.</li>
+<li><span>Click the</span> <span class="packt_screen">OK</span> <span>button to return to the virtual hardware screen.</span></li>
+<li>One final thing to ensure on this screen is that the ISO file you have just added is connected as a <span class="packt_screen">New CD/DVD Drive</span>. To do this, check the <span class="packt_screen">Connected</span> box (<strong>22</strong>), as shown in the following screenshot:</li>
+</ol>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/aacb60c9-ab99-40ff-ae5a-8eb49e2d1c1e.png" style=""/></div>
+<ol start="26">
+<li>In the last part of the hardware configuration, you need to change one of the boot options so that the next time the virtual desktop machine powers on and boots, it goes straight into the BIOS setup screen. You could, of course, open a console to the virtual desktop machine and press the <em>F2</em> key as it boots; however, that screen can flash past so quickly that you might miss it, so the former option is much easier. Th<span>e reason you need to select this option and go into the BIOS setup screen is</span> that we <span>need to change some of the configuration settings so that this virtual desktop machine behaves as a virtual machine, rather than as a physical desktop PC.</span> We will cover this a bit later when we power on the newly created virtual desktop machine for the first time.</li>
+<li>To configure the boot options, click the <span class="packt_screen">VM Options</span> tab (<strong>23</strong>), and then expand the arrow for <span class="packt_screen">Boot Options</span> (<strong>24</strong>). C<span>heck the tick box for</span> <span class="packt_screen">Force BIOS setup</span> <span>(<strong>25</strong>). This is shown in the following screenshot:</span></li>
+</ol>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/1caa5521-246c-41e2-a1c2-8aea8344900c.png" style=""/></div>
+<ol start="28">
+<li>Once you have completed the configuration, click the <span class="packt_screen">NEXT</span> button to continue. You will now see the <span class="packt_screen">Ready to complete</span> screen, as shown in the following screenshot:</li>
+</ol>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/9543cfde-c94c-4e72-97f3-62355077be4a.png"/></div>
+<ol start="29">
+<li>Once you are happy with the configuration details, click the <span class="packt_screen">FINISH</span> button to complete the configuration.</li>
+</ol>
+<ol start="30">
+<li>If you now check the <span class="packt_screen">Recent Tasks</span> box, you will see that the virtual desktop machine has been successfully created, as shown in the following screenshot:</li>
+</ol>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/0b7b7ac5-d81c-491d-ba9b-2a493b212948.png"/></div>
+<ol start="31">
+<li>With the virtual desktop machine now built and configured, it's time to power it on and continue the build process. Navigate to the virtual desktop machine in the inventory. You should see an entry called <span class="packt_screen">Windows 7 Gold Image</span>.</li>
+<li>Highlight the virtual desktop machine <span class="packt_screen">Windows 7 Gold Image</span> <span>(<strong>26</strong>)</span>, right-click it, and from the contextual menu that's shown, click on <span class="packt_screen">Power</span> (<strong>27</strong>) and then click on <span class="packt_screen">Power On</span> (<strong>28</strong>), as shown in the following screenshot:</li>
+</ol>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/40be7869-8fd3-482d-bf6e-dece7959b00a.png"/></div>
+<p class="mce-root"/>
+<ol start="33">
+<li>The virtual desktop machine will now power on and boot into the BIOS setup screen, as that's what we configured to happen on the next boot. Any subsequent bootups will boot as normal into the operating system once it's installed.</li>
+</ol>
+<p>In the next section, we will make configuration changes to the virtual desktop machine's BIOS settings.</p>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">Updating the virtual desktop machine BIOS</h1>
+                </header>
+            
+            <article>
+                
+<p>With the virtual desktop machine now powered on and booted into the BIOS setup screen, we are going to launch a remote console screen to it so that you can perform the configuration steps. To do this, perform the following steps:</p>
+<ol>
+<li>Highlight the <span class="packt_screen">Windows 7 Gold Image</span> virtual desktop machine in the <span class="packt_screen">Inventory</span> section, and then under the <span class="packt_screen">Summary</span> tab, click the <span class="packt_screen">Launch Remote Console</span> link (<strong>1</strong>), as shown in the following screenshot:</li>
+</ol>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/e858c880-1e49-4ab0-88a1-5898badaa742.png"/></div>
+<ol start="2">
+<li>You will now see the <span class="packt_screen">PhoenixBIOS Setup Utility</span> screen of the virtual desktop machine, as shown in the following screenshot:</li>
+</ol>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/c76a096b-ba3e-42dd-9ea0-90f09ea08d4a.png" style=""/></div>
+<ol start="3">
+<li>The first thing you need to do is disable the floppy drive. On the <span class="packt_screen">Main</span> section of the BIOS setup screen, use the cursor keys to move down, highlight the option for <span class="packt_screen">Legacy Diskette A:</span> (<strong>2</strong>), and then press <em>Enter</em>.</li>
+<li>You will now see a popup box displaying the diskette options. Again, use the cursor keys to highlight the <span class="packt_screen">Disabled</span> option (<strong>3</strong>) and then press <em>Enter</em>.</li>
+</ol>
+<ol start="5">
+<li>Next, you need to navigate to the <span class="packt_screen">Advanced</span> section of the BIOS setup screen. To do this, press the right arrow cursor key to move across the tabs along the top until the <span class="packt_screen">Advanced</span> tab is highlighted (<strong>4</strong>), as shown in the following screenshot:</li>
+</ol>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/bb17b77d-898e-4e78-a36b-b321c0260ee6.png" style=""/></div>
+<ol start="6">
+<li>Using the down-arrow cursor, move down to the option for <span class="packt_screen">I/O Device Configuration</span> (<strong>5</strong>) and press <em>Enter</em>. You will now see the <span class="packt_screen">Advanced</span> configuration screen, as shown in the following screenshot:</li>
+</ol>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/5bbef2d6-2250-4f15-92f3-82bb82ccff39.png" style=""/></div>
+<ol start="7">
+<li>Move the cursor to the entry for <span class="packt_screen">Serial port A:</span> and press <em>Enter</em>. From the popup box, select the option for <span class="packt_screen">Disabled</span> (<strong>6</strong>).</li>
+<li>Follow the same procedure to disable the options for <span class="packt_screen">Serial port B:</span>, <span class="packt_screen">Parallel port:</span>, and the <span class="packt_screen">Floppy disk controller:</span> until all of the options have been set to <span class="packt_screen">Disabled</span>. Once you have completed these configuration changes, press the <em>F10</em> key to save and exit. You will see the <span class="packt_screen">Setup Confirmation</span> box, as shown in the following screenshot:</li>
+</ol>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/d5b14624-59bb-4a30-b4d2-fcd81ca86505.png" style=""/></div>
+<ol start="9">
+<li>Confirm the configuration changes by selecting <span class="packt_screen">Yes</span> (<strong>7</strong>), and then press <em>Enter</em>. The BIOS changes are now saved, and the virtual desktop machine will be rebooted automatically.</li>
+</ol>
+<p>You have successfully configured the BIOS. The next step is to install the operating system.</p>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">Operating system installation options</h1>
+                </header>
+            
+            <article>
+                
+<p>There are a couple of options you can use to build the operating system for the virtual desktop machines. The first option is to use something such as MDT, SCCM, or VMware's own Mirage product (used for Full Clone desktops), to deploy an image you have already built for VDI, but for the example lab, we will use a different option, which is to build the image manually by using the installation media to show the different tasks you need to perform to optimize the image for VDI.</p>
+<p>This build process is no different than how you build any other virtual machine on vSphere, so we will briefly cover some of this as a quick reminder for those who are already familiar with working on the vSphere platform, and in enough detail so that those that are new to the technology can quickly get their first virtual desktop machine image built.</p>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">Installing the guest operating system</h1>
+                </header>
+            
+            <article>
+                
+<p>Since we connected an ISO image as part of the the virtual desktop machine configuration when we built it, as the virtual desktop machine starts up, the ISO image will be mounted, and the Windows 7 installation will automatically start.</p>
+<p>We are not going to cover how to install Windows 7, so carry on with a basic install, or how you want to configure the OS for the end users. Once the installation is complete, make sure you apply any Windows updates and patches and then join the virtual desktop machine to the domain.</p>
+<p class="mce-root">The reason you need to join the VDI desktop to the domain—even though this machine is effectively the template—is so that all the software components, DLL files, and so on, that are needed on the machine for it to be domain-joined are present. Otherwise, when you create the linked clones from this parent image and try to join them to the domain, the virtual desktop machines will ask for the installation media to be inserted. That's OK for one or two desktops and when testing, but not for thousands in production.</p>
+<p class="mce-root">Once you are happy that the operating system for the parent image has been patched and is joined to the domain, you can start installing some of the VMware-specific virtual machine tools and Horizon View components, starting with VMware Tools.</p>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">Installing VMware Tools</h1>
+                </header>
+            
+            <article>
+                
+<p class="mce-root">VMware Tools enhances the usability of the virtual desktop machine. It installs VMware-specific device drivers that allow it to run as a virtual desktop machine, replacing the physical hardware equivalents. The installation of VMware Tools is initiated from the vSphere Client:</p>
+<ol>
+<li>From the <span class="packt_screen">Windows 7 Gold Image</span> virtual machine and its <span class="packt_screen">Summary</span> tab, click on <span class="packt_screen">Install VMware Tools</span> (<strong>1</strong>), as follows:</li>
+</ol>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/8fc0b4e0-7548-4a5a-a12b-b5a38c33bf58.png"/></div>
+<ol start="2">
+<li>Initiating the installation from the vSphere Web Client effectively mounts the VMware Tools installation media as a virtual CD drive on the virtual desktop machine. You will see the following <span class="packt_screen">Install VMware Tools</span> dialog box pop up, as shown in the following screenshot:</li>
+</ol>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/bf9d71c4-3c53-4127-8cd1-79a93493dc14.png" style=""/></div>
+<ol start="3">
+<li>Click the <span class="packt_screen">MOUNT</span> button (<strong>2</strong>) to mount the VMware Tools installation media, and then switch back to the console of the virtual desktop machine.</li>
+</ol>
+<ol start="4">
+<li>You will now see the <span class="packt_screen">AutoPlay</span> dialog box showing that the VMware Tools DVD drive has been mounted and that the installation program is available to launch, as shown in the following screenshot:</li>
+</ol>
+<div class="mce-root CDPAlignCenter CDPAlign"><img src="assets/32fd91af-3f2b-4a96-82d9-ae89b53ba8ff.png" style=""/></div>
+<ol start="5">
+<li>Click <span class="packt_screen">Run setup64.exe</span> (<strong>3</strong>) to launch the VMware Tools installer.</li>
+<li>If you see the User Account Control box pop up warning you about making changes to the computer, ignore it by clicking on the <span class="packt_screen">Yes</span> button.</li>
+<li>You will now see the <span class="packt_screen">Welcome to the installation wizard for VMware Tools</span> <span>dialog box.</span></li>
+</ol>
+<ol start="8">
+<li>Click the <span class="packt_screen">Next &gt;</span> button to continue the installation. You will now see the <span class="packt_screen">Choose Setup Type</span> dialog box, as shown in the following screenshot:</li>
+</ol>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/b24c862c-3577-4b62-9def-2bbb9339c8ad.png" style=""/></div>
+<ol start="9">
+<li>Click the radio button for <span class="packt_screen">Custom</span> (<strong>4</strong>), and then click the <span class="packt_screen">Next &gt;</span> button to continue. You can also choose the <span class="packt_screen">Typical</span> option, which installs a standard set of drivers; however, for the purposes of this book, and to describe all the available options, we are going to look at a custom install. You will now see the <span class="ScreenTextPACKT"><span class="packt_screen">Custom</span></span> s<span class="ScreenTextPACKT">etup</span> <span>dialog box, as shown in the following screenshot:</span></li>
+</ol>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/73aa2727-e43a-4221-9d70-512a3b7c3e8e.png"/></div>
+<ol start="10">
+<li>VMware Tools will install the following VMware device drivers, depending on whether they are selected. By default, all are selected, excluding the VMCI Drivers. The drivers and their functions are described here:
+<ul>
+<li><span class="packt_screen">Paravirtual SCSI</span>: This is for PVSCSI adapters to enhance the performance of virtualized applications.</li>
+<li><span class="packt_screen">Memory Control Driver</span>: This allows memory management of the virtual desktop machine when running on an ESXi host.</li>
+<li><span class="packt_screen">PS2/USB Mouse Driver</span>: This virtual mouse driver improves the performance of the mouse in a virtual desktop machine.</li>
+<li><span class="packt_screen">SVGA Driver</span>: This enables 32-bit displays, high resolution, and faster graphics performance. It installs a virtual SVGA driver that replaces the standard VGA driver. On Windows Vista and later versions, the VMware SVGA 3D (Microsoft – WDDM) driver is also installed, adding support for Windows Aero.</li>
+<li><strong><span class="packt_screen">Audio Driver</span></strong>: This is required for all 64-bit guest operating systems, since it enables sound capabilities.</li>
+<li><span class="packt_screen">VMXNET3 NIC Driver</span>: This improves network performance and is recommended for virtual desktop machines.</li>
+<li><span class="packt_screen">Volume Shadow Copy Services</span>: This allows you to take backup copies or snapshots of the virtual desktop machine.</li>
+<li><span class="packt_screen">VMCI Driver</span>: This allows faster communication between virtual machines.</li>
+<li><span class="packt_screen">NSX File Introspection Driver</span>: This installs the agent so that you can use antivirus offload scanning.</li>
+</ul>
+</li>
+</ol>
+<ol start="11">
+<li>The other options in this dialog box are for <span class="packt_screen">Browse...</span>, which allows you to change where VMware tools are installed, and <span class="packt_screen">Disk Usage,</span> to check the disk space requirements so that you can check the amount of disk space that VMware Tools will need to install your chosen options.</li>
+<li>Click the <span class="packt_screen">Next &gt;</span> button to continue. You will now see the <span class="packt_screen">Ready to install VMware Tools</span> dialog box. Click the <span class="packt_screen">Install</span> <span>button to start the install process.</span></li>
+<li>Once completed, you will see the <span class="packt_screen">Completed the VMware Tools Setup Wizard</span> dialog box. Click on the <span class="packt_screen">Finish</span> button to complete the installation process.</li>
+<li>You will now be prompted to restart the virtual desktop machine so that you can start the VMware Tools services. From the dialog box, click the <span class="packt_screen">Yes</span> button to reboot.</li>
+<li>Once the virtual desktop machine has restarted, check that the VMware Tools services are up and running by clicking on the taskbar and checking for the VM icon (<strong>5</strong>), as shown in the following screenshot:</li>
+</ol>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/82c18ada-7386-4e2a-a900-a549b83b24e8.png" style=""/></div>
+<p style="padding-left: 60px"><span>You can also launch the <span class="packt_screen">Services</span> console from the virtual desktop machine and check that the service is running from there, as shown in the following screenshot:</span></p>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/185dc77d-ed49-4ea6-a598-c1810fb5a87d.png"/></div>
+<p>You have successfully installed VMware Tools. The next step is to install any core applications that you want to include as part of the parent image.</p>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">Installing applications for the parent image</h1>
+                </header>
+            
+            <article>
+                
+<p>The next stage is to install any applications that you want to have as part of your parent image. These are typically applications that will be used by every user in your organization. You could also deliver applications using other technologies, such as ThinApp or App Volumes, as, ideally, you would want to try to deliver applications on demand, rather than install them into operating system images, as this would make them harder to manage.</p>
+<p>In the example lab, we have installed Adobe Reader in the gold image.</p>
+<p>In the next section, we are going to install the Horizon Agent so that the virtual desktop machine is registered with the Horizon environment and the connection server.</p>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">Installing the Horizon Agent</h1>
+                </header>
+            
+            <article>
+                
+<p class="NormalPACKT"><span>The <span class="KeyWordPACKT">Horizon Agent</span> is installed on each virtual desktop machine and is used for communication between the Horizon View Client and the virtual desktop machine.</span></p>
+<p class="NormalPACKT"><span>It also adds components for things such as View Persona Management and USB redirection. We will cover these different components in more detail in this section as we install the agent on the virtual desktop machine. To install the Horizon Agent, follow these steps:</span></p>
+<ol start="1">
+<li>Open a console to the <span class="packt_screen">Windows 7 Gold Image</span> virtual desktop machine, and from the desktop, navigate to the installation file for the Horizon Agent. For simplicity, we have created a shared folder on the domain controller so that we can save all the installation media on it.</li>
+<li>Launch the <kbd>VMware-Horizon-Agent-x86_64-7.6.0-9539447</kbd> file to start the installation, and if you see the <span class="packt_screen">Open File - Security Warning</span> message, click the <span class="packt_screen">Run</span> button to continue. You will now see the <span class="packt_screen">Welcome to the Installation Wizard for VMware Horizon Agent</span> screen.</li>
+<li>Click the <span class="packt_screen">Next &gt;</span> button to continue. You will now see the <span class="packt_screen">License Agreement</span> page, as shown in the following screenshot:</li>
+</ol>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/d5d4d543-54f4-4a3d-9d74-8d3deb01d659.png" style=""/></div>
+<ol start="4">
+<li>Click on the radio button for <span class="packt_screen">I accept the terms in the license agreement</span> (<strong>1</strong>).</li>
+</ol>
+<ol start="5">
+<li>Click the <span class="packt_screen">Next &gt;</span> button to continue. You will now see the <span class="packt_screen">Network protocol configuration</span> dialog box, as shown in the following screenshot:</li>
+</ol>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/8b299d25-f1ea-4bc2-ae13-91caf13ba7ff.png"/></div>
+<ol start="6">
+<li>As this lab is using IPv4, from the options box, click it to highlight <span class="packt_screen">IPv4</span> (<strong>2</strong>), and then click the <span class="packt_screen">Next &gt;</span> button to continue. You will now see the <span class="packt_screen">Custom Setup</span> page. On the <span class="packt_screen">Custom Setup</span> page, you can choose the features and functions of the Horizon Agent that you want to install. Not all of these features are installed by default, so on this screen, <span><span>you might want to review some of them and select/deselect them from</span></span> the installation process, as you might not want to use some of the features. You can always install them again later if need be. Features that are <span>not installed by default are marked with a red</span> X. These <span><span>features are shown in the following screenshot:</span></span></li>
+</ol>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/988e9776-568a-4fc9-a138-820014042dbd.png"/></div>
+<ol start="7">
+<li>You can choose to install the following features. Note that some of the features are OS dependent and therefore may not show as available options:
+<ul>
+<li><span class="packt_screen">3D RDSH</span>: This enables hardware-based 3D rendering in RDSH sessions.</li>
+<li><span class="packt_screen">USB Redirection</span>: This allows a USB device to be plugged into the endpoint device and then redirects the USB traffic to the virtual desktop machine.</li>
+<li><span class="packt_screen">VMware Virtualization Pack for Skype for Business</span>: This a<span>llows end users to make optimized audio and video calls with Skype for Business, running inside a virtual desktop machine.</span></li>
+<li><span class="packt_screen">VMware Horizon View Composer Agent</span>: This allows the virtual desktop machine to be run as a linked-clone desktop.</li>
+<li><span class="packt_screen">Real-Time Audio-Video</span>: This allows you to redirect locally connected audio and video devices (such as USB webcams) to your virtual desktop machine.</li>
+<li><span class="packt_screen">VMware Horizon Instant Clone Agent</span><span>: This allows the virtual desktop machine to be run as an Instant Clone desktop.</span></li>
+<li><span class="packt_screen">Client Drive Redirection</span>: This allows View Clients to share local drives with remote desktops and applications (IPv4 only).</li>
+<li><span class="packt_screen">Virtual Printing</span>: This allows users to print to printers without the need to install print drivers.</li>
+<li><span class="packt_screen">vRealize Operations Manager Agent</span>: This allows the virtual desktop machine to be monitored by the vRealize Operations Manager for Horizon View.</li>
+<li><span class="packt_screen">VMware Horizon 7 Persona Management</span>: This synchronizes a user's profile from the virtual desktop machine to a repository on a central server, meaning that a profile can be delivered to a floating assigned desktop so that you can personalize it for that user so that they can access their profile.</li>
+<li><span class="packt_screen">Scanner Redirection</span>: This allows you to redirect a local scanner to the virtual desktop machine.</li>
+<li><span class="packt_screen">Smartcard Redirection</span>: This allows users to use a smart card for authentication.</li>
+<li><span class="packt_screen">Serial Port Redirection</span>: This allows users to redirect the local serial port to the virtual desktop machine.</li>
+<li><span class="packt_screen">VMware Audio</span>: This enables sound on the local device.</li>
+<li><span class="packt_screen">Flash Redirection</span>: This offloads the processing of Flash-based content to the local device.</li>
+<li><span class="packt_screen">HTML5 Multimedia Redirection</span>: This r<span>edirects HTML5 multimedia content in a Chrome or Edge browser to the client, and is used for performance optimization.</span></li>
+<li><span class="packt_screen">Device Bridge BAS Plugin</span>: This enables fingerprint readers that are supported by the BAS system.</li>
+<li><span class="packt_screen">SDO Sensor Redirection:</span> This e<span>nables the <strong>Simple Device Orientation</strong> (<strong>SDO</strong>) sensor redirection feature.</span></li>
+<li><span class="packt_screen">Geolocation Redirection</span>: This enables the redirection of the client's geolocation to the remote desktop.</li>
+<li><span class="packt_screen">Horizon Performance Tracker</span>: This enables the Horizon performance tracker. <span>This utility runs inside a remote desktop and monitors the performance of the display protocols and the system resource usage.</span></li>
+</ul>
+</li>
+</ol>
+<div class="packt_infobox"><span><span class="packt_screen">3D RDSH</span> o</span>ption is not shown but will be available when installing on an RDSH host server.</div>
+<ol start="8">
+<li>When you are happy with the features you have chosen to install, click on the <span class="packt_screen">Next &gt;</span> button to continue.</li>
+<li>On the next screen you will see the <span class="packt_screen">Remote Desktop Protocol Configuration</span> dialog box. You need remote desktop support enabled for the View Agent to work. You could always enable this using a Group Policy:</li>
+</ol>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/048babe2-0d69-43cc-a030-4418631cdc75.png"/></div>
+<ol start="10">
+<li>Click on the radio button to <span class="packt_screen">Enable the Remote Desktop capability on this computer</span> (<strong>3</strong>), as shown in the preceding screenshot.</li>
+<li>Click on the <span class="packt_screen">Next &gt;</span> button to continue.</li>
+</ol>
+<ol start="12">
+<li>You will now see the <span class="packt_screen">Register with Horizon 7 Connection Server</span> dialog box, as shown in the following screenshot:</li>
+</ol>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/50105f44-62d2-4ff0-9244-f4bacaf165f3.png"/></div>
+<ol start="13">
+<li>In the <span class="packt_screen">(hostname or IP address)</span> box (<strong>4</strong>), enter the name of the connection server you want to register this virtual desktop machine with. In the example lab, this is our first connection server, called <kbd>hzn7-cs1.pvolab.com</kbd>.</li>
+<li>In the <span class="packt_screen">Authentication</span> section, click the radio button for <span class="packt_screen">Specify administrator credentials</span> (<strong>5</strong>).</li>
+<li>In the <span class="packt_screen"><span class="underline">U</span>sername</span> section (<strong>6</strong>), enter the administrator username. In the example lab, this is <kbd>administrator</kbd>. Note that you need to enter the details in the format <span class="packt_screen">Domain\User</span>, so in our example, you would type <kbd>pvolab\administrator</kbd>.</li>
+</ol>
+<ol start="16">
+<li>Now, enter the administrator password in the <span class="packt_screen"><span class="underline">P</span>assword</span> box.</li>
+<li>Click <span class="packt_screen">Next &gt;</span> to continue. You will now see the <span class="packt_screen">Ready to Install the Program</span> screen.</li>
+<li>Click the <span class="packt_screen">Install</span> button to start the installation.</li>
+<li>Once the installation has finished, you will see the <span class="packt_screen">Installer Completed</span> <span>screen.</span></li>
+<li>Click on the <span class="packt_screen">Finish</span> button to close the installer.</li>
+</ol>
+<p>Finally, you will be prompted to reboot the virtual desktop machine. Click on the <span class="packt_screen">Yes</span> button to reboot. You will have successfully installed the Horizon Agent.</p>
+<p>In the next section, we will start optimizing the parent image to run as a virtual desktop machine.</p>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">Optimizing the guest operating system</h1>
+                </header>
+            
+            <article>
+                
+<p>There are various automated tools and manual processes to optimize the virtual desktop operating systems.</p>
+<p>Previously, the optimization process was delivered via a set of scripts that you would manually execute on the virtual desktop machine that was being used to create the gold image. However, in this chapter, we will take a look at the GUI-based <strong>VMware Optimization Tool</strong>, as this is available to download as a <strong>fling</strong>.</p>
+<div class="packt_infobox">A <em>fling</em>, in VMware terms, is a free piece of software for end users to try out and provide feedback to VMware on. Often, these products make it into production as products in their own right, or they form part of a new feature of an already existing product. The only thing to bear in mind, should you choose to use them in your production environment, is that these product flings don't have any official support; however, you will find a number of blogs that may help you with this.</div>
+<p class="mce-root"><span>Download the optimization tool and save it in the shared folder. You can download the tool from the following link:</span></p>
+<p><a href="https://labs.vmware.com/flings/vmware-os-optimization-tool">https://labs.vmware.com/flings/vmware-os-optimization-tool</a>.</p>
+<p class="mce-root"/>
+<p class="mce-root"/>
+<p>Once downloaded, we are going to run the optimization tool on the newly built Windows 7 Gold Image virtual desktop machine. Follow these steps to do so:</p>
+<ol>
+<li>From the <span class="packt_screen">Windows 7 Gold Image</span> virtual desktop machine being used to create the parent image, navigate to the shared software folder and locate the VMware OS Optimization Tool application, as shown in the following screenshot:</li>
+</ol>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/72d65f4f-1699-4c5a-a535-5ca1124b015c.png" style=""/></div>
+<ol start="2">
+<li>Launch the <kbd>VMwareOSOptimizationTool</kbd> file to launch the optimization tool. if you see the <span class="packt_screen">Open File - Security Warning</span> message, click the <span class="packt_screen">Run</span> button to continue. You will now see the tool launch, as shown in the following screenshot:</li>
+</ol>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/0ab8bb84-2930-4e1f-a940-6c311a9ce0a0.png"/></div>
+<p class="mce-root"/>
+<p class="mce-root"/>
+<ol start="3">
+<li>At the top of the screen (<strong>1</strong>), you can see the details of the virtual desktop machine's operating system and hardware configuration.</li>
+<li>The next section is <span class="packt_screen">Template</span> (<strong>2</strong>), and this is where you choose the template you want to use for the optimization. From the dropdown menu, select the relevant operating system template that you want to apply to this image. You have the ability to create new templates using this tool by clicking on the <span class="packt_screen">Template</span> tab from the list of tabs across the top of the screen.</li>
+<li>To start this process, the tool analyzes the differences between the current virtual machine state and the optimizations contained within the chosen template. Click on the <span class="packt_screen">Analyze</span> button (<strong>3</strong>) to start the process.</li>
+<li>The tool will run the analysis and then come back with a report showing the components that need to be optimized (<strong>4</strong>). At this stage, you can select or deselect options before you actually run the optimization. Scroll through the analysis results to understand what is going to be changed.</li>
+<li>When you are happy with the options, click the <span class="packt_screen">Optimize</span> button (<strong>5</strong>) to start the optimization process. The image will now be optimized as per the settings and configuration details contained within the template that you chose. The progress of the optimization is shown in the following screenshot:</li>
+</ol>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/e57f929c-4ab0-41d6-bb0f-eeb37fafa102.png" style=""/></div>
+<ol start="8">
+<li>Once the optimization process has completed, you will automatically see the Optimize tab and the results of the optimization, as shown in the following screenshot:</li>
+</ol>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/a89f9ab2-cbe1-46ec-bcb9-5e45c1a630a5.png"/></div>
+<p class="mce-root"><span>For more detailed information on how to optimize the desktop operating system for running in a virtual environment, have a look at the following link, which will take you to the VMware Windows Operating System Optimization Tool Guide:</span></p>
+<p><a href="https://www.vmware.com/content/dam/digitalmarketing/vmware/en/pdf/techpaper/vmware-view-virtual-desktops-windows-optimization.pdf">https://www.vmware.com/content/dam/digitalmarketing/vmware/en/pdf/techpaper/vmware-view-virtual-desktops-windows-optimization.pdf</a>.<a href="https://www.vmware.com/content/dam/digitalmarketing/vmware/en/pdf/techpaper/vmware-view-virtual-desktops-windows-optimization.pdf"/></p>
+<p>Once you have completed the optimization process, exit the tool. In the next section, we will look at what's next for the example lab-based virtual desktop machine.</p>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">Post-optimization tasks</h1>
+                </header>
+            
+            <article>
+                
+<p>One of the final things to do is to release the IP address if you have been using DHCP so that when the new virtual desktop machines are created from this parent image, they don't have a duplicate IP address and, therefore, will obtain a new IP address:</p>
+<ol>
+<li>Open a command prompt window by pressing the Windows key and <em>R</em>, and then in the <span class="packt_screen">Run</span> dialog box, type <kbd>cmd</kbd>.</li>
+<li>In the command prompt window that opens, type in the following command<span>:</span></li>
+</ol>
+<pre style="padding-left: 60px"><strong>ipconfig<span> /release</span></strong></pre>
+<p>Before shutting down the virtual desktop and completing the image build, there are just a few other housekeeping tasks to perform.</p>
+<p>The key one is not to forget to tidy up after yourself. For example, empty the recycle bin and delete any browser history or temporary files. Basically, delete everything that is not part of that parent image. Once you are happy that the image is optimized to your specific requirements, you can shut down the virtual desktop machine.</p>
+<p>With the image build for Windows 7 now complete, we will finalize the preparation of this image so that it's ready for delivery.</p>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">Creating a Windows 10 virtual desktop machine</h1>
+                </header>
+            
+            <article>
+                
+<p class="NormalPACKT"><span>For the example lab, we will repeat the build and optimization process to build a second parent image but, this time, we are going to build a Windows 10 virtual desktop machine.</span></p>
+<p>Once built, this Windows 10 parent image will then be used to create an Instant Clone virtual desktop machine pool.</p>
+<p>Rather than go through every step again screen by screen, we will list the steps we followed when creating the Windows 7 parent image and then just show some screenshots to highlight the differences. You can refer to the previous section to get more details.</p>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">Creating the virtual desktop machine container</h1>
+                </header>
+            
+            <article>
+                
+<p>Like with creating the previous virtual desktop machine, the first thing we need to do is build and configure the actual virtual desktop machine on the vCenter server. This will define the virtual hardware configuration. As we <span>mentioned</span> previously, the process is identical to the one we followed for Windows 7, and so we are going to cover the tasks and just highlight specific screenshots that are different:</p>
+<ol>
+<li><span>Follow the steps we described previously for the Windows 7 build up to the point where you get to</span> <span class="packt_screen">Select a name and folder,</span> <span>as shown in the following screenshot:</span></li>
+</ol>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/7584c5cd-2b91-4584-85e6-ceaa7d58f0a7.png"/></div>
+<ol start="2">
+<li>In the <span class="packt_screen">Virtual machine name</span> box (<strong>1</strong>), type in a name for the new virtual desktop machine. In the example lab, this is called <kbd>Windows 10 Gold Image</kbd>.</li>
+<li>Then, in the <span class="packt_screen">Select a location for the virtual machine</span> section, click to highlight the datacenter where you want this virtual machine to be created. In the example lab, this machine is going to be created in the datacenter called <span class="packt_screen">PVO's Datacenter</span> (<strong>2</strong>).</li>
+<li>Click the <span class="packt_screen">NEXT</span> button to continue. Continue with the steps that were described in the Windows 7 build until you get to the <strong>S</strong><span class="packt_screen">elect a guest OS</span> <span><span>screen, as shown in the following screenshot:</span></span></li>
+</ol>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/977dd26e-f51a-4c16-8933-1068076f5480.png" style=""/></div>
+<ol start="5">
+<li>The next step is to choose the operating system for the virtual desktop machine. In the example, this is the second virtual desktop machine that will be used as the gold image template for Windows 10.</li>
+<li>From the <span class="packt_screen">Guest OS Family</span> box, click the arrow for the dropdown menu (<strong>10</strong>), and select <span class="packt_screen">Windows</span>. Then, from the <span class="packt_screen">Guest OS Version</span> box, click the arrow for the dropdown menu (<strong>11</strong>) and select <span class="packt_screen">Microsoft Windows 10 (64-bit)</span>. The guest OS selection is important to get right, as it determines which drivers get installed when VMware Tools is installed on the virtual desktop machine.</li>
+<li>Click the <span class="packt_screen">NEXT</span> button to continue with the steps that were described in the Windows 7 build process until you get to the <span class="packt_screen">Select File</span> <span>screen being displayed, as shown in the following screenshot:</span></li>
+</ol>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/15ea4af5-7662-460c-8cbe-d7f70a759ba4.png" style=""/></div>
+<ol start="8">
+<li>Expand the datastore (<strong>5</strong>) and then click on the <kbd>ISO Images</kbd> folder (<strong>6</strong>). Then, click to select the OS that is going to be installed on this virtual desktop machine. In this example, we are going to install Windows 10, so click on the <span class="packt_screen">engb_windows_10_enterprise_version_1511_x64_DVD_7224923.iso</span> option (<strong>7</strong>). You may have your ISO images stored in a different location, so just follow this as a guide by using your folder locations.</li>
+<li>Click the <span class="packt_screen">OK</span> button to return to the virtual hardware screen, and then continue with the steps that were described in the Windows 7 build process.</li>
+<li>With the virtual desktop machine now built and configured, it's time to power it on and continue the build process. Navigate to the virtual desktop machine in the inventory. You should see an entry called <span class="packt_screen">Windows 10 Gold Imag</span><span class="packt_screen">e</span>.</li>
+<li>Highlight the virtual desktop machine <span class="packt_screen">Windows 10 Gold Image</span>, right-click it, and from the contextual menu now shown, click on <span class="packt_screen">Power</span> and then click on <span class="packt_screen">Power On</span>.</li>
+<li>The virtual desktop machine will now power on and boot into the BIOS setup screen, as that's what we configured to happen on the next boot. Any subsequent bootups will boot as normal into the operating system once it's installed.</li>
+</ol>
+<p>In the next section, we will make the configuration changes to the virtual desktop machine.</p>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">Completing the Windows 10 build</h1>
+                </header>
+            
+            <article>
+                
+<p><span>Like with the Windows 7 virtual desktop machine, you need to power on the newly created Windows 10 virtual desktop machine and finish the configuration. This consists of the following tasks that need to be completed:</span></p>
+<ul>
+<li>Updating the virtual desktop machine BIOS</li>
+<li>Installing the guest operating system (Windows 10)</li>
+<li>Installing VMware Tools</li>
+<li>Installing applications for the parent image</li>
+<li>Installing the Horizon Agent</li>
+<li>Optimizing the guest operating system</li>
+<li>Completing post-optimization tasks</li>
+</ul>
+<p class="mce-root"/>
+<p>Now that we have completed all the build tasks, all that remains is releasing the IP address and then clearing up any temporary files, browser history, and so on. Once we have finished doing this, power off the virtual desktop machine, which is ready for us to prepare the image as our virtual desktop machine template.</p>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">Creating a GPU-enabled virtual desktop machine</h1>
+                </header>
+            
+            <article>
+                
+<p>In this section, we are going to build a second Windows 10 virtual desktop machine, but this time for using with a dedicated hardware-based NVIDIA GPU card. As we discussed previously, there are three models for delivering high-end graphics. In the next example, we will set up a virtual desktop machine to use NVIDIA GRID vGPU.</p>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">Creating the virtual desktop machine container</h1>
+                </header>
+            
+            <article>
+                
+<p>The first step, as with the build process we covered previously for Windows 10, is to build the virtual machine itself. We will follow the steps that were previously described in this chapter to build a Windows 10 virtual desktop machine, up to the point where we configure the virtual hardware differently, as we need to add in the NVIDIA GRID vGPU at this point.</p>
+<div class="packt_infobox">At the time of writing this book, and since we are using vSphere 6.5 as the hosting platform, you will also need to use the older Flash-based vSphere client for configuring the vGPU settings.</div>
+<ol>
+<li>Follow the steps to build a Windows 10 machine as described in the previous section, <em>Creating a Windows 10 Virtual Desktop Machine</em>, until you get to the <span class="packt_screen">Customize Hardware</span> section, as shown in the following screenshot:</li>
+</ol>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/7d6eb34e-0d11-48ae-821f-2c8f9146f3e3.png" style=""/></div>
+<ol start="2">
+<li>Under the <span class="packt_screen">Virtual Hardware</span> tab, click on the dropdown arrow for <span class="packt_screen">Memory</span> (<strong>1</strong>), and check the box for <span class="packt_screen">Reserve all guest memory (All locked)</span> (<strong>2</strong>).</li>
+</ol>
+<div class="packt_tip">If you do not configure memory reservation, then the virtual desktop machine will fail to power on, as it can't guarantee that the memory will be available.</div>
+<ol start="3">
+<li>Next, at the bottom of the box, in the <span class="packt_screen">New device</span> section, click the dropdown arrow (<strong>3</strong>), and from the list of options, click on <span class="packt_screen">Shared PCI Device</span> (<strong>4</strong>), as shown in the following screenshot:</li>
+</ol>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/4c298783-640d-4ace-a91e-0f32fbaa2af6.png" style=""/></div>
+<ol start="4">
+<li>Now, click the <span class="packt_screen">Add</span> button (<strong>5</strong>) to add the new PCI device, as shown in the following screenshot:</li>
+</ol>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/46ef9960-d157-49af-8846-d320787eeae5.png" style=""/></div>
+<ol start="5">
+<li>You will now see that the <span class="packt_screen">NVIDIA GRID vGPU</span> has been added as a device (<strong>6</strong>). This device was configured for PCI pass-through when the ESXi host server was configured in <a href="a85150f1-1f32-4c91-87f0-1e8c700b9b96.xhtml" target="_blank">Chapter 4</a>, <em>Installing and Configuring Horizon 7 – Part 1</em>. This is shown in the following screenshot:</li>
+</ol>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/440f748e-c50c-452e-ba1c-ba9769a7f309.png" style=""/></div>
+<ol start="6">
+<li>If you click the down arrow on the <span class="packt_screen">GPU Profile</span> box (<strong>7</strong>), you will see a list of the supported GRID profiles you can apply to this desktop. You can select the required profile from the list, based on the graphics requirements of the virtual desktop machines, and the users that will use it:</li>
+</ol>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/8c816dea-52f0-4c2e-bc6d-85e06e6fd0d8.png" style=""/></div>
+<p>With these steps complete, you can now complete the build steps to update the BIOS settings before we move on to installing the guest operating system and optimizing it.</p>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">Installing the operating system for GPU-enabled desktops</h1>
+                </header>
+            
+            <article>
+                
+<p>In the example lab, we are going to build a Windows 10 virtual desktop machine to deliver high-end graphics. To install the operating system, follow the steps described in the <em>Installing the guest operating system</em> section under the <em>Creating a Windows 10 Virtual Desktop Machine</em> section of this chapter, but with one difference.</p>
+<div class="packt_infobox">After you have installed the Horizon Agent, you need to install the NVIDIA drivers on the virtual desktop machine. The drivers can be downloaded from the following link: <a href="https://www.nvidia.com/Download/index.aspx?lang=en-us">https://www.nvidia.com/Download/index.aspx?lang=en-us</a>.</div>
+<p>From here, you can select the correct graphics card for your needs, as shown in the following screenshot:</p>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/6cb0c92c-5998-437a-a2be-70a1028ef2c6.png"/></div>
+<div class="packt_tip">One thing to note is that when you install the NVIDIA driver software, make sure that you select all the components to be installed and don't use the express option. Express will miss out some of the key components that need to be run in a virtual desktop machine.</div>
+<p>Once you have the drivers installed, completed the operating system setup by installing any additional applications, and then performed the optimization steps, it's probably worth checking that the graphics card has been installed correctly. Do this by checking the device manager of the virtual desktop machine, as shown in the following screenshot:</p>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/6a7e7cb9-1655-45aa-9fae-f6d3015b558f.png" style=""/></div>
+<p>You should now have a GPU-enabled virtual desktop image ready to be prepared for delivery to end users.</p>
+<p class="mce-root"/>
+<p class="mce-root"/>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">Completing the GPU-enabled desktop build</h1>
+                </header>
+            
+            <article>
+                
+<p>With the operating system now built and the NVIDIA components installed, you can follow the remaining tasks to complete the build. These are all covered in the previous section and are listed as follows:</p>
+<ul>
+<li>Installing VMware Tools</li>
+<li>Installing applications for the parent image</li>
+<li>Installing the Horizon View Agent</li>
+<li>Optimizing the guest operating system</li>
+<li>Post-optimization tasks</li>
+</ul>
+<p>Once these tasks are complete, you will now have three virtual desktop machines built to use as the parent image, ready to create new virtual desktop machines to deliver to your end users.</p>
+<p>Before we look at the final preparation steps, we are going to create one final virtual desktop machine, this time using a Linux-based operating system.</p>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">Creating a Linux virtual desktop machine</h1>
+                </header>
+            
+            <article>
+                
+<p>The final virtual desktop that we are going to build is for a Linux operating system, and for this example, CentOS is going to be the Linux distribution that is used.</p>
+<p>The process is almost the same as for installing a Windows-based operating system; however, there are some differences when it comes to installing the Horizon Agent. The process starts with creating the virtual desktop machine itself.</p>
+<p>Like with creating the previous virtual desktop machine, the first thing we need to do is build and configure the actual virtual desktop machine on the vCenter server. This will define the virtual hardware configuration.</p>
+<p>As we <span>mentioned</span> previously, the process is identical to the one we followed for Windows 7 and Windows 10, and so we are going to cover the tasks and just highlight specific screenshots that are different:</p>
+<ol>
+<li><span>Follow the steps we described previously for the Windows 7 build, up to the point where you get to</span> <span class="packt_screen">Select a name and folder,</span> <span>as shown in the following screenshot:</span></li>
+</ol>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/e3a18c75-bbd0-468e-b204-84431cd23f5d.png"/></div>
+<ol start="2">
+<li>In the <span class="packt_screen">Virtual machine name</span> box (<strong>1</strong>), type in a name for the new virtual desktop machine. In the example lab, this is called <kbd>CentOS Linux Desktop</kbd>.</li>
+<li>Then, in the <span class="packt_screen">Select a location for the virtual machine</span> section, click to highlight the datacenter where you want this virtual machine to be created. In the example lab, this machine is going to be created in the datacenter called <span class="packt_screen">PVO's Datacenter</span> (<strong>2</strong>).</li>
+<li>Click the <span class="packt_screen">NEXT</span> button to continue with the build process, as described in the Windows 7 build, until you get to the <strong>S</strong><span class="packt_screen"><strong>elect a guest OS</strong></span> <span>screen, as shown in the following screenshot:</span></li>
+</ol>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/409dc135-6349-4338-b99a-d9a09db8e712.png"/></div>
+<p class="mce-root"/>
+<p class="mce-root"/>
+<ol start="5">
+<li>The next step is to choose the operating system for the virtual desktop machine. In the example, this is the second virtual desktop machine that will be used as the gold image template for Windows 10.</li>
+<li>From the <span class="packt_screen">Guest OS Family</span> box, click the arrow for the dropdown menu (<strong>10</strong>) and select <span class="packt_screen">Linux</span>. Then, from the <span class="packt_screen">Guest OS Version</span> box, click the arrow for the dropdown menu (<strong>11</strong>) and select <span class="packt_screen">CentOS 7 (64-bit)</span>. The guest OS selection is important to get right as it determines which drivers get installed when VMware Tools is installed on the virtual desktop.</li>
+<li>Click the <span class="packt_screen">NEXT</span> button to continue <span>with the build, process as described in the Windows 7 build, until you get to</span> the <span class="packt_screen">Select File</span> <span>screen, as shown in the following screenshot:</span></li>
+</ol>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/f8312a4e-62b9-4693-986a-ff15f2750900.png"/></div>
+<ol start="8">
+<li>Expand the <span class="packt_screen">datastore1</span> (<strong>5</strong>), and then click on the <kbd>ISO Images</kbd> folder (<strong>6</strong>). Then, click to select the OS that is going to be installed on this virtual desktop machine. In this example, we are going to install Windows 10, so click on the <span class="packt_screen">CentOS-7-x86_64-DVD-1511.iso</span> option (<strong>7</strong>). You may have your ISO images stored in a different location, so just follow this as a guide while using your folder locations.</li>
+</ol>
+<ol start="9">
+<li>Click the <span class="packt_screen">OK</span> button to return to the virtual hardware screen and continue with the build process, as we described previously. With the virtual desktop machine now built and configured, it's time to power it on and continue the build process. Navigate to the virtual desktop machine in the inventory. You should see an entry called <span class="packt_screen">CentOS Linux Desktop</span><span>.</span></li>
+<li>Highlight the virtual desktop machine called <span class="packt_screen">CentOS Linux Desktop</span>, right-click it, and from the contextual menu that's now shown, click on <span class="packt_screen">Power</span> and then click on <span class="packt_screen">Power On</span>.</li>
+<li>The virtual desktop machine will now power on and boot into the BIOS setup screen, as that's what we configured to happen on the next boot. Any subsequent bootups will boot as normal into the operating system once it's installed.</li>
+</ol>
+<p>In the next section, we will make the configuration changes to the virtual desktop machines.</p>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">Completing the Linux virtual desktop build</h1>
+                </header>
+            
+            <article>
+                
+<p><span>Like with the Windows 7 and Windows 10 virtual desktop machine, you need to power on the newly created Linux virtual desktop machine and finish the configuration. This consists of the following tasks:</span></p>
+<ul>
+<li>Updating the virtual desktop machine BIOS</li>
+<li>Installing the guest operating system (Windows 10)</li>
+<li>Installing VMware Tools</li>
+<li>Installing applications for the parent image</li>
+<li>Installing the Horizon Agent (see the following)</li>
+<li>Optimizing the guest operating system</li>
+<li>Completing post-optimization tasks</li>
+</ul>
+<p class="mce-root"><span>Now that we have completed all the build tasks, all that remains is releasing the IP address and then clearing up any temporary files, browser history, and so on. Once we have finished these, power off the virtual desktop machine, which is ready so that we can prepare the image as our virtual desktop machine template.</span></p>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">Installing the Horizon Agent</h1>
+                </header>
+            
+            <article>
+                
+<p>Now, we can install the Horizon View Agent. The installation process is a little different than previous installations, as this is a Linux-based operating system:</p>
+<ol>
+<li>You can either download the Horizon Agent for the Linux installer from the VMware download website by using the Linux desktop or from the example lab since the installer was copied onto the Linux desktop using WinSCP.</li>
+<li>The <kbd>.tar</kbd> file called <kbd>VMware-horizonagent-linux-x86_64-7.0.0-3617131.tar.gz</kbd> (<strong>1</strong>) is copied and then extracted to get the installer, as shown in the following screenshot:</li>
+</ol>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/1c07e942-5ea5-4e1c-8663-a603e7f9f11d.png"/></div>
+<ol start="3">
+<li>With the software extracted, the next task is to run the installer script.</li>
+</ol>
+<ol start="4">
+<li>From the desktop of the Linux virtual desktop, open a Terminal session by clicking <span class="packt_screen">Applications</span> (<strong>3</strong>), <span class="packt_screen">Favourites</span> (<strong>4</strong>), and then <span class="packt_screen">Terminal</span> (<strong>5</strong>), as shown in the following screenshot:</li>
+</ol>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/6048c9f4-142e-4457-b486-a6f5f034ced8.png" style=""/></div>
+<ol start="5">
+<li>Once you have an open terminal session, change to the directory of where the VMware Agent software was extracted to, as shown in the following screenshot:</li>
+</ol>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/bd9d0c5a-7103-4a8c-9e78-c1714981f040.png" style=""/></div>
+<ol start="6">
+<li>Next, launch the installer script using the following syntax and options:</li>
+</ol>
+<pre style="padding-left: 90px">./install_viewagent.sh -b hzn7-cs1.pvolab.com -d pvolab.com -u administrator -p xxxxxxxx</pre>
+<ol start="7">
+<li>The switch options are as follows:
+<ul>
+<li><kbd>-b</kbd>: The fully qualified name of the connection server for the agent to register with</li>
+<li><kbd>-d:</kbd> The name of your domain</li>
+<li><kbd>-u</kbd>: The username of the account that has privileges to register with the connection server</li>
+<li><kbd>-p</kbd>: The password for the account</li>
+</ul>
+</li>
+<li>When the installer script launches, you will first see the EULA message. At the bottom of the screen, you will see the <kbd>Are you sure you want to install linux agent y/n?</kbd> prompt, as shown in the following screenshot:</li>
+</ol>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/d56af974-cc4a-4d97-b511-843228b1cdbc.png" style=""/></div>
+<ol start="9">
+<li><span>Type</span> <em>Y</em> <span>and then press</span> <em>Enter</em>. Once completed, you will see the following screenshot:</li>
+</ol>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/5ba4dcfd-c4d9-40d2-83de-ba797f6de012.png" style=""/></div>
+<p class="NormalPACKT"><span>The Horizon Agent for Linux has now been successfully installed. Restart the virtual desktop machine to complete the installation.</span></p>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">Optimizing the guest operating system</h1>
+                </header>
+            
+            <article>
+                
+<p>Unlike Windows-based operating systems, there is no automated optimization tool available; however, you should still look at optimizing the image by switching off any tasks or applications that take up unnecessary resources, such as disk I/O or CPU cycles. You also need to ensure that you configure the operating system to work with the Active Directory authentication.</p>
+<p>With the desktop images now built, we can now prepare them so that we can deliver them to the end users.</p>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">Preparing virtual desktops for delivery</h1>
+                </header>
+            
+            <article>
+                
+<p>Now that we have our fully optimized virtual desktop machine parent images that can be used by Horizon View, the next stage of the process is to prepare them for delivery to the end users.</p>
+<p>There are two different ways in which a desktop needs to be prepared, depending on whether you are using a Full Clone desktop or a Linked/Instant Clone desktop. Full Clones will use a VM template to create virtual desktop machines, while Linked/Instant Clones will use a snapshot <span>to create</span> virtual <span>desktop machines.</span></p>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">Pool design – a quick overview</h1>
+                </header>
+            
+            <article>
+                
+<p>We will cover creating desktop pools in more detail in <a href="d44c9a7b-bcae-4758-a857-197be388a4be.xhtml" target="_blank">Chapter 8</a>, <em><span>Configuring and Managing Desktop Pools – Part 1</span></em>, but, for now, let's just have a quick overview of the basics around pool design and where the images that we created in this chapter are going to be used.</p>
+<p>You will typically have a desktop pool for each type of virtual desktop machine you want to deliver, probably categorized by use case or department. In this chapter, we have built several different types of virtual desktop machines that will be used in the following desktop pools:</p>
+<ul>
+<li><strong>Windows 7</strong>: This is to be used as a non-persistent, linked clone-built desktop</li>
+<li><strong>Windows 10</strong>: This is to be used as a dedicated full clone with a hardware-enabled GPU</li>
+<li><strong>Windows 10</strong>: This is to be used as a non-persistent instant clone-built desktop</li>
+<li><strong>CentOS 7:</strong> This is to be used as a persistent Linux desktop</li>
+</ul>
+<p>As we have Linked Clone, Full Clone, and Instant Clone desktops, the preparation method for each is different. We will cover this in the following sections.</p>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">Creating a snapshot for linked clones</h1>
+                </header>
+            
+            <article>
+                
+<p>The first virtual desktop machine we are going to prepare for delivery is for the Windows 7 non-persistent, linked clone virtual desktop machine. To prepare this image for delivery, we will need to take a snapshot of the virtual desktop machine using vCenter and the vSphere web client. Once you have taken the snapshot, it can then be used by the <span class="packt_screen">View Administrator</span> to create a new desktop pool for virtual desktop machines, which is built using Linked Clones. It will be used to create the replica in View Composer:</p>
+<ol>
+<li>To create the snapshot, log into the vSphere Web Client and navigate to the <span class="packt_screen">Windows 7 Gold Image</span> virtual desktop machine (<strong>1)</strong>, ensuring that it's powered off before you do this.</li>
+<li>Click on the virtual desktop machine to highlight it, right-click it, and from the menu that pops up, click on <span class="packt_screen">Snapshots</span> (<strong>2</strong>), and then select the option for <span class="packt_screen">Take Snapshot…</span> (<strong>3</strong>), as shown in the following screenshot:</li>
+</ol>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/6b0049d8-ecc1-444f-84d7-fa0beabfeaf4.png"/></div>
+<ol start="3">
+<li>You will now see the <span class="packt_screen">Take VM Snapshot for Windows 7 Gold Image</span> dialog box, as shown in the following screenshot:</li>
+</ol>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/ec4202c0-a47e-4aa3-96b8-fd2444172cde.png"/></div>
+<ol start="4">
+<li>Type in a name for this snapshot in the <span class="packt_screen">Name</span> box (<strong>4</strong>). In the example lab, we have called this <span class="packt_screen">Windows 7 Gold Image</span>. It's a best practice to call it something that you easily recognize, as you will search for this snapshot in the View administrator when configuring desktop pools. In the <span class="packt_screen">Description</span> box (<strong>5</strong>), type in a description to describe the purpose of the snapshot in more detail.</li>
+</ol>
+<ol start="5">
+<li>Click the <span class="packt_screen">OK</span> button when you are ready to create the snapshot.</li>
+<li>To check that the snapshot has been taken, navigate to the snapshot manager.</li>
+<li>To do this, from the vSphere Web Client, highlight the <span class="packt_screen">Windows 7 Gold Image</span> virtual desktop machine (<strong>6</strong>). Right-click it, and from the menu that pops ups, click on <span class="packt_screen">Snapshots</span> (<strong>7</strong>), and then select the option for <span class="packt_screen">Manage Snapshots</span> (<strong>8</strong>), as shown in the following screenshot:</li>
+</ol>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/33acff0b-af1e-4f70-a5ec-6ca56a1898f1.png"/></div>
+<ol start="8">
+<li>You will now see the <span class="packt_screen">Manage Snapshots</span> for the <span class="packt_screen">Windows 7 Gold Image</span> dialog box, where you will be able to see the snapshot that was just taken, as shown in the following screenshot:</li>
+</ol>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/f06a6f65-99fa-470d-9911-c9acb35ea181.png"/></div>
+<ol start="9">
+<li>You will also be able to see how many snapshots have been taken and also when they were created. This will help with version control of your parent images.</li>
+<li>Click on <span class="packt_screen">DONE</span> to close the <span class="packt_screen">Manage Snapshots</span> screen.</li>
+</ol>
+<p>You have now successfully taken a snapshot that can be used as the base image for all virtual desktop machines that are created from it. We will see how this snapshot is used to deliver the linked clone virtual desktop machines in <a href="d44c9a7b-bcae-4758-a857-197be388a4be.xhtml" target="_blank">Chapter 8</a>, <em><span>Configuring and Managing Desktop Pools – Part 1</span></em>.</p>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">Creating a snapshot for instant clones</h1>
+                </header>
+            
+            <article>
+                
+<p class="NormalPACKT"><span>The next image to prepare for delivery is the Windows 10 image. As this is going to be used with an Instant Clone desktop pool, then the base image again starts off life as a snapshot of the parent image.</span></p>
+<p class="NormalPACKT"><span>To create the snapshot, follow the process as we described in the previous section to create a new snapshot, but this time use the <span class="ScreenTextPACKT">Windows 10 Gold Image</span> virtual desktop machine to create the snapshot.</span></p>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">Creating a template for full clones</h1>
+                </header>
+            
+            <article>
+                
+<p>For the second Windows 10 virtual desktop machine (with GPU-enabled), and the CentOS Linux virtual desktop machines, we are going to create persistent full clone virtual desktop machines. To do this, we are going to follow the tasks that were described in this section.</p>
+<p>To use these virtual desktop machines as parent virtual desktop machines for full clone virtual desktops, you will first need to convert them into a virtual machine template or use the clone-to- template feature using vCenter and the vSphere Client.</p>
+<p>Once that's completed, you can then use View Administrator to create new desktop pools (one for Linux and one for Windows 7 GPU), based on the virtual desktop machines, using these templates for each desktop pool.</p>
+<p>In the example lab, we will use the Windows 7 image. The process for creating the Linux virtual desktop machine is exactly the same, so repeat these instructions to create the template for that particular operating system. However, the pool configuration will be different for each one, as we will see in <a href="d44c9a7b-bcae-4758-a857-197be388a4be.xhtml">Chapter 8</a>, <em>Configuring and Managing Desktop Pools - Part 1</em>:</p>
+<ol>
+<li>To create the snapshot, log into the vSphere Web Client and navigate to the <span class="packt_screen">Windows 10 Gold Image</span> virtual desktop machine (<strong>1</strong>), ensuring that it's powered off.</li>
+</ol>
+<ol start="2">
+<li>Click on the virtual desktop machine to highlight it, right-click it, and from the menu that pops ups, click on <span class="packt_screen">Clone</span> (<strong>2</strong>), and then select the option for <span class="packt_screen">Clone to Template…</span> (<strong>3</strong>), as shown in the following screenshot:</li>
+</ol>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/70f36549-cc27-4f88-b754-4deb984329ea.png"/></div>
+<ol start="3">
+<li>You will now see the <span class="packt_screen">Windows 10 Gold Image – Clone Virtual Machine to Template</span> configuration dialog box.</li>
+<li>In the <span class="packt_screen">VM template name</span> box (<strong>4</strong>), type in a name for the template. In the example lab, this is called <span class="packt_screen">Windows 10 Gold Image Template</span>.</li>
+</ol>
+<ol start="5">
+<li>Then, in the <span class="packt_screen">Select a location for the template</span> section, click to highlight the datacenter where you want this virtual machine to be created (<strong>6</strong>). In the example lab, this machine is going to be created in the datacenter called <span class="packt_screen">PVO's Datacenter,</span> as shown in the following screenshot:</li>
+</ol>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/29de83ab-2701-4079-a755-dc2341a779a6.png"/></div>
+<ol start="6">
+<li>Click the <span class="packt_screen">NEXT</span> button to continue.</li>
+<li>You will now see the <span class="packt_screen">Select a compute resource</span> screen. Expand the datacenter called <span class="packt_screen">PVO's Datacenter</span> and then click on the ESXi host server you want to host this template on. In the example lab, <kbd>esx-1.pvolab.com</kbd> is going to be the host server.</li>
+<li>Click the <span class="packt_screen">NEXT</span> button to continue.</li>
+<li>You will now see the <span class="packt_screen">Select storage</span> screen. Select the datastore where this template will be stored. In the example lab, the template is stored on <span class="packt_screen">VM Datastore</span>.</li>
+<li>Click the <span class="packt_screen">NEXT</span> button to continue. You will now see the <span class="packt_screen">Ready to complete</span> screen.</li>
+<li>Click the <span class="packt_screen">FINISH</span> button to complete the configuration and create the virtual desktop machine template for Windows 10.</li>
+</ol>
+<p>You have successfully created a template that can be used as the parent image to create a new virtual desktop machine. Repeat the same process and create a template for the Linux desktop virtual machine, and call the template <span class="packt_screen">CentOS Linux Desktop Template</span>. Once completed, if you navigate to the VMs and templates view in vCenter, you will see the following:</p>
+<p class="mce-root"/>
+<p class="mce-root"/>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/ebaba054-2cb8-4f3a-9fde-f4a53a19b5d5.png" style=""/></div>
+<p>We will use these templates in <a href="d44c9a7b-bcae-4758-a857-197be388a4be.xhtml" target="_blank">Chapter 8</a>, <span><em>Configuring and Managing Desktop Pools – Part 1</em>,</span> when we create the desktop pools.</p>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">Summary</h1>
+                </header>
+            
+            <article>
+                
+<p>In this chapter, we have built several virtual desktop machine images that will act as the parent images from which all the virtual desktop machines in the environment will be created from.</p>
+<p>To build and configure the virtual desktop machines, we outlined and followed a process. This process is started by creating the virtual hardware containers, installing the guest operating systems, installing the Horizon-specific components, optimizing them to run as Horizon virtual desktop machines, and then finally preparing them by creating either templates or snapshots that are ready to be used to create virtual desktop machines that are going to be delivered to the end users.</p>
+<p>In the next chapter, we are going to start looking at how to configure and manage desktop pools.</p>
+
+
+            </article>
+
+            
+        </section>
+    </body></html>

@@ -1,0 +1,808 @@
+<html><head></head><body>
+        <section>
+
+                            <header>
+                    <h1 class="header-title">Conditions Attached</h1>
+                </header>
+            
+            <article>
+                
+<p> </p>
+<p>Now you can make your scripts more interactive using the <kbd>read</kbd> command, and you know how to read parameters and options to lighten your inputs.</p>
+<p>We can say that we are now into the fine print of the script. These are the details that are written into our scripts using conditions to test if a statement should run or not. We are now ready to add some intelligence into our scripts, so our scripts become more robust, easier to use, and more reliable. Conditional statements can be written with simple command-line lists of <kbd>AND</kbd> or <kbd>OR</kbd> commands together, or, more often, within traditional <kbd>if</kbd> statements.</p>
+<p>In this chapter, we will cover the following topics:</p>
+<ul>
+<li>Simple decision paths using command-line lists</li>
+<li>Verifying user input with lists</li>
+<li>Using the test shell built-in</li>
+<li>Creating conditional statements using <kbd>if</kbd></li>
+<li>Extending <kbd>if</kbd> with <kbd>else</kbd></li>
+<li>Using the <kbd>test</kbd> command with the <kbd>if</kbd> command</li>
+<li>More conditions with <kbd>elif</kbd></li>
+<li>Using case statements</li>
+<li>Recipe-frontend with <kbd>grep</kbd></li>
+</ul>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">Technical requirements</h1>
+                </header>
+            
+            <article>
+                
+<p>The source code for this chapter can be downloaded from here:</p>
+<p><a href="https://github.com/PacktPublishing/Mastering-Linux-Shell-Scripting-Second-Edition/tree/master/Chapter03">https://github.com/PacktPublishing/Mastering-Linux-Shell-Scripting-Second-Edition/tree/master/Chapter03</a></p>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">Simple decision paths using command-line lists</h1>
+                </header>
+            
+            <article>
+                
+<p>We have used command-line lists (<kbd>||</kbd> and <kbd>&amp;&amp;</kbd>), both in <a href="f439f212-0f5f-4c9d-abdb-9f9b8c199a78.xhtml" target="_blank"><span class="ChapterrefPACKT">Chapter 1</span></a>, <em>The What and Why of Scripting with Bash</em>, and in some of the scripts found in <a href="10a24eea-2218-44cc-a019-e01ee63ad77c.xhtml" target="_blank"><span class="ChapterrefPACKT">Chapter 2</span></a>, <em>Creating Interactive Scripts</em>. Lists are one of the simplest conditional statements that we can create, and so we thought that it was appropriate to use them in the earlier examples before fully explaining them here.</p>
+<p>Command-line lists are two or more statements that are joined using either the <kbd>AND</kbd> or <kbd>OR</kbd> notations:</p>
+<ul>
+<li><kbd>&amp;&amp;</kbd>: <kbd>AND</kbd></li>
+<li><kbd>||</kbd>: <kbd>OR</kbd></li>
+</ul>
+<p>Where the two statements are joined using the <kbd>AND</kbd> notation, the second command only runs if the first command succeeds. Whereas, with the <kbd>OR</kbd> notation, the second command will run only if the first command fails.</p>
+<p>The decision on the success or failure of a command is taken by reading the exit code from the application. A zero represents a successful application completion and anything other than a zero represents a failure. We can test the success or failure of an application by reading the exit status by means of the system variables <kbd>$?</kbd>. This is shown in the following example:</p>
+<pre><strong>$ echo $?</strong> </pre>
+<p>If we need to ensure that a script is run from a user's home directory, we can build this into the script's logic. This can be tested from the command line, and it does not have to be in a script. Consider the following command-line example:</p>
+<pre><strong>$ test $PWD == $HOME || cd $HOME</strong>  </pre>
+<p>The double vertical bars denote an <kbd>OR</kbd> Boolean. This ensures that the second statement is only executed when the first statement is not true. In simple terms, if we are not currently in the home directory, we will be by the end of the command-line list. We will see more on the <kbd>test</kbd> command soon.</p>
+<p>We can build this into almost any command that we want and not just test. For example, we can query to see if a user is logged into the system, and if they are, then we can use the <kbd>write</kbd> command to directly message their console. Similar to before, we can test this in the command line prior to adding it to the script. This is shown in the following command-line example:</p>
+<pre><strong>$ who | grep pi &gt; /dev/null 2&gt;&amp;1 &amp;&amp; write pi &lt; message.txt</strong> </pre>
+<p>Note that you should change the user <kbd>pi</kbd> to your username.</p>
+<p>If we use this in a script, it is almost certain that we will replace the username with a variable. In general, if we need to refer to the same value more than once, then using a variable is a good idea. In this case, we are searching for the <kbd>pi</kbd> user.</p>
+<p>When we break the command-line list down, we first use the <kbd>who</kbd> command to list the users who are logged on. We pipe the list to <kbd>grep</kbd> to search for the desired username. We are not interested in the output from the search, just its success or failure. Bearing this in mind, we redirect all our output to <kbd>/dev/null</kbd>. The double ampersand indicates that the second statement in the list runs only if the first returns true. If the <kbd>pi</kbd> user is logged on, we use <kbd>write</kbd> to message the user. The following screenshot illustrates this command and the output:</p>
+<div class="packt_figure CDPAlignCenter CDPAlign"><img src="assets/0889d658-e55d-450c-8eb6-d2a47ddcaa43.png" style="width:45.92em;height:9.92em;"/></div>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">Verifying user input with lists</h1>
+                </header>
+            
+            <article>
+                
+<p>In this script, we will ensure that a value has been supplied to the first positional parameter. We can modify the <kbd>hello2.sh</kbd> script that we created in <a href="f439f212-0f5f-4c9d-abdb-9f9b8c199a78.xhtml" target="_blank"><span class="ChapterrefPACKT">Chapter 1</span></a>, <em>The What and Why of Scripting with Bash</em>, to check for user input before displaying the <kbd>hello</kbd> text.</p>
+<p>You can copy the <kbd>hello2.sh</kbd> script to <kbd>hello4.sh</kbd>, or simply create a new script from scratch. There will not be a lot of typing and the script will be created as <kbd>$HOME/bin/hello4.sh</kbd>, as shown:</p>
+<div class="packt_figure CDPAlignCenter CDPAlign"><img src="assets/77473c24-d9fd-4e35-a31c-6cf514493b5e.png" style="width:28.17em;height:5.50em;"/></div>
+<p>We can ensure that the script is executable by using the following command:</p>
+<pre><strong>$ chmod +x $HOME/bin/hello4.sh</strong>  </pre>
+<p>We can then run the script with or without arguments. The <kbd>test</kbd> statement is looking for the <kbd>$1</kbd> variable to be zero bytes. If it is, then we will not see the <kbd>hello</kbd> statement; otherwise, it will print the <kbd>hello</kbd> message. In simple terms, we will see the <kbd>hello</kbd> message if we supply a name.</p>
+<p>The following screenshot shows the output that you will see when you do not supply a parameter to the script, followed by the supplied parameter:</p>
+<div class="packt_figure CDPAlignCenter CDPAlign"><img src="assets/e94c738c-682b-47ca-8375-ac40a123dd45.png" style="width:18.67em;height:7.67em;"/></div>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">Using the test shell built-in</h1>
+                </header>
+            
+            <article>
+                
+<p>It is probably time for us to pull over to the side of the scripting highway and look a little more at the command <kbd>test</kbd>. This is both a shell built-in and a file executable in its own right. Of course, we will have to hit the built-in command first, unless we specify the full path to the file.</p>
+<p>When the <kbd>test</kbd> command is run without any expressions to evaluate, then the test will return false. So, if we run the <kbd>test</kbd> as shown in the following command, the exit status will be <kbd>1</kbd>, even though no error output is shown:</p>
+<pre><strong>$ test</strong>  </pre>
+<p>The <kbd>test</kbd> command will always return either <kbd>True</kbd> or <kbd>False</kbd>, or <kbd>0</kbd> or <kbd>1</kbd>, respectively. The basic syntax of <kbd>test</kbd> is as follows:</p>
+<pre><strong>test EXPRESSION</strong>  </pre>
+<p>Or, we can invert the <kbd>test</kbd> command with this:</p>
+<pre><strong>test ! EXPRESSION</strong>  </pre>
+<p>If we need to include multiple expressions, this can be done using <kbd>AND</kbd> or <kbd>OR</kbd> together, using the <kbd>-a</kbd> and <kbd>-o</kbd> options, respectively:</p>
+<pre><strong>test EXPRESSION -a EXPRESSION</strong>
+<strong>test EXPRESSION -o EXPRESSION</strong> </pre>
+<p>We can also write this as a shorthand version, replacing the <kbd>test</kbd> with square brackets to surround the expression, as shown in the following example:</p>
+<pre><strong>[ EXPRESSION ]</strong>  </pre>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">Testing strings</h1>
+                </header>
+            
+            <article>
+                
+<p>We can test for the equality or inequality of two strings. For example, one of the ways to test the root user is using the following command:</p>
+<pre><strong>test $USER = root</strong>  </pre>
+<p>We could also write this using the square bracket notation:</p>
+<pre><strong>[ $USER = root ]</strong>  </pre>
+<p>Note that you must put a space between each bracket and the inner testing condition as previously shown.</p>
+<p>Equally, we could test for a non-root account with the following two methods:</p>
+<pre><strong>test ! $USER = root</strong>
+<strong>[ ! $USER = root ]</strong> </pre>
+<p>We can also test for the zero values or non-zero values of strings. We saw this in an earlier example in this chapter.</p>
+<p>To test if a string has a value, we can use the <kbd>-n</kbd> option. We can check to see if the current connection is made through SSH by checking for the existence of a variable in the user's environment. We do this by using <kbd>test</kbd> and square brackets in the following two examples:</p>
+<pre><strong>test -n $SSH_TTY</strong>
+<strong>[ -n $SSH_TTY ]</strong>  </pre>
+<p>If this is true, then the connection is made with SSH; if it is false, then the connection is not through SSH.</p>
+<p>As we saw earlier, testing for a zero string value is useful when deciding if a variable is set:</p>
+<pre><strong>test -z $1</strong> </pre>
+<p>Or, more simply, we could use the following:</p>
+<pre><strong>[ -z $1 ]</strong>  </pre>
+<p>A true result for this query means that no input parameters have been supplied to the script.</p>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">Testing integers</h1>
+                </header>
+            
+            <article>
+                
+<p>As well as testing string values of bash scripts, we can test for integer values and whole numbers. Another way of testing the input of a script is to count the numbers of positional parameters and also test if the number is above <kbd>0</kbd>:</p>
+<pre>test $# -gt 0 </pre>
+<p>Or using the brackets, as follows:</p>
+<pre>[ $# -gt 0 ] </pre>
+<p>When in a relationship, the top positional parameters of the <kbd>$#</kbd> variable represent the number of parameters passed to the script.</p>
+<p>There are many tests that can be done for numbers:</p>
+<ul>
+<li><kbd>number1 -eq number2</kbd>: This checks if <kbd>number1</kbd> is equal to <kbd>number2</kbd></li>
+<li><kbd>number1 -ge number2</kbd><span>: This checks if <kbd>number1</kbd> is greater than or equal to <kbd>number2</kbd>.</span></li>
+</ul>
+<ul>
+<li><kbd>number1 -gt number2</kbd><span>: This checks if <kbd>number1</kbd> is greater than <kbd>number2</kbd></span></li>
+<li><kbd>number1 -le number2</kbd><span>: This checks if <kbd>number1</kbd> is smaller than or equal to <kbd>number2</kbd></span></li>
+<li><kbd>number1 -lt number2</kbd><span>: This checks if <kbd>number1</kbd> is smaller than <kbd>number2</kbd></span></li>
+<li><kbd>number1 -ne number2</kbd><span>: This checks if <kbd>number1</kbd> is not equal to <kbd>number2</kbd></span></li>
+</ul>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">Testing file types</h1>
+                </header>
+            
+            <article>
+                
+<p>While testing for values, we can test for the existence of a file or file type. For example, we may only want to delete a file if it is a symbolic link. We use this while compiling a kernel. The <kbd>/usr/src/linux</kbd> directory should be a symbolic link to the latest kernel source code. If we download a newer version before compiling the new kernel, we need to delete the existing link and create a new link. Just in case someone has created the <kbd>/usr/src/linux</kbd> directory, we can test if it has a link before removing it:</p>
+<pre><strong># [ -h /usr/src/linux ] &amp;&amp;rm /usr/src/linux</strong>  </pre>
+<p>The <kbd>-h</kbd> option tests that the file has a link. Other options include the following:</p>
+<ul>
+<li><kbd>-d</kbd>: This shows that it's a directory</li>
+<li><kbd>-e</kbd>: This shows that the file exists in any form</li>
+<li><kbd>-x</kbd>: This shows that the file is executable</li>
+<li><kbd>-f</kbd>: This shows that the file is a regular file</li>
+<li><kbd>-r</kbd>: This shows that the file is readable</li>
+<li><kbd>-p</kbd>: This shows that the file is a named pipe</li>
+<li><kbd>-b</kbd>: This shows that the file is a block device</li>
+<li><kbd>file1 -nt file2</kbd>: This checks if <kbd>file1</kbd> is newer than <kbd>file2</kbd></li>
+<li><kbd>file1 -ot file2</kbd>: This checks if <kbd>file1</kbd> is older than <kbd>file2</kbd></li>
+<li><kbd>-O file</kbd>: This checks if the logged-in user is the owner of the file</li>
+<li><kbd>-c</kbd>: This shows that the file is a character device</li>
+</ul>
+<p>More options do exist, so delve into the main pages as you need to. We will use different options throughout the book, and thus giving you practical and useful examples.</p>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">Creating conditional statements using if</h1>
+                </header>
+            
+            <article>
+                
+<p>As we have seen so far, it is possible to build simple conditions using command-line lists. These conditional statements can be written both with and without a test. As the complexity of the tasks increases, it becomes easier to create statements using <kbd>if</kbd>. This will certainly ease both the readability of the script and the logic layout. To a degree, it also matches the way in which we think and speak; <kbd>if</kbd> is a semantic in our spoken language in the same way it is within the bash script.</p>
+<p>Even though it will take up more than a single line in the script, with an <kbd>if</kbd> statement we can achieve more and make the script more legible. That being said, let's look at creating <kbd>if</kbd> conditions. The following is an example of a script using an <kbd>if</kbd> statement:</p>
+<pre>#!/bin/bash 
+# Welcome script to display a message to users on login 
+# Author: @theurbanpenguin 
+# Date: 1/1/1971 
+if [ $# -lt 1 ] ; then 
+echo "Usage: $0 &lt;name&gt;" 
+exit 1 
+fi 
+echo "Hello $1" 
+exit 0 </pre>
+<p>The code within the <kbd>if</kbd> statement will run only when the condition evaluates to true, and the end of the <kbd>if</kbd> block is denoted with <kbd>fi</kbd> - <kbd>if</kbd> backward. The color coding in <kbd>vim</kbd> can be useful to aid readability, which you will see in the following screenshot:</p>
+<div class="packt_figure CDPAlignCenter CDPAlign"><img src="assets/e3c54fe4-dc6f-47c5-b4cf-70fd7e8ec78b.png" style="width:32.00em;height:11.67em;"/></div>
+<p>Within the script, we can easily add in multiple statements to run when the condition is <kbd>true</kbd>. In our case, this includes exiting the script with an error indicated, as well as including the <kbd>usage</kbd> statement to assist the user. This ensures that we only display the <kbd>hello</kbd> message if we have supplied a name of the person to be welcomed.</p>
+<p>We can view the script execution both with and without the argument in the following screenshot:</p>
+<div class="packt_figure CDPAlignCenter CDPAlign"><img src="assets/7f8039a1-0737-44e3-afff-0e749ba74e1d.png" style="width:25.33em;height:6.33em;"/></div>
+<p>The following pseudocode shows the syntax of the <kbd>if</kbd> conditional statement:</p>
+<pre>if condition; then 
+   statement 1 
+   statement 2 
+fi </pre>
+<p>Indenting the code is not required, but it helps readability and is highly recommended. Adding the <kbd>then</kbd> statement to the same line as the <kbd>if</kbd> statement, again assists with the readability of the code, and the semicolon is required to separate the <kbd>if</kbd> from the <kbd>then</kbd>.</p>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">Extending if with else</h1>
+                </header>
+            
+            <article>
+                
+<p>When a script is required to continue regardless of the result of the <kbd>if</kbd> condition, it is often necessary to deal with both conditions of the evaluation, what to do when it is <kbd>true</kbd> as well as <kbd>false</kbd>. This is where we can make use of the <kbd>else</kbd> keyword. This allows the execution of one block of code when the condition is true and another when the condition is evaluated as false. The pseudocode for this is shown as follows:</p>
+<pre>if condition; then 
+   statement 
+else  
+   statement 
+fi </pre>
+<p>If we consider extending the <kbd>hello5.sh</kbd> script that we created earlier, it is easily possible to allow for the correct execution, regardless of the parameter being present or not. We can recreate this as <kbd>hello6.sh</kbd>, as follows:</p>
+<pre>#!/bin/bash 
+# Welcome script to display a message to users 
+# Author: @theurbanpenguin 
+# Date: 1/1/1971 
+if [ $# -lt 1 ] ; then 
+read -p "Enter a name: " 
+name=$REPLY 
+else 
+name=$1 
+fi 
+echo "Hello $name" 
+exit 0 
+ </pre>
+<p>The script now sets a named variable, which helps readability, and we can assign the correct value to <kbd>$name</kbd> from the input parameter or from the <kbd>read</kbd> prompt; either way the script is working well and starting to take shape.</p>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">Test command with the if command</h1>
+                </header>
+            
+            <article>
+                
+<p>You have seen how to use the <kbd>test</kbd> command or the short version <kbd>[ ]</kbd>. This test returns zero (true) or non-zero (false).</p>
+<p>You will see how to check the returned result using the <kbd>if</kbd> command.</p>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">Checking strings</h1>
+                </header>
+            
+            <article>
+                
+<p>You can use the <kbd>if</kbd> command with the <kbd>test</kbd> command to check if the string matches a specific criterion:</p>
+<ul>
+<li><kbd>if [$string1 = $string2]</kbd>: This checks if <kbd>string1</kbd> is identical to <kbd>string2</kbd></li>
+<li><kbd>if [$string1 != $string2]</kbd><span>: This checks if <kbd>string1</kbd> is not identical to <kbd>string2</kbd></span></li>
+<li><kbd>if [$string1 \&lt; $string2]</kbd><span>: This checks if <kbd>string1</kbd> is less than <kbd>string2</kbd></span></li>
+<li><kbd>if [$string1 \&gt; $string2]</kbd><span>: This checks if <kbd>string1</kbd> is greater than <kbd>string2</kbd></span></li>
+</ul>
+<p>The less than and greater than should be escaped with a backslash as if it shows a warning.</p>
+<ul>
+<li><kbd>if [-n $string1]</kbd>: This checks if <kbd>string1</kbd> is longer than zero</li>
+<li><kbd>if [-z $string1]</kbd><span>: This checks if <kbd>string1</kbd> has zero length</span></li>
+</ul>
+<p>Let's see some examples to explain how <kbd>if</kbd> statements work:</p>
+<pre>#!/bin/bash 
+if [ "mokhtar" = "Mokhtar" ]  
+then 
+echo "Strings are identical" 
+else 
+echo "Strings are not identical" 
+fi 
+ </pre>
+<div class="packt_figure CDPAlignCenter CDPAlign"><img src="assets/74dbf900-d13c-41cf-a80c-4e18abd68a4a.png" style="width:43.42em;height:7.83em;"/></div>
+<p>This <kbd>if</kbd> statement checks if strings are identical or not; since the strings are not identical, because one of them has a capital letter, they are identified as not identical.</p>
+<div class="packt_infobox">Note the space between the square brackets and the variables; without this space it will show a warning in some cases.</div>
+<p>The not-equal operator (<kbd>!=</kbd>) works the same way. Also, you can negate the <kbd>if</kbd> statement and it will work the same way, like this:</p>
+<pre>if ! [ "mokhtar" = "Mokhtar" ]</pre>
+<p>The less-than and greater-than operators check if the first string is greater than or less than the second string from the ASCII-order perspective:</p>
+<pre>#!/bin/bash 
+if [ "mokhtar" \&gt; "Mokhtar" ]  
+then 
+echo "String1 is greater than string2" 
+else 
+echo "String1 is less than the string2" 
+fi 
+ </pre>
+<div class="packt_figure CDPAlignCenter CDPAlign"><img src="assets/ff88ad5f-cd5f-4136-be1d-75c2fd803432.png" style="width:40.92em;height:7.83em;"/></div>
+<p>In the ASCII order, the lower-case characters are higher than the upper case.</p>
+<p>Don't get confused if you use the <kbd>sort</kbd> command to sort a file or similar, and find that the sorting order works the opposite way to the <kbd>test</kbd> command. This is because the <kbd>sort</kbd> command uses the numbering order from the system settings, which is the opposite to the ASCII order.</p>
+<p>To check the string length, you can use the <kbd>-n</kbd> test:</p>
+<pre>#!/bin/bash 
+if [ -n "mokhtar" ]  
+then 
+echo "String length is greater than zero" 
+else 
+echo "String is zero length" 
+fi </pre>
+<div class="packt_figure CDPAlignCenter CDPAlign"><img src="assets/11a536ac-c91c-40a0-999a-b510d4ae52fe.png" style="width:37.50em;height:7.92em;"/></div>
+<p>To check for a length of zero, you can use the <kbd>-z</kbd> test:</p>
+<pre>#!/bin/bash 
+if [ -z "mokhtar" ]  
+then 
+echo "String length is zero" 
+else 
+echo "String length is not zero" 
+fi        
+ </pre>
+<div class="packt_figure CDPAlignCenter CDPAlign"><img src="assets/3883875a-03ce-4aa8-886f-86a9e8bf9e4c.png" style="width:41.50em;height:8.83em;"/></div>
+<p>We have used quotes around the tested strings, even though our string has no spaces.</p>
+<p>In case you have a string with spaces, you <strong>MUST</strong> use quotes.</p>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">Checking files and directories</h1>
+                </header>
+            
+            <article>
+                
+<p>Similarly, you can check files and directories using the <kbd>if</kbd> statement.</p>
+<p>Let's look at an example:</p>
+<pre>#!/bin/bash 
+mydir=/home/mydir 
+if [ -d $mydir ] 
+then 
+echo "Directory $mydir exists." 
+else 
+echo "Directory $mydir not found." 
+fi </pre>
+<p>We used the <kbd>-d</kbd> test to check if the path is a directory.</p>
+<p>The rest of the tests work the same way.</p>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">Checking numbers</h1>
+                </header>
+            
+            <article>
+                
+<p>Also, in the same way, we can check numbers using the <kbd>test</kbd> and the <kbd>if</kbd> commands.</p>
+<pre>#!/bin/bash 
+if [ 12 -gt 10 ] 
+then 
+echo "number1 is greater than number2" 
+else 
+echo "number1 is less than number2" 
+fi  </pre>
+<div class="packt_figure CDPAlignCenter CDPAlign"><img src="assets/1067d6cb-c22a-4133-94a4-7bccbe1c20a2.png" style="width:40.33em;height:8.58em;"/></div>
+<p>As expected, <kbd>12</kbd> is greater than <kbd>10</kbd>.</p>
+<p>All other numeric tests work the same way.</p>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">Combining tests</h1>
+                </header>
+            
+            <article>
+                
+<p>You can combine multiple tests and check them using one <kbd>if</kbd> statement.</p>
+<p>This is done using the <kbd>AND</kbd> (<kbd>&amp;&amp;</kbd>) and <kbd>OR</kbd> (<kbd>||</kbd>) commands:</p>
+<pre>#!/bin/bash 
+mydir=/home/mydir 
+name="mokhtar" 
+if [ -d $mydir ] &amp;&amp; [ -n $name ]; then 
+   echo "The name is not zero length and the directory exists." 
+else 
+echo "One of the tests failed." 
+fi </pre>
+<div class="packt_figure CDPAlignCenter CDPAlign"><img src="assets/f63859d4-b6fb-4942-b9fc-06966967efab.png" style="width:40.25em;height:9.42em;"/></div>
+<p>The <kbd>if</kbd> statement performs two checks, it checks if the directory exists and that the name is not of zero length.</p>
+<p>The two tests must return success (zero) to evaluate the next <kbd>echo</kbd> command.</p>
+<p>If one of them fails, the <kbd>if</kbd> statement goes to the <kbd>else</kbd> clause.</p>
+<p>Unlike the <kbd>OR</kbd> (<kbd>||</kbd>) command, if any of the tests returns success (zero), the <kbd>if</kbd> statement succeeds.</p>
+<pre>#!/bin/bash 
+mydir=/home/mydir 
+name="mokhtar" 
+if [ -d $mydir ] || [ -n $name ]; then 
+   echo "One of tests or both successes" 
+else 
+echo "Both failed" 
+fi  </pre>
+<div class="packt_figure CDPAlignCenter CDPAlign"><img src="assets/0d829e61-aeed-48c1-8224-2a5902974186.png" style="width:39.75em;height:9.42em;"/></div>
+<p>It is clear enough that if one of the tests returns true, the <kbd>if</kbd> statement returns true for the combined tests.</p>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">More conditions with elif</h1>
+                </header>
+            
+            <article>
+                
+<p>Moving on to where we require a greater degree of control, we can use the <kbd>elif</kbd> keyword. Unlike <kbd>else</kbd>, <kbd>elif</kbd> requires an additional condition to be tested for each <kbd>elif</kbd>. In this way, we can provide for different circumstances. We can add in as many <kbd>elif</kbd> conditions as required. The following shows some pseudocode:</p>
+<pre>if condition; then 
+statement 
+elif condition; then 
+statement 
+else 
+statement 
+fi 
+exit 0 </pre>
+<p>A script may make life easier for the operator by providing a simplified selection for a more complex piece of code. Even though the script becomes gradually more complex to meet the requirements, to the operator the execution is greatly simplified. It is our job to enable users to run more complex operations easily from the command line when creating scripts. Often, this will necessitate the addition of more complexity to our scripts; however, we will be rewarded with the reliability of the scripted application.</p>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">Creating the backup2.sh using elif</h1>
+                </header>
+            
+            <article>
+                
+<p>We can revisit the script that we created to run the earlier backup. This script, <kbd>$HOME/bin/backup.sh</kbd>, prompts the user for the file type and the directory in which to store the backup. The tools used for the backup are <kbd>find</kbd> and <kbd>cp</kbd>.</p>
+<p>With this new-found knowledge, we can now allow the script to run the backup using the command <kbd>tar</kbd> and the level of compression selected by the operator. There is no requirement to select the file type, as the complete home directory will be backed up, with the exclusion of the backup directory itself.</p>
+<p>The operator can select the compression based on three letters: <kbd>H</kbd>, <kbd>M</kbd>, and <kbd>L</kbd>. The selection will affect the options passed to the <kbd>tar</kbd> command and the backup file created. The selection of high uses <kbd>bzip2</kbd> compression, medium uses <kbd>gzip</kbd> compression, and low creates an uncompressed <kbd>tar</kbd> archive. The logic exists in the extended <kbd>if</kbd> statement that follows:</p>
+<pre>if [ $file_compression = "L" ] ; then 
+tar_opt=$tar_l 
+elif [ $file_compression = "M" ]; then 
+tar_opt=$tar_m 
+else 
+tar_opt=$tar_h 
+fi </pre>
+<p>Based on the user selection, we can configure the correct options for the <kbd>tar</kbd> command. As we have three conditions to evaluate, the <kbd>if</kbd>, <kbd>elif</kbd>, and <kbd>else</kbd> statements are appropriate. To see how the variables are configured we can look at the following extract from the script:</p>
+<pre>tar_l="-cvf $backup_dir/b.tar --exclude $backup_dir $HOME" 
+tar_m="-czvf $backup_dir/b.tar.gz --exclude $backup_dir $HOME" 
+tar_h="-cjvf $backup_dir/b.tar.bzip2 --exclude $backup_dir $HOME" </pre>
+<p>The complete script can be created as <kbd>$HOME/bin/backup2.sh</kbd> and should comprise the following code:</p>
+<pre>#!/bin/bash 
+# Author: @theurbanpenguin 
+# Web: www.theurbapenguin.com 
+read -p "Choose H, M or L compression " file_compression 
+read -p "Which directory do you want to backup to " dir_name 
+# The next lines creates the directory if it does not exist 
+test -d $HOME/$dir_name || mkdir -m 700 $HOME/$dir_name 
+backup_dir=$HOME/$dir_name 
+tar_l="-cvf $backup_dir/b.tar --exclude $backup_dir $HOME" 
+tar_m="-czvf $backup_dir/b.tar.gz --exclude $backup_dir $HOME" 
+tar_h="-cjvf $backup_dir/b.tar.bzip2 --exclude $backup_dir $HOME" 
+if [ $file_compression = "L" ] ; then 
+tar_opt=$tar_l 
+elif [ $file_compression = "M" ]; then 
+tar_opt=$tar_m 
+else 
+tar_opt=$tar_h 
+fi 
+tar $tar_opt 
+exit 0 </pre>
+<p>When we execute the script, we need to select <kbd>H</kbd>, <kbd>M</kbd>, or <kbd>L</kbd> in upper case, as this is how the selection is made within the script. The following screenshot shows the initial script execution, where the selection for <kbd>M</kbd> has been made:</p>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/5db19093-f5be-42e5-9e7f-8d31490c4835.png" style="width:20.08em;height:3.42em;"/></div>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">Using case statements</h1>
+                </header>
+            
+            <article>
+                
+<p>Rather than using multiple <kbd>elif</kbd> statements, a <kbd>case</kbd> statement may provide a simpler mechanism when evaluations are made on a single expression.</p>
+<p>The basic layout of a <kbd>case</kbd> statement is listed as follows, using pseudocode:</p>
+<pre>case expression in 
+ case1)  
+  statement1 
+  statement2 
+ ;; 
+ case2) 
+  statement1 
+  statement2 
+ ;; 
+ *) 
+  statement1 
+ ;; 
+esac </pre>
+<p>The statement layout that we see is not dissimilar to the <kbd>switch</kbd> statements that exist in other languages. In bash, we can use the <kbd>case</kbd> statement to test for simple values, such as strings or integers. Case statements can cater for a wide range of letters, such as <kbd>[a-f]</kbd> or <kbd>a</kbd> through to <kbd>f</kbd>, but they cannot easily deal with integer ranges such as <kbd>[1-20]</kbd>.</p>
+<p>The <kbd>case</kbd> statement will first expand the expression and then it will try to match it with each item in turn. When a match is found, all the statements are executed until the <kbd>;;</kbd>. This indicates the end of the code for that match. If there is no match, the case <kbd>else</kbd> statement indicated by the <kbd>*</kbd> will be matched. This needs to be the last item in the list.</p>
+<p>Consider the following script <kbd>grade.sh</kbd>, which is used to evaluate grades:</p>
+<pre>#!/bin/bash 
+#Script to evaluate grades 
+#Usage: grade.sh stduent grade 
+#Author: @likegeeks 
+#Date: 1/1/1971 
+if [ ! $# -eq 2 ] ; then 
+    echo "You must provide &lt;student&gt; &lt;grade&gt;" 
+    exit 2 
+fi 
+case ${2^^} in #Parameter expansion is used to capitalize input 
+    [A-C]) echo "$1 is a star pupil" 
+    ;; 
+    [D]) echo "$1 needs to try a little harder!" 
+    ;; 
+    [E-F]) echo "$1 could do a lot better next year" 
+    ;; 
+    *) echo "Grade could not be evaluated for $1 $2" 
+    ;; 
+esac </pre>
+<p>The script first uses an <kbd>if</kbd> statement to check that exactly two arguments have been supplied to the script. If they are not supplied, the script will exit with an error state:</p>
+<pre>if [ ! $# -eq2 ] ; then 
+echo "You must provide &lt;student&gt;&lt;grade&gt; 
+exit 2 
+fi </pre>
+<p>Then we use parameter expansion for the value of the <kbd>$2</kbd> variable to capitalize the input using <kbd>^^</kbd>. This represents the grade that we supply. Since we are capitalizing the input, we first try to match against the letters <kbd>A</kbd> through to <kbd>C</kbd>.</p>
+<p>We make similar tests for the other supplied grades, <kbd>E</kbd> through to <kbd>F</kbd>.</p>
+<p>The following screenshot shows the script execution with different grades:</p>
+<div class="packt_figure CDPAlignCenter CDPAlign"><img src="assets/a8e5aec7-d0e4-4654-930d-65d27d51e8fb.png" style="width:26.50em;height:11.25em;"/></div>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">Recipe – building a frontend with grep</h1>
+                </header>
+            
+            <article>
+                
+<p>As a finale to this chapter, we will group a few features that we have learned together and build a script that prompts the operator for a filename, a search string, and an operation to carry out with the <kbd>grep</kbd> command. We will create the script as <kbd>$HOME/bin/search.sh</kbd>, and don't forget to make it executable:</p>
+<pre>#!/bin/bash 
+#Author: @theurbanpenguin 
+usage="Usage: search.sh file string operation" 
+ 
+if [ ! $# -eq3 ] ; then 
+echo "$usage" 
+exit 2 
+fi 
+ 
+[ ! -f $1 ] &amp;&amp; exit 3 
+ 
+case $3 in 
+    [cC]) 
+mesg="Counting the matches in $1 of $2" 
+opt="-c" 
+    ;; 
+    [pP]) 
+mesg="Print the matches of $2 in $1" 
+        opt="" 
+    ;; 
+    [dD]) 
+mesg="Printing all lines but those matching $3 from $1" 
+opt="-v" 
+    ;; 
+    *) echo "Could not evaluate $1 $2 $3";; 
+esac 
+echo $mesg 
+grep $opt $2 $1 </pre>
+<p>We start by checking for exactly three input arguments using the following code:</p>
+<pre>if [ ! $# -eq3 ] ; then 
+echo "$usage" 
+exit 2 
+fi </pre>
+<p>The next check uses a command-line list to exit the script if the file argument is not a regular file, using <kbd>test -f</kbd>:</p>
+<pre>[ ! -f $1 ]&amp;&amp; exit 3 </pre>
+<p>The <kbd>case</kbd> statement allows for three operations:</p>
+<ul>
+<li>Counting the matching lines</li>
+<li>Printing the matching lines</li>
+<li>Printing all but the matching lines</li>
+</ul>
+<p>The following screenshot shows the search of the <kbd>/etc/ntp.conf</kbd> file for lines beginning with the string server. We choose the count option in this example:</p>
+<div class="packt_figure CDPAlignCenter CDPAlign"><img src="assets/0138fe56-7b1e-4b12-b8fc-3740b01bfca0.png" style="width:29.00em;height:5.08em;"/></div>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">Summary</h1>
+                </header>
+            
+            <article>
+                
+<p>One of the most important and time-consuming tasks in scripting is building all of the conditional statements that we need to make the script usable and robust. There is an 80/20 rule that is often spoken of. This is where 20 percent of your time is spent in writing the main script and 80 percent of the time is spent in ensuring that all of the possible eventualities are correctly handled in the script. This is what we refer to as the procedural integrity of the script, where we try to cover each scenario carefully and accurately.</p>
+<p>We started by looking at a simple test with command-line lists. If the actions needed are simple, then these provide great functionality and are easily added. Where more complexity is required, we add <kbd>if</kbd> statements.</p>
+<p>Using the <kbd>if</kbd> statements, we can extend them as required using the <kbd>else</kbd> and <kbd>elif</kbd> keywords. Don't forget that <kbd>elif</kbd> keywords need their own conditions to evaluate.</p>
+<p>We saw how to use <kbd>if</kbd> statements with the <kbd>test</kbd> command, and check strings, files, and numbers.</p>
+<p>Finally, we saw how we can use <kbd>case</kbd> where a single expression needs to be evaluated.</p>
+<p>In the next chapter, we will seek to understand the importance of reading in already prepared code snippets. We will create a sample <kbd>if</kbd> statement that can be saved as a code snippet to be read into the script at the time of editing.</p>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">Questions</h1>
+                </header>
+            
+            <article>
+                
+<ol>
+<li>What is the result of the following code: <kbd>True</kbd> or <kbd>False</kbd>?</li>
+</ol>
+<pre style="padding-left: 60px">if [ "LikeGeeks" \&gt; "likegeeks" ]  
+then 
+echo "True" 
+else 
+echo "False" 
+fi </pre>
+<ol start="2">
+<li>Which one of the following scripts is correct?</li>
+</ol>
+<pre style="padding-left: 60px">#!/bin/bash 
+if ! [ "mokhtar" = "Mokhtar" ]  
+then 
+echo "Strings are not identical" 
+else 
+echo "Strings are identical" 
+fi </pre>
+<p style="padding-left: 60px">Or</p>
+<pre style="padding-left: 60px">#!/bin/bash 
+if [ "mokhtar" != "Mokhtar" ]  
+then 
+echo "Strings are not identical" 
+else 
+echo "Strings are identical" 
+fi</pre>
+<ol start="3">
+<li>How many commands can be used as an operator to return <kbd>True</kbd> in the following example?</li>
+</ol>
+<pre style="padding-left: 60px">#!/bin/bash 
+if [ 20 ?? 15 ] 
+then 
+echo "True" 
+else 
+echo "False" 
+fi </pre>
+<ol start="4">
+<li>What is the result of the following code?</li>
+</ol>
+<pre style="padding-left: 60px">#!/bin/bash 
+mydir=/home/mydir 
+name="mokhtar" 
+if [ -d $mydir ] || [ -n $name ]; then 
+   echo "True" 
+else 
+echo "False" 
+fi </pre>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">Further reading</h1>
+                </header>
+            
+            <article>
+                
+<p>Please see the following for further reading relating to this chapter:</p>
+<ul>
+<li><a href="http://tldp.org/HOWTO/Bash-Prog-Intro-HOWTO-6.html"><span class="InternetLink">http://tldp.org/HOWTO/Bash-Prog-Intro-HOWTO-6.html</span><br/></a></li>
+<li><a href="http://tldp.org/LDP/Bash-Beginners-Guide/html/sect_07_03.html"><span class="InternetLink">http://tldp.org/LDP/Bash-Beginners-Guide/html/sect_07_03.html</span><br/></a></li>
+<li><a href="http://wiki.bash-hackers.org/commands/classictest"><span class="InternetLink">http://wiki.bash-hackers.org/commands/classictest</span><br/></a></li>
+</ul>
+
+
+            </article>
+
+            
+        </section>
+    </body></html>

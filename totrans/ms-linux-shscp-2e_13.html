@@ -1,0 +1,351 @@
+<html><head></head><body>
+        <section>
+
+                            <header>
+                    <h1 class="header-title">A Better lastlog with AWK</h1>
+                </header>
+            
+            <article>
+                
+<p>We have already seen, in <a href="313640b7-9414-431e-8b29-b105ea325da0.xhtml" target="_blank">C<span class="ChapterrefPACKT">hapter 12</span></a>, <em>Summarizing Logs with AWK</em>, how we can create complex reports from large amounts of data mined from purely text files. Similarly, we can create extensive reports using the output from standard command-line tools, such as the <kbd>lastlog</kbd> tool. In itself, <kbd>lastlog</kbd> can report the last login time for all users. Often, though, we may wish to filter the output from <kbd>lastlog</kbd>. Perhaps you need to exclude user accounts that have never been used to log in to the system. It may also be irrelevant to report on <kbd>root</kbd>, as the account may be predominately used for <kbd>sudo</kbd> only and not used to record regularly for standard logins.</p>
+<p>In working through this chapter, we will work with <kbd>lastlog</kbd> and formatting XML data. As this is the last chapter in which we investigate AWK, we will configure record separators. We have already seen the use of field separators in AWK but we can change the default record separator from a newline to something more specific to our needs. More specifically, within this chapter we will cover:</p>
+<ul>
+<li>Using AWK ranges to exclude data</li>
+<li>Conditions based on the number of fields</li>
+<li>Manipulating the AWK record separator to report on XML data</li>
+</ul>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">Technical requirements</h1>
+                </header>
+            
+            <article>
+                
+<p>The source code for this chapter can be downloaded here:</p>
+<p><a href="https://github.com/PacktPublishing/Mastering-Linux-Shell-Scripting-Second-Edition/tree/master/Chapter13">https://github.com/PacktPublishing/Mastering-Linux-Shell-Scripting-Second-Edition/tree/master/Chapter13</a></p>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">Using AWK ranges to exclude data</h1>
+                </header>
+            
+            <article>
+                
+<p>So far in this book, we have predominately looked at including data with ranges either for <kbd>sed</kbd> or for <kbd>awk</kbd>. With both of these tools, we can negate the range so that we exclude the specified rows. For a perfect explanation, we will use the output from the <kbd>lastlog</kbd> command. This will print all the login data for all the users, including accounts that have never been logged in. These accounts that have never been logged in might be service accounts or for new users that have not logged into the system so far.</p>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">The lastlog command</h1>
+                </header>
+            
+            <article>
+                
+<p>If we look at the output from <kbd>lastlog</kbd>, when it is used without any options, we can begin to understand the issue. From the command line, we execute the command as a standard user. There is no requirement to run it as the root account. The command is shown in the following example:</p>
+<pre><strong>$ lastlog</strong> </pre>
+<p>The partial output is shown within the following screenshot:</p>
+<div class="CDPAlignCenter CDPAlign"><img class="alignnone size-full wp-image-362 image-border" src="assets/e5e1aa3f-c1b1-4ff9-91c6-4ab01b427a3e.png" style="width:38.75em;height:7.25em;"/></div>
+<p>We can see, even from this limited output, that we have a cluttered output due to the virtual noise being created by the accounts that have not logged in. It is possible to alleviate this to some degree using the <kbd>lastlog</kbd> options but it may not entirely resolve the issue. To demonstrate this, we can add an option to <kbd>lastlog</kbd> to show standard users only and filter out other system and services users. This may vary on your system but on the sample CentOS 6 host that I am using, the first user will be UID 500. On CentOS 7, standard users UID starts from 1000.</p>
+<p>If we use the <kbd>lastlog -u 500-5000</kbd> command, we will only print data for those users with a UID within this range. On the simple demonstration system, we have just three user accounts for which the output is acceptable. However, we can understand that we may still have some clutter due to these accounts that have not yet been used. This is shown in the following screenshot:</p>
+<div class="CDPAlignCenter CDPAlign"><img class="alignnone size-full wp-image-363 image-border" src="assets/a5d841e5-a646-4048-be7b-b7342e77a971.png" style="width:38.25em;height:6.00em;"/></div>
+<p>In addition to the superfluous data being printed from <kbd>Never logged in</kbd> accounts, we may only be interested in the <kbd>Username</kbd> and <kbd>Latest</kbd> fields. This is another reason to support the need to use AWK as our data filter. In this way, we can provide both horizontal and vertical data filtering, rows, and columns.</p>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">Horizontally filtering rows with AWK</h1>
+                </header>
+            
+            <article>
+                
+<p>To provide this filtering using AWK, we will pipe the data from <kbd>lastlog</kbd> directly to <kbd>awk</kbd>. We will make use of a simple control file, initially providing the horizontal filtering or reducing the rows that we see. First, the command pipeline will be as simple as the following command example:</p>
+<pre><strong>$ lastlog | awk -f lastlog.awk</strong>  </pre>
+<p>Of course, the complexity is abstracted from the command line and concealed within the control file that we use. Initially, the control file is kept simple and reads as follows:</p>
+<pre>!(/Never logged in/ || /^Username/ || /^root/) { 
+  print $0; 
+} </pre>
+<p>The range is set up as we have seen previously and precedes the main code block. Using the exclamation mark in front of the parentheses negates or reverses the selected range. The double vertical bar acts as a logical <kbd>OR</kbd>. We do not include lines that contain <kbd>Never logged in</kbd>, nor do we include lines that start with <kbd>Username</kbd>. This removes the header-line that is printed by <kbd>lastlog</kbd>. Finally, we exclude the root account from the display. This initiates the rows that we work with and the main code block will print those lines.</p>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">Counting matched rows</h1>
+                </header>
+            
+            <article>
+                
+<p>We may also want to count the number of rows returned by the filter. For example, using the internal <kbd>NR</kbd> variable will show all rows and not just matched rows; for us to be able to report the number of users that have logged in, we must use our own variable. The following code will maintain the count within the variable that we name <kbd>cnt</kbd>. We increment this using the C style <kbd>++</kbd> for each iteration of the main code block.</p>
+<p>We can use the <kbd>END</kbd> code block to display the closing value of this variable:</p>
+<pre>!(/Never logged in/ || /^Username/ || /^root/) { 
+  cnt++ 
+  print $0; 
+} 
+END { 
+  print "========================" 
+  print "Total Number of Users Processed: ", cnt 
+} </pre>
+<p>We can see from the following code and output how this appears on my system:</p>
+<div class="CDPAlignCenter CDPAlign"><img class="alignnone size-full wp-image-364 image-border" src="assets/5e652e26-f2d1-4e8d-bc1a-6cce1fc1e14f.png" style="width:37.67em;height:5.58em;"/></div>
+<p>From the display output, we can now see that we show only users that have logged in and, in this case, it is just the single user. However, we may also decide that we want to abstract the data further and display only certain fields from the matched rows. This should be a simple task but it is complicated, as the number of fields will vary depending on how the login was executed.</p>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">Conditions based on the number of fields</h1>
+                </header>
+            
+            <article>
+                
+<p>If a user logs onto the server's physical console directly rather than logging on through a remote or graphical pseudo-terminal, then the <kbd>lastlog</kbd> output will not display the host field. To demonstrate this, I have logged on to my CentOS host directly to the <kbd>tty1</kbd> console and avoided the GUI. The output from the previous AWK control file shows that we now have the users <kbd>tux</kbd> and <kbd>bob</kbd>; <kbd>bob</kbd> though lacks the host field as he is connected to a console:</p>
+<div class="CDPAlignCenter CDPAlign"><img class="alignnone size-full wp-image-365 image-border" src="assets/03832b05-a56d-4a9b-afd8-32169cf5ca23.png" style="width:38.42em;height:6.42em;"/></div>
+<p>Although in itself it's not an issue, it will be if we want to filter the fields and the two row's field numbers will vary where a field is omitted from some lines. For <kbd>lastlog,</kbd> we will have <kbd>9</kbd> fields for most connections and only <kbd>8</kbd> fields for those that connect directly to the server console. The goal for the application is that we print the username and the date, but not the time of the last login. We will also print our own header in the <kbd>BEGIN</kbd> block. To ensure that we use the correct placements we will need to count the fields in each row using the <kbd>NF</kbd> internal variable.</p>
+<p>For the <kbd>8</kbd> fields' lines we want to print fields <kbd>1</kbd>, <kbd>4</kbd>, <kbd>5</kbd>, and <kbd>8</kbd>; for the longer lines with additional host information, we will use fields <kbd>1</kbd>, <kbd>5</kbd>, <kbd>6</kbd> and <kbd>9</kbd>. We will also use <kbd>printf</kbd> so that we can align the column data correctly. The control file should be edited, as shown in the following example:</p>
+<pre>BEGIN { 
+printf "%8s %11s\n","Username","Login date" 
+print "====================" 
+} 
+!(/Never logged in/ || /^Username/ || /^root/) { 
+cnt++ 
+if ( NF == 8 ) 
+    printf "%8s %2s %3s %4s\n", $1,$5,$4,$8 
+ 
+else 
+    printf "%8s %2s %3s %4s\n", $1,$6,$5,$9 
+} 
+END { 
+print "====================" 
+print "Total Number of Users Processed: ", cnt 
+} </pre>
+<p>We can see the command and the output it produces in the following screenshot. We can see how we can create a more suitable display based on information that we want to focus on:</p>
+<div class="CDPAlignCenter CDPAlign"><img class="alignnone size-full wp-image-366 image-border" src="assets/4470b002-4a96-43a5-b3e6-bae9bce56b27.png" style="width:23.42em;height:9.67em;"/></div>
+<p>If we look at the output, I have chosen to display the date before the month so we do not display the fields in numerical order. This, of course, is a personal choice and customizable to suit the way you feel the data should be displayed.</p>
+<p>We can use the principles of what we have seen in the <kbd>lastlog</kbd> control file with output from any command and you should practice with the commands that you want to filter the data from.</p>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">Manipulating the AWK record separator to report on XML data</h1>
+                </header>
+            
+            <article>
+                
+<p>So far, while we have been working with AWK we have limited ourselves to working with individual rows, with each new row representing a new record. Although this is often what we want, where we work with tagged data, such as XML where an individual record may span multiple lines. In this case, we may need to look at setting the <kbd>RS</kbd> or <kbd>record</kbd> separator internal variable.</p>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">Apache Virtual Hosts</h1>
+                </header>
+            
+            <article>
+                
+<p>In <a href="ad6cd6e4-212d-4e2a-8df3-81208f5cb38d.xhtml" target="_blank"><span class="ChapterrefPACKT">Chapter 9</span></a>, <em>Automating Apache Virtual Hosts</em>, we worked with <strong>Apache Virtual Hosts</strong>. This uses tagged data that defines the start and end of each virtual host. Even though we prefer to store each virtual host in its own file, they can be combined into a single file. Consider the following file that stores the possible virtual host definitions; this can be stored as the <kbd>virtualhost.conf</kbd> file, as shown:</p>
+<pre>&lt;VirtualHost *:80&gt; 
+DocumentRoot /www/example 
+ServerName www.example.org 
+# Other directives here 
+&lt;/VirtualHost&gt; 
+ 
+&lt;VirtualHost *:80&gt; 
+DocumentRoot /www/theurbanpenguin 
+ServerName www.theurbanpenguin.com 
+# Other directives here 
+&lt;/VirtualHost&gt; 
+ 
+&lt;VirtualHost *:80&gt; 
+DocumentRoot /www/packt 
+ServerName www.packtpub.com 
+# Other directives here 
+&lt;/VirtualHost&gt; </pre>
+<p>We have the three virtual hosts within a single file. Each record is separated by an empty line, meaning that we have two new line characters that logically separate each entry. We will explain this to AWK by setting the <kbd>RS</kbd> variable as follows: <kbd>RS="\n\n"</kbd>. With this in place, we can then print the required virtual host record. This will be set in the <kbd>BEGIN</kbd> code block of the control file.</p>
+<p>We will also need to dynamically search the command line for the desired host configuration. We build this into the control file. The control file should look similar to the following code:</p>
+<pre>BEGIN { RS="\n\n" ; } 
+$0 ~ search { print } </pre>
+<p>The <kbd>BEGIN</kbd> block sets the variable and then we move onto the range. The range is set so that the record (<kbd>$0</kbd>) matches (<kbd>~</kbd>) the <kbd>search</kbd> variable. We must set the variable when <kbd>awk</kbd> is executed. The following command demonstrates the command line execution where the control file and configuration file are located within our working directory:</p>
+<pre><strong>$ awk -f vh.awk search=packt virtualhost.conf</strong> </pre>
+<p>We can see this more clearly by looking at the command and the output that is produced in the following screenshot:</p>
+<div class="CDPAlignCenter CDPAlign"><img class="alignnone size-full wp-image-367 image-border" src="assets/44905680-8349-437a-b642-1cda2008fa5b.png" style="width:31.17em;height:8.58em;"/></div>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">XML catalog</h1>
+                </header>
+            
+            <article>
+                
+<p>We can extend this further into XML files where we may not want to display the complete record, but just certain fields. Consider the following product <kbd>catalog</kbd>:</p>
+<pre>&lt;products&gt;<br/>&lt;product&gt; 
+&lt;name&gt;drill&lt;/name&gt; 
+&lt;price&gt;99&lt;/price&gt; 
+&lt;stock&gt;5&lt;/stock&gt; 
+&lt;/product&gt; 
+ 
+&lt;product&gt; 
+&lt;name&gt;hammer&lt;/name&gt; 
+&lt;price&gt;10&lt;/price&gt; 
+&lt;stock&gt;50&lt;/stock&gt; 
+&lt;/product&gt; 
+ 
+&lt;product&gt; 
+&lt;name&gt;screwdriver&lt;/name&gt; 
+&lt;price&gt;5&lt;/price&gt; 
+&lt;stock&gt;51&lt;/stock&gt; 
+&lt;/product&gt; 
+ 
+&lt;product&gt; 
+&lt;name&gt;table saw&lt;/name&gt; 
+&lt;price&gt;1099.99&lt;/price&gt; 
+&lt;stock&gt;5&lt;/stock&gt; 
+&lt;/product&gt; <br/>&lt;/products&gt;</pre>
+<p>Logically, each record is delimited as before with the empty line. Each field though is a little more detailed and we need to use the delimiter as follows: <kbd>FS="[&gt;&lt;]"</kbd>. We define either the opening or closing angle bracket as the field delimiter.</p>
+<p>To help analyze this, we can print a single record as follows:</p>
+<pre>&lt;product&gt;&lt;name&gt;top&lt;/name&gt;&lt;price&gt;9&lt;/price&gt;&lt;stock&gt;5&lt;/stock&gt;&lt;/product&gt; </pre>
+<p>Each angle brace is a field separator, which means that we will have some empty fields. We could rewrite this line as a CSV file:</p>
+<pre>,product,,name,top,/name,,price,9,/price,,stock,5,/stock,,/product, </pre>
+<p>We just replace each angle bracket with a comma; in this way it is more easily read by us. We can see that the content of field <kbd>5</kbd> is the <kbd>top</kbd> value.</p>
+<p>Of course, we will not edit the XML file, we will leave it in the XML format. The conversion here is just to highlight how the field separators can be read.</p>
+<p>The control file that we use to extract data from the XML file is illustrated in the following code example:</p>
+<pre>BEGIN { FS="[&gt;&lt;]"; RS="\n\n" ; OFS=""; } 
+$0 ~ search { print $4 ": " $5, $8 ": " $9, $12 ": " $13 } </pre>
+<p>Within the <kbd>BEGIN</kbd> code block, we set the <kbd>FS</kbd> and <kbd>RS</kbd> variables as we have discussed. We also set the <strong><span>Output Field Separator</span></strong> (<kbd>OFS</kbd>) or  to a space. In this way, when we print the fields we separate the values with a space rather than leaving in the angle brackets. The range makes use of the same match as we used before when looking at the virtual hosts.</p>
+<p>If we need to search for the product drill from within the <kbd>catalog</kbd>, we can use the command in the following example:</p>
+<pre><strong>$ awk -f catalog.awk search=drill catalog.xml</strong>  </pre>
+<p>The following screenshot shows the output in detail:</p>
+<div class="CDPAlignCenter CDPAlign"><img class="alignnone size-full wp-image-368 image-border" src="assets/86b9bef1-16e5-489b-8d1b-5995016e46b3.png" style="width:31.42em;height:3.92em;"/></div>
+<p>We have now been able to take a rather messy XML file and create readable reports from the catalog. The power of AWK is highlighted again and, for us, the last time within this book. By now, I hope you too can start to make use of this on a regular basis.</p>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">Summary</h1>
+                </header>
+            
+            <article>
+                
+<p>We had three chapters where we used AWK, starting with some basic usage statements in <a href="e179c20a-9176-473d-b49a-dc3c84d1ffc9.xhtml" target="_blank"><span class="ChapterrefPACKT">Chapter 10</span></a>, <em>AWK Fundamentals</em> where we became comfortable with AWK. In <a href="313640b7-9414-431e-8b29-b105ea325da0.xhtml" target="_blank"><span class="ChapterrefPACKT">Chapter 12</span></a>, <em>Summarizing Logs with AWK</em>, and this chapter, we started building our bespoke applications.</p>
+<p>Specifically, in this chapter we saw how we could create reports from the output of standard commands, such as <kbd>lastlog</kbd>. We saw that we could negate ranges and additionally make use of the <kbd>OR</kbd> statement. We then built an application that will allow us to query XML data.</p>
+<p>For the next two chapters, we will move away from shell scripts and look at scripts using perl and Python so we can compare these scripting languages and make appropriate choices.</p>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">Questions</h1>
+                </header>
+            
+            <article>
+                
+<ol>
+<li>How do we get the users who never logged into the system?</li>
+<li>From the previous question, how do you count the number of users who never logged in?</li>
+<li>How many lines will be printed from the following command?</li>
+</ol>
+<p style="padding-left: 60px"/>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">Further reading</h1>
+                </header>
+            
+            <article>
+                
+<p>Please see the following for further reading relating to this chapter:</p>
+<ul>
+<li><a href="https://linux.die.net/man/8/lastlog"><span class="URLPACKT">https://linux.die.net/man/8/lastlog</span></a></li>
+<li><a href="https://en.wikipedia.org/wiki/Lastlog"><span class="URLPACKT">https://en.wikipedia.org/wiki/Lastlog</span></a></li>
+</ul>
+
+
+            </article>
+
+            
+        </section>
+    </body></html>

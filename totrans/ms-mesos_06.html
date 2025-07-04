@@ -1,0 +1,758 @@
+<html><head></head><body><div class="chapter" title="Chapter&#xA0;6.&#xA0;Mesos Frameworks"><div class="titlepage"><div><div><h1 class="title"><a id="ch06"/>Chapter 6. Mesos Frameworks</h1></div></div></div><p>This chapter walks the reader through the concept and features of Mesos frameworks in detail. It also provides a detailed overview of the Mesos API, including the new HTTP Scheduler API, and provides the recipe for building custom frameworks on Mesos. The following topics will be covered in this chapter:</p><div class="itemizedlist"><ul class="itemizedlist"><li class="listitem" style="list-style-type: disc">Introduction to Mesos frameworks</li><li class="listitem" style="list-style-type: disc">Framework authentication</li><li class="listitem" style="list-style-type: disc">Framework authorization</li><li class="listitem" style="list-style-type: disc">Access Control Lists (ACLs)</li><li class="listitem" style="list-style-type: disc">The scheduler HTTP API</li><li class="listitem" style="list-style-type: disc">Building custom distributed frameworks on Mesos</li></ul></div><div class="section" title="Introduction to Mesos frameworks"><div class="titlepage"><div><div><h1 class="title"><a id="ch06lvl1sec58"/>Introduction to Mesos frameworks</h1></div></div></div><p>A Mesos framework sits between Mesos and the application and acts as a layer for managing task scheduling and execution. As its implementation is application-specific, the term is often used to refer to the application itself. Earlier, a Mesos framework could interact with the Mesos API using<a class="indexterm" id="id568"/> only the libmesos C++ library, due to which other language bindings were developed for Java, Scala, Python, and Go among others, which leveraged libmesos heavily. Since v0.19.0, changes made to the HTTP-based protocol enabled developers to develop frameworks using the language they wanted without having to rely on the C++ code. A framework consists of two components:</p><div class="itemizedlist"><ul class="itemizedlist"><li class="listitem" style="list-style-type: disc">A scheduler</li><li class="listitem" style="list-style-type: disc">An executor</li></ul></div><p>The <span class="strong"><strong>scheduler</strong></span> is responsible<a class="indexterm" id="id569"/> for taking decisions on the resource offers made to it and<a class="indexterm" id="id570"/> tracking the current state of the cluster. Communication with the Mesos master is handled by the <code class="literal">SchedulerDriver </code>module, which registers the framework with the master, launches tasks, and passes messages to other components.</p><p>The second<a class="indexterm" id="id571"/> component, <span class="strong"><strong>Executor</strong></span>, as its name suggests, is responsible for the execution of tasks on the slave <a class="indexterm" id="id572"/>nodes. Communication<a class="indexterm" id="id573"/> with the slaves is handled by the <code class="literal">ExecutorDriver</code> module, which is also responsible for sending status updates to the scheduler.</p></div></div>
+<div class="section" title="Frameworks &#x2013; Authentication, authorization, and access control"><div class="titlepage"><div><div><h1 class="title"><a id="ch06lvl1sec59"/>Frameworks – Authentication, authorization, and access control</h1></div></div></div><p>From the user's perspective, authentication, authorization, and access control often appear to be the same thing because they<a class="indexterm" id="id574"/> are typically implemented together. However, there<a class="indexterm" id="id575"/> are some important distinctions between them. Some of these are listed below to provide better clarity on what each of these concepts means:</p><div class="itemizedlist"><ul class="itemizedlist"><li class="listitem" style="list-style-type: disc"><span class="strong"><strong>Authentication: </strong></span>Authentication is<a class="indexterm" id="id576"/> a process by which you verify that someone or something is who or what they claim to be, respectively. It typically involves implementing one or more methods of demonstrating identity. The result of an authentication procedure is normally a yes/no answer.</li><li class="listitem" style="list-style-type: disc"><span class="strong"><strong>Authorization: </strong></span>Authorization<a class="indexterm" id="id577"/> is used to establish whether the application or user (already authenticated) is allowed to perform the requested task. It is used to define and determine what an authenticated application/user can and cannot do. An authorization module typically includes a mechanism for defining rules (such as roles, privileges, and so on).</li><li class="listitem" style="list-style-type: disc"><span class="strong"><strong>Access Control: </strong></span>Access Control is the<a class="indexterm" id="id578"/> process of ensuring that nonauthenticated or unauthorized applications/users cannot bypass the system and perform restricted actions. It typically involves implementing a variety of security features to ensure that no loopholes are present in the system.</li></ul></div><div class="section" title="Framework authentication"><div class="titlepage"><div><div><h2 class="title"><a id="ch06lvl2sec99"/>Framework authentication</h2></div></div></div><p>Framework authentication<a class="indexterm" id="id579"/> support for Mesos was added v0.15 onward, and slave authentication support was introduced in v0.19. This is a very useful feature to prevent unauthorized applications from running on Mesos.</p><p>For a framework to register with the Mesos master, it needs to be authenticated. Similarly, the authentication of slaves is necessary for them to be able to register with the master as otherwise, unauthorized processes could launch<a class="indexterm" id="id580"/> <span class="strong"><strong>Distributed Denial of Service</strong></span> (<span class="strong"><strong>DDoS</strong></span>) attacks, obtain task information, and so on. It also prohibits rogue access to the <code class="literal">/teardown</code> HTTP endpoint so that the frameworks can't be illegally terminated.</p><p>The <span class="strong"><strong>Cyrus Simple Authentication and Security Layer</strong></span> (<span class="strong"><strong>SASL</strong></span>) library, a flexible framework with<a class="indexterm" id="id581"/> support for various mechanisms, such as CRAM-MD5, Plain, GSSAPI, and so on, is leveraged by Mesos to enable authentication. The <a class="indexterm" id="id582"/>
+<span class="strong"><strong>CRAM-MD5 </strong></span>mechanism is currently supported by Mesos though users have the ability to implement their own modules as well. CRAM-MD5 implements a shared secret authentication mechanism in which a principal (in this case, the framework) and authenticator (Mesos) share a<a class="indexterm" id="id583"/> mutually known "secret" key with each other to encrypt and decrypt information. Whenever the framework communicates with Mesos, it is asked to decrypt or encrypt information successfully using this "secret" key so that Mesos can understand that it is really the authorized framework that wishes to communicate with it. It should be noted that this is not the same as the framework user, which is what an executor uses to run tasks.</p><div class="section" title="Configuration options"><div class="titlepage"><div><div><h3 class="title"><a id="ch06lvl3sec41"/>Configuration options</h3></div></div></div><p>The authentication module uses<a class="indexterm" id="id584"/> the following configuration options:</p><div class="itemizedlist"><ul class="itemizedlist"><li class="listitem" style="list-style-type: disc">Masters:<div class="itemizedlist"><ul class="itemizedlist"><li class="listitem" style="list-style-type: disc"><code class="literal">--[no-]authenticate</code>: If <code class="literal">true</code>, then the registration of authenticated frameworks is<a class="indexterm" id="id585"/> permitted. If <code class="literal">false</code>, then other frameworks can register as well.</li><li class="listitem" style="list-style-type: disc"><code class="literal">--[no-]authenticate_slaves</code>: If <code class="literal">true</code>, then the registration of authenticated slaves is permitted. If <code class="literal">false</code>, then other slaves can<a class="indexterm" id="id586"/> register as well.</li><li class="listitem" style="list-style-type: disc"><code class="literal">--authenticators</code>: This is used to specify which authentication mechanism needs to be<a class="indexterm" id="id587"/> used to authenticate the master, with CRAM-MD5 being the default. The <code class="literal">–modules</code> option may be used to add other mechanisms as well.</li><li class="listitem" style="list-style-type: disc"><code class="literal">--credentials</code>: This is<a class="indexterm" id="id588"/> used to specify the location of the file containing a valid credentials list and can be optional based on which mechanism is employed for authentication.</li></ul></div></li><li class="listitem" style="list-style-type: disc">Slaves:<div class="itemizedlist"><ul class="itemizedlist"><li class="listitem" style="list-style-type: disc"><code class="literal">--authenticate</code>: This is used to specify which authentication mechanism needs to be <a class="indexterm" id="id589"/>used to authenticate the slave, with CRAM-MD5 being the default.</li><li class="listitem" style="list-style-type: disc"><code class="literal">--credential</code>: This is used to<a class="indexterm" id="id590"/> specify the location of the file containing the credentials, which needs to be used to determine the slave.</li></ul></div></li></ul></div></div></div><div class="section" title="Framework authorization"><div class="titlepage"><div><div><h2 class="title"><a id="ch06lvl2sec100"/>Framework authorization</h2></div></div></div><p>Authorization refers to the<a class="indexterm" id="id591"/> process of determining whether an already authenticated user has the required permissions to execute the requested task or access specific resources. Since Mesos 0.24, the authorization API has been modularized so that system administrators can implement authorization backend/protocols of their choice (Lightweight directory access protocol or LDAP, for example).</p><p>When starting the master, authorization can be configured by specifying the <code class="literal">--acls </code>flag.</p><p>The following authorizations are currently supported:</p><div class="itemizedlist"><ul class="itemizedlist"><li class="listitem" style="list-style-type: disc">The registration of frameworks with specified roles</li><li class="listitem" style="list-style-type: disc">Task launching by frameworks as authorized users</li><li class="listitem" style="list-style-type: disc">The shutting down of frameworks by authorized principals</li><li class="listitem" style="list-style-type: disc">Quota setting by authorized principals</li><li class="listitem" style="list-style-type: disc">Reservation and freeing up of resources by authorized principals</li><li class="listitem" style="list-style-type: disc">Creation and destruction of persistent volumes by authorized principals</li></ul></div></div><div class="section" title="Access Control Lists (ACLs)"><div class="titlepage"><div><div><h2 class="title"><a id="ch06lvl2sec101"/>Access Control Lists (ACLs)</h2></div></div></div><p>
+<span class="strong"><strong>Access Control Lists</strong></span> or <span class="strong"><strong>ACLs</strong></span> are used to implement <span class="emphasis"><em>authorization</em></span> capabilities in Mesos. An ACL<a class="indexterm" id="id592"/> needs to be defined in the JSON format for each of the six supported authorizations mentioned before. In every ACL, a list of Subjects need to be defined that can carry out Actions on a group of Objects. The Mesos master then checks these to confirm whether a request received by it is an <a class="indexterm" id="id593"/>authorized one or not.</p><p>The supported Actions list is as follows:</p><div class="itemizedlist"><ul class="itemizedlist"><li class="listitem" style="list-style-type: disc"><code class="literal">register_frameworks</code>: This is used<a class="indexterm" id="id594"/> for framework registration</li><li class="listitem" style="list-style-type: disc"><code class="literal">run_tasks</code>: This is used to run<a class="indexterm" id="id595"/> tasks</li><li class="listitem" style="list-style-type: disc"><code class="literal">shutdown_frameworks</code>: This is<a class="indexterm" id="id596"/> used to terminate frameworks</li><li class="listitem" style="list-style-type: disc"><code class="literal">set_quotas</code>: This is used for <a class="indexterm" id="id597"/>quota setting</li><li class="listitem" style="list-style-type: disc"><code class="literal">reserve_resources</code>: This is used<a class="indexterm" id="id598"/> for resource reservation</li><li class="listitem" style="list-style-type: disc"><code class="literal">unreserve_resources</code> : This is<a class="indexterm" id="id599"/> used to free up resources</li><li class="listitem" style="list-style-type: disc"><code class="literal">create_volumes</code>: This is used to<a class="indexterm" id="id600"/> create persistent volumes</li><li class="listitem" style="list-style-type: disc"><code class="literal">destroy_volumes</code>: This is used to<a class="indexterm" id="id601"/> destroy persistent volumes</li></ul></div><p>The supported <code class="literal">Subjects</code> list is as follows:</p><div class="itemizedlist"><ul class="itemizedlist"><li class="listitem" style="list-style-type: disc"><code class="literal">principals</code>: These can be of two types:<div class="itemizedlist"><ul class="itemizedlist"><li class="listitem" style="list-style-type: disc">Framework principals</li><li class="listitem" style="list-style-type: disc">Usernames</li></ul></div></li></ul></div><p>The supported<a class="indexterm" id="id602"/> <code class="literal">Objects </code>list is as follows:</p><div class="itemizedlist"><ul class="itemizedlist"><li class="listitem" style="list-style-type: disc"><code class="literal">roles</code></li><li class="listitem" style="list-style-type: disc"><code class="literal">users</code></li><li class="listitem" style="list-style-type: disc"><code class="literal">framework_principals</code></li><li class="listitem" style="list-style-type: disc"><code class="literal">resources</code></li><li class="listitem" style="list-style-type: disc"><code class="literal">reserver_principals</code></li><li class="listitem" style="list-style-type: disc"><code class="literal">volume_types</code></li><li class="listitem" style="list-style-type: disc"><code class="literal">creator_principals</code></li></ul></div><p>For example, when a framework attempts to register with the master, it checks the <code class="literal">register_frameworks </code>ACLs to verify that the framework attempting to register with it is authorized to receive resources offers for the specified role. The scheduler is terminated, and an error message is sent if the framework is an unauthorized one.</p><p>Another example is that of a framework trying to launch a set of tasks. In this case, the <code class="literal">run_tasks </code>ACLs are checked to verify that the framework is permitted to run the required tasks and as the specified user. A <code class="literal">TASK_LOST</code> message is sent back if the framework is unauthorized and the tasks do not get launched.</p><p>For<a class="indexterm" id="id603"/> more information, visit <a class="ulink" href="http://mesos.apache.org/documentation/latest/authorization/">http://mesos.apache.org/documentation/latest/authorization/</a>.</p><div class="note" style="" title="Note"><div class="inner"><h3 class="title"><a id="note10"/>Note</h3><p>ACLs are checked in setup order; that is, the first relevant ACL is used to determine the request authorization status.</p><p>The <code class="literal">ACLs.permissive </code>field determines how a nonmatching request should be treated. The default is <code class="literal">true</code>, which means that if no matching ACL exists, then the request is authorized.</p></div></div><div class="section" title="Examples"><div class="titlepage"><div><div><h3 class="title"><a id="ch06lvl4sec10"/>Examples</h3></div></div></div><p>A few examples <a class="indexterm" id="id604"/>of how to implement ACLs are as follows:</p><div class="itemizedlist"><ul class="itemizedlist"><li class="listitem" style="list-style-type: disc">The <code class="literal">A</code> and <code class="literal">B </code>frameworks can run tasks as user <code class="literal">U</code>. Take a look at the following code:<div class="informalexample"><pre class="programlisting">{
+"run_tasks": [
+{
+"principals": { "values": ["A", "B"] },
+"users": { "values": ["U"] }
+}
+]
+}
+Any framework can run tasks as user <code class="literal">guest</code>, as shown by the following code:
+  {
+"run_tasks": [
+{
+"principals": { "type": "ANY" },
+"users": { "values": ["guest"] }
+}
+]
+}
+No framework can run tasks as <code class="literal">root</code>, as follows:
+  {
+"run_tasks": [
+{
+"principals": { "type": "NONE" },
+"users": { "values": ["root"] }
+}
+    ]
+  }</pre></div></li><li class="listitem" style="list-style-type: disc">The framework <code class="literal">A</code> can run tasks only as user <code class="literal">guest</code> and no other user, as demonstrated by the following code:<div class="informalexample"><pre class="programlisting">  {
+"run_tasks": [
+{
+"principals": { "values": [ "A" ] },
+"users": { "values": ["guest"] }
+},
+{
+"principals": { "values": [ "A" ] },
+"users": { "type": "NONE" }
+}
+]
+  }
+The framework <code class="literal">A</code> can register with <code class="literal">X</code> and <code class="literal">Y</code> roles, as follows:
+{
+"register_frameworks": [
+{
+"principals": { "values": ["A"] },
+"roles": { "values": ["X", "Y"] }
+}
+]
+}
+Only the framework<a class="indexterm" id="id605"/> <code class="literal">A</code> and no one else can register with <code class="literal">X</code> role, as follows:
+  {
+"register_frameworks": [
+{
+"principals": { "values": ["A"] },
+"roles": { "values": ["X"] }
+},
+{
+"principals": { "type": "NONE" },
+"roles": { "values": ["X"] }
+}
+]
+  }</pre></div></li><li class="listitem" style="list-style-type: disc">The framework <code class="literal">A</code> can only register with the <code class="literal">X </code>role but no other roles. Also, no other framework can register with any roles, as in the following code:<div class="informalexample"><pre class="programlisting">  {
+"permissive" : false,
+"register_frameworks": [
+{
+"principals": { "values": ["A"] },
+"roles": { "values": ["X"] }
+}
+]
+}
+Only the <code class="literal">P </code>principal can shut down any frameworks through the <code class="literal">/teardown</code> HTTP endpoint. Take a look at the following code:
+  {
+"permissive" : false,
+"shutdown_frameworks":[
+{
+"principals": { "values": ["P"] },
+"framework_principals":{"type":"ANY"}
+}
+]
+  }</pre></div></li></ul></div></div></div></div>
+<div class="section" title="The Mesos API"><div class="titlepage"><div><div><h1 class="title"><a id="ch06lvl1sec60"/>The Mesos API</h1></div></div></div><p>Mesos provides an API to<a class="indexterm" id="id606"/> allow developers to build custom frameworks that can run on top of the underlying distributed infrastructure. Refer to the <span class="emphasis"><em>API details</em></span> section in <a class="link" href="ch01.html" title="Chapter 1. Introducing Mesos">Chapter 1</a>, <span class="emphasis"><em>Introducing Mesos</em></span> for a detailed explanation of the Mesos API. The detailed steps involved in developing bespoke frameworks leveraging this API will be described in the subsequent section with the help of an example.</p><p>Mesos also implements an<a class="indexterm" id="id607"/> <span class="strong"><strong>actor style message-passing programming model</strong></span> to enable nonblocking communication between different Mesos components and leverages protocol buffers for the same.</p><p>In addition, there is also<a class="indexterm" id="id608"/> a new scheduler HTTP API that was recently introduced, and it will be briefly discussed in the next section.</p><div class="section" title="The scheduler HTTP API"><div class="titlepage"><div><div><h2 class="title"><a id="ch06lvl2sec102"/>The scheduler HTTP API</h2></div></div></div><p>Since Mesos version <a class="indexterm" id="id609"/>0.24.0, experimental support has been introduced for a new HTTP API (only scheduler for the time being). The Mesos master hosts the <code class="literal">api/v1/scheduler</code> endpoint with which the scheduler communicates.</p></div><div class="section" title="Request Calls"><div class="titlepage"><div><div><h2 class="title"><a id="ch06lvl2sec103"/>Request Calls</h2></div></div></div><p>The master currently accepts the following request calls:</p><div class="section" title="Subscribe"><div class="titlepage"><div><div><h3 class="title"><a id="ch06lvl3sec43"/>Subscribe</h3></div></div></div><p>The <a class="indexterm" id="id610"/>scheduler <code class="literal">sends</code> a <code class="literal">Subscribe</code> message, including the relevant framework information such as<a class="indexterm" id="id611"/> name and so on, via an <code class="literal">HTTP POST</code> request to enable communication with the master. The response includes a subscription confirmation and details such as the framework ID, which will be used in all subsequent communications.</p><p>The <code class="literal">SUBSCRIBE</code> request (JSON) is as follows:</p><div class="informalexample"><pre class="programlisting">POST /api/v1/scheduler  HTTP/1.1
+
+{
+"type"       : "SUBSCRIBE",
+
+"subscribe"  : {
+"framework_info"  : {
+"user" :  "U",
+"name" :  "N"
+},
+
+"force" : true
+  }
+}</pre></div><p>The <code class="literal">SUBSCRIBE</code> response (JSON) is as follows:</p><div class="informalexample"><pre class="programlisting">HTTP/1.1 200 OK</pre></div></div><div class="section" title="TEARDOWN"><div class="titlepage"><div><div><h3 class="title"><a id="ch06lvl3sec44"/>TEARDOWN</h3></div></div></div><p>The scheduler sends this request when it wants to shut itself. When it receives this request, Mesos will terminate <a class="indexterm" id="id612"/>all executors, killing all the running tasks in the process. It will then proceed to remove the framework and end all communication between the Mesos master and scheduler.</p><p>The <code class="literal">TEARDOWN</code> request (JSON) is as follows:</p><div class="informalexample"><pre class="programlisting">POST /api/v1/scheduler  HTTP/1.1
+
+{
+"framework_id"    : {"value" : "&lt;some_value&gt;"},
+"type"            : "TEARDOWN",
+}</pre></div><p>The <code class="literal">TEARDOWN</code> response is as follows:</p><div class="informalexample"><pre class="programlisting">HTTP/1.1 202 Accepted</pre></div></div><div class="section" title="ACCEPT"><div class="titlepage"><div><div><h3 class="title"><a id="ch06lvl3sec45"/>ACCEPT</h3></div></div></div><p>When the scheduler wants to accept the resource offers made by the Mesos master, it sends this request. The <a class="indexterm" id="id613"/>operations that the scheduler intends to carry out are included as parameters in the request (for example, launch task, create volumes, and reserve resources).</p><p>The <code class="literal">ACCEPT</code> request (JSON) is as follows:</p><div class="informalexample"><pre class="programlisting">POST /api/v1/scheduler  HTTP/1.1
+
+{
+"framework_id"    : {"value" : "&lt;some_Value&gt;"},
+"type"            : "ACCEPT",
+"accept"          : {
+"offer_ids"     : [
+{"value" : "&lt;some_Value&gt;"},
+{"value" : "&lt;some_value&gt;"}
+],
+"operations"    : [ {"type" : "LAUNCH", "launch" : {...}} ],
+"filters"       : {...}
+  }
+}</pre></div><p>The <code class="literal">ACCEPT</code> response is as follows:</p><div class="informalexample"><pre class="programlisting">HTTP/1.1 202 Accepted</pre></div></div><div class="section" title="DECLINE"><div class="titlepage"><div><div><h3 class="title"><a id="ch06lvl3sec46"/>DECLINE</h3></div></div></div><p>When the scheduler <a class="indexterm" id="id614"/>wants to decline the resource offers made by the Mesos master, it sends this request.</p><p>The <code class="literal">DECLINE</code> request (JSON) is as follows:</p><div class="informalexample"><pre class="programlisting">POST /api/v1/scheduler  HTTP/1.1
+
+{
+"framework_id"    : {"value" : "&lt;some_Value&gt;"},
+"type"            : "DECLINE",
+"decline"         : {
+"offer_ids"     : [
+                       {"value" : "&lt;some_value&gt;"},
+                       {"value" : "&lt;some_Value&gt;"}
+                      ],
+"filters"       : {...}
+  }
+}</pre></div><p>The <code class="literal">DECLINE</code> response is as follows:</p><div class="informalexample"><pre class="programlisting">HTTP/1.1 202 Accepted</pre></div></div><div class="section" title="REVIVE"><div class="titlepage"><div><div><h3 class="title"><a id="ch06lvl3sec47"/>REVIVE</h3></div></div></div><p>If any filters are set by<a class="indexterm" id="id615"/> prior accept or decline requests, then the scheduler can send a revive call to remove them.</p><p>The <code class="literal">REVIVE</code> request (JSON) is as follows:</p><div class="informalexample"><pre class="programlisting">POST /api/v1/scheduler  HTTP/1.1
+
+{
+"framework_id"    : {"value" : "&lt;some_value&gt;"},
+"type"            : "REVIVE",
+}</pre></div><p>The <code class="literal">REVIVE</code> response is as follows:</p><div class="informalexample"><pre class="programlisting">HTTP/1.1 202 Accepted</pre></div></div><div class="section" title="KILL"><div class="titlepage"><div><div><h3 class="title"><a id="ch06lvl3sec48"/>KILL</h3></div></div></div><p>If a specific task needs to be<a class="indexterm" id="id616"/> killed, then the scheduler can send a <code class="literal">KILL</code> request. If a custom executor is present, then the request is passed on to this executor, in which it can be processed. If the master is unaware of the task that is requested to be killed, it will generate a <code class="literal">Task_Lost</code> message.</p><p>The <code class="literal">KILL</code> request (JSON) is as follows:</p><div class="informalexample"><pre class="programlisting">POST /api/v1/scheduler  HTTP/1.1
+
+{
+"framework_id"    : {"value" : "&lt;some_value&gt;"},
+"type"            : "KILL",
+"kill"            : {
+"task_id"   :  {"value" : "&lt;some_Value&gt;"},
+"agent_id"  :  {"value" : "&lt;some_value&gt;"}
+  }
+}</pre></div><p>The <code class="literal">KILL</code> response is as follows:</p><div class="informalexample"><pre class="programlisting">HTTP/1.1 202 Accepted</pre></div></div><div class="section" title="SHUTDOWN"><div class="titlepage"><div><div><h3 class="title"><a id="ch06lvl3sec49"/>SHUTDOWN</h3></div></div></div><p>This newly introduced call is sent<a class="indexterm" id="id617"/> by the scheduler when it wants to end specific custom executors.</p><p>The <code class="literal">SHUTDOWN</code> request (JSON) is as follows:</p><div class="informalexample"><pre class="programlisting">POST /api/v1/scheduler  HTTP/1.1
+
+{
+"framework_id"    : {"value" : "&lt;some_value&gt;"},
+"type"            : "SHUTDOWN",
+"shutdown"            : {
+"executor_id":  {"value" : "&lt;some_value&gt;"},
+"agent_id":  {"value" : "&lt;some_value&gt;"}
+  }
+}</pre></div><p>The <code class="literal">SHUTDOWN</code><a class="indexterm" id="id618"/> response is as follows:</p><div class="informalexample"><pre class="programlisting">HTTP/1.1 202 Accepted</pre></div></div><div class="section" title="ACKNOWLEDGE"><div class="titlepage"><div><div><h3 class="title"><a id="ch06lvl3sec50"/>ACKNOWLEDGE</h3></div></div></div><p>When a status update needs to be <a class="indexterm" id="id619"/>acknowledged, the scheduler sends this request.</p><p>The <code class="literal">ACKNOWLEDGE</code> request (JSON) is as follows:</p><div class="informalexample"><pre class="programlisting">POST /api/v1/scheduler  HTTP/1.1
+
+{
+"framework_id"    : {"value" : "&lt;some_value&gt;"},
+"type"            : "ACKNOWLEDGE",
+"acknowledge"     : {
+"agent_id"  :  {"value" : "&lt;some_Value&gt;"},
+"task_id"   :  {"value" : "&lt;some_value&gt;"},
+"uuid"      :  "&lt;some_value&gt;"
+  }
+}</pre></div><p>The <code class="literal">ACKNOWLEDGE</code> response<a class="indexterm" id="id620"/> is as follows:</p><div class="informalexample"><pre class="programlisting">HTTP/1.1 202 Accepted</pre></div></div><div class="section" title="RECONCILE"><div class="titlepage"><div><div><h3 class="title"><a id="ch06lvl3sec51"/>RECONCILE</h3></div></div></div><p>When the status nonterminal tasks <a class="indexterm" id="id621"/>needs to be queried, the scheduler sends this request. For every task in the list, an Update event is sent back by the master.</p><p>The <code class="literal">RECONCILE</code> request (JSON) is as follows:</p><div class="informalexample"><pre class="programlisting">POST /api/v1/scheduler  HTTP/1.1
+
+{
+"framework_id"    : {"value" : "&lt;some_value&gt;"},
+"type"            : "RECONCILE",
+"reconcile"       : {
+"tasks"     : [
+                   { "task_id"  : { "&lt;some_value&gt;" },
+"agent_id" : { "&lt;some_value&gt;" }
+                   }
+                  ]
+  }
+}</pre></div><p>The <code class="literal">RECONCILE</code> response is as follows:</p><div class="informalexample"><pre class="programlisting">HTTP/1.1 202 Accepted</pre></div></div><div class="section" title="MESSAGE"><div class="titlepage"><div><div><h3 class="title"><a id="ch06lvl3sec52"/>MESSAGE</h3></div></div></div><p>If arbitrary binary data<a class="indexterm" id="id622"/> needs to be sent to the executor, the scheduler makes use of this request.</p><p>The <code class="literal">MESSAGE</code> request (JSON) is as follows:</p><div class="informalexample"><pre class="programlisting">POST /api/v1/scheduler  HTTP/1.1
+
+{
+"framework_id"    : {"value" : "&lt;some_value&gt;"},
+"type"            : "MESSAGE",
+"message"         : {
+"agent_id"       : {"value" : "&lt;some_value&gt;"},
+"executor_id"    : {"value" : "&lt;some_value&gt;"},
+"data"           : "&lt;some_Value&gt;"
+  }
+}</pre></div><p>The <code class="literal">MESSAGE</code> <a class="indexterm" id="id623"/>response is as follows:</p><div class="informalexample"><pre class="programlisting">HTTP/1.1 202 Accepted</pre></div></div><div class="section" title="REQUEST"><div class="titlepage"><div><div><h3 class="title"><a id="ch06lvl3sec53"/>REQUEST</h3></div></div></div><p>This is used by the <a class="indexterm" id="id624"/>scheduler to request resources from the master.</p><p>The <code class="literal">REQUEST</code> request (JSON) is as follows:</p><div class="informalexample"><pre class="programlisting">POST /api/v1/scheduler  HTTP/1.1
+
+{
+"framework_id"    : {"value" : "&lt;some_value&gt;"},
+"type"            : "REQUEST",
+"requests"        : [
+      {
+"agent_id"       : {"value" : "&lt;some_value&gt;"},
+"resources"      : {}
+      },
+  ]
+}</pre></div><p>The <code class="literal">REQUEST</code> response is as follows:</p><div class="informalexample"><pre class="programlisting">HTTP/1.1 202 Accepted</pre></div></div></div><div class="section" title="Response events"><div class="titlepage"><div><div><h2 class="title"><a id="ch06lvl2sec104"/>Response events</h2></div></div></div><p>The master currently sends the following <a class="indexterm" id="id625"/>events as<a class="indexterm" id="id626"/> responses.</p><div class="section" title="SUBSCRIBED"><div class="titlepage"><div><div><h3 class="title"><a id="ch06lvl3sec54"/>SUBSCRIBED</h3></div></div></div><p>When a <code class="literal">Subscribe </code>request is made by the<a class="indexterm" id="id627"/> scheduler, the first event sent by the master is the <code class="literal">Subscribed</code> event. The format is given as follows:</p><p>The <code class="literal">SUBSCRIBED</code> event (JSON) is as follows:</p><div class="informalexample"><pre class="programlisting">&lt;event-length&gt;
+{
+"type"         : "SUBSCRIBED",
+"subscribed"   : {
+"framework_id"               : {"value":"&lt;some_value&gt;"},
+"heartbeat_interval_seconds" : 10
+  }
+}</pre></div></div><div class="section" title="OFFERS"><div class="titlepage"><div><div><h3 class="title"><a id="ch06lvl3sec55"/>OFFERS</h3></div></div></div><p>The master sends this event<a class="indexterm" id="id628"/> whenever it can offer frameworks a new set of resources. Every offer corresponds to a group of resources on a slave. The resources are assumed to be allocated till the scheduler makes an <code class="literal">Accept</code> or <code class="literal">Decline</code> call to the master. The offer is rescinded if a slave is lost or times out.</p><p>The <code class="literal">OFFERS</code> event (JSON) is as follows:</p><div class="informalexample"><pre class="programlisting">&lt;event-length&gt;
+{
+"type"    : "OFFERS",
+"offers"  : [
+    {
+"offer_id":{"value": "&lt;some_value&gt;"},
+"framework_id":{"value": "&lt;some_Value&gt;"},
+"agent_id":{"value": "&lt;some_value&gt;"},
+"hostname":"agent.host",
+"resources":[...],
+"attributes":[...],
+"executor_ids":[]
+    }
+  ]
+}</pre></div></div><div class="section" title="RESCIND"><div class="titlepage"><div><div><h3 class="title"><a id="ch06lvl3sec56"/>RESCIND</h3></div></div></div><p>When an offer's validity<a class="indexterm" id="id629"/> expires (for example, when the slave mentioned in the offer is lost) the master sends this event to rescind the offer. If the scheduler makes any calls in the future, these are considered invalid.</p><p>The <code class="literal">RESCIND</code> event (JSON) is as follows:</p><div class="informalexample"><pre class="programlisting">&lt;event-length&gt;
+{
+"type":"RESCIND",
+"rescind":{
+"offer_id":{"value":"&lt;some_value&gt;"}
+}
+}</pre></div></div><div class="section" title="UPDATE"><div class="titlepage"><div><div><h3 class="title"><a id="ch06lvl3sec57"/>UPDATE</h3></div></div></div><p>The master <a class="indexterm" id="id630"/>sends this event if the executor creates a status update regarding the running tasks. For example, if the <code class="literal">Task_Finished </code>update is generated, then the master can release the resources given to the task for use elsewhere.</p><p>The <code class="literal">UPDATE</code> event (JSON) is as follows:</p><div class="informalexample"><pre class="programlisting">&lt;event-length&gt;
+{
+"type"    : "UPDATE",
+"update"  : {
+"status"    : {
+"task_id"   : { "value" : "&lt;some_value&gt;"},
+"state"     : "TASK_FINISHED",
+"source"    : "SOURCE_EXECUTOR",
+"uuid"      : "&lt;some_value&gt;",
+"bytes"     : "&lt;some_Value"
+
+      }
+  }	
+}</pre></div></div><div class="section" title="MESSAGE"><div class="titlepage"><div><div><h3 class="title"><a id="ch06lvl3sec58"/>MESSAGE</h3></div></div></div><p>The Mesos master forwards executor-generated messages to the scheduler without interpretation or delivery<a class="indexterm" id="id631"/> guarantee by passing the <code class="literal">Message</code> event. If the message delivery fails for any reason, the executor needs to resend the request.</p><p>The <code class="literal">MESSAGE</code> event (JSON) is as follows:</p><div class="informalexample"><pre class="programlisting">&lt;event-length&gt;
+{
+"type":"MESSAGE",
+"message":{
+"agent_id":{"value":"&lt;some_value&gt;"},
+"executor_id":{"value":"&lt;some_value&gt;"},
+"data":"&lt;some_value&gt;"
+}
+}</pre></div></div><div class="section" title="FAILURE"><div class="titlepage"><div><div><h3 class="title"><a id="ch06lvl3sec59"/>FAILURE</h3></div></div></div><p>The master sends this event<a class="indexterm" id="id632"/> upon slave removal or executor termination.</p><p>The <code class="literal">FAILURE</code> event (JSON) is as follows:</p><div class="informalexample"><pre class="programlisting">&lt;event-length&gt;
+{
+"type":"FAILURE",
+"failure":{
+"agent_id":{"value":"&lt;some_Value&gt;"},
+"executor_id":{"value":"&lt;some_Value&gt;"},
+"status": 1
+}
+}</pre></div></div><div class="section" title="ERROR"><div class="titlepage"><div><div><h3 class="title"><a id="ch06lvl3sec60"/>ERROR</h3></div></div></div><p>The master sends this event upon the<a class="indexterm" id="id633"/> occurrence of an error (for example, a framework with the given role unauthorized to subscribe to the requested resources). The recommendation is that the framework should abort upon the receipt of this event and the resubscribe.</p><p>The <code class="literal">ERROR</code> event (JSON) is as follows:</p><div class="informalexample"><pre class="programlisting">&lt;event-length&gt;
+{
+"type":"ERROR",
+"message":"Framework is not authorized"
+}</pre></div></div><div class="section" title="HEARTBEAT"><div class="titlepage"><div><div><h3 class="title"><a id="ch06lvl3sec61"/>HEARTBEAT</h3></div></div></div><p>The master sends this <a class="indexterm" id="id634"/>event at periodic intervals to communicate to the scheduler that an established subscribed connection is alive. This helps make sure that a live connection is not terminated due to insufficient data movement.</p><p>The <code class="literal">HEARTBEAT</code> event (JSON) is as follows:</p><div class="informalexample"><pre class="programlisting">&lt;event-length&gt;
+{
+"type":"HEARTBEAT",
+}</pre></div><p>For more information<a class="indexterm" id="id635"/> regarding the scheduler HTTP API, visit <a class="ulink" href="http://mesos.apache.org/documentation/latest/scheduler-http-api/">http://mesos.apache.org/documentation/latest/scheduler-http-api/</a>.</p></div></div></div>
+<div class="section" title="Building a custom framework on Mesos"><div class="titlepage"><div><div><h1 class="title"><a id="ch06lvl1sec61"/>Building a custom framework on Mesos</h1></div></div></div><p>As we already know, a Mesos<a class="indexterm" id="id636"/> framework is an application running on Mesos. In this module, we will see how we can create our own Mesos framework. For<a class="indexterm" id="id637"/> the sake of simplicity, we will create a simple Java application to calculate the value of <span class="emphasis"><em>pi</em></span>. A Mesos framework consists of the following three components:</p><div class="itemizedlist"><ul class="itemizedlist"><li class="listitem" style="list-style-type: disc"><span class="strong"><strong>Driver</strong></span>: This is the piece <a class="indexterm" id="id638"/>of code that submits tasks to the framework</li><li class="listitem" style="list-style-type: disc"><span class="strong"><strong>Executor:</strong></span> This is the piece<a class="indexterm" id="id639"/> of code that is launched on the Mesos slave nodes to run the framework's tasks</li><li class="listitem" style="list-style-type: disc"><span class="strong"><strong>Scheduler</strong></span>: This is the<a class="indexterm" id="id640"/> piece of code that registers with the master, asks for resources from it, and runs tasks on the executor</li></ul></div><p>Now, let's take a look at how we can develop each of these components to build a custom Mesos framework in the following sections.</p><div class="section" title="Driver implementation"><div class="titlepage"><div><div><h2 class="title"><a id="ch06lvl2sec105"/>Driver implementation</h2></div></div></div><p>The driver program is the one that<a class="indexterm" id="id641"/> creates the <span class="strong"><strong>executor information</strong></span>. The executor information consists of an <a class="indexterm" id="id642"/>
+<code class="literal">executorID</code> being a String value and a command that is executed through the Linux <code class="literal">/bin/sh-c</code> command. This can be implemented in our Java code as follows:</p><div class="informalexample"><pre class="programlisting">Protos.ExecutorInfopiExecutorInfo = 
+Protos.ExecutorInfo.newBuilder()
+.setExecutorId(Protos.ExecutorID.newBuilder()
+.setValue("CalculatePi"))
+.setCommand(piCommandInfo)
+.setName("PiExecutor")
+.setSource("java")
+.build();</pre></div><p>Here, we used Google Protocol Buffers to communicate with Mesos and craft the executor information with the Builder pattern.</p><p>Now that we have the executor information ready, next in line is information about the framework. This contains information such as under which Unix user the tasks should be launched (which can be set to the default if we leave the field empty) and the failover time, which makes the master wait before removing the framework in case of scheduler failure. These two properties are set using the <code class="literal">.setUser</code> and <code class="literal">.setFailOverTimeout</code> calls, which would look as follows:</p><div class="informalexample"><pre class="programlisting">Protos.FrameworkInfo.BuilderframeworkBuilder = Protos.FrameworkInfo.newBuilder()
+.setFailoverTimeout(120000)
+.setUser("")
+.setName("PiFramework"); </pre></div><p>We can now initialize the <code class="literal">Scheduler </code>with the number of tasks that are submitted to the executor to run our program. This is done with the following code:</p><div class="informalexample"><pre class="programlisting">Scheduler scheduler = new PiScheduler(piExecutorInfo, 1);</pre></div><p>
+<code class="literal">PiScheduler</code> is instantiated with one task as we only require one task to compute it.</p><p>
+<code class="literal">MesosSchedulerDriver</code> is used to launch and kill tasks on Mesos. It also manages the life cycle of our scheduler with the <code class="literal">start</code>, <code class="literal">stop</code>, and <code class="literal">wait for tasks to finish</code> calls. This is done with the following piece of code:</p><div class="informalexample"><pre class="programlisting">MesosSchedulerDriverschedulerDriver = 
+new MesosSchedulerDriver(scheduler,frameworkBuilder.build(), MESOS-MASTER);
+int status = schedulerDriver.run() == Protos.Status.DRIVER_STOPPED ? 0 : 1;
+schedulerDriver.stop();
+System.exit(status);</pre></div><p>Now that we have discussed all the parts of the driver program, let's assemble them all together and take a<a class="indexterm" id="id643"/> look at how the real code looks. This is shown as follows:</p><div class="informalexample"><pre class="programlisting">/* Create the PiDriver class with the following contents: */
+
+import com.google.protobuf.ByteString;
+import org.apache.log4j.Logger;
+import org.apache.mesos.MesosSchedulerDriver;
+import org.apache.mesos.Protos;
+import org.apache.mesos.Scheduler;
+
+
+public class PiDriver {
+
+private final static Logger LOGGER = Logger.getLogger(PiDriver.class);
+
+public static void main(String[] args) {
+
+String path = System.getProperty("user.dir") + "/target/scala-2.10/mesos-pi-assembly-1.0.jar";
+
+/* Defining the executor */
+
+Protos.CommandInfo.URIuriProtos.CommandInfo.URI.newBuilder().setValue(path).setExtract(false).build();
+String commandPi = "java -cpmesos-pi-assembly-1.0.jarPiExecutor";
+Protos.CommandInfopiCommandInfo = Protos.CommandInfo.newBuilder().setValue(commandPi).addUris(uri).build();
+
+
+/* Setting the executor information */
+
+Protos.ExecutorInfopiExecutorInfo = Protos.ExecutorInfo.newBuilder().setExecutorId(Protos.ExecutorID.newBuilder().setValue("CalculatePi")).setCommand(piCommandInfo).setName("PiExecutor").setSource("java").build();
+
+/* Defining framework &amp; specifying related information*/
+
+Protos.FrameworkInfo.BuilderframeworkBuilder = Protos.FrameworkInfo.newBuilder().setFailoverTimeout(120000).setUser("").setName("PiFramework").setPrincipal("test-framework-java");
+
+/* Enabling checkpointing */
+
+if (System.getenv("MESOS_CHECKPOINT") != null) {
+System.out.println("Enabling checkpoint for the framework");
+frameworkBuilder.setCheckpoint(true);
+}
+
+/* Initializing the scheduler */
+
+Scheduler scheduler = new PiScheduler(piExecutorInfo, 1);
+
+/* Defining the scheduler driver */
+
+MesosSchedulerDriverschedulerDriver = new MesosSchedulerDriver(scheduler, frameworkBuilder.build(), args[0]);;
+
+
+int status = schedulerDriver.run() == Protos.Status.DRIVER_STOPPED ? 0 : 1;
+schedulerDriver.stop();
+System.exit(status);
+}
+
+}</pre></div></div><div class="section" title="Executor implementation"><div class="titlepage"><div><div><h2 class="title"><a id="ch06lvl2sec106"/>Executor implementation</h2></div></div></div><p>
+<code class="literal">PiExecutor</code> is our executor component. We will need to implement the <span class="emphasis"><em>Executor</em></span> interface and <a class="indexterm" id="id644"/>override a few methods. Here, we will focus on the core method, that is, the <code class="literal">launchTask() </code>call—which is the call to actually compute the value of <code class="literal">pi</code> in our case. We will also need to set a few properties of our task within this function, which are explained as follows:</p><div class="informalexample"><pre class="programlisting">@Override 
+public void launchTask(final ExecutorDriverexecutorDriver, final Protos.TaskInfotaskInfo) 
+{
+
+/* Set the task status as running for the task ID with a builder pattern. */
+
+Protos.TaskStatustaskStatus = Protos.TaskStatus.newBuilder().setTaskId(taskInfo.getTaskId())
+.setState(Protos.TaskState.TASK_RUNNING).build();
+
+/* Send the status update to the framework scheduler retrying as necessary until an acknowledgement has been receivedor the executor is terminated, in which case,a TASK_LOST status update will be sent.+*/
+
+executorDriver.sendStatusUpdate(taskStatus);
+
+/* Actual Pi computation */
+
+try {
+message = computePi().getBytes();
+}
+catch (IOException e) {
+LOGGER.error("Error computing Pi :" + e.getMessage());
+}
+
+/* Return the value of Pi to framework */
+
+executorDriver.sendFrameworkMessage(message);
+
+
+/* Mark state of task as finished and send status update to framework scheduler. */
+
+taskStatus = Protos.TaskStatus.newBuilder().setTaskId(taskInfo.getTaskId()) 
+.setState(Protos.TaskState.TASK_FINISHED)
+.build();
+
+executorDriver.sendStatusUpdate(taskStatus);
+
+}</pre></div><p>We can now create a <code class="literal">PiExecutor</code> class by implementing the <code class="literal">Executor</code> class and overriding the<a class="indexterm" id="id645"/> default methods. The complete code is given as follows:</p><div class="informalexample"><pre class="programlisting">/* Create the PiExecutor class with the following contents: */
+
+import org.apache.log4j.Logger;
+import org.apache.mesos.Executor;
+import org.apache.mesos.ExecutorDriver;
+import org.apache.mesos.MesosExecutorDriver;
+import org.apache.mesos.Protos;
+
+import java.io.IOException;
+
+public class PiExecutor implements Executor {
+private final static Logger LOGGER = Logger.getLogger(PiExecutor.class);
+
+/**
+*Invoked once the executor driver has been able to
+*successfully connect with Mesos. 
+*In particular, a scheduler can pass some
+*data to it's executors through the
+*{@linkorg.apache.mesos.Protos.ExecutorInfo#getData()}field.
+*@param driver - The executor driver that was registered and connectedto the Mesos cluster.
+*@paramexecutorInfo - Describes information about the registered executor.
+*@paramframeworkInfo - Describes the framework that was registered.
+*@paramslaveInfo - Describes the slave that will be used to launchthe tasks for this executor.
+*For more details, seeorg.apache.mesos.ExecutorDriver and org.apache.mesos.MesosSchedulerDriver
+
+*/
+
+@Override 
+public void registered(ExecutorDriver driver, Protos.ExecutorInfoexecutorInfo,Protos.FrameworkInfoframeworkInfo, Protos.SlaveInfoslaveInfo) {
+LOGGER.info("Registered PinUserBoardExecutor on " + slaveInfo.getHostname());
+}
+
+/*
+* Invoked when executor re-registers with a restarted slave.
+    * @param driver - The executor driver that was re-registered with Mesos master.
+    * @paramslaveInfo - Describes the slave that will be used to launch the tasks for this executor.
+    * For more details, see org.apache.mesos.ExecutorDriver
+*/
+
+@Override 
+public void reregistered(ExecutorDriver driver, Protos.SlaveInfoslaveInfo) {
+
+}
+
+/*
+    * Invoked when executor becomes 'disconnected' from  slave.
+    * (e.g. when the slave is being restarted due to an upgrade)
+    * @param driver - The executor driver that was disconnected.
+
+*/
+
+@Override 
+public void disconnected(ExecutorDriver driver) {
+
+}
+
+/*
+    * Invoked when a task has been launched on this executor 
+    * (initiated via 
+    * {@linkorg.apache.mesos.SchedulerDriver#launchTasks}. 
+    * Note that this task can be realized with a 
+    * thread, a process, or some simple computation, 
+    * however, no other callbacks will be invoked on this executor
+    * until this callback has returned.
+    * 
+* @param driver - The executor driver that launched the task.
+    * @param task - Describes the task that was launched.
+    * For more details, see 
+    * org.apache.mesos.ExecutorDriver and 
+    * org.apache.mesos.Protos.TaskInfo
+*/
+
+@Override 
+public void launchTask(ExecutorDriver driver, Protos.TaskInfo task) {
+LOGGER.info("Launching task in PinUserBoardExecutor..");
+Protos.TaskStatustaskStatus = Protos.TaskStatus.newBuilder().setTaskId(task.getTaskId()).setState(Protos.TaskState.TASK_RUNNING).build();
+driver.sendStatusUpdate(taskStatus);
+String url = task.getData().toStringUtf8();
+
+byte[] message = new byte[0];
+
+try {
+message = computePi().getBytes();
+} 
+catch (IOException e) {
+LOGGER.error("Error computing Pi :" + e.getMessage());
+}
+LOGGER.info("Sending framework message and marking task finished."+ getClass().getName());
+driver.sendFrameworkMessage(message);
+
+taskStatus = Protos.TaskStatus.newBuilder().setTaskId(task.getTaskId()).setState(Protos.TaskState.TASK_FINISHED).build();
+
+driver.sendStatusUpdate(taskStatus);
+}
+
+/* Code to compute Pi */
+
+private String computePi() throws IOException {
+
+double pi = 0;
+double y = 1;
+
+intlps = 90000000*2;
+intcnt = 0;
+for(int x=1; x &lt;lps; x+=2) {
+pi = pi + (y/x);
+y = -y;
+cnt++;
+}
+
+return "Value of PI=" + 4*pi + " after " + cnt; 
+/* PI=3.141592642478473 after 90000000 */
+
+}
+
+    /*
+    * Invoked when a task running within this executor 
+    * has been killed 
+    * (via {@link org.apache.mesos.SchedulerDriver#killTask}). 
+    * Note that no status update will be sent 
+    * on behalf of the executor, the executor is responsible for 
+    * creating new TaskStatus (i.e., with TASK_KILLED) &amp;invoking 
+    * {@link org.apache.mesos.ExecutorDriver#sendStatusUpdate}.
+
+    * @param driver - The executor driver that owned the task that was killed.
+@param task - The ID of the task that was killed.
+
+@For more details, see org.apache.mesos.ExecutorDriver andorg.apache.mesos.Protos.TaskID
+
+*/
+
+@Override 
+public void killTask(ExecutorDriver driver, Protos.TaskIDtaskId) {
+
+}
+
+/*
+@Invoked when a framework message has arrived 
+*for this executor. 
+*These messages are best effort; 
+*do not expect a framework message to be 
+*retransmitted in any reliable fashion.
+*@param driver - The executor driver that received the message.
+@param data - The message payload.
+    * For more details, see 
+    * org.apache.mesos.ExecutorDriver
+*/
+
+@Override 
+public void frameworkMessage(ExecutorDriver driver, byte[] data) {
+
+}
+
+/*
+    * Invoked when the executor should terminate 
+    * all of it's currently running tasks. 
+    * Note that after Mesos has determined that 
+    * an executor has terminated any tasks that 
+    * the executor did not send terminal status updates 
+    * for (e.g. TASK_KILLED, TASK_FINISHED, TASK_FAILED and so on) 
+    * a TASK_LOST status update will be created.
+    * @param driver - The executor driver that should terminate
+    * For more details, see org.apache.mesos.ExecutorDriver
+
+*/
+
+@Override 
+public void shutdown(ExecutorDriver driver) {
+
+}
+
+/*
+* Invoked when a fatal error has occurred with 
+    * the executor and/or executor driver. 
+    * The driver will be aborted BEFORE invoking this callback
+    * @param driver - The executor driver that was aborted due to this error
+    * @param message - The error message.
+    * For more details, see org.apache.mesos.ExecutorDriver
+
+*/
+
+@Override 
+public void error(ExecutorDriver driver, String message) {
+
+}
+
+
+/* The main method in which we initiates and calls the run() method in MesosExecutorDriver */
+
+public static void main(String[] args) {
+MesosExecutorDrivermesosExecutorDriver = new MesosExecutorDriver(new PiExecutor());System.exit(mesosExecutorDriver.run() == Protos.Status.DRIVER_STOPPED ? 0 : 1);
+}
+
+}</pre></div></div><div class="section" title="Scheduler implementation"><div class="titlepage"><div><div><h2 class="title"><a id="ch06lvl2sec107"/>Scheduler implementation</h2></div></div></div><p>We will now discuss the <a class="indexterm" id="id646"/>scheduler implementation, which is responsible for the framework's scheduling. We will create <code class="literal">PiScheduler</code>, which actually implements the Scheduler interface of Mesos. We will focus on overriding the <code class="literal">resourceOffer()</code>, <code class="literal">statusUpdate()</code>, and <code class="literal">frameworkMessage()</code><a class="indexterm" id="id647"/> methods, which form a core part of <code class="literal">PiScheduler</code>.</p><p>The complete code is as follows:</p><div class="informalexample"><pre class="programlisting">import org.apache.log4j.Logger;
+import org.apache.mesos.Protos;
+import org.apache.mesos.Scheduler;
+import org.apache.mesos.SchedulerDriver;
+
+import java.util.ArrayList;
+import java.util.List;
+
+public class PiScheduler implements Scheduler {
+
+private final static Logger LOGGER = Logger.getLogger(PiScheduler.class);
+
+private final Protos.ExecutorInfopiExecutor;
+private final inttotalTasks;
+private intlaunchedTasks = 0;
+private intfinishedTasks = 0;
+
+
+/**ThePiSchedulertakes information from the PiExecutor and 
+  * the total number of tasks through its constructor 
+  * which is implemented below 
+*/
+
+public PiScheduler(Protos.ExecutorInfo _piExecutor, int _totalTasks) {
+this.totalTasks = _totalTasks; 
+this.piExecutor = _piExecutor;
+}
+
+@Override public void registered(SchedulerDriverschedulerDriver, Protos.FrameworkIDframeworkID, Protos.MasterInfomasterInfo) {
+LOGGER.info("Registered! ID = " + frameworkID.getValue());
+}
+
+@Override public void reregistered(SchedulerDriverschedulerDriver, Protos.MasterInfomasterInfo) {
+
+}
+
+/**The resourceoffer() method is invoked when resources 
+  * have been offered to this framework. 
+* We will set the number of CPUs, and amount of memory that 
+  * our framework requires through the call described below 
+*/
+
+@Override public void resourceOffers(SchedulerDriverschedulerDriver, List&lt;Protos.Offer&gt; list) {
+
+/* The amount of CPU cores and Memory required for our tasks is specified */
+
+double CPUS_PER_TASK = 1;
+double MEM_PER_TASK = 128;
+
+for (Protos.Offer offer : list) {
+List&lt;Protos.TaskInfo&gt;taskInfoList = new ArrayList&lt;Protos.TaskInfo&gt;();
+double offerCpus = 0;
+double offerMem = 0;
+
+for (Protos.Resource resource : offer.getResourcesList()) {
+if (resource.getName().equals("cpus")) {
+offerCpus += resource.getScalar().getValue();
+} else if (resource.getName().equals("mem")) {
+offerMem += resource.getScalar().getValue();
+}
+}
+
+LOGGER.info("Received Offer : " + offer.getId().getValue() + "with cpus = " + offerCpus + " and mem ="+ offerMem);
+
+double remainingCpus = offerCpus;
+double remainingMem = offerMem;
+
+if (launchedTasks&lt;totalTasks&amp;&amp;remainingCpus&gt;= CPUS_PER_TASK&amp;&amp;remainingMem&gt;= MEM_PER_TASK) {
+
+Protos.TaskIDtaskID = Protos.TaskID.newBuilder().setValue(Integer.toString(launchedTasks++)).build();
+LOGGER.info("Launching task :" + taskID.getValue() + " using the offer : " + offer.getId().getValue());
+
+/* PiExecutor is created as a task and is launched*/
+
+Protos.TaskInfopiTaskInfo = Protos.TaskInfo.newBuilder()
+.setName("task " + taskID.getValue()).setTaskId(taskID).setSlaveId(offer.getSlaveId()).addResources(Protos.Resource.newBuilder().setName("cpus")
+.setType(Protos.Value.Type.SCALAR).setScalar(Protos.Value.Scalar.newBuilder().setValue(CPUS_PER_TASK))).addResources(Protos.Resource.newBuilder().setName("mem").setType(Protos.Value.Type.SCALAR).setScalar(Protos.Value.Scalar.newBuilder().setValue(MEM_PER_TASK))).setExecutor(Protos.ExecutorInfo.newBuilder(piExecutor)).build();
+
+taskID = Protos.TaskID.newBuilder().setValue(Integer.toString(launchedTasks++)).build();
+
+LOGGER.info("Launching task :" + taskID.getValue() + " using the offer : " + offer.getId().getValue());
+
+taskInfoList.add(piTaskInfo);
+
+}
+
+schedulerDriver.launchTasks(offer.getId(), taskInfoList);
+
+}
+
+}
+
+/** Invoked when an offer is no longer valid 
+  * (e.g., the slave was lost or another framework used 
+  * resources in the offer). 
+  * If for whatever reason an offer is never rescinded 
+  * (e.g., dropped message, failing over framework and so on), 
+  * a framework that attempts to launch tasks 
+  * using an invalid offer will receive TASK_LOST
+  * status update for those tasks */
+  */
+@Override public void offerRescinded(SchedulerDriverschedulerDriver, Protos.OfferIDofferID) {
+
+}
+
+/**The statusUpdate() call is invoked when 
+  * the status of a task has changed 
+  * (e.g., a slave is lost which means the task is lost, 
+  * a task finishes and executor sends a status update)
+*/
+
+@Override public void statusUpdate(SchedulerDriverschedulerDriver, Protos.TaskStatustaskStatus) {
+
+LOGGER.info("Status update : Task ID "+ taskStatus.getTaskId()
+.getValue() + "in state : "+ taskStatus.getState().getValueDescriptor().getName());
+if (taskStatus.getState() == Protos.TaskState.TASK_FINISHED) {
+finishedTasks++;
+LOGGER.info("Finished tasks : " + finishedTasks);
+
+/* We can stop the scheduler once the tasks are completed */
+
+if (finishedTasks == totalTasks) {
+schedulerDriver.stop();
+}
+}
+
+if (taskStatus.getState() == Protos.TaskState.TASK_FAILED|| taskStatus.getState() == Protos.TaskState.TASK_KILLED|| taskStatus.getState() == Protos.TaskState.TASK_LOST) {
+LOGGER.error("Aborting because the task "+ taskStatus.getTaskId().getValue() + " is in unexpected state : "+ taskStatus.getState().getValueDescriptor().getName() + "with reason : "+ taskStatus.getReason().getValueDescriptor().getName()+ " from source : "+ taskStatus.getSource().getValueDescriptor().getName() + " with message : "+ taskStatus.getMessage());
+schedulerDriver.abort();
+}
+}
+
+
+/**The frameworkMessage() is invoked when an executor 
+  * sends a message. In our case we will be sending 
+  * the value of Pi from our executor as the message.
+*/
+
+@Override public void frameworkMessage(SchedulerDriverschedulerDriver, Protos.ExecutorIDexecutorID,Protos.SlaveIDslaveID, byte[] bytes) {
+String data = new String(bytes);
+System.out.println(data);
+LOGGER.info("Output :\n=========\n " + data);
+}
+
+/* Invoked when scheduler becomes disconnected from master 
+  * (e.g. master fails and another is taking over)
+*/
+
+@Override public void disconnected(SchedulerDriverschedulerDriver) {
+
+}
+
+/* Invoked when a slave has been determined unreachable 
+  * (e.g., machine failure, network partition). 
+  * Most frameworks will need to reschedule 
+  * any tasks launched on this slave on a new slave. 
+*/
+
+@Override public void slaveLost
+(SchedulerDriverschedulerDriver, Protos.SlaveIDslaveID) {
+
+}
+
+/* Invoked when an executor has exited/terminated. 
+  * Note that any tasks running will have 
+  * TASK_LOST status updates automatically generated.
+*/
+
+@Override public void executorLost(SchedulerDriverschedulerDriver, Protos.ExecutorIDexecutorID,Protos.SlaveIDslaveID, inti) {
+
+}
+
+/* Invoked when there is an unrecoverable error 
+  * in the scheduler or driver. 
+  * The driver will be aborted before invoking this callback.
+*/
+
+@Override public void error(SchedulerDriverschedulerDriver, String s) {
+LOGGER.error("Error : " + s);
+}
+
+}</pre></div></div><div class="section" title="Running the framework"><div class="titlepage"><div><div><h2 class="title"><a id="ch06lvl2sec108"/>Running the framework</h2></div></div></div><p>We need to package<a class="indexterm" id="id648"/> the jar with all the dependencies in order to run the framework. For this, we can create a <code class="literal">build.sbt</code> file with Mesos and log4j as dependencies. This will look similar to the following:</p><div class="informalexample"><pre class="programlisting">import AssemblyKeys._
+
+assemblySettings
+
+name := "mesos-pi"
+
+version := "1.0"
+
+scalaVersion := "2.10.4"
+
+libraryDependencies += "org.apache.mesos" % "mesos" % "0.26.0"
+
+libraryDependencies += "log4j" % "log4j" % "1.2.17"</pre></div><p>We can now create an uber jar with the following <code class="literal">sbt</code> command:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>$ sbt assembly</strong></span>
+</pre></div><p>Then, we will run the program with the following command:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>$ sbt'run 127.0.0.1:5050'</strong></span>
+<span class="strong"><strong>Multiple main classes detected, select one to run:</strong></span>
+<span class="strong"><strong> [1] PiDriver</strong></span>
+<span class="strong"><strong> [2] PiExecutor</strong></span>
+
+<span class="strong"><strong>Enter number: 1</strong></span>
+</pre></div><p>Note that we specified the Mesos master URI as an argument to our <code class="literal">PiDriver</code> program.</p><p>Once we run the program, you will see the following output in the Terminal:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>Value of PI=3.141592642478473 after 90000000</strong></span>
+</pre></div><div class="mediaobject"><img alt="Running the framework" src="graphics/B05186_06_01.jpg"/></div><p>We can also see the framework being registered in the Mesos master UI, which runs on port <code class="literal">5050</code>, as shown in the following screenshot:</p><div class="mediaobject"><img alt="Running the framework" src="graphics/B05186_06_02.jpg"/></div><p>We can also see the <a class="indexterm" id="id649"/>single task that calculated the value of Pi has finished in the same UI if we click on the framework ID:</p><div class="mediaobject"><img alt="Running the framework" src="graphics/B05186_06_03.jpg"/></div></div></div>
+<div class="section" title="Summary"><div class="titlepage"><div><div><h1 class="title"><a id="ch06lvl1sec62"/>Summary</h1></div></div></div><p>After reading this chapter, you should have a fair idea of framework security features such as authorization, authentication, and access control in Mesos. You should also now be able to use the Mesos API to build your own custom application/framework on Mesos. In addition, the experimental scheduler HTTP API was also introduced in this chapter.</p><p>In the next chapter, we will explore some interesting projects, such as Myriad (YARN on Mesos) and Kubernetes on Mesos. We will also discuss how to deploy containerized apps using Docker and how a continuous integration process can be set up using Jenkins on Mesos.</p></div></body></html>

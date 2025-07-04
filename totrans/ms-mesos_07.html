@@ -1,0 +1,469 @@
+<html><head></head><body><div class="chapter" title="Chapter&#xA0;7.&#xA0;Mesos Containerizers"><div class="titlepage"><div><div><h1 class="title"><a id="ch07"/>Chapter 7. Mesos Containerizers</h1></div></div></div><p>This chapter briefly introduces the concepts of <span class="strong"><strong>containers,</strong></span> and talks a bit about<a class="indexterm" id="id650"/> <span class="strong"><strong>Docker</strong></span>, probably the most popular container technology available today. It also provides a detailed overview of the different <span class="emphasis"><em>containerizer</em></span> options in Mesos besides introducing some other topics such as networking for Mesos-managed containers and fetcher cache. Finally, an example for deploying containerized apps in Mesos is provided for better understanding. The following topics will be covered in this chapter:</p><div class="itemizedlist"><ul class="itemizedlist"><li class="listitem" style="list-style-type: disc">Containers</li><li class="listitem" style="list-style-type: disc">Docker</li><li class="listitem" style="list-style-type: disc">Mesos Containerizer<div class="itemizedlist"><ul class="itemizedlist"><li class="listitem" style="list-style-type: disc">Mesos Containerizer</li><li class="listitem" style="list-style-type: disc">Docker Containerizer</li><li class="listitem" style="list-style-type: disc">Composing Containerizer</li></ul></div></li><li class="listitem" style="list-style-type: disc">Networking for Mesos-managed containers</li><li class="listitem" style="list-style-type: disc">Mesos Image Provisioning</li><li class="listitem" style="list-style-type: disc">Fetcher Cache</li><li class="listitem" style="list-style-type: disc">Deploying containerized apps using Docker and Mesos</li></ul></div><div class="section" title="Containers"><div class="titlepage"><div><div><h1 class="title"><a id="ch07lvl1sec63"/>Containers</h1></div></div></div><p>A Linux Container, (referred to simply as container for the rest of this chapter) allows applications to run on an allocated share of resources within an isolated, individual environment. Since<a class="indexterm" id="id651"/> all containers share the <span class="strong"><strong>Operating system (OS)</strong></span> of the host machine <a class="indexterm" id="id652"/>and do not require the OS to be loaded up, they can be created in a matter of seconds.</p><p>Container technology, based on operating system level virtualization, has been present for over a decade now. OS level virtualization is a method by which an OS kernel allows creation of many user namespace instances (also called containers) instead of only one.</p><p>We can look at containers as encapsulated, individually deployable components running as isolated instances on the same kernel. Containers have a big advantage over traditional technologies such as bare metal, meaning servers with an operating system or virtualized environments such as <a class="indexterm" id="id653"/>
+<span class="strong"><strong>Microsoft Hyper-V</strong></span>. From a developer's point of view, we can just package our application and dependencies into a container, and deploy it to any environment that<a class="indexterm" id="id654"/> supports containers. By doing this, we also make our application easy to update, upgrade, and even easily portable from one environment to another, for example, from a development environment on the desktop to a test environment in the cloud.</p><p>Two popular models for containers are:</p><div class="itemizedlist"><ul class="itemizedlist"><li class="listitem" style="list-style-type: disc"><span class="strong"><strong>Hypervisor-based</strong></span>: The<a class="indexterm" id="id655"/> hypervisor-based <a class="indexterm" id="id656"/>model includes redundant OS kernels and other libraries, which makes this an inefficient setup, as shown in the subsequent image (source: <a class="ulink" href="http://aucouranton.com/2014/06/13/linux-containers-parallels-lxc-openvz-docker-and-more/">http://aucouranton.com/2014/06/13/linux-containers-parallels-lxc-openvz-docker-and-more/</a>):<div class="mediaobject"><img alt="Containers" src="graphics/B05186_07_01.jpg"/></div></li><li class="listitem" style="list-style-type: disc"><span class="strong"><strong>Container-based</strong></span>: The container-based approach involves encapsulated, individually deployable<a class="indexterm" id="id657"/> components running <a class="indexterm" id="id658"/>as isolated instances on the same kernel, as shown in the following image (source: <a class="ulink" href="http://aucouranton.com/2014/06/13/linux-containers-parallels-lxc-openvz-docker-and-more/">http://aucouranton.com/2014/06/13/linux-containers-parallels-lxc-openvz-docker-and-more/</a>):<div class="mediaobject"><img alt="Containers" src="graphics/B05186_07_02.jpg"/></div></li></ul></div><div class="section" title="Why containers?"><div class="titlepage"><div><div><h2 class="title"><a id="ch07lvl2sec109"/>Why containers?</h2></div></div></div><p>The following are<a class="indexterm" id="id659"/> some important benefits of using containers are:</p><div class="itemizedlist"><ul class="itemizedlist"><li class="listitem" style="list-style-type: disc">Application-centric management</li><li class="listitem" style="list-style-type: disc">Separation of deployment and build</li><li class="listitem" style="list-style-type: disc">Simplifies the application deployment process</li><li class="listitem" style="list-style-type: disc">Supports Agile development through Continuous Integration and deployment</li><li class="listitem" style="list-style-type: disc">Allows breakdown of large monolithic applications into manageable micro-services</li><li class="listitem" style="list-style-type: disc">Infrastructure environment consistency</li><li class="listitem" style="list-style-type: disc">High portability</li><li class="listitem" style="list-style-type: disc">Resource isolation</li><li class="listitem" style="list-style-type: disc">Resource utilization</li></ul></div></div></div></div>
+<div class="section" title="Docker"><div class="titlepage"><div><div><h1 class="title"><a id="ch07lvl1sec64"/>Docker</h1></div></div></div><p>
+<span class="strong"><strong>Docker</strong></span> is an open-source platform that automates the process by which any application is deployed in the form of a container that is<a class="indexterm" id="id660"/> portable, lightweight, self-sufficient, and which can run virtually anywhere. Primarily based on the <span class="strong"><strong>LXC</strong></span> or <span class="strong"><strong>Linux Container</strong></span>, Docker is used by<a class="indexterm" id="id661"/> developers and system administrators while working with distributed applications. Rather than being an underlying technology, this platform acts as a comprehensive abstraction layer that enables developers to <span class="emphasis"><em>package</em></span> or <span class="emphasis"><em>containerize</em></span> an application, including its dependencies, and run it on any infrastructure. Simply put, Docker containers function like shipping containers which offer a standard and reliable way of shipping literally any application.</p><p>Docker provides the Development and IT Operations teams with much needed agility and control to 'build, ship, and run any app, anywhere.'</p><div class="itemizedlist"><ul class="itemizedlist"><li class="listitem" style="list-style-type: disc"><span class="strong"><strong>Build</strong></span>: Docker gives you the flexibility to create an application from micro-services, and not <a class="indexterm" id="id662"/>worry about probable inconsistencies between the production and development environments. Additionally, there is no restriction on using any particular platform or language.</li><li class="listitem" style="list-style-type: disc"><span class="strong"><strong>Ship</strong></span>: Docker allows you to <a class="indexterm" id="id663"/>design the entire cycle comprising application development, testing, and distribution, and simplifies its management via a consistent user interface.</li><li class="listitem" style="list-style-type: disc"><span class="strong"><strong>Run</strong></span>: Docker offers you the <a class="indexterm" id="id664"/>ability to choose from a variety of platforms to deploy scalable services in a secure and reliable fashion.</li></ul></div><p>However, the chief advantage of Docker is that it presents an 'application first' architecture, which also allows <a class="indexterm" id="id665"/>developers and IT Ops / System Admins to focus on their core job functions.</p><div class="itemizedlist"><ul class="itemizedlist"><li class="listitem" style="list-style-type: disc"><span class="strong"><strong>Developers</strong></span>: They are concerned only with what's <span class="emphasis"><em>inside</em></span> the container, such as their code, data, apps, libraries, and the package manager.</li><li class="listitem" style="list-style-type: disc"><span class="strong"><strong>IT Ops</strong></span>: They have to focus on what's <span class="emphasis"><em>outside</em></span> the container, namely logging, monitoring, remote access, and network configuration</li></ul></div><p>What Docker essentially brings to the table can be effectively summarized in the following points:-</p><div class="itemizedlist"><ul class="itemizedlist"><li class="listitem" style="list-style-type: disc"><span class="strong"><strong>Agility</strong></span>: Using Docker, a <a class="indexterm" id="id666"/>developer has the freedom to define an environment. Creation and deployment of apps can be carried out in a fast and easier manner with IT ops having the flexibility to rapidly respond to change.</li><li class="listitem" style="list-style-type: disc"><span class="strong"><strong>Control</strong></span>: Ensures that ownership of the code, all the way from infrastructure to the app, lies solely <a class="indexterm" id="id667"/>with the developer. The IT operations governs the manageability aspect in terms of standardizing, securing, and scaling the operating environment.</li><li class="listitem" style="list-style-type: disc"><span class="strong"><strong>Portability</strong></span>: Gives you the <a class="indexterm" id="id668"/>choice, minus the complexity, of working with a single developer or a team, and using private infrastructure or public cloud providers.</li></ul></div><p>For a better <a class="indexterm" id="id669"/>understanding of the platform, let us look at some of the core terms associated with the Docker solution.</p><div class="itemizedlist"><ul class="itemizedlist"><li class="listitem" style="list-style-type: disc"><span class="strong"><strong>Image</strong></span>: Basis of a Docker container when it is at rest. When instantiated through a Docker run <a class="indexterm" id="id670"/>command, they turn into a container.</li><li class="listitem" style="list-style-type: disc"><span class="strong"><strong>Dockerfile</strong></span>: Its main function is to inform the image builder as to what the image has to look like.</li><li class="listitem" style="list-style-type: disc"><span class="strong"><strong>Docker Engine</strong></span>: Can be<a class="indexterm" id="id671"/> installed on physical, virtual, or cloud hosts. This provides several core functions,  which include the ability to pull Docker images, create and run new containers, scale existing containers, or stop and remove them.</li><li class="listitem" style="list-style-type: disc"><span class="strong"><strong>Container</strong></span>: These are <a class="indexterm" id="id672"/>built from Docker images. Their lightweight nature is attributed to the fact that they share image layer, and use union filesystems.</li><li class="listitem" style="list-style-type: disc"><span class="strong"><strong>Registry</strong></span>: This is where<a class="indexterm" id="id673"/> Docker images are managed, distributed, and also stored.</li><li class="listitem" style="list-style-type: disc"><span class="strong"><strong>Docker Hub</strong></span>: This is Docker's hosted registry service for managing images.</li><li class="listitem" style="list-style-type: disc"><span class="strong"><strong>Docker Machine</strong></span>: This automates container provisioning on the chosen network or in the cloud. It can be installed on machines on Linux, Windows or, Mac OS X.</li><li class="listitem" style="list-style-type: disc"><span class="strong"><strong>Docker Compose</strong></span>: This <a class="indexterm" id="id674"/>defines applications that require multiple containers.</li><li class="listitem" style="list-style-type: disc"><span class="strong"><strong>Docker Toolbox</strong></span>: This <a class="indexterm" id="id675"/>delivers all the Docker tools consisting of Engine, Machine, Compose, and Kitematic to a Mac OS X or Windows system.</li><li class="listitem" style="list-style-type: disc"><span class="strong"><strong>Docker Trusted Registry</strong></span> (<span class="strong"><strong>DTR</strong></span>): This <a class="indexterm" id="id676"/>provides a private, dedicated image registry.</li><li class="listitem" style="list-style-type: disc"><span class="strong"><strong>Docker Swarm</strong></span>: This is used to<a class="indexterm" id="id677"/> host clusters and schedule containers. </li><li class="listitem" style="list-style-type: disc"><span class="strong"><strong>Kitematic</strong></span>: Basically a <a class="indexterm" id="id678"/>Desktop GUI for Docker.</li></ul></div><p>A basic Docker system is shown in the following image. </p><div class="mediaobject"><img alt="Docker" src="graphics/B05186_07_03.jpg"/></div><p>As can be seen in the preceding diagram, a Docker container encloses a piece of software with everything<a class="indexterm" id="id679"/> that it needs to run, such as code, runtime, system libraries/tools. This encapsulation and isolation provided by a container warrants that the container will run in the same manner, irrespective of the environment it is run in.</p><p>A virtual machine and a<a class="indexterm" id="id680"/> Docker container is shown in the following image (source: <a class="ulink" href="http://www.jayway.com/2015/03/21/a-not-very-short-introduction-to-docker/">http://www.jayway.com/2015/03/21/a-not-very-short-introduction-to-docker/</a>):</p><div class="mediaobject"><img alt="Docker" src="graphics/B05186_07_04.jpg"/></div><p>The figure that we just saw showcases the architectural difference between a virtual machine and a Docker container. The Docker container comprises only the application and its associated dependencies, and thus enjoys the benefits of both resource isolation and allocation like<a class="indexterm" id="id681"/> virtual machines, but is far more efficient and portable.</p><p>Docker's pluggable architecture is further leveraged by the presence of several open APIs (Swarm, Compose, Hub, and so on), which support the creation of an ecosystem with seamless application delivery. It is this combination that empowers Docker containers to make distributed applications composable, portable, dynamic, and ideal for agile teams.</p><p>Docker High-Level <a class="indexterm" id="id682"/>Architecture is shown in the subsequent image (source: <a class="ulink" href="http://www.docker.com">http://www.docker.com</a>):</p><div class="mediaobject"><img alt="Docker" src="graphics/B05186_07_05.jpg"/></div><p>These advantages become increasingly apparent when we consider some enterprise use cases wherein <a class="indexterm" id="id683"/>organizations have used the Docker platform to tackle certain technical or business challenges:</p><div class="itemizedlist"><ul class="itemizedlist"><li class="listitem" style="list-style-type: disc"><span class="strong"><strong>Continuous Integration</strong></span>: Powered by integration with tools like GitHub and Jenkins, Docker provides developers the ability to develop and test applications faster and within an environment of their choice. The entire process is perfectly<a class="indexterm" id="id684"/> streamlined with developers being able to submit code in GitHub, test it, and automatically trigger a build via Jenkins. The moment the image is complete, it can be easily added to the Docker registries. This functionality not only saves time on build and setup processes, but allows developers to automate the running of tests while they simultaneously work on other projects. Add to this the absence of inconsistencies while dealing with different types of environments, and you get a substantial improvement in efficiency levels on using Docker for continuous integration jobs.</li><li class="listitem" style="list-style-type: disc"><span class="strong"><strong>Continuous Delivery</strong></span>: In addition to being language agnostic, Docker works in any <a class="indexterm" id="id685"/>environment and effectively eliminates problems arising out of irregularities between environments. Docker guarantees continuous delivery of code to quality assurance teams and customers in a manner that is quick, easy to consume, and supportive of a speedy resolution of issues. Combined with Docker registries, the integration with other production platforms such as Docker Universal Control Plane and Tutum, facilitates code to be distributed to teams that can fully test it within the staging environment itself, before placing it into production. This <a class="indexterm" id="id686"/>aids enterprises by reducing the time and money required to build and ship applications.</li><li class="listitem" style="list-style-type: disc"><span class="strong"><strong>DevOps</strong></span>: With organizations<a class="indexterm" id="id687"/> increasingly adopting the DevOps philosophy, Docker provides key tools that assist both developers and operations teams in improvising the application development process. These tools break down the traditional barrier between the aforesaid teams by compartmentalizing their work and concern areas.</li><li class="listitem" style="list-style-type: disc"><span class="strong"><strong>Big Data</strong></span>: Enterprises today are moving to big data systems/technologies in a bid to derive deep and <a class="indexterm" id="id688"/>comprehensive analysis of the data they collect. However, data sources are variant and multiple (images, videos, metadata and so on). Herein lies<a class="indexterm" id="id689"/> the advantage of utilizing a system that can uniformly transport data across analytics platforms. The adoption of the Docker platform provides a significant competitive advantage, because it facilitates the unobstructed movement of applications across different types of environments to ensure seamless data analysis.</li><li class="listitem" style="list-style-type: disc"><span class="strong"><strong>Infrastructure Optimization</strong></span>: Unlike <a class="indexterm" id="id690"/>virtual machines that require a guest OS or hypervisor, Docker containers consist of only what is necessary to build, ship, and run applications. Add to this the ability to spin up or down containers based on requirements, and Docker proves to be a great value-add to enterprises.</li></ul></div><p>Docker goes a step further and provides cloud portability that frees IT ops teams from being tied down to specific environment tools. Effectively, Docker reduces the amount of storage and infrastructure costs for enterprises, and also increases efficiency.</p><div class="section" title="Containerizer"><div class="titlepage"><div><div><h2 class="title"><a id="ch07lvl2sec110"/>Containerizer</h2></div></div></div><p>Containers, as<a class="indexterm" id="id691"/> described in the previous section, are used for th<a class="indexterm" id="id692"/>e following:</p><div class="itemizedlist"><ul class="itemizedlist"><li class="listitem" style="list-style-type: disc">Isolating a task from other tasks</li><li class="listitem" style="list-style-type: disc">Ensuring that tasks run in finite or restricted resource environments</li><li class="listitem" style="list-style-type: disc">Programmatically controlling the individual resources of a task</li><li class="listitem" style="list-style-type: disc">Running applications in different environments through a packaged image</li><li class="listitem" style="list-style-type: disc">Breaking applications into smaller, manageable micro-services</li></ul></div><p>Tasks can be run in containers through <span class="strong"><strong>containerizers</strong></span>. Mesos provides support for popular container technologies <a class="indexterm" id="id693"/>such as Docker while also having its own container technology. Recently, support has also been added for combining and allowing different container technologies to work together (for example, Mesos and Docker).</p><div class="section" title="Motivation"><div class="titlepage"><div><div><h3 class="title"><a id="ch07lvl3sec62"/>Motivation</h3></div></div></div><p>One of the key<a class="indexterm" id="id694"/> requirements of a cluster manager is to ensure that the allocation of resources to a particular framework does not have any impact on any active running jobs of some other framework. Provision for isolation mechanisms on slaves for compartmentalizing different tasks is, thus, a key feature of Mesos. Mesos leverages containers for resource isolation, which has a pluggable architecture as well. The Mesos slave uses Containerizer API to provide an isolated environment to run a framework's executor and its corresponding tasks. The Containerizer API's objective is to support a wide range of implementations, which implies that custom containerizers and isolators can be developed. When a slave process starts, the containerizer to be used to launch containers and the set of isolators to enforce the resource constraints can be specified.</p></div><div class="section" title="Containerizer types"><div class="titlepage"><div><div><h3 class="title"><a id="ch07lvl3sec63"/>Containerizer types</h3></div></div></div><p>The following <a class="indexterm" id="id695"/>containerizer options are available in Mesos version 0.27:</p><div class="itemizedlist"><ul class="itemizedlist"><li class="listitem" style="list-style-type: disc">Composing</li><li class="listitem" style="list-style-type: disc">Docker</li><li class="listitem" style="list-style-type: disc">Mesos (default)</li></ul></div><p>The containerizer type can be specified by the user through the agent flag, <code class="literal">--containerizers.</code>
+</p><p>For example:</p><div class="informalexample"><pre class="programlisting">--containerizers=mesos</pre></div></div><div class="section" title="Containerizer creation"><div class="titlepage"><div><div><h3 class="title"><a id="ch07lvl3sec64"/>Containerizer creation</h3></div></div></div><p>A containerizer is created <a class="indexterm" id="id696"/>by the slave based on the flag configuration (using agent flag <code class="literal">--containerizers</code>). The composing containerizer is used to create the containerizer in cases where multiple containerizers (for example, Mesos and Docker) are listed through the <code class="literal">--containerizers</code> flag.</p><p>The Mesos agent utilizes the task default executor in cases where an executor is not specifically mentioned in <code class="literal">TaskInfo</code>.</p><p>Containerization in Mesos is shown in the ensuing figure (source: Apache Mesos Essentials: <a class="ulink" href="https://www.packtpub.com/big-data-and-business-intelligence/apache-mesos-essentials">https://www.packtpub.com/big-data-and-business-intelligence/apache-mesos-essentials</a>):</p><div class="mediaobject"><img alt="Containerizer creation" src="graphics/B05186_07_06.jpg"/></div></div></div></div>
+<div class="section" title="Mesos containerizer"><div class="titlepage"><div><div><h1 class="title"><a id="ch07lvl1sec65"/>Mesos containerizer</h1></div></div></div><p>This is the default <a class="indexterm" id="id697"/>containerizer type provided by Mesos. In this type, tasks can be run through an array of pluggable isolators provided by Mesos. It can be enabled by configuring the agent flag as </p><div class="informalexample"><pre class="programlisting">--containerizers=mesos</pre></div><p>This type is typically used when:</p><div class="itemizedlist"><ul class="itemizedlist"><li class="listitem" style="list-style-type: disc">User needs to <a class="indexterm" id="id698"/>control the task environment through Mesos without having to rely on other container solutions.</li><li class="listitem" style="list-style-type: disc">Fine-grained OS controls are desired.</li><li class="listitem" style="list-style-type: disc">Custom resource isolation needs to be added for tasks.</li><li class="listitem" style="list-style-type: disc">User needs to control certain resource parameters (for example, disk usage limits) which<a class="indexterm" id="id699"/> are not exposed by other container solutions.</li></ul></div><p>Any task which doesn't specify <code class="literal">ContainerInfo::DockerInfo</code> will be handled by the Mesos containerizer.</p><div class="section" title="The launching process"><div class="titlepage"><div><div><h2 class="title"><a id="ch07lvl2sec111"/>The launching process</h2></div></div></div><p>The container<a class="indexterm" id="id700"/> launching process includes the following steps:</p><div class="itemizedlist"><ul class="itemizedlist"><li class="listitem" style="list-style-type: disc">Preparation of calls is done on<a class="indexterm" id="id701"/> every <span class="strong"><strong>isolator</strong></span>.</li><li class="listitem" style="list-style-type: disc">The launcher, responsible for forking/destroying containers, is used to fork the executor. The forked 'child' cannot execute until the isolation step is completed.</li><li class="listitem" style="list-style-type: disc">The <span class="strong"><strong>executor</strong></span> is isolated<a class="indexterm" id="id702"/> by calling the isolators. Isolators are responsible for creating an environment for the containers, where resources like CPU, network, storage, and memory can be isolated from other containers.</li><li class="listitem" style="list-style-type: disc">The executor is fetched and the forked child notified to execute. Isolator preparation commands are run first, followed by the execution.</li></ul></div></div><div class="section" title="Mesos containerizer states"><div class="titlepage"><div><div><h2 class="title"><a id="ch07lvl2sec112"/>Mesos containerizer states</h2></div></div></div><p>The different<a class="indexterm" id="id703"/> Mesos containerizer states are as follows:</p><div class="itemizedlist"><ul class="itemizedlist"><li class="listitem" style="list-style-type: disc">PREPARING</li><li class="listitem" style="list-style-type: disc">ISOLATING</li><li class="listitem" style="list-style-type: disc">FETCHING</li><li class="listitem" style="list-style-type: disc">RUNNING</li><li class="listitem" style="list-style-type: disc">DESTROYING</li></ul></div></div><div class="section" title="Internals"><div class="titlepage"><div><div><h2 class="title"><a id="ch07lvl2sec113"/>Internals</h2></div></div></div><p>By leveraging Linux features such as <a class="indexterm" id="id704"/>namespaces and <span class="strong"><strong>control groups</strong></span> (<span class="strong"><strong>cgroups</strong></span>), the Mesos Containerizer provides<a class="indexterm" id="id705"/> resource isolation <a class="indexterm" id="id706"/>and lightweight containerization. It provides the capability for different isolators to be selectively enabled. In addition, support for <span class="strong"><strong>POSIX</strong></span> (<span class="strong"><strong>Portable Operating system Interface</strong></span>) systems is also present, though it only includes usage reporting<a class="indexterm" id="id707"/> and not actual isolation.</p><p>There are three isolator options <a class="indexterm" id="id708"/>present and they are described as follows:</p><div class="section" title="Shared Filesystem"><div class="titlepage"><div><div><h3 class="title"><a id="ch07lvl3sec65"/>Shared Filesystem</h3></div></div></div><p>Modifications to every container's shared filesystem view can be enabled using the Shared Filesystem isolator <a class="indexterm" id="id709"/>on Linux hosts.</p><p>The modifications can be specified either through the <code class="literal">–default_container_info agent</code> flag or by the framework in the <code class="literal">ContainerInfo</code>.</p><p>Volumes, used to map sections of the shared filesystem (such as host path with the container's view of the shared filesystem, that is, container path), can be specified through <code class="literal">ContainerInfo</code> as read-only or read-and-write. The path of the host can be absolute or relative. If absolute, it also results in the filesystem subtree being made accessible for every container under the container path. If relative, then it is taken to be a directory which is relative to the work directory of the executor. The directory is created, and permissions from the corresponding existing directory in the shared filesystem are copied over.</p><p>The main reason why this isolator is used is to make certain shared filesystem sections private to every container selectively. As an example, a private directory <code class="literal">/dir_name</code> can be set by making <code class="literal">host_path="dir_name"</code> and <code class="literal">container_path="/dir_name"</code>. This creates a directory <code class="literal">dir_name</code> inside the executor's work directory while also mounting it as <code class="literal">/dir_name</code> within the container. The container won't be able to see the host's <code class="literal">/dir_name</code> or any other container's <code class="literal">/dir_name,</code> and this action is transparent to the processes running within it.</p></div><div class="section" title="Pid namespace"><div class="titlepage"><div><div><h3 class="title"><a id="ch07lvl3sec66"/>Pid namespace</h3></div></div></div><p>This isolator is <a class="indexterm" id="id710"/>used to isolate every container in a different pid namespace, which gives the following two advantages:</p><div class="orderedlist"><ol class="orderedlist arabic"><li class="listitem"><span class="strong"><strong>Visibility</strong></span>: The executor<a class="indexterm" id="id711"/> and descendant processes running within the container cannot view or interact with external processes running outside the namespace.</li><li class="listitem"><span class="strong"><strong>Clean Termination</strong></span>: If the leading process in a pid namespace is terminated, the kernel terminates all other processes running within the namespace.</li></ol></div></div><div class="section" title="Posix Disk isolator"><div class="titlepage"><div><div><h3 class="title"><a id="ch07lvl3sec67"/>Posix Disk isolator</h3></div></div></div><p>This isolator, which can be used on both OS X as well as Linux, is used for providing basic disk isolation. The disk <a class="indexterm" id="id712"/>utilization for every sandbox can be reported using this, and any set disk quotas can be enforced as well.</p><p>When starting the slave, <code class="literal">posix/disk</code> must be added to the <code class="literal">--isolation</code> flag to enable this isolator.</p><p>The disk quota enforcement is disabled by default. When starting the slave, specify <code class="literal">--enforce_container_disk_quota</code> to enable it.</p><p>Disk utilization for every sandbox is reported by periodically running the <code class="literal">du</code> command. The resource statistics endpoint (<code class="literal">/monitor/statistics.json</code>) provides a way to retrieve the disk utilization statistics.</p><p>The time interval between two <code class="literal">du</code> commands can be configured through the agent flag  <code class="literal">--container_disk_watch_interval</code>. For example, <code class="literal">--container_disk_watch_interval = 1 mins</code> specifies the time interval as 1 minute. 15 seconds is the default time interval.</p></div></div><div class="section" title="Docker containerizer"><div class="titlepage"><div><div><h2 class="title"><a id="ch07lvl2sec114"/>Docker containerizer</h2></div></div></div><p>This containerizer type permits running of tasks inside a Docker container. A Docker image can either be<a class="indexterm" id="id713"/> launched as an executor or as a task. It can be enabled by configuring the agent flag as</p><div class="informalexample"><pre class="programlisting">--containerizers=docker</pre></div><p>It is normally used when:</p><div class="itemizedlist"><ul class="itemizedlist"><li class="listitem" style="list-style-type: disc">The Docker package needs to be leveraged for running tasks.</li><li class="listitem" style="list-style-type: disc">A Mesos slave is running within a Docker container.</li></ul></div><div class="section" title="Setup"><div class="titlepage"><div><div><h3 class="title"><a id="ch07lvl3sec68"/>Setup</h3></div></div></div><p>In order to enable the Docker Containerizer on a slave, the slave must be launched with "Docker" as <a class="indexterm" id="id714"/>one of the containerizer options.</p><div class="informalexample"><pre class="programlisting">mesos-slave --containerizers=docker</pre></div><p>Every slave where the Docker containerizer is specified must also have the Docker Command Line Interface client (version 1.0.0 or above) installed.</p><p>If <code class="literal">iptables</code> are enabled on the slave, ensure that the <code class="literal">iptables</code> permit all traffic from the bridge interface by making the following change:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>iptables -A INPUT -s 172.17.0.0/16 -i docker0 -p tcp -j ACCEPT</strong></span>
+</pre></div></div><div class="section" title="Launching process"><div class="titlepage"><div><div><h3 class="title"><a id="ch07lvl3sec69"/>Launching process</h3></div></div></div><p>The container<a class="indexterm" id="id715"/> launching process is as follows:</p><div class="itemizedlist"><ul class="itemizedlist"><li class="listitem" style="list-style-type: disc">Task launching in Docker is attempted only if <code class="literal">ContainerInfo::type</code> is set to <code class="literal">DOCKER</code></li><li class="listitem" style="list-style-type: disc">The image is pulled first from the specified repository</li><li class="listitem" style="list-style-type: disc">The pre-launch hook is then called</li></ul></div><p>The executor is then launched in one of the following two ways:</p><div class="orderedlist"><ol class="orderedlist arabic"><li class="listitem">Mesos agent runs in a Docker container in the following cases:<div class="itemizedlist"><ul class="itemizedlist"><li class="listitem" style="list-style-type: disc">If the flag <code class="literal">--docker_mesos_image</code> is present, it indicates that the Mesos agent is running within a Docker container</li><li class="listitem" style="list-style-type: disc">The flag <code class="literal">--docker_mesos_image</code> value is considered to be the Docker image that will be used for launching the Mesos agent</li><li class="listitem" style="list-style-type: disc">If an executor different from the default command executor is used by the task to run, it gets launched within a Docker container</li><li class="listitem" style="list-style-type: disc">If <code class="literal">TaskInfo</code> is used by the task, then the default <code class="literal">mesos-docker-executor</code> gets launched within a Docker container to execute commands through the Docker Command Line Interface.</li></ul></div></li><li class="listitem">Mesos agent does<a class="indexterm" id="id716"/> not run in a Docker container in the following cases :<div class="itemizedlist"><ul class="itemizedlist"><li class="listitem" style="list-style-type: disc">If <code class="literal">TaskInfo</code> is used by a task, a sub-process to run default <code class="literal">mesos-docker-executor</code> is forked. Shells are spawned by this executor to run Docker commands through the Docker Command Line Interface.</li><li class="listitem" style="list-style-type: disc">If a custom executor is used by the task to run, it gets launched within a Docker container.</li></ul></div></li></ol></div></div><div class="section" title="Docker containerizer states"><div class="titlepage"><div><div><h3 class="title"><a id="ch07lvl3sec70"/>Docker containerizer states</h3></div></div></div><p>Following are the<a class="indexterm" id="id717"/> different Docker containerizer states:</p><div class="itemizedlist"><ul class="itemizedlist"><li class="listitem" style="list-style-type: disc">FETCHING</li><li class="listitem" style="list-style-type: disc">PULLING</li><li class="listitem" style="list-style-type: disc">RUNNING</li><li class="listitem" style="list-style-type: disc">DESTROYING</li></ul></div></div><div class="section" title="Composing containerizer"><div class="titlepage"><div><div><h3 class="title"><a id="ch07lvl3sec71"/>Composing containerizer</h3></div></div></div><p>This type allows for<a class="indexterm" id="id718"/> combining and allowing different container technologies to work together (for example, Mesos and Docker). It can be enabled by configuring the <code class="literal">--containerizers</code> agent flag with a comma-separated list of required containerizer names</p><div class="informalexample"><pre class="programlisting">--containerizers=mesos,docker</pre></div><p>The first containerizer specified in the list, which provides support for the task's container configuration, is used for task launching.</p><div class="itemizedlist"><ul class="itemizedlist"><li class="listitem" style="list-style-type: disc">This option is generally used when tasks having different resource isolation types need to be tested. A framework can leverage the composer containerizer to<a class="indexterm" id="id719"/> test a task using the controlled environment provided by the Mesos containerizer, while simultaneously ensuring that the task works with Docker containers. </li></ul></div></div></div></div>
+<div class="section" title="Networking for Mesos-managed containers"><div class="titlepage"><div><div><h1 class="title"><a id="ch07lvl1sec66"/>Networking for Mesos-managed containers</h1></div></div></div><p>One of the major goals to provide networking-related support in Mesos was to develop a pluggable architecture leveraging which custom networking mechanisms could be implemented by<a class="indexterm" id="id720"/> users as per their requirements. Since networking requirements vary across different deployment scenarios (cloud, on-premise, private cloud, or other hybrid models), it is not practical to create a monolithic networking mechanism that caters to all needs. Mesos' pluggable architecture proves to be very useful in tackling this.</p><p>To provide networking support, many opt-in extensions were introduced in Mesos components from version 0.25.0 onwards. The opt-in structure allows existing frameworks without networking support to continue operating seamlessly on newer Mesos versions. Mesos enables integration with other networking mechanisms, and provides features like service discovery, IP per container, and isolation of tasks.</p><p>Networking support is provided through a Mesos module, which implies that it is abstracted away from the Mesos master and slaves. All the required support needs to be enabled from the networking module itself. Since IP requests are handled on a best-effort basis, frameworks also need to be able to take care of cases where a request is ignored due to networking modules not being implemented, or where a request is denied due to inability of the module to assign an IP.</p><p>Framework Schedulers need to opt in for network isolation through use of additional data structures in <code class="literal">TaskInfo</code>. This structure ensures that backward compatibility is maintained with older frameworks.</p><div class="section" title="Architecture"><div class="titlepage"><div><div><h2 class="title"><a id="ch07lvl2sec115"/>Architecture</h2></div></div></div><p>The solution architecture <a class="indexterm" id="id721"/>with a description of the different components is provided as shown in the following diagram (source: <a class="ulink" href="http://mesos.apache.org/documentation/latest/networking-for-mesos-managed-containers/">http://mesos.apache.org/documentation/latest/networking-for-mesos-managed-containers/</a>):</p><div class="mediaobject"><img alt="Architecture" src="graphics/B05186_07_07.jpg"/></div></div><div class="section" title="Key terms"><div class="titlepage"><div><div><h2 class="title"><a id="ch07lvl2sec116"/>Key terms</h2></div></div></div><p>Some key terms regarding<a class="indexterm" id="id722"/> networking are as follows:</p><div class="itemizedlist"><ul class="itemizedlist"><li class="listitem" style="list-style-type: disc"><span class="strong"><strong>IP Address Management (IPAM) Server</strong></span><div class="itemizedlist"><ul class="itemizedlist"><li class="listitem" style="list-style-type: disc">IPs are assigned <a class="indexterm" id="id723"/>on demand</li><li class="listitem" style="list-style-type: disc">IPs are recycled upon being released</li><li class="listitem" style="list-style-type: disc">IPs can be optionally tagged <a class="indexterm" id="id724"/>with the provided ID</li></ul></div></li><li class="listitem" style="list-style-type: disc"><span class="strong"><strong>IPAM client</strong></span><div class="itemizedlist"><ul class="itemizedlist"><li class="listitem" style="list-style-type: disc">Coupled tightly <a class="indexterm" id="id725"/>with the corresponding IPAM server</li><li class="listitem" style="list-style-type: disc">Serves as a bridge between the IPAM server and Network Isolator Module</li><li class="listitem" style="list-style-type: disc">Handles IP-related communications with the server (release, request, and so on)</li></ul></div></li><li class="listitem" style="list-style-type: disc"><span class="strong"><strong>Network Isolator Module (NIM)</strong></span><div class="itemizedlist"><ul class="itemizedlist"><li class="listitem" style="list-style-type: disc">Mesos<a class="indexterm" id="id726"/> module for the slave where the isolator interface is implemented</li><li class="listitem" style="list-style-type: disc">Task IP<a class="indexterm" id="id727"/> requirements are determined by looking at <code class="literal">TaskInfo</code></li><li class="listitem" style="list-style-type: disc">Handles IP-related communications with the IPAM client (release, request, and so on)</li><li class="listitem" style="list-style-type: disc">Enables network isolation by communicating with the external network virtualizer</li></ul></div></li><li class="listitem" style="list-style-type: disc"><span class="strong"><strong>Cleanup Module</strong></span>:<div class="itemizedlist"><ul class="itemizedlist"><li class="listitem" style="list-style-type: disc">Handles cleanup<a class="indexterm" id="id728"/> tasks (such as IP release) when the slave is lost</li></ul></div></li></ul></div></div><div class="section" title="The process"><div class="titlepage"><div><div><h2 class="title"><a id="ch07lvl2sec117"/>The process</h2></div></div></div><div class="orderedlist"><ol class="orderedlist arabic"><li class="listitem">A Mesos framework requests IPs for every container being launched, using the <code class="literal">TaskInfo</code> message.</li><li class="listitem">The Mesos master<a class="indexterm" id="id729"/> forwards these messages to the slave after processing them for launching and running tasks.</li><li class="listitem">The Mesos slave figures out the container requirements by analyzing these messages, and prepares the different isolators for them.</li><li class="listitem">The <span class="strong"><strong>Network Isolator Module</strong></span> analyzes<a class="indexterm" id="id730"/> the messages, and decides whether the network isolators should be enabled or not.</li><li class="listitem">The Network Isolator Module then communicates with the IPAM client to request the IP addresses, provided it decides that the network isolator needs to be enabled, and gives a status update to the slave.</li><li class="listitem">Upon receiving this update, a container is launched by the slave within a different namespace. This is done by the Network Isolator Module which informs the network virtualizer to perform container isolation upon getting instructions from the slave to do so.</li><li class="listitem">The IP information is added to <code class="literal">TaskStatus</code> by the Network Isolator Module.</li><li class="listitem">The Network Isolator Module then makes the IP addresses from <code class="literal">TaskStatus</code> available at the master's state endpoint, while also making the frameworks aware of the IP addresses by forwarding the <code class="literal">TaskStatus</code> to them.</li><li class="listitem">If a task is lost, the Network Isolator Module informs the IPAM client of the same, and gets the IP addresses released.</li><li class="listitem">The <a class="indexterm" id="id731"/>cleanup module then gets notified, and then recycles all the IP addresses released by the IPAM client.</li></ol></div><p>A sample implementation <a class="indexterm" id="id732"/>of a Networking Isolator Module can be seen at <a class="ulink" href="https://github.com/mesosphere/net-modules">https://github.com/mesosphere/net-modules</a>.</p></div><div class="section" title="IP-per-container capability in frameworks"><div class="titlepage"><div><div><h2 class="title"><a id="ch07lvl2sec118"/>IP-per-container capability in frameworks</h2></div></div></div><p>Frameworks that <a class="indexterm" id="id733"/>seek to<a class="indexterm" id="id734"/> implement IP per container, need to pass the message <code class="literal">NetworkInfo</code> within <code class="literal">TaskInfo</code>. The <code class="literal">NetworkInfo</code> message details are given in the following section.</p><div class="section" title="NetworkInfo message"><div class="titlepage"><div><div><h3 class="title"><a id="ch07lvl3sec72"/>NetworkInfo message</h3></div></div></div><p>A new<a class="indexterm" id="id735"/> <code class="literal">NetworkInfo</code> message can be introduced as:</p><div class="informalexample"><pre class="programlisting">message NetworkInfo {
+  enum Protocol {
+    IPv4 = 1;
+    IPv6 = 2;
+  }
+
+  message IPAddress {
+    optional Protocol protocol = 1;
+
+    optional string ip_address = 2;
+  }
+
+  repeated IPAddress ip_addresses = 5;
+
+  repeated string groups = 3;
+
+  optional Labels labels = 4;
+};</pre></div><p>The protocol field needs to be set to <code class="literal">IPv4</code> or <code class="literal">IPv6</code> while an IP address from the IP Address Management is requested. If supported by the Network Isolator Module, a framework can set a static IP address for each container. This can be done by providing a valid IP as the <code class="literal">ip_address</code> string. This is typically required when tasks that get killed or lost need to be relaunched on another node with the same IP address.</p></div><div class="section" title="Examples for specifying network requirements"><div class="titlepage"><div><div><h3 class="title"><a id="ch07lvl3sec73"/>Examples for specifying network requirements</h3></div></div></div><p>The frameworks <a class="indexterm" id="id736"/>which want to enable an IP per container need to provide <code class="literal">NetworkInfo</code> message in <code class="literal">TaskInfo</code>. Here are a few examples:</p><div class="orderedlist"><ol class="orderedlist arabic"><li class="listitem">Request for single IP address without a protocol version being specified using the default command executor:<div class="informalexample"><pre class="programlisting">TaskInfo {
+     ...
+     command: ...,
+     container: ContainerInfo {
+       network_infos: [
+         NetworkInfo {
+           ip_addresses: [
+             IPAddress {
+               protocol: None;
+               ip_address: None;
+             }
+           ]
+           groups: [];
+           labels: None;
+         }
+       ]
+     }
+   }</pre></div></li><li class="listitem">Request for two IP addresses, one of IPv4 protocol and another of IPv6 protocol, in two sets using the default command executor:<div class="informalexample"><pre class="programlisting">TaskInfo {</pre></div><div class="informalexample"><pre class="programlisting">     ...
+     command: ...,
+     container: ContainerInfo {
+       network_infos: [
+         NetworkInfo {
+           ip_addresses: [
+             IPAddress {
+               protocol: IPv4;
+               ip_address: None;
+             },
+             IPAddress {
+               protocol: IPv6;
+               ip_address: None;
+             }
+           ]
+           groups: ["A", "B"];
+           labels: None;
+         }
+       ]
+     }
+   }</pre></div></li><li class="listitem">Request for two <a class="indexterm" id="id737"/>network interfaces, each with one IP address and each in a different network group using the default command executor:<div class="informalexample"><pre class="programlisting">TaskInfo {
+     ...
+     command: ...,
+     container: ContainerInfo {
+       network_infos: [
+         NetworkInfo {
+           ip_addresses: [
+             IPAddress {
+               protocol: None;
+               ip_address: None;
+             }
+           ]
+           groups: ["A"];
+           labels: None;
+         },
+         NetworkInfo {
+           ip_addresses: [
+             IPAddress {
+               protocol: None;
+               ip_address: None;
+             }
+           ]
+           groups: ["B"];
+           labels: None;
+         },
+       ]
+     }
+   }</pre></div></li><li class="listitem">Request for <a class="indexterm" id="id738"/>a specific IP address using a custom executor:<div class="informalexample"><pre class="programlisting">TaskInfo {
+     ...
+     executor: ExecutorInfo {
+       ...,
+       container: ContainerInfo {
+         network_infos: [
+           NetworkInfo {
+             ip_addresses: [
+               IPAddress {
+                 protocol: None;
+                 ip_address: "xx.xx.x.x";
+               }
+             ]
+             groups: [];
+             labels: None;
+           }
+         ]
+       }
+     }
+   }</pre></div></li></ol></div></div></div><div class="section" title="Address discovery"><div class="titlepage"><div><div><h2 class="title"><a id="ch07lvl2sec119"/>Address discovery</h2></div></div></div><p>As seen earlier, frameworks can request IP addresses for assignment during launching of tasks on the Mesos<a class="indexterm" id="id739"/> slaves by passing the <code class="literal">NetworkInfo</code> message within the <code class="literal">TaskInfo</code> message. The frameworks, after opting for network isolation, also need a mechanism for knowing the IP addresses finally assigned so that monitoring and other communication activities can be undertaken. This can be done by introducing an additional field in the <code class="literal">TaskStatus</code> message as follows:</p><div class="informalexample"><pre class="programlisting">message ContainerStatus {
+  repeated NetworkInfo network_infos;
+}
+
+message TaskStatus {
+  ...
+  optional ContainerStatus container;
+  ...
+};</pre></div></div><div class="section" title="Implementing a Custom Network Isolator Module"><div class="titlepage"><div><div><h2 class="title"><a id="ch07lvl2sec120"/>Implementing a Custom Network Isolator Module</h2></div></div></div><p>Mesos provides an Isolator API to enable custom Network Isolator Module implementations on top of it. The implemented module gets manifested as a dynamic shared library within the Mesos slave, and seamlessly integrates with the container launch. A network<a class="indexterm" id="id740"/> isolator often communicates with network virtualizers and IPAM clients to meet the framework needs.</p><p>The three key functions that a Network Isolator Module must implement are described as follows:</p><div class="orderedlist"><ol class="orderedlist arabic"><li class="listitem"><code class="literal">Isolator::prepare()</code>: This gives the module an option to determine whether or not network isolation needs to be enabled for the specified container. The <code class="literal">Isolator::prepare</code> function instructs the slave to create a different network<a class="indexterm" id="id741"/> namespace if network isolation is to be enabled. This interface is also responsible for creating an IP address for the container.</li><li class="listitem"><code class="literal">Isolator::isolate()</code>: This gives the module the chance to isolate the task container after its creation but<a class="indexterm" id="id742"/> before launching of an executor within it. It involves a virtual<a class="indexterm" id="id743"/> Ethernet adapter creation for the container and the assignment of an IP address to it. It can also leverage an external virtualizer for network setup.</li><li class="listitem"><code class="literal">Isolator::cleanup()</code>: This function<a class="indexterm" id="id744"/> is called upon container termination. Its main job is to recover and recycle released IP addresses, and undertake any other cleanups as necessary.</li></ol></div></div><div class="section" title="Monitoring container network statistics"><div class="titlepage"><div><div><h2 class="title"><a id="ch07lvl2sec121"/>Monitoring container network statistics</h2></div></div></div><p>Statistics for <a class="indexterm" id="id745"/>every container<a class="indexterm" id="id746"/> network are provided via the <code class="literal">/monitor/statistics.json</code> slave endpoint by Mesos.</p><p>The following counters are reported:</p><div class="informaltable"><table border="1"><colgroup><col style="text-align: left"/><col style="text-align: left"/><col style="text-align: left"/></colgroup><thead><tr><th style="text-align: left" valign="bottom">
+<p>Metric</p>
+</th><th style="text-align: left" valign="bottom">
+<p>Description</p>
+</th><th style="text-align: left" valign="bottom">
+<p>Type</p>
+</th></tr></thead><tbody><tr><td style="text-align: left" valign="top">
+<p>
+<code class="literal">net_rx_bytes</code>
+</p>
+</td><td style="text-align: left" valign="top">
+<p>Bytes received</p>
+</td><td style="text-align: left" valign="top">
+<p>Counter</p>
+</td></tr><tr><td style="text-align: left" valign="top">
+<p>
+<code class="literal">net_rx_dropped</code>
+</p>
+</td><td style="text-align: left" valign="top">
+<p>Dropped packets (receive)</p>
+</td><td style="text-align: left" valign="top">
+<p>Counter</p>
+</td></tr><tr><td style="text-align: left" valign="top">
+<p>
+<code class="literal">net_rx_errors</code>
+</p>
+</td><td style="text-align: left" valign="top">
+<p>Reported errors (receive)</p>
+</td><td style="text-align: left" valign="top">
+<p>Counter</p>
+</td></tr><tr><td style="text-align: left" valign="top">
+<p>
+<code class="literal">net_rx_packets</code>
+</p>
+</td><td style="text-align: left" valign="top">
+<p>Received packets</p>
+</td><td style="text-align: left" valign="top">
+<p>Counter</p>
+</td></tr><tr><td style="text-align: left" valign="top">
+<p>
+<code class="literal">net_tx_bytes</code>
+</p>
+</td><td style="text-align: left" valign="top">
+<p>Bytes sent</p>
+</td><td style="text-align: left" valign="top">
+<p>Counter</p>
+</td></tr><tr><td style="text-align: left" valign="top">
+<p>
+<code class="literal">net_tx_dropped</code>
+</p>
+</td><td style="text-align: left" valign="top">
+<p>Dropped packets (send)</p>
+</td><td style="text-align: left" valign="top">
+<p>Counter</p>
+</td></tr><tr><td style="text-align: left" valign="top">
+<p>
+<code class="literal">net_tx_errors</code>
+</p>
+</td><td style="text-align: left" valign="top">
+<p>Reported errors (send)</p>
+</td><td style="text-align: left" valign="top">
+<p>Counter</p>
+</td></tr><tr><td style="text-align: left" valign="top">
+<p>
+<code class="literal">net_tx_packets</code>
+</p>
+</td><td style="text-align: left" valign="top">
+<p>Sent Packets</p>
+</td><td style="text-align: left" valign="top">
+<p>Counter</p>
+</td></tr></tbody></table></div><p>Additionally, the following counters and gauges can be reported for the elements which implement bloat<a class="indexterm" id="id747"/> reduction or bandwidth<a class="indexterm" id="id748"/> limiting under the <code class="literal">statistics/net_traffic_control_statistics</code> key:</p><div class="informaltable"><table border="1"><colgroup><col style="text-align: left"/><col style="text-align: left"/><col style="text-align: left"/></colgroup><thead><tr><th style="text-align: left" valign="bottom">
+<p>Metric</p>
+</th><th style="text-align: left" valign="bottom">
+<p>Description</p>
+</th><th style="text-align: left" valign="bottom">
+<p>Type</p>
+</th></tr></thead><tbody><tr><td style="text-align: left" valign="top">
+<p>
+<code class="literal">backlog</code>
+</p>
+</td><td style="text-align: left" valign="top">
+<p>Queued bytes (only on bloat reduction interface)</p>
+</td><td style="text-align: left" valign="top">
+<p>Gauge</p>
+</td></tr><tr><td style="text-align: left" valign="top">
+<p>
+<code class="literal">bytes</code>
+</p>
+</td><td style="text-align: left" valign="top">
+<p>Bytes sent</p>
+</td><td style="text-align: left" valign="top">
+<p>Counter</p>
+</td></tr><tr><td style="text-align: left" valign="top">
+<p>
+<code class="literal">drops</code>
+</p>
+</td><td style="text-align: left" valign="top">
+<p>Dropped packets (send)</p>
+</td><td style="text-align: left" valign="top">
+<p>Counter</p>
+</td></tr><tr><td style="text-align: left" valign="top">
+<p>
+<code class="literal">overlimits</code>
+</p>
+</td><td style="text-align: left" valign="top">
+<p>Number of times interface was over its transmit limit </p>
+</td><td style="text-align: left" valign="top">
+<p>Counter</p>
+</td></tr><tr><td style="text-align: left" valign="top">
+<p>
+<code class="literal">packets</code>
+</p>
+</td><td style="text-align: left" valign="top">
+<p>Sent packets</p>
+</td><td style="text-align: left" valign="top">
+<p>Counter</p>
+</td></tr><tr><td style="text-align: left" valign="top">
+<p>
+<code class="literal">qlen</code>
+</p>
+</td><td style="text-align: left" valign="top">
+<p>Queued packets</p>
+</td><td style="text-align: left" valign="top">
+<p>Gauge</p>
+</td></tr><tr><td style="text-align: left" valign="top">
+<p>
+<code class="literal">ratebps</code>
+</p>
+</td><td style="text-align: left" valign="top">
+<p>Rate of transmission (currently, always 0 bytes/second)</p>
+</td><td style="text-align: left" valign="top">
+<p>Gauge</p>
+</td></tr><tr><td style="text-align: left" valign="top">
+<p>
+<code class="literal">ratepps</code>
+</p>
+</td><td style="text-align: left" valign="top">
+<p>Rate of transmission (currently, always 0 packets/second)</p>
+</td><td style="text-align: left" valign="top">
+<p>Gauge</p>
+</td></tr><tr><td style="text-align: left" valign="top">
+<p>
+<code class="literal">requeues</code>
+</p>
+</td><td style="text-align: left" valign="top">
+<p>Failed packets </p>
+</td><td style="text-align: left" valign="top">
+<p>Counter</p>
+</td></tr></tbody></table></div><div class="section" title="Example statistics"><div class="titlepage"><div><div><h3 class="title"><a id="ch07lvl3sec74"/>Example statistics</h3></div></div></div><p>An example of the<a class="indexterm" id="id749"/> statistics obtained is given as follows:</p><div class="informalexample"><pre class="programlisting">$ curl -s http://localhost:5051/monitor/statistics | python2.6 -mjson.tool
+
+[
+  {
+    "executor_id": "job.&lt;job_id&gt;",
+    "executor_name": "Command Executor (Task: job.&lt;job_id&gt;) (Command: sh -c 'iperf ....')",
+    "framework_id": "&lt;some_id&gt;",
+    "source": "job.&lt;job_id&gt;",
+    "statistics": {
+      "cpus_limit": &lt;some_value&gt;,
+      "cpus_nr_periods": &lt;some_value&gt;,
+      "cpus_nr_throttled": &lt;some_value&gt;,
+      "cpus_system_time_secs": &lt;some_value&gt;,
+      "cpus_throttled_time_secs": &lt;some_value&gt;,
+      "cpus_user_time_secs": &lt;some_value&gt;,
+      "mem_anon_bytes": &lt;some_value&gt;,
+      "mem_cache_bytes": &lt;some_value&gt;,
+      "mem_critical_pressure_counter": &lt;some_value&gt;,
+      "mem_file_bytes": &lt;some_value&gt;,
+      "mem_limit_bytes": &lt;some_value&gt;,
+      "mem_low_pressure_counter": &lt;some_value&gt;,
+      "mem_mapped_file_bytes": &lt;some_value&gt;,
+      "mem_medium_pressure_counter": &lt;some_value&gt;,
+      "mem_rss_bytes": &lt;some_value&gt;,
+      "mem_total_bytes": &lt;some_value&gt;,
+      "net_rx_bytes": &lt;some_value&gt;,
+      "net_rx_dropped": &lt;some_value&gt;,
+      "net_rx_errors": &lt;some_value&gt;,
+      "net_rx_packets": &lt;some_value&gt;,
+      "net_traffic_control_statistics": [
+        {
+          "backlog": &lt;some_value&gt;,
+          "bytes": &lt;some_value&gt;,
+          "drops": &lt;some_value&gt;,
+          "id": "bw_limit",
+          "overlimits": &lt;some_value&gt;,
+          "packets": &lt;some_value&gt;,
+          "qlen": &lt;some_value&gt;,
+          "ratebps": 0,
+          "ratepps": 0,
+          "requeues": 0
+        },
+        {
+          "backlog": &lt;some_value&gt;,
+          "bytes": &lt;some_value&gt;,
+          "drops": &lt;some_value&gt;,
+          "id": "bloat_reduction",
+          "overlimits": &lt;some_value&gt;,
+          "packets": &lt;some_value&gt;,
+          "qlen": &lt;some_value&gt;,
+          "ratebps": 0,
+          "ratepps": 0,
+          "requeues": 0
+        }
+      ],
+      "net_tx_bytes": &lt;some_value&gt;,
+      "net_tx_dropped": &lt;some_value&gt;,
+      "net_tx_errors": &lt;some_value&gt;,
+      "net_tx_packets": &lt;some_value&gt;,
+      "perf": {
+        "duration": &lt;some_value&gt;,
+      "timestamp": &lt;some_value&gt;,
+      },
+      "timestamp": &lt;some_value&gt;,
+    }
+  }
+]</pre></div></div></div></div>
+<div class="section" title="Mesos Image Provisioner"><div class="titlepage"><div><div><h1 class="title"><a id="ch07lvl1sec67"/>Mesos Image Provisioner</h1></div></div></div><p>An <span class="strong"><strong>Image</strong></span> is<a class="indexterm" id="id750"/> an ordered collection<a class="indexterm" id="id751"/> of root filesystem changes and the corresponding execution parameters for use within a container runtime.</p><p>Most of the container specifications, such as Docker, <span class="strong"><strong>App </strong></span><a class="indexterm" id="id752"/>
+<span class="strong"><strong>Container</strong></span> (<span class="strong"><strong>AppC</strong></span>), or <span class="strong"><strong>Open Container Project</strong></span> (<span class="strong"><strong>OCP</strong></span>), combine implementation and specification of the image format with <a class="indexterm" id="id753"/>other container components such as resource isolation and task execution to a large extent. The Mesos <span class="strong"><strong>Image Provisioner</strong></span> seeks to<a class="indexterm" id="id754"/> enhance the capabilities of Mesos Containerizer by providing support for container filesystem provisioning from multiple image formats, while also providing features such as resource isolation by combining with other components such as Isolators.</p><p>Mesos containers created using the Mesos Containerizer are provided with a root filesystem already provisioned with Docker or AppC images using the Mesos Image Provisioner.</p><p>The container filesystem image is described by a new message <code class="literal">Image,</code> which is given in the following code:</p><div class="informalexample"><pre class="programlisting">message Image {
+  enum Type {
+    DOCKER = 1;
+    APPC = 2;
+    // More Image types.
+  }
+
+  message Docker {
+    // Docker configurations
+  }
+
+  message Appc {
+    // Appc configurations.
+  }
+
+
+  required Type type = 1;
+
+  // Only one of the following image messages should be set to match
+  // the type.
+optional Docker docker = xx;
+optional Appc appc = yy;
+  
+}</pre></div><p>This message contains both the image specification type as well as the corresponding type configurations. This message can be passed through either 'Volume' or <code class="literal">ContainerInfo</code>. A root filesystem is provided to the task when an image is configured in <code class="literal">ContainerInfo,</code> while volumes are mounted with the image filesystem in cases where the 'Image' message is specified within 'Volume'.</p><p>The request for container image is forwarded to the respective provider for provisioning the layers. Layers are <a class="indexterm" id="id755"/>generally filesystem changesets, which are nothing but an archive of the added, modified, or deleted files. The Provisioner further asks the configured setup to provision a root filesystem from these layers. </p><div class="section" title="Setup and configuration options"><div class="titlepage"><div><div><h2 class="title"><a id="ch07lvl2sec122"/>Setup and configuration options</h2></div></div></div><p>To enable Mesos containerizer on the slave, it must be launched with the <code class="literal">mesos containerizer</code> (default) option, as shown earlier in this chapter. The slave also needs to be running on Linux<a class="indexterm" id="id756"/> with root permissions.</p><p>Next, filesystem/Linux <a class="indexterm" id="id757"/>must be set as the isolator option via the <code class="literal">--isolation</code> flag. The image providers can be configured by passing them as a comma-separated list in the agent flag <code class="literal">--image_providers,</code> and the supported backend can be specified though the flag <code class="literal">--image_provisioner_backend</code>. Additional configurations for every image provider can also be provided if required. </p><p>The following is an example:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>mesos-slave --containerizers=mesos --image_providers=appc,docker --image_provisioner_backend=copy --isolation=filesystem/linux</strong></span>
+</pre></div><p>For more<a class="indexterm" id="id758"/> information, visit  <a class="ulink" href="http://mesos.readthedocs.io/en/latest/mesos-provisioner/">http://mesos.readthedocs.io/en/latest/mesos-provisioner/</a>.</p></div></div>
+<div class="section" title="Mesos fetcher"><div class="titlepage"><div><div><h1 class="title"><a id="ch07lvl1sec68"/>Mesos fetcher</h1></div></div></div><p>The Mesos fetcher is a way by which resources can be downloaded in the <code class="literal">task sandbox</code> directory while preparing the task execution. The framework requesting the execution of the task sends a list of <code class="literal">CommandInfo::URI</code> values as part of the <code class="literal">TaskInfo</code> message, which in turn serves <a class="indexterm" id="id759"/>as the Mesos fetcher input.</p><p>The Mesos fetcher natively supports the FTP and HTTP protocols, and is also able to copy over files <a class="indexterm" id="id760"/>from a filesystem. It also supports all Hadoop client protocols such as <span class="strong"><strong>Amazon Simple Storage Service</strong></span> (<span class="strong"><strong>S3</strong></span>), <span class="strong"><strong>Hadoop distributed Filesystem</strong></span> (<span class="strong"><strong>HDFS</strong></span>), and so on.</p><p>Every Uniform Resource<a class="indexterm" id="id761"/> Identifier (URI) that is requested gets downloaded, by default, directly into the <code class="literal">sandbox</code> directory. Multiple requests for the same URI results in copies of that resource being downloaded again and again. The downloaded URIs can also alternatively be cached in a specified directory for reuse.</p><div class="section" title="Mechanism"><div class="titlepage"><div><div><h2 class="title"><a id="ch07lvl2sec123"/>Mechanism</h2></div></div></div><p>The mechanism <a class="indexterm" id="id762"/>comprises the following:</p><div class="orderedlist"><ol class="orderedlist arabic"><li class="listitem">Each slave consists of one internal fetcher instance which is leveraged by all containerizer types. The fetcher process, included in the slave program, is responsible for performing book-keeping around what is present in the cache.</li><li class="listitem">There is also an external <code class="literal">mesos-fetcher</code> program that gets called by the internal program mentioned in Step 1 whenever resources need to be downloaded from specified URIs into the cache or directories. It is also called when resources from cache need to be moved over to the <code class="literal">sandbox</code> directory. All <a class="indexterm" id="id763"/>disk and network operations, barring deletions and querying file size, are performed by it. It acts more like a simple helper program while all the intelligence is located in the internal program.</li></ol></div><p>No persistent state is maintained in the entire system except for the cache files. This helps manage the complexity involved in simultaneous fetching and caching, and generally simplifies the overall architecture.</p><p>The following diagram depicts the interactions between the internal fetcher process and the external <code class="literal">mesos-fetcher</code> program. Subsequent diagrams dive into the internal workflow in more detail. Source: <a class="ulink" href="http://mesos.apache.org/documentation/latest/fetcher-cache-internals/">http://mesos.apache.org/documentation/latest/fetcher-cache-internals/</a>.</p><div class="mediaobject"><img alt="Mechanism" src="graphics/B05186_07_08.jpg"/></div></div><div class="section" title="Cache entry"><div class="titlepage"><div><div><h2 class="title"><a id="ch07lvl2sec124"/>Cache entry</h2></div></div></div><p>The fetcher process can provide details around the cached URIs besides giving information regarding the location of the cache files, the processing stage, and so on.</p><p>A <span class="strong"><strong>HashMap</strong></span> is used<a class="indexterm" id="id764"/> to store all the information mentioned previously. Each of the <code class="literal">Cache::Entry</code> objects<a class="indexterm" id="id765"/> contain the details of one cache file. These objects can be referenced by numerous callbacks corresponding to the multiple fetches while being stored in the HashMap.</p><p>Each cache entry has a one-to-one correspondence with a disk cache file during the entire duration of the file, which also includes the period before and after its creation. The entry includes all relevant state information regarding the stage as well as the corresponding URI fetching results.</p><p>A cache entry cannot be removed by any fetch attempt seeking to free up space for a newly downloaded cache file while it is being referenced.</p><p>The next diagram shows the various states of a cache entry. It illustrates the sequence of events that take place during a single fetch run. The colors in the diagram represent the following:</p><div class="itemizedlist"><ul class="itemizedlist"><li class="listitem" style="list-style-type: disc"><span class="strong"><strong>Blue</strong></span>: No cache exists</li><li class="listitem" style="list-style-type: disc"><span class="strong"><strong>Green</strong></span>: Cache entry unreferenced by this run</li><li class="listitem" style="list-style-type: disc"><span class="strong"><strong>Orange</strong></span>: Cache entry referenced</li></ul></div><p>A cache entry should not be<a class="indexterm" id="id766"/> removed as long as any event is referencing it. This is enforced by something called <span class="strong"><strong>reference counting</strong></span>. The value of a field called reference count within each cache entry is increased whenever it is being used by a fetch attempt, and decreased when the run is over, regardless of whether the run was successful or not. The value is incremented in the following cases:</p><div class="itemizedlist"><ul class="itemizedlist"><li class="listitem" style="list-style-type: disc">Creation of a new cache entry</li><li class="listitem" style="list-style-type: disc">Waiting for file download of an existing entry</li><li class="listitem" style="list-style-type: disc">Fetching of the cache file corresponding to an entry</li></ul></div><p>Each value increase is noted within a list. At the end of the activity causing the increment, the value is decreased.</p><p>The figure given illustrates the different states which a cache entry can be in.</p><div class="mediaobject"><img alt="Cache entry" src="graphics/B05186_07_09.jpg"/></div></div><div class="section" title="URI flow diagram"><div class="titlepage"><div><div><h2 class="title"><a id="ch07lvl2sec125"/>URI flow diagram</h2></div></div></div><p>The fetcher process<a class="indexterm" id="id767"/> determines the control logic for handling every URI being fetched. The following is a diagram illustrating the flowchart for this:</p><div class="mediaobject"><img alt="URI flow diagram" src="graphics/B05186_07_10.jpg"/></div></div><div class="section" title="Cache eviction"><div class="titlepage"><div><div><h2 class="title"><a id="ch07lvl2sec126"/>Cache eviction</h2></div></div></div><p>Consider the case where a couple of resources, <span class="emphasis"><em>A</em></span> and <span class="emphasis"><em>B</em></span>, have been fetched and cached into two<a class="indexterm" id="id768"/> sandboxes respectively, as shown in the following diagram. In this process, one cache file for each resource is created along with the cache entries mapping the resources with the corresponding cache files. Source: <a class="ulink" href="http://mesos.apache.org/documentation/latest/fetcher-cache-internals/">http://mesos.apache.org/documentation/latest/fetcher-cache-internals/</a>.</p><div class="mediaobject"><img alt="Cache eviction" src="graphics/B05186_07_11.jpg"/></div><p>Now let us assume a third resource <span class="emphasis"><em>C</em></span>, which is downloaded and cached into a new sandbox. Assuming there is no space for all three entries, this requires removal or eviction of an existing cache file along with its corresponding entry to accommodate the new one. Assuming resource <span class="emphasis"><em>A</em></span> was fetched before <span class="emphasis"><em>B</em></span>, the cache eviction process would remove <span class="emphasis"><em>A</em></span>, since it is the oldest entry. The removal steps are as follows:</p><div class="orderedlist"><ol class="orderedlist arabic"><li class="listitem">Cache <a class="indexterm" id="id769"/>entry for <span class="emphasis"><em>A</em></span> is removed from the entry table.</li><li class="listitem"><span class="emphasis"><em>C</em></span> is fetched, which creates a new cache file of a different name along with the associated cache entry.</li></ol></div><div class="mediaobject"><img alt="Cache eviction" src="graphics/B05186_07_12.jpg"/></div><p>If the first resource <span class="emphasis"><em>A</em></span> is fetched again, then <span class="emphasis"><em>B</em></span> would now get evicted, since it is the oldest present <a class="indexterm" id="id770"/>entry; the assumption, of course, being that there is no space to accommodate three cache files.</p><div class="mediaobject"><img alt="Cache eviction" src="graphics/B05186_07_13.jpg"/></div></div></div>
+<div class="section" title="Deploying containerized apps using Docker and Mesos"><div class="titlepage"><div><div><h1 class="title"><a id="ch07lvl1sec69"/>Deploying containerized apps using Docker and Mesos</h1></div></div></div><p>This section gives a brief<a class="indexterm" id="id771"/> overview of deploying a Docker containerized Node.js application on Mesos using Marathon. This requires you to have Docker and fig already installed on the machine. Let's follow the steps listed<a class="indexterm" id="id772"/> next to carry out the deployment:</p><div class="orderedlist"><ol class="orderedlist arabic"><li class="listitem">Since we are<a class="indexterm" id="id773"/> deploying a simple Node.js application, we <a class="indexterm" id="id774"/>can start off by creating a simple <code class="literal">App.js</code> to print <code class="literal">Hello World</code>, a simple hello world Node.js program.<div class="informalexample"><pre class="programlisting">var http = require('http'); 
+// Configure our HTTP server to respond with Hello World to all requests.
+var server = http.createServer(function (request, response) {
+  response.writeHead(200, {"Content-Type": "text/plain"});
+  response.end("Hello World	");
+}); 
+// Listen on port 8000, IP defaults to "0.0.0.0"
+server.listen(8000); 
+// Put a friendly message on the terminal
+console.log("Server running at <code class="literal">http://127.0.0.1:8000/</code>");</pre></div></li><li class="listitem">Next we create the <code class="literal">package.json</code> file with the following contents:<div class="informalexample"><pre class="programlisting">{
+  "name": "hello-world",
+  "description": "hello world",
+  "version": "0.0.1",
+  "private": true,
+  "dependencies": {
+    "express": "3.x"
+  },
+  "scripts": {"start": "node app.js"}
+}</pre></div></li><li class="listitem">The next step is to dockerize our application. For that, we can create a <code class="literal">Dockerfile</code> with the following contents:<div class="informalexample"><pre class="programlisting">FROM google/nodejs
+WORKDIR /app
+ADD package.json /app/
+RUN npm install
+ADD . /app
+EXPOSE 8000
+CMD []
+ENTRYPOINT ["/nodejs/bin/npm", "start"]</pre></div></li><li class="listitem">We can now<a class="indexterm" id="id775"/> build the container with the following commands:<div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>$ docker build -t my_nodejs_image .</strong></span>
+<span class="strong"><strong>$ docker run -p 8000:8000 my_nodejs_image</strong></span>
+</pre></div></li></ol></div><p>We can make sure <a class="indexterm" id="id776"/>everything is working correctly by <a class="indexterm" id="id777"/>opening the <code class="literal">localhost:8000</code> from the browser, which should display our <span class="strong"><strong>Hello World</strong></span> text.</p><div class="mediaobject"><img alt="Deploying containerized apps using Docker and Mesos" src="graphics/B05186_07_14.jpg"/></div><div class="orderedlist"><ol class="orderedlist arabic"><li class="listitem">The next step is to build our <code class="literal">fig.yml</code> file. Here we will be using fig as an orchestration <a class="indexterm" id="id778"/>engine to deploy all central services from a single command. The <code class="literal">fig.yml</code> file will look like the following:<div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong># Zookeeper: -p 2181:2181 -p 2888:2888 -p 3888:3888</strong></span>
+<span class="strong"><strong>zookeeper:</strong></span>
+<span class="strong"><strong>  image: jplock/zookeeper:3.4.5</strong></span>
+<span class="strong"><strong>  ports:</strong></span>
+<span class="strong"><strong>    - "2181"</strong></span>
+<span class="strong"><strong>master:</strong></span>
+<span class="strong"><strong>  image: redjack/mesos-master:0.21.0</strong></span>
+<span class="strong"><strong>  hostname: master</strong></span>
+<span class="strong"><strong>  links:</strong></span>
+<span class="strong"><strong>    - zookeeper:zookeeper</strong></span>
+<span class="strong"><strong>  environment:</strong></span>
+<span class="strong"><strong>    - MESOS_ZK=zk://zookeeper:2181/mesos</strong></span>
+<span class="strong"><strong>    - MESOS_QUORUM=1</strong></span>
+<span class="strong"><strong>    - MESOS_WORK_DIR=/var/lib/mesos</strong></span>
+<span class="strong"><strong>    - MESOS_LOG_DIR=/var/log</strong></span>
+<span class="strong"><strong>  ports:</strong></span>
+<span class="strong"><strong>    - "5050:5050"</strong></span>
+<span class="strong"><strong>marathon:</strong></span>
+<span class="strong"><strong>  #image: garland/mesosphere-docker-marathon</strong></span>
+<span class="strong"><strong>  image: mesosphere/marathon</strong></span>
+<span class="strong"><strong>  links:</strong></span>
+<span class="strong"><strong>    - zookeeper:zookeeper</strong></span>
+<span class="strong"><strong>  ports:</strong></span>
+<span class="strong"><strong>    - "8080:8080"</strong></span>
+<span class="strong"><strong>  # Adding the params via command</strong></span>
+<span class="strong"><strong>command: --master zk://zookeeper:2181/mesos --zk zk://zookeeper:2181/marathon</strong></span>
+<span class="strong"><strong>slave:</strong></span>
+<span class="strong"><strong>  image: redjack/mesos-slave:0.21.0</strong></span>
+<span class="strong"><strong>  links:</strong></span>
+<span class="strong"><strong>    - zookeeper:zookeeper</strong></span>
+<span class="strong"><strong>    - master:master</strong></span>
+<span class="strong"><strong>  environment:</strong></span>
+<span class="strong"><strong>    - MESOS_MASTER=zk://zookeeper:2181/mesos</strong></span>
+<span class="strong"><strong>    - MESOS_EXECUTOR_REGISTRATION_TIMEOUT=5mins</strong></span>
+<span class="strong"><strong>    - MESOS_CONTAINERIZERS=docker,mesos</strong></span>
+<span class="strong"><strong>    - MESOS_ISOLATOR=cgroups/cpu,cgroups/mem</strong></span>
+<span class="strong"><strong>    - MESOS_LOG_DIR=/var/log</strong></span>
+<span class="strong"><strong>  volumes:</strong></span>
+<span class="strong"><strong>    - /var/run/docker.sock:/run/docker.sock</strong></span>
+<span class="strong"><strong>    - /usr/bin/docker:/usr/bin/docker</strong></span>
+<span class="strong"><strong>    - /sys:/sys:ro</strong></span>
+<span class="strong"><strong>    - mesosslace-stuff:/var/log</strong></span>
+<span class="strong"><strong>  expose:</strong></span>
+<span class="strong"><strong>    - "5051"</strong></span>
+<span class="strong"><strong>registry:</strong></span>
+<span class="strong"><strong>  image: registry</strong></span>
+<span class="strong"><strong>  environment:</strong></span>
+<span class="strong"><strong>    - STORAGE_PATH=/registry</strong></span>
+<span class="strong"><strong>  volumes:</strong></span>
+<span class="strong"><strong>    - registry-stuff:/registry</strong></span>
+<span class="strong"><strong>  ports: </strong></span>
+<span class="strong"><strong>    - "5000:5000"</strong></span>
+</pre></div></li><li class="listitem">In the preceding configuration, we have configured the Docker registry to run on port <code class="literal">5000</code> <a class="indexterm" id="id779"/>along with a single Mesos slave, Mesos master, Marathon, and ZooKeeper for internal <a class="indexterm" id="id780"/>communication.</li><li class="listitem">We can<a class="indexterm" id="id781"/> now start the Docker registry service with the following command:<div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>$ fig up</strong></span>
+</pre></div><p>This command will start all the services listed in the preceding configuration file such as Mesos master, Mesos slave, Marathon, ZooKeeper, and Docker registry.</p></li><li class="listitem">We can now build the Docker image, and push it to the registry with the following <a class="indexterm" id="id782"/>commands:<div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong># Build an image</strong></span>
+<span class="strong"><strong>$ docker build -t localhost:5000/containersol/nodejs_app</strong></span>
+
+<span class="strong"><strong># Push it to the registry</strong></span>
+<span class="strong"><strong>$ docker push localhost:5000/containersol/nodejs_app</strong></span>
+</pre></div></li><li class="listitem">Now that we have the cluster ready, we can deploy our Node.js application through Marathon. For that we need to create an application configuration file (<code class="literal">app_marathon.json</code>) with the following contents:<div class="informalexample"><pre class="programlisting">{
+  "id": "app", 
+  "container": {
+    "docker": {
+      "image": "localhost:5000/containersol/nodejs_app:latest",
+      "network": "BRIDGE",
+      "portMappings": [
+        {"containerPort": 8000, "servicePort": 8000}
+      ]
+    }
+  },
+  "cpus": 0.2,
+  "mem": 512.0,
+  "instances": 1
+}</pre></div></li><li class="listitem">This is then deployed on Marathon with the following command:<div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>$ curl -X POST -H "Content-Type: application/json" http://localhost:8080/v2/apps -d@app_marathon.json</strong></span>
+</pre></div></li><li class="listitem">We can now open<a class="indexterm" id="id783"/> the Marathon Web UI running on port <code class="literal">8080,</code> and see our Node.js application up and running:<div class="mediaobject"><img alt="Deploying containerized apps using Docker and Mesos" src="graphics/B05186_07_15.jpg"/></div></li></ol></div><p>And <a class="indexterm" id="id784"/>we can <a class="indexterm" id="id785"/>see our <a class="indexterm" id="id786"/>Node.js hello world application by pointing the browser to <code class="literal">localhost:31000</code> port:</p><div class="mediaobject"><img alt="Deploying containerized apps using Docker and Mesos" src="graphics/B05186_07_16.jpg"/></div><p>(Reference: <a class="ulink" href="http://container-solutions.com/continuous-delivery-with-docker-on-mesos-in-less-than-a-minute/">http://container-solutions.com/continuous-delivery-with-docker-on-mesos-in-less-than-a-minute/</a>
+</p><p>
+<a class="ulink" href="http://container-solutions.com/continuous-delivery-with-docker-on-mesos-in-less-than-a-minute-part-2/">http://container-solutions.com/continuous-delivery-with-docker-on-mesos-in-less-than-a-minute-part-2/</a>)
+</p></div>
+<div class="section" title="Summary"><div class="titlepage"><div><div><h1 class="title"><a id="ch07lvl1sec70"/>Summary</h1></div></div></div><p>This chapter touched upon several important topics related to containerization in Mesos. Resource isolation is one of the most touted features of Mesos, and the topics explained in this chapter have hopefully helped you understand this feature.</p><p>In the next chapter, we will see some of the important Big Data frameworks which are currently supported by Mesos such as Hadoop, Spark, and Storm and understand how these can be set up and configured on Mesos.</p></div></body></html>

@@ -1,0 +1,586 @@
+<html><head></head><body><div class="chapter" title="Chapter&#xA0;2.&#xA0;Mesos Internals"><div class="titlepage"><div><div><h1 class="title"><a id="ch02"/>Chapter 2. Mesos Internals</h1></div></div></div><p>This chapter provides a comprehensive overview of Mesos' features and walks the reader through several important topics regarding high availability, fault tolerance, scaling, and efficiency. Mentioned here are the topics we will cover in this chapter:</p><div class="itemizedlist"><ul class="itemizedlist"><li class="listitem" style="list-style-type: disc"><span class="strong"><strong>Scaling and efficiency</strong></span><div class="itemizedlist"><ul class="itemizedlist"><li class="listitem" style="list-style-type: disc">Resource allocation (the dominant resource fairness algorithm)</li><li class="listitem" style="list-style-type: disc">Reservation (static and dynamic)</li><li class="listitem" style="list-style-type: disc">Oversubscription</li><li class="listitem" style="list-style-type: disc">Extendibility</li></ul></div></li><li class="listitem" style="list-style-type: disc"><span class="strong"><strong>High availability and fault tolerance</strong></span><div class="itemizedlist"><ul class="itemizedlist"><li class="listitem" style="list-style-type: disc">Slave recovery</li><li class="listitem" style="list-style-type: disc">Reconciliation</li><li class="listitem" style="list-style-type: disc">Persistent volumes</li></ul></div></li></ul></div><div class="section" title="Scaling and efficiency"><div class="titlepage"><div><div><h1 class="title"><a id="ch02lvl1sec19"/>Scaling and efficiency</h1></div></div></div><p>Mesos aims to provide a highly<a class="indexterm" id="id123"/> scalable and efficient mechanism to enable various frameworks to share cluster resources effectively. Distributed applications are varied, can have different priorities in different contexts, and are continuously evolving, a fact that led Mesos' design philosophy towards providing for customizable resource allocation policies that users can define and set as per their requirements.</p><div class="section" title="Resource allocation"><div class="titlepage"><div><div><h2 class="title"><a id="ch02lvl2sec14"/>Resource allocation</h2></div></div></div><p>The Mesos resource<a class="indexterm" id="id124"/> allocation module contains the policy that the Mesos master uses to determine the type and quantity of resource offers that need to be made to each framework. Organizations can customize it to implement their own allocation policy, for example, fair sharing, priority, and so on, which allow for fine-grained resource sharing. Custom allocation modules can be developed to address specific needs.</p><p>The resource allocation module is responsible for making sure that the resources are shared in a fair manner among competing frameworks. The choice of algorithm used to determine whether the sharing policy has a great bearing on the efficiency of a cluster manager.</p><p>One of the most popular<a class="indexterm" id="id125"/> allocation algorithms, max-min fairness, works well in a homogenous environment; this is the one where resource requirements are fairly proportional between different competing users, such as the Hadoop cluster. However, scheduling resources across frameworks with heterogeneous resource demands poses a more complex challenge. What is a suitable fair share allocation policy if user A runs the tasks that require two CPUs and 8 GB RAM each and user B runs tasks that require four CPUs and 2 GB RAM each? As can be seen, user A's tasks are RAM-heavy, while user B's tasks are CPU-heavy. How, then, should a set of combined RAM + CPU resources be distributed between the two users?</p><p>The latter scenario is a common one faced by Mesos, designed as it is to manage resources primarily in a heterogeneous environment. To address this, Mesos has the <span class="strong"><strong>Dominant Resource Fairness algorithm</strong></span> (<span class="strong"><strong>DRF</strong></span>) as its default resource allocation policy, which is far more suitable for heterogeneous environments. The algorithm is described in detail in the following sections.</p></div><div class="section" title="The Dominant Resource Fairness algorithm (DRF)"><div class="titlepage"><div><div><h2 class="title"><a id="ch02lvl2sec15"/>The Dominant Resource Fairness algorithm (DRF)</h2></div></div></div><p>Job scheduling in datacenters is<a class="indexterm" id="id126"/> not limited to only CPUs but extends to other resources, such as the memory and disk, as well. In a scenario where resource demands are varied, some tasks are CPU-intensive, while some are memory- or disk-intensive; this is where the min-max fairness algorithm falls short. Herein lies the need for a resource scheduling mechanism that provides every user in a heterogeneous environment a fair share of the resources most required by it. In simple terms, DRF is an adaptation of the <span class="strong"><strong>max-min fairness algorithm</strong></span> to fairly share heterogeneous resources among users.</p><p>Let's consider the following example to understand how the algorithm works.</p><p>We will assume that the resources are given in multiples of demand vectors and are divisible.</p><p>Consider a case where the total resources available are eight CPUs and 10 GB memory. User 1 runs tasks that require one CPU and 3 GB memory, and user 2 runs tasks that require three CPUs and 1 GB memory. Before we proceed to analyze how the DRF algorithm will allocate tasks, let's understand the concepts of the dominant resource and share:</p><div class="itemizedlist"><ul class="itemizedlist"><li class="listitem" style="list-style-type: disc"><span class="strong"><strong>Dominant resource</strong></span>: This refers to the resource (CPU or memory) that is most required by the user. In this case, user 1 runs tasks that have higher memory requirements (3 GB per task), so the dominant resource for user 1 is memory. On the other hand, user 2 runs computation-heavy tasks (three CPUs per task) and hence has CPU as its dominant resource.</li><li class="listitem" style="list-style-type: disc"><span class="strong"><strong>Dominant share</strong></span>: This refers to the fraction of the dominant resource that the user is allocated. Referring to our example, user 1's dominant share is 30% (3/10), while user 2's dominant share is 37.5% (3/8).</li></ul></div><p>The DRF allocation module tracks the dominant share of each user and makes a note of the resources allocated to each user. DRF begins allocation by offering resources (CPU or memory) to the user with the lowest dominant share among all the competing users. The user then has the option to accept the offer if it meets its requirement.</p><p>Now, let us look at each<a class="indexterm" id="id127"/> step taken by the DRF algorithm to allocate resources for users 1 and 2. For simplicity's sake, we will overlook the resources that get released back into the pool after the completion of small tasks and assume that every resource offer is accepted and that the users run an infinite number of tasks having the resource requirements. Every user 1 task would consume one-eighth of the total CPU and three-tenths of the total memory, making <span class="strong"><strong>memory</strong></span> user 1's dominant resource. Every user 2 task would consume three-eighths of the total CPU and one-tenth of the total memory, making <span class="strong"><strong>CPU</strong></span> user 2's dominant share.</p><div class="mediaobject"><img alt="The Dominant Resource Fairness algorithm (DRF)" src="graphics/B05186_02_01.jpg"/></div><p>Each row provides the following information:</p><div class="itemizedlist"><ul class="itemizedlist"><li class="listitem" style="list-style-type: disc"><span class="strong"><strong>User Selected</strong></span>: The user that has been offered resources by the algorithm</li><li class="listitem" style="list-style-type: disc"><span class="strong"><strong>Resource share</strong></span>: A fraction of the total available resources for each resource type that is allocated to a user in the offer round.</li><li class="listitem" style="list-style-type: disc"><span class="strong"><strong>Dominant share</strong></span>: The resource share of the dominant resource</li><li class="listitem" style="list-style-type: disc"><span class="strong"><strong>Dominant share percentage:</strong></span> The dominant share expressed as a percentage (%)</li><li class="listitem" style="list-style-type: disc"><span class="strong"><strong>CPU Total Allocation</strong></span>: The sum of CPU resources allocated to all users in the current offer round</li><li class="listitem" style="list-style-type: disc"><span class="strong"><strong>Memory Total Allocation</strong></span>: The sum of memory resources allocated to all users in the current offer round</li></ul></div><div class="note" style="" title="Note"><div class="inner"><h3 class="title"><a id="note02"/>Note</h3><p>Note: The lowest dominant share in each row is highlighted in yellow.</p></div></div><p>To begin with, both users have a dominant share of 0% (as no resource is allocated as yet). We will assume that DRF chooses user 1 to offer resources to first, although had we assumed user 2, the final <a class="indexterm" id="id128"/>outcome would have been the same. Here are the steps it will follow:</p><div class="orderedlist"><ol class="orderedlist arabic"><li class="listitem">User 1 will receive the required set of resources to run a task. The dominant share for its dominant resource (memory) will get increased to 30%.</li><li class="listitem">User 2's dominant share being 0%, it will receive resources in the next round. The dominant share for its dominant resource (CPU) will get increased to 37.5%.</li><li class="listitem">As User 1 now has the lower dominant share (30%), it will receive the next set of resources. Its dominant share rises to 60%.</li><li class="listitem">User 2 that has the lower dominant share (37.5%) will now be offered resources.</li><li class="listitem">The process will continue until there are no more resources to allocate to run the user tasks. In this case, after step 4, the CPU resources will get saturated (highlighted in red).</li><li class="listitem">The process will continue if any resources are freed or the resource requirement changes.</li></ol></div><p>Primarily, DRF aims to maximize the minimum dominant share across all users. As in this example, DRF worked with the users to allocate the following:</p><div class="itemizedlist"><ul class="itemizedlist"><li class="listitem" style="list-style-type: disc">Two tasks to user 1 with a total allocation of two CPUs, 6 GB memory, and a dominant share % of 60 (Memory).</li><li class="listitem" style="list-style-type: disc">Two tasks to user 2 with a total allocation of six CPUs, 2 GB memory, and a dominant share % of 75 (CPU).</li></ul></div><p>This can be diagrammatically depicted as follows:</p><div class="mediaobject"><img alt="The Dominant Resource Fairness algorithm (DRF)" src="graphics/B05186_02_02.jpg"/></div></div><div class="section" title="Weighted DRF"><div class="titlepage"><div><div><h2 class="title"><a id="ch02lvl2sec16"/>Weighted DRF</h2></div></div></div><p>We have so far assumed that users have an equal probability of being offered resources. There could also be a modification created in the algorithm, where one user or a set of users is favored over others in<a class="indexterm" id="id129"/> terms of resource allocation. This is referred to as Weighted DRF, wherein resources are not shared equally among users. Sharing can be weighted on a per-user and per-resource-level basis, the former being more popular.</p><p>Let's consider a per-user weighted computation of the previous example. For every user <span class="emphasis"><em>i</em></span> and resource <span class="emphasis"><em>j</em></span>, the weights are stated as w<sub>1,j</sub> 3 and w<sub>2,j</sub> = 1. This implies that user 1 will have three times the proportion of all the resources compared to user 2 in the system. If both the weights have the value 1, then allocation would be carried out in accordance with the normal DRF algorithm (as described before).</p><p>Now, let's look at each step taken by the DRF algorithm to allocate resources for users 1 and 2.</p><div class="mediaobject"><img alt="Weighted DRF" src="graphics/B05186_02_03.jpg"/></div><p>To begin with, both the users have a dominant share of 0% (as no resource is allocated as yet). We will assume that Weighted DRF chooses user 1 to offer resources to first, although had we assumed User 2, the final outcome would have been the same. Here are the steps that it will<a class="indexterm" id="id130"/> follow:</p><div class="orderedlist"><ol class="orderedlist arabic"><li class="listitem">User 1 will receive the required set of resources to run a task. The dominant share for its dominant resource (memory) gets increased to 10% (30% divided by 3).</li><li class="listitem">User 2's dominant share being 0%, it will receive resources in the next round. The dominant share for its dominant resource (CPU) will get increased to 37.5%.</li><li class="listitem">As user 1 now has the lower dominant share (10%), it will receive the next set of resources. Its dominant share will rise to 20% (60% divided by 3).</li><li class="listitem">User 1 still has the lower dominant share (20%) and is now offered resources again to make it 30% (90% divided by 3).</li><li class="listitem">The process will continues till there are no more resources to allocate to run the user tasks. In this case, after step 4, the memory resources will get saturated (highlighted in red).</li><li class="listitem">The process will continue if any resources are freed or the resource requirement changes.</li></ol></div><p>Weighted DRF aims to prioritize resource sharing based on the weight assigned to every user. In this example, Weighted DRF worked with the users to allocate the following:</p><div class="itemizedlist"><ul class="itemizedlist"><li class="listitem" style="list-style-type: disc">Three tasks to user 1 with a total allocation of three CPUs and 9 GB memory</li><li class="listitem" style="list-style-type: disc">Only one task to user 2 with a total allocation of three CPUs and 1 GB memory</li></ul></div><p>This can be diagrammatically depicted as follows:</p><div class="mediaobject"><img alt="Weighted DRF" src="graphics/B05186_02_04.jpg"/></div><p>In addition to this, it is possible to create custom modules that cater to an organization or need specific resource<a class="indexterm" id="id131"/> allocation. This will be covered later in the same chapter.</p><p>Let's now look at some of the important properties that DRF follows/satisfies:</p><div class="orderedlist"><ol class="orderedlist arabic"><li class="listitem"><span class="strong"><strong>Progressive Filling</strong></span>: Allocation by progressive filling in DRF increases the dominant shares of all users at the same speed, while other resource allocations of users increase proportionally based on the demand. This continues up to a point at which at least one resource is saturated, after which the allocations of users that require the saturated resource are halted, and these users are eliminated. Progressive filling for other users proceeds in a recursive fashion and ends when there is no user left whose dominant share can be increased.</li><li class="listitem"><span class="strong"><strong>Share Guarantee</strong></span>: The DRF algorithm allocates resources to users via "progressive filling", which ensures that every user's dominant share allocation increases at the same rate and continues until one resource gets saturated and the resource allocation is frozen. This indirectly ensures that all users are treated equally and are guaranteed 1/n of at least one resource.</li><li class="listitem"><span class="strong"><strong>Strategy-proofness</strong></span>: This property of DRF ensures that users at any given point of time cannot benefit from increased allocation by falsifying their resource demands. In case a user does try to <span class="emphasis"><em>game</em></span> the system by demanding extra resources, the DRF algorithm is such that the allocation of resources may happen in a<a class="indexterm" id="id132"/> manner that is deterrent to this user.</li><li class="listitem"><span class="strong"><strong>Pareto efficiency</strong></span>: This property of DRF implies that increasing the dominant share of a given user will proportionally decrease the dominant share of other users for this particular resource. Courtesy of the progressive filling algorithm, it is but natural that allocation of more resources to one specific user will hurt others.</li><li class="listitem"><span class="strong"><strong>Envy-freeness</strong></span>: DRF is envy-free because there is no need for any user to prefer or envy the resource allocation of another. Envy comes into the picture only when, for instance, user 1 envies user 2, whose dominant share for a particular resource is higher. However, considering that resource allocation is done via progressive filling, dominant shares of both users 1 and 2 will be the same by the time the resource in question is saturated. This <span class="emphasis"><em>envy</em></span> is neither beneficial nor required.</li></ol></div></div><div class="section" title="Configuring resource offers on Mesos"><div class="titlepage"><div><div><h2 class="title"><a id="ch02lvl2sec17"/>Configuring resource offers on Mesos</h2></div></div></div><p>A common problem encountered is that sometimes, frameworks do not accept any resource offers due to<a class="indexterm" id="id133"/> improper resource configuration settings on the slaves. For example, the Elasticsearch framework requires ports <code class="literal">9200</code> and <code class="literal">9300</code>, but the default port range configuration in the Mesos slaves is <code class="literal">31000</code> to <code class="literal">32000</code>.</p><p>The slaves must be configured correctly so that the right resource offers are made to frameworks that can then accept them. This can be done as follows:</p><div class="orderedlist"><ol class="orderedlist arabic"><li class="listitem">In the <code class="literal">mesos-slave</code> command, add the necessary resource parameters Here's an example:<div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>--resources='ports:[9200-9200,9300-9300]' ...</strong></span>
+</pre></div></li><li class="listitem">Create a <span class="emphasis"><em>file</em></span> under<code class="literal">/etc/mesos-slave</code> called <code class="literal">resources</code> whose content is the necessary resource string. Run the following command:<div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>$ cat /etc/mesos-slave/resources</strong></span>
+<span class="strong"><strong>ports:[9200-9200,9300-9300]</strong></span>
+<span class="strong"><strong>$</strong></span>
+</pre></div></li></ol></div></div></div></div>
+<div class="section" title="Reservation"><div class="titlepage"><div><div><h1 class="title"><a id="ch02lvl1sec20"/>Reservation</h1></div></div></div><p>Mesos also provides the ability to reserve resources on specified slaves. This is particularly useful in ensuring that important services get guaranteed resource offers from a particular slave (for example, a database may need resource offers only from a particular slave, which<a class="indexterm" id="id134"/> contains the necessary data). In the absence of a reservation mechanism, there is the possibility that an important service or job may need to wait for a long time before it gets a resource offer satisfying its filter criteria, which would have a detrimental impact on performance.</p><p>On the other hand, misusing the reservation feature can lead to the same kind of problems, such as the resource underutilization that Mesos sought to resolve in the first place. Thus, it is necessary to use this judiciously. The Mesos access control mechanism makes sure that the framework requesting a reservation of resources has the appropriate authorization to do so.</p><p>Mesos provides two methods of resource reservations:</p><div class="orderedlist"><ol class="orderedlist arabic"><li class="listitem">Static reservation</li><li class="listitem">Dynamic reservation</li></ol></div><div class="section" title="Static reservation"><div class="titlepage"><div><div><h2 class="title"><a id="ch02lvl2sec18"/>Static reservation</h2></div></div></div><p>In this type of reservation, specified resources can be reserved on specific slave nodes for a particular framework or group of frameworks. In order to reserve resources for a framework, it must be <a class="indexterm" id="id135"/>assigned to a role. Multiple frameworks can be assigned to<a class="indexterm" id="id136"/> a single role if necessary. Only the frameworks assigned to a particular role (say, role X) are entitled to get offers for the resources reserved for role X. Roles need to be defined first, then frameworks need to be assigned to the required roles, and finally, resource policies must be set for these roles.</p><div class="section" title="Role definition"><div class="titlepage"><div><div><h3 class="title"><a id="ch02lvl3sec15"/>Role definition</h3></div></div></div><p>Roles can be defined by <a class="indexterm" id="id137"/>starting the master with the following flag:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>--roles = "name1, name2, name3"</strong></span>
+</pre></div><p>For example, if we want to define a role called <code class="literal">hdfs</code>, then we can start the master using the following:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>--roles = "hdfs"</strong></span>
+</pre></div><p>Alternatively, you can do this by running the following:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>echo hdfs &gt; /etc/mesos-master/role</strong></span>
+</pre></div><p>Now, the master needs to be restarted by running the following:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>sudo service mesos-master restart</strong></span>
+</pre></div></div><div class="section" title="Framework assignment"><div class="titlepage"><div><div><h3 class="title"><a id="ch02lvl3sec16"/>Framework assignment</h3></div></div></div><p>Now, we need to map the<a class="indexterm" id="id138"/> frameworks to specific roles. The method to do this varies by the framework. Some, such as Marathon, can be configured using the <code class="literal">–mesos_role</code> flag. In the case of HDFS, this can be done by changing <code class="literal">mesos.hdfs.role</code> in <code class="literal">mesos-site.xml</code> to the value of <code class="literal">hdfs </code>defined before.</p><div class="informalexample"><pre class="programlisting">&lt;property&gt;
+  &lt;name&gt;mesos.hdfs.role&lt;/name&gt;
+  &lt;value&gt;hdfs&lt;/value&gt;
+  &lt;/property&gt;</pre></div><p>Custom roles for frameworks can be specified by setting the <code class="literal">role</code> option within <code class="literal">FrameworkInfo</code> to the desired value (the default is <code class="literal">*</code>).</p></div></div><div class="section" title="Role resource policy setting"><div class="titlepage"><div><div><h2 class="title"><a id="ch02lvl3sec17"/>Role resource policy setting</h2></div></div></div><p>Resources on each slave can<a class="indexterm" id="id139"/> be reserved for a particular role by leveraging the slave's <code class="literal">–resources</code> flag. Slave-level resource policy setting has its drawbacks as the management overhead can quickly become daunting as the cluster size and number of frameworks being run increases.</p><p>If we have eight cores and 24 GB (the number is specified in MBs in Mesos) RAM available on a particular slave and seek to reserve 2 cores and 6 GB RAM for the <code class="literal">hdfs</code> role, then we can make the following changes on the slave:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>--resources="cpus:6;mem:18432;cpus(hdfs):2;mem(hdfs):6144"</strong></span>
+</pre></div><p>Once this is done, <code class="literal">mesos-slave</code> with these changed settings can be stopped by executing the following:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>sudo service mesos-slave stop</strong></span>
+</pre></div><p>The older state on these slaves can be removed by the following command. Any running tasks can be manually terminated as the task states will also get removed:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>rm -f /tmp/mesos/meta/slaves/latest</strong></span>
+</pre></div><p>Now, the slave can be restarted with the following command:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>sudo service mesos-slave start</strong></span>
+</pre></div></div><div class="section" title="Dynamic reservation"><div class="titlepage"><div><div><h2 class="title"><a id="ch02lvl2sec20"/>Dynamic reservation</h2></div></div></div><p>The main drawback<a class="indexterm" id="id140"/> of static reservation is that the reserved resources cannot be used by other roles during <a class="indexterm" id="id141"/>downtime, nor can they be unreserved and made available as part of the wider pool. This leads to poor resource utilization. In order to overcome this challenge, support for dynamic reservation was added in version 0.23.0, which allows users to reserve and unreserve resources more dynamically as per workload requirements.</p><p>For a resource offer, frameworks <a class="indexterm" id="id142"/>can send back the following two messages (through the <code class="literal">acceptOffers</code> API) as a response:</p><div class="itemizedlist"><ul class="itemizedlist"><li class="listitem" style="list-style-type: disc"><code class="literal">Offer::Operation::Reserve</code></li><li class="listitem" style="list-style-type: disc"><code class="literal">Offer::Operation::Unreserve</code></li></ul></div><p>These are described in detail in the following sections. Note that the framework's principal is required for authorization, which will be discussed in more detail in <a class="link" href="ch06.html" title="Chapter 6. Mesos Frameworks">Chapter 6</a>, <span class="emphasis"><em>Mesos Frameworks</em></span>.</p><div class="section" title="Offer::Operation::Reserve"><div class="titlepage"><div><div><h3 class="title"><a id="ch02lvl3sec18"/>Offer::Operation::Reserve</h3></div></div></div><p>Each framework can reserve<a class="indexterm" id="id143"/> resources as part of the offer cycle. As an example, let's say that a resource offer with eight cores and 12 GB RAM unreserved is received by a framework. Take a look at the following code:</p><div class="informalexample"><pre class="programlisting">{
+  "id": &lt;offer_id&gt;,
+  "framework_id": &lt;framework_id&gt;,
+  "slave_id": &lt;slave_id&gt;,
+  "hostname": &lt;hostname&gt;,
+  "resources": [
+    {
+      "name": "cpus",
+      "type": "SCALAR",
+      "scalar": { "value": 8 },
+      "role": "*",
+    },
+    {
+      "name": "mem",
+      "type": "SCALAR",
+      "scalar": { "value": 12288 },
+      "role": "*",
+    }
+  ]
+}</pre></div><p>We can reserve four cores and 6 GB RAM for the framework by specifying the quantity of each resource type that needs to be reserved and the framework's role and principal in the following message:</p><div class="informalexample"><pre class="programlisting">{
+  "type": Offer::Operation::RESERVE,
+  "reserve": {
+    "resources": [
+      {
+        "name": "cpus",
+        "type": "SCALAR",
+        "scalar": { "value": 4 },
+        "role": &lt;framework_role&gt;,
+        "reservation": {
+          "principal": &lt;framework_principal&gt;
+        }
+      },
+      {
+        "name": "mem",
+        "type": "SCALAR",
+        "scalar": { "value": 6144 },
+        "role": &lt;framework_role&gt;,
+        "reservation": {
+          "principal": &lt;framework_principal&gt;
+        }
+      }
+    ]
+  }
+}</pre></div><p>The next resource offer will<a class="indexterm" id="id144"/> include the preceding reserved resources, as follows:</p><div class="informalexample"><pre class="programlisting">{
+  "id": &lt;offer_id&gt;,
+  "framework_id": &lt;framework_id&gt;,
+  "slave_id": &lt;slave_id&gt;,
+  "hostname": &lt;hostname&gt;,
+  "resources": [
+    {
+      "name": "cpus",
+      "type": "SCALAR",
+      "scalar": { "value": 4 },
+      "role": &lt;framework_role&gt;,
+      "reservation": {
+        "principal": &lt;framework_principal&gt;
+      }
+    },
+    {
+      "name": "mem",
+      "type": "SCALAR",
+      "scalar": { "value": 6144 },
+      "role": &lt;framework_role&gt;,
+      "reservation": {
+        "principal": &lt;framework_principal&gt;
+      }
+    },
+  ]
+}</pre></div></div><div class="section" title="Offer::Operation::Unreserve"><div class="titlepage"><div><div><h3 class="title"><a id="ch02lvl3sec19"/>Offer::Operation::Unreserve</h3></div></div></div><p>Each framework can also unreserve resources as part of the offer cycle. In the previous example, we reserved four<a class="indexterm" id="id145"/> cores and 6 GB RAM for the <a class="indexterm" id="id146"/>framework/role that will continue to be offered until specifically unreserved. The way to unreserve this is explained here.</p><p>First, we will receive the reserved resource offer, as follows:</p><div class="informalexample"><pre class="programlisting">{
+  "id": &lt;offer_id&gt;,
+  "framework_id": &lt;framework_id&gt;,
+  "slave_id": &lt;slave_id&gt;,
+  "hostname": &lt;hostname&gt;,
+  "resources": [
+    {
+      "name": "cpus",
+      "type": "SCALAR",
+      "scalar": { "value": 4 },
+      "role": &lt;framework_role&gt;,
+      "reservation": {
+        "principal": &lt;framework_principal&gt;
+      }
+    },
+    {
+      "name": "mem",
+      "type": "SCALAR",
+      "scalar": { "value": 6144 },
+      "role": &lt;framework_role&gt;,
+      "reservation": {
+        "principal": &lt;framework_principal&gt;
+      }
+    },
+  ]
+}</pre></div><p>We can now unreserve four cores and 6 GB RAM for the framework by specifying the quantity of each resource type that needs to be unreserved and the framework's role and principal in the following<a class="indexterm" id="id147"/> message:</p><div class="informalexample"><pre class="programlisting">{
+  "type": Offer::Operation::UNRESERVE,
+  "unreserve": {
+    "resources": [
+      {
+        "name": "cpus",
+        "type": "SCALAR",
+        "scalar": { "value": 4 },
+        "role": &lt;framework_role&gt;,
+        "reservation": {
+          "principal": &lt;framework_principal&gt;
+        }
+      },
+      {
+        "name": "mem",
+        "type": "SCALAR",
+        "scalar": { "value": 6144 },
+        "role": &lt;framework_role&gt;,
+        "reservation": {
+          "principal": &lt;framework_principal&gt;
+        }
+      }
+    ]
+  }
+}</pre></div><p>In subsequent resource offers, these unreserved resources will become part of the wider unreserved pool and start being offered to other frameworks.</p><p>The <code class="literal">/reserve</code> and <code class="literal">/unreserve</code> HTTP endpoints were also introduced in v0.25.0 and can be used for dynamic reservation management from the master.</p><div class="section" title="/reserve"><div class="titlepage"><div><div><h4 class="title"><a id="ch02lvl4sec01"/>/reserve</h4></div></div></div><p>Let's say that we are<a class="indexterm" id="id148"/> interested in reserving four cores and 6 GB RAM for a role on a slave whose ID is <code class="literal">&lt;slave_id&gt;</code>. An <code class="literal">HTTP POST</code> request can be sent to the <code class="literal">/reserve</code> HTTP endpoint, as follows:</p><div class="informalexample"><pre class="programlisting">$ curl -i \
+  -u &lt;operator_principal&gt;:&lt;password&gt; \
+  -d slaveId=&lt;slave_id&gt; \
+  -d resources='[ \
+    { \
+      "name": "cpus", \
+      "type": "SCALAR", \
+      "scalar": { "value": 4 }, \
+      "role": &lt;framework_role&gt;, \
+      "reservation": { \
+        "principal": &lt;operator_principal&gt; \
+      } \
+    }, \
+    { \
+      "name": "mem", \
+      "type": "SCALAR", \
+      "scalar": { "value": 6144 }, \
+      "role": &lt;framework_role&gt;,\
+      "reservation": { \
+        "principal": &lt;operator_principal&gt; \
+      } \
+    } \
+  ]' \
+  -X POST http://&lt;ip&gt;:&lt;port&gt;/master/reserve</pre></div><p>The response can be<a class="indexterm" id="id149"/> one of the following:</p><div class="itemizedlist"><ul class="itemizedlist"><li class="listitem" style="list-style-type: disc"><code class="literal">200 OK</code>: Success</li><li class="listitem" style="list-style-type: disc"><code class="literal">400 BadRequest</code>: Invalid arguments (for example, missing parameters)</li><li class="listitem" style="list-style-type: disc"><code class="literal">401 Unauthorized</code>: Unauthorized request</li><li class="listitem" style="list-style-type: disc"><code class="literal">409 Conflict</code>: Insufficient resources to satisfy the reserve operation</li></ul></div></div><div class="section" title="/unreserve"><div class="titlepage"><div><div><h4 class="title"><a id="ch02lvl4sec02"/>/unreserve</h4></div></div></div><p>Now, if we are interested in<a class="indexterm" id="id150"/> unreserving the resources that were reserved before, an <code class="literal">HTTP POST</code> request can be sent to the <code class="literal">/unreserve</code> HTTP endpoint, as follows:</p><div class="informalexample"><pre class="programlisting">$ curl -i \
+  -u &lt;operator_principal&gt;:&lt;password&gt; \
+  -d slaveId=&lt;slave_id&gt; \
+  -d resources='[ \
+    { \
+      "name": "cpus", \
+      "type": "SCALAR", \
+      "scalar": { "value": 4 }, \
+      "role": &lt;framework_role&gt;, \
+      "reservation": { \
+        "principal": &lt;operator_principal&gt; \
+      } \
+    }, \
+    { \
+      "name": "mem", \
+      "type": "SCALAR", \
+      "scalar": { "value": 6144 }, \
+      "role": &lt;framework_role&gt;\
+      "reservation": { \
+        "principal": &lt;operator_principal&gt; \
+      } \
+    } \
+  ]' \
+  -X POST http://&lt;ip&gt;:&lt;port&gt;/master/unreserve</pre></div><p>The response can be <a class="indexterm" id="id151"/>one of the following:</p><div class="itemizedlist"><ul class="itemizedlist"><li class="listitem" style="list-style-type: disc"><code class="literal">200 OK</code>: Success</li><li class="listitem" style="list-style-type: disc"><code class="literal">400 BadRequest</code>: Invalid arguments (for example, missing parameters)</li><li class="listitem" style="list-style-type: disc"><code class="literal">401 Unauthorized</code>: Unauthorized request</li><li class="listitem" style="list-style-type: disc"><code class="literal">409 Conflict</code>: Insufficient resources to satisfy unreserve operation</li></ul></div></div></div></div><div class="section" title="Oversubscription"><div class="titlepage"><div><div><h2 class="title"><a id="ch02lvl2sec21"/>Oversubscription</h2></div></div></div><p>Frameworks are generally <a class="indexterm" id="id152"/>provided with enough buffer resources by users to be able to handle unexpected workload surges. This leads to an overall underutilization of the entire cluster because a sizeable chunk of resources are lying idle. Add this across frameworks, and you find that it adds <a class="indexterm" id="id153"/>up to significant wastage. The concept of oversubscription, introduced in v0.23.0, seeks to address this problem by executing low priority tasks, such as background processes or ad hoc noncritical analytics, on these idle resources.</p><p>To enable this, two additional components are introduced:</p><div class="orderedlist"><ol class="orderedlist arabic"><li class="listitem"><span class="strong"><strong>Resource estimator</strong></span>: This is <a class="indexterm" id="id154"/>used to determine the number of idle resources that can be used by best-effort processes</li><li class="listitem"><span class="strong"><strong>Quality of Service (QoS) controller</strong></span>: This<a class="indexterm" id="id155"/> is used to terminate these best-effort tasks in case a workload surge or performance degradation in the original tasks is observed</li></ol></div><p>While the basic default estimators and controllers are provided, Mesos provides users with the ability to create their own custom ones.</p><p>In addition, the existing resource allocator, resource monitor, and Mesos slave are also extended with new flags <a class="indexterm" id="id156"/>and options. The following diagram illustrates how the oversubscription concept works (source: <a class="ulink" href="http://mesos.apache.org/documentation/latest/oversubscription/">http://mesos.apache.org/documentation/latest/oversubscription/</a>):</p><div class="mediaobject"><img alt="Oversubscription" src="graphics/B05186_02_05.jpg"/></div><div class="section" title="Revocable resource offers"><div class="titlepage"><div><div><h3 class="title"><a id="ch02lvl3sec20"/>Revocable resource offers</h3></div></div></div><p>The following steps<a class="indexterm" id="id157"/> are followed:</p><div class="orderedlist"><ol class="orderedlist arabic"><li class="listitem">The primary step involves collecting the usage statistics and estimating the number of resources that are oversubscribed and available for use by low-priority jobs. The resource monitor sends these statistics by passing <code class="literal">ResourceStatistics</code> messages to something known as the resource estimator.</li><li class="listitem">The estimator identifies the quantity of resources that are oversubscribed by leveraging algorithms that calculate these buffer amounts. Mesos provides the ability to develop custom resource estimators based on user-specified logic.</li><li class="listitem">Each slave polls the resource estimator to get the most recent estimates.</li><li class="listitem">The slave, then, periodically (whenever the estimate values change) transmits this information to the allocator module in the master.</li><li class="listitem">The allocator marks these oversubscribed resources as "revocable" resources and monitors these separately.</li><li class="listitem">Frameworks that register<a class="indexterm" id="id158"/> with the <code class="literal">REVOCABLE_RESOURCES</code> set in the <code class="literal">FrameworkInfo</code> method receive offers of these revocable resources and can schedule tasks on them using the <code class="literal">launchTasks()</code> API. Note that these cannot be dynamically reserved.</li></ol></div><div class="section" title="Registering with the revocable resources capability"><div class="titlepage"><div><div><h4 class="title"><a id="ch02lvl4sec03"/>Registering with the revocable resources capability</h4></div></div></div><p>Run the following<a class="indexterm" id="id159"/> code:</p><div class="informalexample"><pre class="programlisting">FrameworkInfo framework;
+framework.set_name("Revocable framework");
+
+framework.add_capabilities()-&gt;set_type(
+  FrameworkInfo::Capability::REVOCABLE_RESOURCES);</pre></div></div><div class="section" title="An example offer with a mix of revocable and standard resources"><div class="titlepage"><div><div><h4 class="title"><a id="ch02lvl4sec04"/>An example offer with a mix of revocable and standard resources</h4></div></div></div><p>Take a look at the<a class="indexterm" id="id160"/> following code:</p><div class="informalexample"><pre class="programlisting">{
+  "id": &lt;offer_id&gt;,
+  "framework_id": &lt;framework_id&gt;,
+  "slave_id": &lt;slave_id&gt;,
+  "hostname": &lt;hostname&gt;,
+  "resources": [
+    {
+      "name": "cpus",
+      "type": "SCALAR",
+      "scalar": {
+        "value": 4
+      },
+      "role": "*"
+    }, {
+      "name": "mem",
+      "type": "SCALAR",
+      "scalar": {
+        "value": 6144
+      },
+      "role": "*"
+    },
+    {
+      "name": "cpus",
+      "type": "SCALAR",
+      "scalar": {
+        "value": 1
+      },
+      "role": "*",
+      "revocable": {}
+    }
+  ]
+}</pre></div><div class="itemizedlist"><ul class="itemizedlist"><li class="listitem" style="list-style-type: disc">The task is launched on the slave when the <code class="literal">runTask</code> request is received by it. A container with even a single revocable resource can be terminated by the QoS controller as it is considered a revocable container.</li><li class="listitem" style="list-style-type: disc">The original task is<a class="indexterm" id="id161"/> also monitored continuously, and the revocable resources are returned to it if any performance deterioration or workload spike is observed. This is known as interference detection.</li></ul></div><p>Currently, the Mesos resource estimator is pretty basic with two default estimators called the <span class="strong"><strong>fixed</strong></span> and <span class="strong"><strong>noop</strong></span> resource estimators. In the first one, a fixed set of resources can be tagged as oversubscribed, while the latter provides a null estimate upon being polled by the slave, effectively saying that no resources are available for oversubscription.</p><p>Active work is being done on introducing sophisticated and dynamic oversubscribed resource estimation models (a module called <span class="strong"><strong>Project Serenity</strong></span> by Mesosphere and Intel, for instance) to maximize resource utilization while ensuring no impact on Quality of Service at the same time.</p></div></div><div class="section" title="Resource estimator"><div class="titlepage"><div><div><h3 class="title"><a id="ch02lvl3sec21"/>Resource estimator</h3></div></div></div><p>Run the following <a class="indexterm" id="id162"/>code:</p><div class="informalexample"><pre class="programlisting">class ResourceEstimator 
+{ 
+public: 
+  virtual Try initialize(const lambda::function&lt;process::Future()&gt;&amp; usage) = 0; 
+  virtual process::Future oversubscribable() = 0;
+};</pre></div></div><div class="section" title="The QoS controller"><div class="titlepage"><div><div><h3 class="title"><a id="ch02lvl3sec22"/>The QoS controller</h3></div></div></div><p>Execute the<a class="indexterm" id="id163"/> following code:</p><div class="informalexample"><pre class="programlisting">class QoSController 
+{ 
+public: 
+  virtual Try initialize(const lambda::function&lt;process::Future()&gt;&amp; usage) = 0; 
+  virtual process::Future&lt;std::list&gt; corrections() = 0;
+};</pre></div></div><div class="section" title="Configuring oversubscription"><div class="titlepage"><div><div><h3 class="title"><a id="ch02lvl3sec23"/>Configuring oversubscription</h3></div></div></div><p>The slave now has four new<a class="indexterm" id="id164"/> oversubscription-related flags available, as shown in the following table:</p><div class="informaltable"><table border="1"><colgroup><col style="text-align: left"/><col style="text-align: left"/></colgroup><thead><tr><th style="text-align: left" valign="bottom">
+<p>Flag</p>
+</th><th style="text-align: left" valign="bottom">
+<p>Explanation</p>
+</th></tr></thead><tbody><tr><td style="text-align: left" valign="top">
+<p>
+<code class="literal">--oversubscribed_resources_interval=VALUE</code>
+</p>
+</td><td style="text-align: left" valign="top">
+<p>The slave periodically transmits oversubscribed resource estimates to the master. The interval of these updates can be specified via this flag (default: 15 seconds)</p>
+</td></tr><tr><td style="text-align: left" valign="top">
+<p>
+<code class="literal">--qos_controller=VALUE</code>
+</p>
+</td><td style="text-align: left" valign="top">
+<p>This is the QoS controller name that needs to be used</p>
+</td></tr><tr><td style="text-align: left" valign="top">
+<p>
+<code class="literal">--qos_correction_interval_min=VALUE</code>
+</p>
+</td><td style="text-align: left" valign="top">
+<p>The slave polls and carries out QoS corrections, which are performed by the slave from the controller-based on the performance degradation/deterioration levels of the original tasks. This flag controls the interval of these corrections (default: 0 ns)</p>
+</td></tr><tr><td style="text-align: left" valign="top">
+<p>
+<code class="literal">--resource_estimator=VALUE</code>
+</p>
+</td><td style="text-align: left" valign="top">
+<p>This is the resource estimator name that needs to be used for the determination of oversubscribed resources</p>
+</td></tr></tbody></table></div></div></div><div class="section" title="Extendibility"><div class="titlepage"><div><div><h2 class="title"><a id="ch02lvl2sec22"/>Extendibility</h2></div></div></div><p>Different organizations have<a class="indexterm" id="id165"/> different requirements. Also, within the same organization, different users run clusters in different ways with different scale and latency requirements. Users need to deal with application-specific behavior, ensuring that their industry-specific security <a class="indexterm" id="id166"/>compliances are met and so on. All this means that Mesos needs to be extremely customizable and extendable if it is to achieve its goal of serving as the OS for the entire datacenter for all organizations. It required a feature that could keep the Mesos core small and lightweight while making it powerful enough to allow as much customization/extendibility as required at the same time.</p><p>A number of software systems, such as browsers, support libraries to:</p><div class="itemizedlist"><ul class="itemizedlist"><li class="listitem" style="list-style-type: disc">Extend feature support</li><li class="listitem" style="list-style-type: disc">Abstract complexity</li><li class="listitem" style="list-style-type: disc">Make development configuration-driven</li></ul></div></div></div>
+<div class="section" title="Mesos modules"><div class="titlepage"><div><div><h1 class="title"><a id="ch02lvl1sec21"/>Mesos modules</h1></div></div></div><p>Mesos modules, introduced in<a class="indexterm" id="id167"/> v0.21.0, build on this concept to allow users to extend the functionality of Mesos through libraries that can be created as well as shared without continuous recompilation. A module in the context of Mesos is an entire component that can be added or replaced by any user. All external dependencies are treated as separate libraries that can be loaded on demand. All users can now develop their experimental features on top of Mesos without needing to understand all the detailed inner workings or impacting other users. Custom allocation logic, custom oversubscribed resource estimation algorithms, and many such use-case-specific customized functionalities can be implemented. Different subsystems, such as load balancers, isolation mechanisms, and service discovery mechanisms can also be configured in a modular way.</p><div class="section" title="Module invocation"><div class="titlepage"><div><div><h2 class="title"><a id="ch02lvl2sec23"/>Module invocation</h2></div></div></div><p>The <code class="literal">--modules</code> cli flag is available for the<a class="indexterm" id="id168"/> master and slave to provide a module list that needs to be made available.</p><p>The module list can be provided through a file with a JSON-formatted string using <code class="literal">--modules=filepath</code>. The <code class="literal">filepath</code> can be of the <code class="literal">/path/to/file</code> or <code class="literal">file:///path/to/file</code> type.</p><p>To provide a module list inline, use <code class="literal">--modules="{...}"</code>.</p><p>There are two parameters, <code class="literal">name</code> and <code class="literal">file</code>; one of these must be provided for every library. The <code class="literal">file</code> parameter can be an absolute path (for example, <code class="literal">/User/mesos/lib/example.so</code>), a filename (for example, <code class="literal">example.so</code>) or a relative path (for example, <code class="literal">lib/example.so</code>). The <code class="literal">name</code> parameter is the name of a library (for example, <code class="literal">example</code>). If this is provided, it gets expanded to the appropriate library name for the current OS automatically (for example, <code class="literal">example</code> gets expanded to <code class="literal">example.so</code> on Linux and <code class="literal">example.dylib</code> on OS X). If both the parameters are provided, then the <code class="literal">name</code> parameter is ignored.</p><p>An example JSON string is given below:</p><div class="orderedlist"><ol class="orderedlist arabic"><li class="listitem">Load a library <code class="literal">example.so</code> with two modules <code class="literal">org_apache_mesos_X</code> and <code class="literal">org_apache_mesos_Y</code> as follows:<div class="informalexample"><pre class="programlisting">{
+  "libraries": [
+    {
+      "file": "/path/to/example.so",
+      "modules": [
+        {
+          "name": "org_apache_mesos_X",
+        },
+        {
+          "name": "org_apache_mesos_Y"
+        }
+      ]
+    }
+  ]
+}</pre></div><p>From the library example, load the <code class="literal">org_apache_mesos_X</code> module and pass argument A with <a class="indexterm" id="id169"/>value B (load the other module <code class="literal">org_apache_mesos_Y</code> without any parameters) via the following code:</p><div class="informalexample"><pre class="programlisting">{
+  "libraries": [
+    {
+      "name": "example",
+      "modules": [
+        {
+          "name": "org_apache_mesos_X"
+          "parameters": [
+            {
+              "key": "A",
+              "value": "B",
+            }
+          ]
+        },
+        {
+          "name": "org_apache_mesos_Y"
+        }
+      ]
+    }
+  ]
+}</pre></div></li><li class="listitem">To specify modules inline, use the following code:<div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>--modules='{"libraries":[{"file":"/path/to/example.so", "modules":[{"name":"org_apache_mesos_X"}]}]}'</strong></span>
+</pre></div></li></ol></div><p>An example <code class="literal">Hello World</code> module<a class="indexterm" id="id170"/> implementation is provided here: <a class="ulink" href="http://mesos.apache.org/documentation/latest/modules/">http://mesos.apache.org/documentation/latest/modules/</a>.</p><div class="section" title="Building a module"><div class="titlepage"><div><div><h3 class="title"><a id="ch02lvl3sec24"/>Building a module</h3></div></div></div><p>The following command<a class="indexterm" id="id171"/> assumes that Mesos is installed in the standard location—that is, the Mesos dynamic library and header files are available:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>g++ -lmesos -fpic -o test_module.o test_module.cpp</strong></span>
+<span class="strong"><strong>$ gcc -shared -o libtest_module.so test_module.o</strong></span>
+</pre></div></div></div><div class="section" title="Hooks"><div class="titlepage"><div><div><h2 class="title"><a id="ch02lvl2sec24"/>Hooks</h2></div></div></div><p>Mesos provides another<a class="indexterm" id="id172"/> way to extend its capabilities that doesn't involve having to create an entire component from the ground up through something called <span class="strong"><strong>hooks</strong></span>. Hooks do<a class="indexterm" id="id173"/> not interfere with processing of a request; instead, they allow users to add features as part of Mesos' life <a class="indexterm" id="id174"/>cycle. Some hooks can change the contents of an object while it is in motion. These are called <span class="strong"><strong>decorators</strong></span>.</p></div><div class="section" title="The currently supported modules"><div class="titlepage"><div><div><h2 class="title"><a id="ch02lvl2sec25"/>The currently supported modules</h2></div></div></div><p>The following are the <a class="indexterm" id="id175"/>currently supported modules on Mesos:</p><div class="itemizedlist"><ul class="itemizedlist"><li class="listitem" style="list-style-type: disc"><span class="strong"><strong>Allocator</strong></span>: This is described in <a class="indexterm" id="id176"/>more detail in the subsequent section.</li><li class="listitem" style="list-style-type: disc"><span class="strong"><strong>Authenticator</strong></span>: This module<a class="indexterm" id="id177"/> allows users to create and integrate new custom authentication methods.</li><li class="listitem" style="list-style-type: disc"><span class="strong"><strong>Isolator</strong></span>: Through this interface, users<a class="indexterm" id="id178"/> can develop bespoke isolators that address a variety of use cases, such as networking (for example, Project Calico).</li><li class="listitem" style="list-style-type: disc"><span class="strong"><strong>QoS controller</strong></span>: Using this, a sophisticated<a class="indexterm" id="id179"/> logic for revoking best effort tasks launched on oversubscribed resources can be implemented.</li><li class="listitem" style="list-style-type: disc"><span class="strong"><strong>Resource estimator</strong></span>: This allows third party developers to experiment with their own revocable<a class="indexterm" id="id180"/> resource estimation algorithms for maximizing cluster utilization. Efforts such as Project Serenity are leveraging this module to try and come up with a production quality dynamic resource estimation logic.</li></ul></div><div class="section" title="The allocator module"><div class="titlepage"><div><div><h3 class="title"><a id="ch02lvl3sec25"/>The allocator module</h3></div></div></div><p>The Mesos resource<a class="indexterm" id="id181"/> allocation module contains the policy that the Mesos master uses to determine the type and quantity of resource offers that need to be made to each framework. Organizations can customize it to implement their own allocation policy—for example, fair sharing, priority, and so on—which allows for fine-grained resource sharing. Custom allocation modules can be developed to address specific needs. An example is the oversubscription module, which allows revocable resources to be <a class="indexterm" id="id182"/>offered, something not supported by the default DRF allocator.</p><p>The following steps are required to load a custom allocation module in the master:</p><div class="itemizedlist"><ul class="itemizedlist"><li class="listitem" style="list-style-type: disc">List it in the <code class="literal">--modules</code> configuration</li><li class="listitem" style="list-style-type: disc">Select it using the <code class="literal">--allocator</code> flag</li></ul></div><p>For example, to run the master with a custom allocator called <code class="literal">ExternalAllocatorModule</code>, the following command needs to be run:</p><div class="informalexample"><pre class="programlisting">./bin/mesos-master.sh --work_dir=m/work --modules="file://&lt;modules-including-allocator&gt;.json" --allocator=ExternalAllocatorModule</pre></div><p>Now, we shall take a look at how to implement a custom allocator and package it as a module to load into the master as shown previously.</p><div class="section" title="Implementing a custom allocator module"><div class="titlepage"><div><div><h4 class="title"><a id="ch02lvl4sec05"/>Implementing a custom allocator module</h4></div></div></div><p>Allocator modules <a class="indexterm" id="id183"/>are implemented in C++ and need to implement the interface defined in <code class="literal">mesos/master/allocator.hpp</code> (the methods are listed in the following table). They can also be developed using other languages via a C++ proxy that redirects calls to the implementation defined in this other language:</p><div class="informaltable"><table border="1"><colgroup><col style="text-align: left"/><col style="text-align: left"/></colgroup><thead><tr><th style="text-align: left" valign="bottom">
+<p>Method</p>
+</th><th style="text-align: left" valign="bottom">
+<p>Description</p>
+</th></tr></thead><tbody><tr><td style="text-align: left" valign="top">
+<p>
+<code class="literal">initialize(flags, offerCallback, roles)</code>
+</p>
+</td><td style="text-align: left" valign="top">
+<p>Allocator initialization</p>
+</td></tr><tr><td style="text-align: left" valign="top">
+<p>
+<code class="literal">addFramework(frameworkId, frameworkInfo, usedResources)</code>
+</p>
+<p>
+<code class="literal">removeFramework(frameworkId, frameworkInfo, usedResources)</code>
+</p>
+</td><td style="text-align: left" valign="top">
+<p>Framework addition/removal</p>
+</td></tr><tr><td style="text-align: left" valign="top">
+<p>
+<code class="literal">activateFramework(frameworkId)</code>
+</p>
+<p>
+<code class="literal">deactivateFramework(frameworkId)</code>
+</p>
+</td><td style="text-align: left" valign="top">
+<p>Framework activation/deactivation</p>
+</td></tr><tr><td style="text-align: left" valign="top">
+<p>
+<code class="literal">addSlave(slaveId, slaveInfo, totalResources, usedResources)</code>
+</p>
+<p>
+<code class="literal">removeSlave(slaveId, slaveInfo, totalResources, usedResources)</code>
+</p>
+</td><td style="text-align: left" valign="top">
+<p>Slave addition/removal</p>
+</td></tr><tr><td style="text-align: left" valign="top">
+<p>
+<code class="literal">activateSlave(slaveId)</code>
+</p>
+<p>
+<code class="literal">deactivateSlave(slaveId)</code>
+</p>
+</td><td style="text-align: left" valign="top">
+<p>Slave activation/deactivation</p>
+</td></tr><tr><td style="text-align: left" valign="top">
+<p>
+<code class="literal">requestResources(frameworkId, requests)</code>
+</p>
+</td><td style="text-align: left" valign="top">
+<p>Resource request callback</p>
+</td></tr><tr><td style="text-align: left" valign="top">
+<p>
+<code class="literal">updateAllocation(frameworkId, slaveId, operations)</code>
+</p>
+</td><td style="text-align: left" valign="top">
+<p>Resource allocation update</p>
+</td></tr><tr><td style="text-align: left" valign="top">
+<p>
+<code class="literal">recoverResources(frameworkId, slaveId, resources, filters)</code>
+</p>
+</td><td style="text-align: left" valign="top">
+<p>Resource recovery callback</p>
+</td></tr><tr><td style="text-align: left" valign="top">
+<p>
+<code class="literal">reviveOffers(frameworkId)</code>
+</p>
+</td><td style="text-align: left" valign="top">
+<p>Offer revival callback</p>
+</td></tr><tr><td style="text-align: left" valign="top">
+<p>
+<code class="literal">updateWhitelist(whitelist)</code>
+</p>
+</td><td style="text-align: left" valign="top">
+<p>Slave whitelist updating</p>
+</td></tr></tbody></table></div><p>The default hierarchical DRF allocator has a nonblocking actor-based implementation. This can be utilized in the<a class="indexterm" id="id184"/> custom allocator by extending the <code class="literal">MesosAllocatorProcess</code> class defined in <code class="literal">src/master/allocator/mesos/allocator.hpp</code>. Using the <span class="emphasis"><em>Sorter</em></span> abstraction, the default allocator can be extended, preventing the need to build a new one from the ground up. The sorter API is defined in <code class="literal">src/master/allocator/sorter/sorter.hpp</code>, and some of its methods are listed in the following table:</p><div class="informaltable"><table border="1"><colgroup><col style="text-align: left"/><col style="text-align: left"/></colgroup><thead><tr><th style="text-align: left" valign="bottom">
+<p>Method</p>
+</th><th style="text-align: left" valign="bottom">
+<p>Description</p>
+</th></tr></thead><tbody><tr><td style="text-align: left" valign="top">
+<p>
+<code class="literal">void add(client, weight=1)</code>
+</p>
+<p>
+<code class="literal">void remove(client)</code>
+</p>
+</td><td style="text-align: left" valign="top">
+<p>This adds/removes client from the allocation process</p>
+</td></tr><tr><td style="text-align: left" valign="top">
+<p>
+<code class="literal">void deactivate(client)</code>
+</p>
+<p>
+<code class="literal">void activate(client)</code>
+</p>
+</td><td style="text-align: left" valign="top">
+<p>This activates/deactivates the client</p>
+</td></tr><tr><td style="text-align: left" valign="top">
+<p>
+<code class="literal">void add(slaveId, resources)</code>
+</p>
+<p>
+<code class="literal">void remove(slaveId, resources)</code>
+</p>
+<p>
+<code class="literal">void update(slaveId, resources)</code>
+</p>
+</td><td style="text-align: left" valign="top">
+<p>This adds/removes/updates the resource quantities to be allocated</p>
+</td></tr><tr><td style="text-align: left" valign="top">
+<p>
+<code class="literal">List&lt;string&gt; sort()</code>
+</p>
+</td><td style="text-align: left" valign="top">
+<p>This returns the list of clients sorted based on a specified policy stating how they should receive resources</p>
+</td></tr><tr><td style="text-align: left" valign="top">
+<p>
+<code class="literal">void allocated(client, slaveId, resources)</code>
+</p>
+<p>
+<code class="literal">void update(client, slaveId, oldResources, newResources)</code>
+</p>
+<p>
+<code class="literal">void unallocated(client, slaveId, resources)</code>
+</p>
+</td><td style="text-align: left" valign="top">
+<p>This decides the allocation/updating/deallocation of resources to the specified client</p>
+</td></tr><tr><td style="text-align: left" valign="top">
+<p>
+<code class="literal">Map&lt;SlaveId, Resources&gt; allocation(client)</code>
+</p>
+</td><td style="text-align: left" valign="top">
+<p>This returns the allocated resource to the specified client</p>
+</td></tr><tr><td style="text-align: left" valign="top">
+<p>
+<code class="literal">bool contains(client)</code>
+</p>
+</td><td style="text-align: left" valign="top">
+<p>This is true if a sorter contains a specified client and is false otherwise</p>
+</td></tr><tr><td style="text-align: left" valign="top">
+<p>
+<code class="literal">int count()</code>
+</p>
+</td><td style="text-align: left" valign="top">
+<p>This returns the client count</p>
+</td></tr></tbody></table></div><p>Once developed, the customized allocator needs to be set up as the allocator to be used for resource allocation<a class="indexterm" id="id185"/> instead of the default one. This involves wrapping the custom allocator in an allocator module and then loading it in the master.</p><p>The process to wrap a custom allocator (as implemented in <code class="literal">external_allocator.hpp</code>) into a module called<a class="indexterm" id="id186"/> <code class="literal">ExternalAllocatorModule</code> is described in detail here: <a class="ulink" href="http://mesos.apache.org/documentation/latest/allocation-module/">http://mesos.apache.org/documentation/latest/allocation-module/</a>.</p></div></div></div></div>
+<div class="section" title="High availability and fault tolerance"><div class="titlepage"><div><div><h1 class="title"><a id="ch02lvl1sec22"/>High availability and fault tolerance</h1></div></div></div><p>High availability, in simple<a class="indexterm" id="id187"/> terms, means achieving very close to 100% system uptime by ensuring that there is no single point of failure. This is typically done by incorporating<a class="indexterm" id="id188"/> redundancy mechanisms, such as backup processes taking over instantly from the failed ones and so on.</p><div class="section" title="Mastering high availability"><div class="titlepage"><div><div><h2 class="title"><a id="ch02lvl2sec26"/>Mastering high availability</h2></div></div></div><p>In Mesos, this is achieved<a class="indexterm" id="id189"/> using Apache ZooKeeper, a centralized coordination service. Multiple masters are set up (one active leader and other backups), with ZooKeeper coordinating the leader election and handling lead master detection by other Mesos components such as slaves and frameworks.</p><p>A minimum of three master nodes are required to maintain a quorum for a high availability setting. The recommendation for production systems is however, at least five. The leader election process<a class="indexterm" id="id190"/> is described in detail at <a class="ulink" href="http://zookeeper.apache.org/doc/trunk/recipes.html#sc_leaderElection">http://zookeeper.apache.org/doc/trunk/recipes.html#sc_leaderElection</a>.</p><p>The state of a failed master can be recreated on whichever master gets elected next by leveraging the information stored with the slaves and framework schedulers. Upon the election of the new master, other components are apprised of this development by ZooKeeper, allowing them to now register with this new master and pass along status update messages to it. Based<a class="indexterm" id="id191"/> on this data, the newly elected master is able to regenerate the state of the failed master.</p></div><div class="section" title="Framework scheduler fault tolerance"><div class="titlepage"><div><div><h2 class="title"><a id="ch02lvl2sec27"/>Framework scheduler fault tolerance</h2></div></div></div><p>This is achieved through the<a class="indexterm" id="id192"/> registration of multiple schedulers of each framework with the current leading master. In the event of a scheduler failure, the secondary scheduler is asked by the master to take charge. However, the state-sharing implementation between multiple schedulers of each framework needs to be handled by the respective frameworks themselves.</p></div><div class="section" title="Slave fault tolerance"><div class="titlepage"><div><div><h2 class="title"><a id="ch02lvl2sec28"/>Slave fault tolerance</h2></div></div></div><p>Mesos has a slave recovery mechanism for fault tolerance, which is discussed at length in the subsequent section. The<a class="indexterm" id="id193"/> master monitors the status of all the slaves. The master removes a particular slave node and tries to terminate it if it doesn't respond to the heartbeats sent by it despite several communication attempts.</p></div><div class="section" title="Executor/task"><div class="titlepage"><div><div><h2 class="title"><a id="ch02lvl2sec29"/>Executor/task</h2></div></div></div><p>In case of task or executor failures, the master notifies the corresponding framework scheduler that launched<a class="indexterm" id="id194"/> the task. Based on the policies specified in the scheduler's logic, it will handle the execution of the failed task, generally by launching it on new slave nodes that match the resource requirement criteria.</p></div><div class="section" title="Slave recovery"><div class="titlepage"><div><div><h2 class="title"><a id="ch02lvl2sec30"/>Slave recovery</h2></div></div></div><p>Slave recovery is a fault tolerance mechanism introduced in v0.14.0 through which tasks can continue to run even if a <a class="indexterm" id="id195"/>slave process goes down and also enable slave process to reestablish a connection with the tasks that are running on this slave<a class="indexterm" id="id196"/> upon restart. The slave process may go down and need to be restarted during either planned upgrades or following unexpected crashes.</p><p>To achieve this, the slaves save information about the tasks being currently executed to the local disk (also known as <span class="strong"><strong>checkpointing</strong></span>). The data that they write out includes task, executor, and status information. To enable this feature, both the slave and the frameworks running on these need to be configured appropriately. If checkpointing is enabled, then the slave restarts post-failure events and can recover data from the most recent checkpoint, reestablish connection with the executors, and continue running the task. When a slave goes down, both the master and executors wait for it to restart and reconnect. As checkpointing involves multiple writes to the local disk, the need for high availability needs to be weighed against the latency overheads caused by these frequent writes.</p><p>In addition, improvements have also been made to the executor driver, making it more robust and tolerant of failure events. For instance, the driver caches updates passed to it by the executor during the time a slave is down and resends them to the slave once it reestablishes connection<a class="indexterm" id="id197"/> with the executor. This ensures that the executors can continue running the tasks and transmitting messages while not being concerned about the slave process.</p><p>Checkpointing also improves reliability by ensuring that messages regarding task updates are passed on to the frameworks even if failures occur. For instance, if a slave and master failed at the same time, frameworks would not receive the required <code class="literal">TASK_LOST</code> status update message. Through checkpointing, a slave can now recover information about the tasks from the last checkpointed state and can send the required messages to the framework upon reconnection.</p><p>Slave recoverability is important for various reasons, such as ensuring that stateful processes or long-running tasks can restart from the last recorded state, performing seamless cluster upgrades, and reducing maintenance and management overheads.</p><div class="section" title="Enabling slave checkpointing"><div class="titlepage"><div><div><h3 class="title"><a id="ch02lvl3sec26"/>Enabling slave checkpointing</h3></div></div></div><p>Slave checkpointing can be <a class="indexterm" id="id198"/>enabled in the following way.</p><div class="note" style="" title="Note"><div class="inner"><h3 class="title"><a id="note03"/>Note</h3><p>Note that slave checkpointing for all slaves is enabled by default since v0.22.0.</p></div></div><p>The relevant flags are as follows:</p><div class="itemizedlist"><ul class="itemizedlist"><li class="listitem" style="list-style-type: disc"><code class="literal">checkpoint</code>: This allows users to specify whether a slave needs to checkpoint information to enable recovery [The default is <code class="literal">true</code>].<div class="itemizedlist"><ul class="itemizedlist"><li class="listitem" style="list-style-type: disc">A restarted slave can recover updates and reestablish connection with (<code class="literal">--recover</code>=<code class="literal">reconnect</code>) or terminate (<code class="literal">--recover</code>=<code class="literal">cleanup</code>) executors.</li></ul></div><div class="note" style="" title="Note"><div class="inner"><h3 class="title"><a id="note04"/>Note</h3><p>Note that this flag will be removed starting v0.22.0 and enabled for all slaves.</p></div></div></li><li class="listitem" style="list-style-type: disc"><code class="literal">strict</code>: This determines whether recovery should be carried out in strict mode or not [the default is <code class="literal">true</code>].<div class="itemizedlist"><ul class="itemizedlist"><li class="listitem" style="list-style-type: disc">If <code class="literal">strict</code>=<code class="literal">true</code>, then all the errors related to recovery are treated as fatal.</li><li class="listitem" style="list-style-type: disc">If <code class="literal">strict</code>=<code class="literal">false</code>, then the state is recovered on a best-effort basis in case of any errors related to recovery, such as data corruption and so on.</li></ul></div></li><li class="listitem" style="list-style-type: disc"><code class="literal">recover</code>: This determines whether a slave should reconnect with or terminate old executors [the default is <code class="literal">reconnect</code>].<div class="itemizedlist"><ul class="itemizedlist"><li class="listitem" style="list-style-type: disc">If <code class="literal">recover</code>=<code class="literal">reconnect</code>, the slave can reestablish connection with the live executors.</li><li class="listitem" style="list-style-type: disc">If <code class="literal">recover</code>=<code class="literal">cleanup</code>, the slave terminates the old executors. This option is typically used when performing incompatible upgrades.</li></ul></div><div class="note" style="" title="Note"><div class="inner"><h3 class="title"><a id="note05"/>Note</h3><p>Note that no recovery is performed if no checkpointed information is present. Upon restart, the slave gets registered as a new slave with the master.</p></div></div></li><li class="listitem" style="list-style-type: disc"><code class="literal">recovery_timeout</code>: This is the time within which the slave must recover [the default is <code class="literal">15 mins</code>].<div class="itemizedlist"><ul class="itemizedlist"><li class="listitem" style="list-style-type: disc">If the slave<a class="indexterm" id="id199"/> doesn't recover within the <code class="literal">recovery_timeout</code> value specified, the master shuts the slave, which leads to all executors getting terminated as well.</li></ul></div><div class="note" style="" title="Note"><div class="inner"><h3 class="title"><a id="note06"/>Note</h3><p>Note that this is only applicable and available when <code class="literal">--checkpoint</code> is enabled.</p></div></div></li></ul></div></div><div class="section" title="Enabling framework checkpointing"><div class="titlepage"><div><div><h3 class="title"><a id="ch02lvl3sec27"/>Enabling framework checkpointing</h3></div></div></div><p>Frameworks can enable <a class="indexterm" id="id200"/>checkpointing by setting the value of the optional checkpointing field included in <code class="literal">FrameworkInfo</code> to true (<code class="literal">FrameworkInfo.checkpoint</code>=<code class="literal">True</code>) before registration. If this option is enabled, then only offers from checkpointed slaves will be received by such frameworks.</p></div></div></div>
+<div class="section" title="Reconciliation"><div class="titlepage"><div><div><h1 class="title"><a id="ch02lvl1sec23"/>Reconciliation</h1></div></div></div><p>Mesos implements an actor-style message passing programming model to enable nonblocking communication between different Mesos components and leverages protocol buffers for the same. For example, a scheduler needs to tell the executor to utilize a certain number of resources, an executor needs to provide status updates to the scheduler regarding the tasks that are being executed, and so on. Protocol buffers provide the required flexible message delivery mechanism to enable this communication by allowing developers to define custom formats and protocols, which can be used across different languages.</p><p>An at-most-once message delivery model is employed for this purpose except for certain messages, such as status updates, a lot of which follow the at-least-once delivery model by making use of acknowledgements. In case of failures, there is a high chance that messages between the master and slaves can get lost leading to state inconsistencies.</p><p>For instance, there are<a class="indexterm" id="id201"/> multiple scenarios in which a task can be lost whenever a framework issues a request to launch tasks. The master can fail after the request is sent by the framework but before it receives it, or it can fail after a message is received but before it can send it to the slave. The framework can fail after expressing its desire to launch a task but before sending the required message and so on. To tackle the inconsistencies created by such situations, there needs to be a reconciliation mechanism between Mesos and the frameworks. Mesos needs to make sure that the frameworks are aware of the failure events that might occur and when these get resolved. Moreover, it must ensure that the states of all components are in sync with each other once recovery occurs and maintain consistency.</p><div class="section" title="Task reconciliation"><div class="titlepage"><div><div><h2 class="title"><a id="ch02lvl2sec31"/>Task reconciliation</h2></div></div></div><p>A framework needs<a class="indexterm" id="id202"/> to explicitly reconcile tasks after a failure as the scheduler doesn't maintain task-related information. There are two kinds of reconciliations available in Mesos:</p><div class="itemizedlist"><ul class="itemizedlist"><li class="listitem" style="list-style-type: disc">The first is "Explicit" reconciliation, in which the scheduler sends details of the tasks for which it<a class="indexterm" id="id203"/> wants to know the state and the master sends back the state of each of these tasks</li><li class="listitem" style="list-style-type: disc">The second is "Implicit" reconciliation, in which the scheduler doesn't specify the tasks<a class="indexterm" id="id204"/> and just sends an empty list to the master for which the master returns the state of all the known tasks</li></ul></div><p>The way to implement this is as follows:</p><div class="informalexample"><pre class="programlisting">message Reconcile {
+  repeated TaskStatus statuses = 1; // Should be non-terminal only.
+}</pre></div><p>The master inspects only the compulsory <code class="literal">TaskID</code> field and an optional <code class="literal">SlaveID</code> field.</p></div><div class="section" title="Offer reconciliation"><div class="titlepage"><div><div><h2 class="title"><a id="ch02lvl2sec32"/>Offer reconciliation</h2></div></div></div><p>Offers get automatically<a class="indexterm" id="id205"/> reconciled. They do not stay beyond the master's life and are no longer valid if a failure occurs. They are reissued every time the framework gets reregistered.</p><p>For more information<a class="indexterm" id="id206"/> on reconciliation, refer to <a class="ulink" href="http://mesos.apache.org/documentation/latest/reconciliation/">http://mesos.apache.org/documentation/latest/reconciliation/</a>.</p></div></div>
+<div class="section" title="Persistent Volumes"><div class="titlepage"><div><div><h1 class="title"><a id="ch02lvl1sec24"/>Persistent Volumes</h1></div></div></div><p>Since v0.23.0, Mesos has introduced experimental support for a new feature called <span class="strong"><strong>Persistent Volumes</strong></span>. One of the key challenges that Mesos faces is providing a reliable mechanism for stateful services such as databases to store data within Mesos instead of having to rely on external filesystems for the same.</p><p>For instance, if a database<a class="indexterm" id="id207"/> job is being run, then it is essential for the task to be scheduled on slave nodes that contain the data that it requires. Earlier, there was no way to guarantee that the task would get resource offers only from the slave nodes that contained the data required by it. The common method to deal with this problem was to resort to using the local filesystem or an external distributed filesystem. These methods involved either network latency or resource underutilization (as the specific data-bearing nodes needed to be statically partitioned and made available only to the frameworks requiring that data) issues.</p><p>The two new features that address this problem are:</p><div class="itemizedlist"><ul class="itemizedlist"><li class="listitem" style="list-style-type: disc"><span class="strong"><strong>Dynamic reservations</strong></span>: In addition to the features discussed in the <span class="emphasis"><em>Reservation</em></span> section earlier in this chapter, another advantage of dynamic reservations is the ability<a class="indexterm" id="id208"/> of a framework to reserve a persistent store, ensuring that it will always be offered back to it when another task needs to be launched.</li><li class="listitem" style="list-style-type: disc"><span class="strong"><strong>Persistent volumes</strong></span>: Mesos now gives the ability to create a persistent volume from disk resources. A volume can be created when a new task is being launched, which<a class="indexterm" id="id209"/> resides outside the sandbox of the task. This will remain persisted even after the completion of the task and will be offered to the same framework again so that it can launch another task on the same disk resources.</li></ul></div><p>Note that persistent volumes can only be generated from statically or dynamically reserved disk resources. If a persistent volume is created from dynamically reserved disk resources, then it cannot be unreserved without the destruction of the volume. This provides a security mechanism to prevent sensitive data from being accidentally exposed to other frameworks. Garbage collection mechanisms to delete residual data are in the works.</p><p>The interface for the creation of persistent volumes is described here:</p><div class="itemizedlist"><ul class="itemizedlist"><li class="listitem" style="list-style-type: disc">Frameworks can send two messages through the <code class="literal">acceptOffers</code> API as offer responses: <code class="literal">Offer::Operation::Create </code>and<code class="literal"> Offer::Operation::Destroy</code></li><li class="listitem" style="list-style-type: disc">The master can manage persistent volumes via the <code class="literal">/create</code> and<code class="literal"> /destroy HTTP</code> endpoints, which are currently in the alpha stage.</li></ul></div><p>Note that the framework's <a class="indexterm" id="id210"/>principal is required for authorization, which shall be discussed in more detail in <a class="link" href="ch06.html" title="Chapter 6. Mesos Frameworks">Chapter 6</a>, <span class="emphasis"><em>Mesos Frameworks</em></span>
+</p><div class="section" title="Offer::Operation::Create"><div class="titlepage"><div><div><h2 class="title"><a id="ch02lvl2sec33"/>Offer::Operation::Create</h2></div></div></div><p>Volumes can be created by<a class="indexterm" id="id211"/> frameworks as part of the regular offer cycle. For instance, let's say a resource offer of a 6-GB dynamically reserved disk is received as follows:</p><div class="informalexample"><pre class="programlisting">{
+  "id" : &lt;offer_id&gt;,
+  "framework_id" : &lt;framework_id&gt;,
+  "slave_id" : &lt;slave_id&gt;,
+  "hostname" : &lt;hostname&gt;,
+  "resources" : [
+    {
+      "name" : "disk",
+      "type" : "SCALAR",
+      "scalar" : { "value" : 6144 },
+      "role" : &lt;framework_role&gt;,
+      "reservation" : {
+        "principal" : &lt;framework_principal&gt;
+      }
+    }
+  ]
+}</pre></div><p>A persistent volume can now be created from these disk resources by sending the following message. In it, the following need to be specified:</p><div class="orderedlist"><ol class="orderedlist arabic"><li class="listitem">A unique role-specific persistent volume ID</li><li class="listitem">A relative path within a container where the volume needs to be stored</li><li class="listitem">Volume permissions</li></ol></div><p>A persistent volume can now be created from these disk resources by sending the following message:</p><div class="informalexample"><pre class="programlisting">{
+  "type" : Offer::Operation::CREATE,
+  "create": {
+    "volumes" : [
+      {
+        "name" : "disk",
+        "type" : "SCALAR",
+        "scalar" : { "value" : 6144 },
+        "role" : &lt;framework_role&gt;,
+        "reservation" : {
+          "principal" : &lt;framework_principal&gt;
+        },
+        "disk": {
+          "persistence": {
+            "id" : &lt;persistent_volume_id&gt;
+          },
+          "volume" : {
+            "container_path" : &lt;container_path&gt;,
+            "mode" : &lt;mode&gt;
+          }
+        }
+      }
+    ]
+  }
+}</pre></div><p>The next resource<a class="indexterm" id="id212"/> offer will include the persistent volume created before:</p><div class="informalexample"><pre class="programlisting">{
+  "id" : &lt;offer_id&gt;,
+  "framework_id" : &lt;framework_id&gt;,
+  "slave_id" : &lt;slave_id&gt;,
+  "hostname" : &lt;hostname&gt;,
+  "resources" : [
+    {
+      "name" : "disk",
+      "type" : "SCALAR",
+      "scalar" : { "value" : 6144 },
+      "role" : &lt;framework_role&gt;,
+      "reservation" : {
+        "principal" : &lt;framework_principal&gt;
+      },
+      "disk": {
+        "persistence": {
+          "id" : &lt;persistent_volume_id&gt;
+        },
+        "volume" : {
+          "container_path" : &lt;container_path&gt;,
+          "mode" : &lt;mode&gt;
+        }
+      }
+    }
+  ]
+}</pre></div></div><div class="section" title="Offer::Operation::Destroy"><div class="titlepage"><div><div><h2 class="title"><a id="ch02lvl2sec34"/>Offer::Operation::Destroy</h2></div></div></div><p>Currently, persistent volumes need to be explicitly deleted. This can be done in the following way as part <a class="indexterm" id="id213"/>of the regular offer cycle. First, the resource offer with the persisted volume will be received. Taking the preceding example, this will be:</p><div class="informalexample"><pre class="programlisting">{
+  "id" : &lt;offer_id&gt;,
+  "framework_id" : &lt;framework_id&gt;,
+  "slave_id" : &lt;slave_id&gt;,
+  "hostname" : &lt;hostname&gt;,
+  "resources" : [
+    {
+      "name" : "disk",
+      "type" : "SCALAR",
+      "scalar" : { "value" : 2048 },
+      "role" : &lt;framework_role&gt;,
+      "reservation" : {
+        "principal" : &lt;framework_principal&gt;
+      },
+      "disk": {
+        "persistence": {
+          "id" : &lt;persistent_volume_id&gt;
+        },
+        "volume" : {
+          "container_path" : &lt;container_path&gt;,
+          "mode" : &lt;mode&gt;
+        }
+      }
+    }
+  ]
+}</pre></div><p>Next, the persisted volume is destroyed through the <code class="literal">Offer::Operation::Destroy</code> message, as follows:</p><div class="informalexample"><pre class="programlisting">{
+  "type" : Offer::Operation::DESTROY,
+  "destroy" : {
+    "volumes" : [
+      {
+        "name" : "disk",
+        "type" : "SCALAR",
+        "scalar" : { "value" : 6144 },
+        "role" : &lt;framework_role&gt;,
+        "reservation" : {
+          "principal" : &lt;framework_principal&gt;
+        },
+        "disk": {
+          "persistence": {
+            "id" : &lt;persistent_volume_id&gt;
+          },
+          "volume" : {
+            "container_path" : &lt;container_path&gt;,
+            "mode" : &lt;mode&gt;
+          }
+        }
+      }
+    ]
+  }
+}</pre></div><p>Note that deleting the<a class="indexterm" id="id214"/> persisted volume does not result in the disk resources being unreserved. As such, the following resource offers will still contain them:</p><div class="informalexample"><pre class="programlisting">{
+  "id" : &lt;offer_id&gt;,
+  "framework_id" : &lt;framework_id&gt;,
+  "slave_id" : &lt;slave_id&gt;,
+  "hostname" : &lt;hostname&gt;,
+  "resources" : [
+    {
+      "name" : "disk",
+      "type" : "SCALAR",
+      "scalar" : { "value" : 6144 },
+      "role" : &lt;framework_role&gt;,
+      "reservation" : {
+        "principal" : &lt;framework_principal&gt;
+      }
+    }
+  ]
+}</pre></div></div></div>
+<div class="section" title="Summary"><div class="titlepage"><div><div><h1 class="title"><a id="ch02lvl1sec25"/>Summary</h1></div></div></div><p>In this chapter, we dived deep into some of the most important features of Mesos that make it efficient, scalable, and fault tolerant. Advanced topics such as Mesos' resource allocation options and production-grade fault tolerance capabilities were explained in detail. With this strong background, the reader will be guided through the more practical aspects of Mesos installation, administration, and framework setup in the subsequent chapters.</p><p>In the next chapter, we will discuss how to set up a multi-node Mesos cluster both on a public cloud service as well as on a private datacenter with a discussion on the common issues faced and how to debug and troubleshoot them.</p></div></body></html>

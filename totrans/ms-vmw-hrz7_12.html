@@ -1,0 +1,1235 @@
+<html><head></head><body>
+        <section>
+
+                            <header>
+                    <h1 class="header-title">Fine-Tuning the End User Experience</h1>
+                </header>
+            
+            <article>
+                
+<p>So far, we have built our Horizon View infrastructure, deployed and optimized our virtual desktop OS, and configured our user entitlements by means of creating Horizon View desktop pools. This means that our end users can now access their virtual desktop machines.</p>
+<p>In this chapter, we will look at how to fine-tune the end user experience, by which we mean how the desktop will perform, and determine the features that will be made available to the users.</p>
+<p>We have already talked about optimizing the virtual desktop OS and how we can tune the OS so that it acts like a virtual desktop machine. Now we will talk about fine-tuning and configuring things such as the delivery protocol, as well as enabling and disabling certain features and functions related to how an end user interacts with their virtual desktop machine. By this, we mean configuring things such as whether or not you can cut-and-paste text between the endpoint device running the client and the virtual desktop machine.</p>
+<p>These configuration options are all centrally deployed and managed using the Active Directory Group Policy.</p>
+<p>In this chapter, we will cover the following topics:</p>
+<ul>
+<li>Configuring and preparing <strong>Active Directory</strong> (<strong>AD</strong>) for tuning virtual desktop machines</li>
+<li>Configuring Horizon AD policies</li>
+<li>Installing the PCoIP tuning tool to configure and tune the delivery protocol</li>
+<li>Tuning the virtual desktop for optimum performance</li>
+</ul>
+<p class="mce-root"/>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">Configuring and preparing AD</h1>
+                </header>
+            
+            <article>
+                
+<p>The behavior of a virtual desktop machine and how a user interacts with it is governed by an AD policy. As we mentioned previously, this policy configures things such as a graphics experience and cut-and-paste options.</p>
+<p>To make life easier, the templates for these policies have already been created and are shipped as part of the Horizon View software that was downloaded as part of the software downloads in <a href="89619cdf-5fc7-4dd1-a431-76cef6cbb67c.xhtml">Chapter 4</a>, <em>Installing and Configuring Horizon 7 - Part 1</em>, and can be found in the ZIP file named <kbd>VMware-Horizon-Extras-Bundle-4.9.0-9539668</kbd>.</p>
+<p>The first thing we need to do is unzip this file and save it to the shared software folder on the file server. You will see that it contains 15 Administrative Template (<kbd>ADMX</kbd>) files, as shown in the following screenshot:</p>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/03006da0-294e-4a79-8925-48e8c8dac85f.png"/></div>
+<p class="mce-root"/>
+<p>In the next section, we will look at the AD ADMX and ADML templates and how to import them.</p>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">Importing and applying Horizon View ADMX templates</h1>
+                </header>
+            
+            <article>
+                
+<p class="NormalPACKT"><span>Now that you have unzipped the template files, they can be imported. Since we are using AMDX/ADML templates and Windows Server 2016, the import process is as simple as copying the files into the central location on the domain controller. The same would apply to Windows Server 2019. There are two sets of files to copy, that is, the <kbd>ADMX</kbd> files and the <kbd>ADML</kbd> files:</span></p>
+<ol>
+<li>First, copy all of the Horizon <kbd>ADMX</kbd> files to the domain controller in the <kbd>C:\Windows\PolicyDefinitions</kbd> folder, as shown in the following screenshot:</li>
+</ol>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/3332d56b-29b7-455e-9bd5-ee46c0210387.png"/></div>
+<p class="mce-root"/>
+<p class="mce-root"/>
+<ol start="2">
+<li>Next, copy the Horizon <kbd>ADML</kbd> files to the domain controller in the <kbd>C:\Windows\PolicyDefinitions\en-US</kbd> folder, as shown in the following screenshot<span>:</span></li>
+</ol>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/1593a8ff-5914-4ac5-a44b-05285e7ff0af.png"/></div>
+<p>In the next section, we will look at the AD OU requirements for the deployment of virtual desktop machines and the things you need in place before you can configure and tune your environment.</p>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">Creating an organizational unit (OU)</h1>
+                </header>
+            
+            <article>
+                
+<p>The first thing you need to do is create an <strong>organizational unit</strong> (<strong>OU</strong>) for your virtual desktop machines. It's a best practice to have a separate OU for virtual desktop machines to ensure that you don't end up applying the wrong policies to them, such as those that are used for your physical machines, which could potentially contain components that may impact performance and vice versa. You don't want to apply VDI-based policies to the physical desktop estate.</p>
+<p class="mce-root"/>
+<p class="mce-root"/>
+<p>Depending on your own environment, you may want to create an OU for different use cases, for example, you may want a different OU for each different department within your organization. This would then allow you to apply different VDI-based policies to each OU. For example, a particular department might use high-end graphics, which <span>would mean that PCoIP will be configured to deliver that richer experience over that of a standard office user, or it could be a policy specific to LAN users, where the policy governs the behavior based on the available bandwidth.</span></p>
+<p class="NormalPACKT"><span>In the example lab, we will create an OU called</span> <kbd>Horizon View Desktops</kbd> <span>on the domain controller, as shown in the following screenshot:</span></p>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/5271e710-9ead-4444-b411-7a5abb3054ad.png"/></div>
+<p>To configure the policy, follow these steps:</p>
+<ol>
+<li>From the <span class="packt_screen">Active Directory Users and Computers</span> configuration screen, click on highlighted domain <kbd>pvolab.com</kbd> (<strong>1</strong>) and then right-click.</li>
+<li>From the contextual menu that you will now see, move your mouse down to hover on <span class="packt_screen">New</span> (<strong>2</strong>), and then from the next contextual menu, move the mouse and click on <span class="packt_screen">Organizational Unit</span> (<strong>3</strong>).</li>
+</ol>
+<ol start="3">
+<li>In the <span class="packt_screen">New Object - Organization Unit</span> box, type in the specified name to call this OU. In the example lab, we have named it <span class="packt_screen">Horizon view Desktops</span> (<strong>4</strong>).</li>
+<li>Click <span class="packt_screen">OK</span>.</li>
+<li>You will now return to the <span class="packt_screen">Active Directory Users and Computers</span> screen, where you will see that the new OU has been added.</li>
+</ol>
+<p class="mce-root">Next, we will create the policy to link to this new OU so that we can apply the Horizon-specific virtual desktop machines to it.</p>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">Creating Group Policy Objects (GPO) for Horizon View</h1>
+                </header>
+            
+            <article>
+                
+<p class="NormalPACKT"><span>Now that you have created an OU for your virtual desktop machines, you can create group policy objects to link to that OU. In the example lab, the policy is called <strong><span class="ScreenTextPACKT">Horizon View Virtual Desktop Policy</span></strong></span>:</p>
+<ol>
+<li class="NormalPACKT"><span>To start the configuration, double-click on <span class="ScreenTextPACKT">the <strong>Windows Administrative Tools</strong></span> icon to launch the admin tools.</span> <span>You will now see the <strong>Windows <span class="ScreenTextPACKT">Administrative Tools</span></strong> screen being displayed.</span></li>
+<li class="NormalPACKT"><span>From this screen, scroll down and then double-click on the option for</span> <span class="packt_screen">Group Policy Management</span>. <span>You will now see the</span> <span class="packt_screen">Group Policy Management</span> <span><span>screen, as shown in the following screenshot:</span></span></li>
+</ol>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/95d388a3-0893-47e2-8414-f2a22e2f7bc3.png" style=""/></div>
+<ol start="3">
+<li><span>Expand the folders for</span> <kbd>Forest:pvolab.com</kbd> <span><span class="ScreenTextPACKT">(<strong>1</strong>)</span></span><span>,</span> <kbd>Domains</kbd><span>, and</span> <kbd>pvolab.com</kbd>. <span>Click and highlight the</span> <kbd>Horizon View Desktops</kbd> <span>OU (<strong>2</strong>), and then right-click on it.</span></li>
+<li><span>From the contextual menu that appears, click the option for</span> <span class="packt_screen">Create a GPO in this domain, and Link it here…</span> <span>(<strong>3</strong>).</span></li>
+</ol>
+<ol start="5">
+<li>You will now see the <span class="packt_screen">New GPO</span> <span>dialog box, as shown in the following screenshot:</span></li>
+</ol>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/bfa97129-3e3c-44f2-bc18-9c8b444ea421.png" style=""/></div>
+<ol start="6">
+<li>In the name box, type in the name for this policy. In the example lab, we have called this <kbd>Horizon View Virtual Desktop Policy</kbd>.</li>
+<li>Click <span class="packt_screen">OK</span>.</li>
+<li>You will now return to the <span class="packt_screen">Group Policy Management</span> <span>screen, which will show the newly created policy, as shown in the following screenshot:</span></li>
+</ol>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/737f58cb-3e67-4c8e-b84d-6b4dec2b0a98.png" style=""/></div>
+<p class="NormalPACKT"><span>Now, if we edit the newly created</span> <kbd>Horizon View Virtual Desktop Policy</kbd>, <span>you will see the new Horizon-specific policy options listed:</span></p>
+<ol>
+<li>To edit the policy, from the <span class="packt_screen">Group Policy Management</span> screen, click and highlight the <kbd>Horizon View Virtual Desktop Policy</kbd> <span>(<strong>1</strong>).</span></li>
+<li><span>Right-click and from the contextual menu that appears, click</span> <span class="packt_screen">Edit...</span> <span>(<strong>2</strong>), as shown in the following screenshot:</span></li>
+</ol>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/32ffad71-56af-4dfe-903b-6658740ef989.png" style=""/></div>
+<p>You will now see the <span class="packt_screen">Group Policy Management Editor</span> <span>screen with the VMware Horizon-specific policies outlined:</span></p>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/2fa57d33-3160-4728-9d44-b4225a57c903.png" style=""/></div>
+<p class="NormalPACKT"><span>In the example lab, we are going to add all the policy templates to the one policy, just to show the various options that are available. In your environment, and depending on your design, you may want to create different policies and apply different templates to different policies. You may even want to create different OUs as well. Maybe this will be on a departmental basis or for different use cases, as we have previously mentioned. This is the recommended approach as it makes troubleshooting and the management of policies much easier.</span></p>
+<p class="NormalPACKT"><span>Before we look at each of the individual policy options, in the next section, we will complete one final AD configuration task: to configure the loopback policy.</span></p>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">Enabling the loopback policy</h1>
+                </header>
+            
+            <article>
+                
+<p class="NormalPACKT"><span>In a VDI model, and particularly with floating desktop assignments, you will have multiple users accessing the same desktop. For any configuration changes that a user makes to one of the virtual desktop machines apply to all of the users that use that machine, we need to enable the loopback processing feature. This is particularly important if you are using virtual desktop machines in a kiosk type environment. To configure loopback mode, complete the following steps from the <span class="ScreenTextPACKT">Group Policy Management Editor</span> screen:</span></p>
+<ol>
+<li><span>Launch the</span> <span class="packt_screen">Group Policy Management Editor</span> <span>screen, as shown in the following screenshot:</span></li>
+</ol>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/4e6b608a-f91b-4869-bf72-85cf385a2714.png"/></div>
+<ol start="2">
+<li><span>Under the <span class="packt_screen">Computer Configuration</span> section, expand the folders for</span> <kbd>Policies</kbd><span>,</span> <kbd>Administrative Templates: Policy definitions</kbd><span>, and</span> <kbd>System</kbd><span>.</span></li>
+<li>Highlight <kbd>Group Policy</kbd> <span>(<strong>1</strong>). You will now see the policy options listed in the right pane.</span></li>
+<li>Scroll down to <span class="packt_screen">Configure user Group Policy loopback processing mode</span> <span>(<strong>2</strong>). Click to select it and then</span> right-click.</li>
+<li><span>From the contextual menu that appears, click the</span> <span class="packt_screen">Edit</span> <span>option (<strong>3</strong>).</span></li>
+</ol>
+<ol start="6">
+<li>You will now see the <span class="packt_screen">Configure user Group Policy loopback processing mode</span> <span>configuration screen, as shown in the following screenshot:</span></li>
+</ol>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/8db0d148-a5eb-453c-a82b-327d99db5e98.png" style=""/></div>
+<ol start="7">
+<li>Click the radio button for <span class="packt_screen">Enabled</span> (<strong>4</strong>) to enable the policy within the <span class="packt_screen">Horizon View Virtual Desktop Policy</span>. You then have the option to configure the <span class="packt_screen">Mode</span> operation.</li>
+<li>Click the drop-down arrow (<strong>5</strong>) and select the option for <span class="packt_screen">Replace</span>.</li>
+</ol>
+<p>With the <span class="packt_screen">Replace</span> option, the user policy is applied, which is associated with the computer. Any other user policies are ignored. Choosing the <strong>Merge</strong> option means that the policies that are applied are both the user and the computer-related policies, where the computer policy wins in the event of a conflict.</p>
+<p>We have now successfully completed the main admin tasks in configuring AD. In the next section, we are going to take a look at the different policy settings that are available with the Horizon View admin templates.</p>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">Configuring Horizon View policy settings</h1>
+                </header>
+            
+            <article>
+                
+<p><span>In this section, we are going to walk through all the different configurable policy options for the Horizon View ADMX templates that were added to AD. This section will act as a reference guide that shows all the different policy settings that you can configure.<br/></span></p>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">PCoIP Client Session Variables</h1>
+                </header>
+            
+            <article>
+                
+<p>The first set of policy settings are for <kbd>PCoIP Client Session Variables</kbd>. To view the different policy settings, under <span class="packt_screen">Computer Configuration</span>, expand the options for <kbd>Policies</kbd> and <kbd>Administrative Templates: Policy definitions</kbd>, and then click on <kbd>PCoIP Client Session Variables</kbd>, as shown in the following screenshot:</p>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/19516dd3-280f-400d-98e0-b67e4564e0ff.png"/></div>
+<p>You will see a folder called <kbd>Overridable Administrator Defaults</kbd>, which contains the different settings. These settings control the behavior of the PCoIP protocol from the client session. To edit a setting, double-click the setting you want to configure, and then, ensuring it is enabled, configure the relevant setting.</p>
+<p>As an example, we have used the <span class="packt_screen">Configure PCoIP virtual channels</span> to demonstrate this. From the <span class="packt_screen">Group Policy Management Editor</span> screen, double-click the <span class="packt_screen">Configure PCoIP virtual channels</span> setting, as shown in the following screenshot:</p>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/0b2a7edd-5d58-48cd-9ea3-bf1b48dbcb35.png" style=""/></div>
+<p>To configure the policy, follow these steps:</p>
+<ol>
+<li>To enable the policy settings, click the radio button for <span class="packt_screen">Enabled</span> (<strong>1</strong>).</li>
+<li>You can then choose your settings in the <span class="packt_screen">Options</span> section on the left-hand <span>side of the screen. On the</span> right-hand <span>side of the</span> screen<span>, you will see a</span> description <span>of the various options that are available in the</span> <span class="packt_screen">Help</span> <span>section.</span></li>
+<li>Click <span class="packt_screen">Apply</span> to save the setting.</li>
+<li>Now, click <span class="packt_screen">OK</span> to exit, or <span class="packt_screen">Next Setting</span>/<span class="packt_screen">Previous Setting</span> to work through the other policy settings.</li>
+</ol>
+<p>Let's now look at policy settings that define how the PCoIP session behaves.</p>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">PCoIP Session Variables</h1>
+                </header>
+            
+            <article>
+                
+<p>The next set of policy settings are for <kbd>PCoIP Session Variables</kbd>, which define how PCoIP behaves during a desktop session, <span>as shown in the following screenshot:</span></p>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/eaf070f6-3b5d-4738-a521-72ff7851e71a.png"/></div>
+<p>We have highlighted a particular setting on this screen, and that is the <span class="packt_screen">Turn off Build-to-Lossless feature</span> setting (<strong>2</strong>).</p>
+<p>The reason to quickly highlight this setting is for anyone that has used previous versions of View. Before View 6, the default option for PCoIP build-to-lossless was that it was enabled, meaning that you will need more bandwidth for that level of image detail. <span>From View 6 onward, the default setting is for build-to-lossless to be set to be disabled.</span></p>
+<p><span>The next set of policy settings are for controlling the VMware Blast protocol, should you use that instead of PCoIP.</span></p>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">VMware Blast</h1>
+                </header>
+            
+            <article>
+                
+<p>The next set of policy settings are for configuring the <kbd>VMware Blast</kbd> delivery protocol, which allows you to define how the protocol behaves, as shown in the following screenshot:</p>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/fe148faf-01f8-451e-ad58-3883879b45b8.png"/></div>
+<p><span>The next set of policy settings are for configuring the</span> <kbd>VMware Horizon Client Configuration</kbd>.</p>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">VMware Horizon Client Configuration</h1>
+                </header>
+            
+            <article>
+                
+<p><span>The next set of policy settings are for configuring the</span> <kbd>VMware Horizon Client Configuration</kbd>, which defines the behaviour of the Horizon Client, <span>as shown in the following screenshot:</span></p>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/4164b05d-b6fd-4e72-ac64-4494b8dfc7bb.png"/></div>
+<p>Under this particular set of configuration options, you can see that there are a number of policy settings under the main subject heading. However, there are also a number of subfolders, also containing a number of settings, which we will list in the following sections.</p>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">Scripting definitions</h1>
+                </header>
+            
+            <article>
+                
+<p>In the <kbd>Scripting definitions</kbd> subfolder, you will find the following policy settings for scripting definitions:</p>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/29449553-d070-4cab-ad93-06902b3a47ab.png" style=""/></div>
+<p>Next, we have the <span class="packt_screen">Security Settings</span> configuration options.</p>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">Security Settings</h1>
+                </header>
+            
+            <article>
+                
+<p>In the <kbd>Security Settings</kbd> subfolder, you will find the following policy settings for managing the security settings around SSL and certificate management:</p>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/6cc72a51-564c-4307-811c-21b410fbee7f.png" style=""/></div>
+<p>Next, we have the USB configuration options.</p>
+<p class="mce-root"/>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">View USB Configuration</h1>
+                </header>
+            
+            <article>
+                
+<p>In the <kbd>View USB Configuration</kbd> folder, as well as the settings in the root of the folder, there is also a subfolder containing additional settings, as shown in the following screenshot:</p>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/e0ba5bcf-6816-4875-8538-f436f183d408.png" style=""/></div>
+<p>The policy settings in the <kbd>Settings not configurable by Agent</kbd> folder are shown in the next section.</p>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">Settings not configurable by Agent</h1>
+                </header>
+            
+            <article>
+                
+<p>The policy settings in the <kbd>Settings not configurable by Agent</kbd> folder are shown in the following screenshot:</p>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/b1a218d9-d4e9-4865-b822-000da5992f57.png" style=""/></div>
+<p>We have now outlined all of the policy settings that are covered under the VMware Horizon Client Configuration section. The next set of options are for URL redirection, which is covered in the next section.</p>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">VMware Horizon URL Redirection</h1>
+                </header>
+            
+            <article>
+                
+<p>In the <kbd>VMware Horizon URL Redirection</kbd> folder, you will find the policy settings for managing the URL redirection feature, as shown in the following screenshot:</p>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/0e4b31ec-e246-49b8-a38d-46391f12a430.png" style=""/></div>
+<p>In the next section, we are going to look at the configuration options for the View Agent.</p>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">Horizon View Agent Configuration</h1>
+                </header>
+            
+            <article>
+                
+<p>In the <kbd>VMware View Agent Configuration</kbd> folder, you will see that there is only one policy setting in the root of the folder. The rest are all divided into subfolders, as shown in the following screenshot:</p>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/c99541c1-3ece-4166-bbbe-bcf56af1db79.png" style=""/></div>
+<p>In the next section, we will take a look at the policy setting options in the <kbd>VMware View Agent Configuration</kbd> subfolders, starting with <kbd>Agent Configuration</kbd>.</p>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">Agent Configuration</h1>
+                </header>
+            
+            <article>
+                
+<p>In the <kbd>Agent Configuration</kbd> folder, you will find the policy settings for the Agent Configuration, as shown in the following screenshot:</p>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/269b0270-2071-488a-8f44-8e375e72f22f.png" style=""/></div>
+<p>In the next section, we will take a look at the policy setting options in the <kbd>Agent Security</kbd> subfolder.</p>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">Agent Security</h1>
+                </header>
+            
+            <article>
+                
+<p>In the <kbd>Agent Security</kbd> subfolder, you will find the policy settings, as shown in the following screenshot:</p>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/748f5622-b290-4cc4-83c3-d454b950ccaa.png" style=""/></div>
+<p>In the next section, we will take a look at the policy setting options in the <kbd>Collaboration</kbd> subfolder.</p>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">Collaboration</h1>
+                </header>
+            
+            <article>
+                
+<p>In the <kbd>Collaboration</kbd> subfolder, you will find the policy settings, as shown in the following screenshot:</p>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/68fb0337-5cfe-444a-9868-17b987a9f671.png" style=""/></div>
+<p>In the next section, we will take a look at the policy setting options in the <kbd>Persona Management</kbd> subfolder.</p>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">Persona Management</h1>
+                </header>
+            
+            <article>
+                
+<p>In the <kbd>Persona Management</kbd> subfolder, you will see that the policy settings are in further subfolders, as shown in the following screenshot:</p>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/0e1eab28-e21d-4388-8a1b-e020cffad4e6.png" style=""/></div>
+<p>We will cover the policy settings in these subfolders in the following sections.</p>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">Desktop UI</h1>
+                </header>
+            
+            <article>
+                
+<p>In the <kbd>Desktop UI</kbd> subfolder, you will find the policy settings, as shown in the following screenshot:</p>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/fb3ce77b-f1f3-4576-b082-ec7dc118f96a.png" style=""/></div>
+<p>In the next section, we will take a look at the policy setting options in the <kbd>Folder Redirection</kbd> subfolder.</p>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">Folder Redirection</h1>
+                </header>
+            
+            <article>
+                
+<p>In the <kbd>Folder Redirection</kbd> subfolder, you will find the policy settings, as shown in the following screenshot:</p>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/9debe912-d128-45da-b8ff-e71d8912c9d2.png" style=""/></div>
+<p>In the next section, we will take a look at the policy setting options in the Logging subfolder.</p>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">Logging</h1>
+                </header>
+            
+            <article>
+                
+<p>In the <kbd>Logging</kbd> subfolder, you will find the policy settings, as shown in the following screenshot:</p>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/87b22fd2-fc2e-443c-b285-1a3353bfc451.png" style=""/></div>
+<p>In the next section, we will take a look at the policy setting options in the <kbd>Roaming &amp; Synchronization</kbd> subfolder.</p>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">Roaming and Synchronization</h1>
+                </header>
+            
+            <article>
+                
+<p>In the <kbd>Roaming &amp; Synchronization</kbd> subfolder, you will find the policy settings, as shown in the following screenshot:</p>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/2a53ad5b-45f3-40a1-8880-2559efdef641.png"/></div>
+<p class="mce-root"/>
+<p class="mce-root"/>
+<p>In the next section, we will take a look at the policy setting options in the <kbd>Troubleshooting</kbd> subfolder.</p>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">Troubleshooting</h1>
+                </header>
+            
+            <article>
+                
+<p>In the <kbd>Troubleshooting</kbd> subfolder, you will find the policy settings, as shown in the following screenshot:</p>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/32716c2d-f2e6-43c0-9bb2-68a3644ddd21.png"/></div>
+<p>In the next section, we will take a look at the policy setting options in the <kbd>Scanner Redirection</kbd> subfolder.</p>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">Scanner Redirection</h1>
+                </header>
+            
+            <article>
+                
+<p>In the <kbd>Scanner Redirection</kbd> subfolder, you will find the policy settings, as shown in the following screenshot:</p>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/6efdf6a0-d558-4f8c-b2ee-81c98dd09f25.png"/></div>
+<p>In the next section, we will take a look at the policy setting options in the <kbd>Serial COM</kbd> subfolder.</p>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">Serial COM</h1>
+                </header>
+            
+            <article>
+                
+<p>In the <kbd>Serial COM</kbd> subfolder, you will find the policy settings, along with another subfolder, as shown in the following screenshot:</p>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/0e550712-94fa-4abd-8e45-e0b092afd4b4.png"/></div>
+<p>In the next section, we will take a look at the policy setting options in the <kbd>PortSettings</kbd> subfolder.</p>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">PortSettings</h1>
+                </header>
+            
+            <article>
+                
+<p>In the <kbd>PortSettings</kbd> subfolder, you will find the policy settings, as shown in the following screenshot:</p>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/df93728b-bd51-42f4-b245-f9d5996b78ae.png"/></div>
+<p>In the next section, we will take a look at the policy setting options in the <kbd>Smartcard Redirection</kbd> subfolder.</p>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">Smartcard Redirection</h1>
+                </header>
+            
+            <article>
+                
+<p>In the <kbd>Smartcard Redirection</kbd> subfolder, you will see that there are no actual settings, and just another subfolder, as shown in the following screenshot:</p>
+<p class="mce-root"/>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/b5077cd9-a496-46c6-8ad7-4055e42bac4c.png" style=""/></div>
+<p>In the next section, we will take a look at the policy setting options that are in the <kbd>Local Reader Access</kbd> subfolder.</p>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">Local Reader Access</h1>
+                </header>
+            
+            <article>
+                
+<p>In the <kbd>Local Reader Access</kbd> subfolder, you will find the policy settings, as shown in the following screenshot:</p>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/6e23024a-de6a-4b54-8b73-954fbe180725.png"/></div>
+<p>In the next section, we will take a look at the policy setting options in the <kbd>True SSO Configuration</kbd> subfolder.</p>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">True SSO Configuration</h1>
+                </header>
+            
+            <article>
+                
+<p>In the <kbd>True SSO Configuration</kbd> subfolder, you will find the policy settings, as shown in the following screenshot:</p>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/804b3a85-d41e-43af-8ec1-68e7777628cb.png"/></div>
+<p>In the next section, we will take a look at the policy setting options in the <kbd>Unity Touch and Hosted Apps</kbd> subfolder.</p>
+<p class="mce-root"/>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">Unity Touch and Hosted Apps</h1>
+                </header>
+            
+            <article>
+                
+<p>In the <kbd>Unity Touch and Hosted Apps</kbd> subfolder, you will find the policy settings, as shown in the following screenshot:</p>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/09c05c34-6f57-48b2-9a42-6b09415862b3.png"/></div>
+<p>In the next section, we will take a look at the policy setting options in the <kbd>View Agent Direct-Connection Configuration</kbd> subfolder.</p>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">View Agent Direct-Connection Configuration</h1>
+                </header>
+            
+            <article>
+                
+<p>In the <kbd>View Agent Direct-Connection Configuration</kbd> subfolder, you will find the policy settings, as shown in the following screenshot:</p>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/632b3e0b-bb09-4504-b376-fd36068bd4ab.png"/></div>
+<p>In the next section, we will take a look at the policy setting options in the <kbd>View RTAV Configuration</kbd> subfolder.</p>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">View RTAV Configuration</h1>
+                </header>
+            
+            <article>
+                
+<p>In the <kbd>View ATV Configuration</kbd> subfolder, you will find a single policy setting and another subfolder, as shown in the following screenshot:</p>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/df6247a0-1180-4527-80e5-7c579ee290e1.png"/></div>
+<p>In the next section, we will take a look at the policy setting options in the <kbd>View RTAV Webcam Setings</kbd> subfolder.</p>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">View RTAV Webcam Settings</h1>
+                </header>
+            
+            <article>
+                
+<p>In the <kbd>View RTAV Webcam Settings</kbd> subfolder, you will find the policy settings, as shown in the following screenshot:</p>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/26c1f1a3-0d9b-425e-9191-b8f4e41cd919.png"/></div>
+<p>In the next section, we will take a look at the policy setting options in the <kbd>View USB Configuration</kbd> subfolder.</p>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">View USB Configuration</h1>
+                </header>
+            
+            <article>
+                
+<p>In the <kbd>View USB Configuration</kbd> subfolder, you will find the policy settings, as shown in the following screenshot:</p>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/d74ac176-28ca-4311-8d59-54babf8473d5.png"/></div>
+<p>In the next section, we will take a look at the policy setting options in the <kbd>Client Downloadable only Settings</kbd> subfolder.</p>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">Client Downloadable only Settings</h1>
+                </header>
+            
+            <article>
+                
+<p>In the <kbd>Client Downloadable only Settings</kbd> subfolder, you will find the policy settings, as shown in the following screenshot:</p>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/9040923e-7adf-4c02-af4c-2a2ac0483302.png"/></div>
+<p>In the next section, we will take a look at the policy setting options in the <kbd>VMware Client IP Transparency</kbd> subfolder.</p>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">VMware Client IP Transparency</h1>
+                </header>
+            
+            <article>
+                
+<p>In the <kbd>VMware Client IP Transparency</kbd> subfolder, you will find the policy settings, as shown in the following screenshot:</p>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/128b4f96-7476-4e31-b41e-e1e3b8fcc24a.png"/></div>
+<p>In the next section, we will take a look at the policy setting options in the <kbd>VMware Device Bridge</kbd> subfolder.</p>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">VMware Device Bridge</h1>
+                </header>
+            
+            <article>
+                
+<p>In the <strong><kbd>VMware Device Badge</kbd></strong> subfolder, you will find the policy settings, as shown in the following screenshot:</p>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/f1742b76-15c6-42bb-a32a-838035ec38df.png"/></div>
+<p>In the next section, we will take a look at the policy setting options in the <kbd>VMware Flash MMR</kbd> subfolder.</p>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">VMware Flash MMR</h1>
+                </header>
+            
+            <article>
+                
+<p>In the <kbd>VMware Flash MMR</kbd> subfolder, you will find the policy settings, as shown in the following screenshot:</p>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/2bd2c207-781f-46f8-b763-0bc2126c75a5.png"/></div>
+<p>In the next section, we will take a look at the policy setting options in the <kbd>VMware HTML5 Features</kbd> subfolder.</p>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">VMware HTML5 Features</h1>
+                </header>
+            
+            <article>
+                
+<p>In the <kbd>VMware HTML5 Features</kbd> subfolder, you will find two policy settings and two additional subfolders, as shown in the following screenshot:</p>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/f2e181c9-b865-4385-8cf4-5cf44f4db0a4.png"/></div>
+<p>In the next section, we will take a look at the policy setting options in the <kbd>VMware Geolocation Redirection</kbd> subfolder.</p>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">VMware Geolocation Redirection</h1>
+                </header>
+            
+            <article>
+                
+<p>In the <kbd>VMware Geolocation Redirection</kbd> subfolder, you will find the policy settings, as shown in the following screenshot:</p>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/c083ba55-1245-42e5-b263-be85446f9d75.png"/></div>
+<p>In the next section, we will take a look at the policy setting options in the <kbd>VMware HTML5 Multimedia Redirection</kbd> subfolder.</p>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">VMware HTML5 Multimedia Redirection</h1>
+                </header>
+            
+            <article>
+                
+<p>In the <kbd>VMware HTML5 Multimedia Redirection</kbd> subfolder, you will find the policy settings, as shown in the following screenshot:</p>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/08af9284-07ef-4073-b345-cb8207fb271d.png"/></div>
+<p>In the next section, we will take a look at the policy setting options in the <kbd>VMware Virtualization Pack for Skype for the Business</kbd> subfolder.</p>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">VMware Virtualization Pack for Skype for Business</h1>
+                </header>
+            
+            <article>
+                
+<p>In the <kbd>VMware Virtualization Pack for Skype for Business</kbd> subfolder, you will find the policy settings, as shown in the following screenshot:</p>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/c8e739e9-baf4-4f93-9d52-0d6d68500d76.png"/></div>
+<p>In the next section, we are going to return to the top-level policy folders and look at the <kbd>VMware View Common Configuration</kbd> policy setting configuration options.</p>
+<p class="mce-root"/>
+<p class="mce-root"/>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">VMware View Common Configuration</h1>
+                </header>
+            
+            <article>
+                
+<p>In the <kbd>VMware View Common Configuration</kbd> subfolder, you will find three policy settings and three subfolders, as shown in the following screenshot:</p>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/1ebe26fa-8625-41b7-84be-fed292bf4530.png"/></div>
+<p>In the next section, we will take a look at the policy setting options in the <kbd>Log Configuration</kbd> subfolder.</p>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">Log Configuration</h1>
+                </header>
+            
+            <article>
+                
+<p>In the <kbd>Log Configuration</kbd> subfolder, you will find the policy settings, as shown in the following screenshot:</p>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/a417450e-79bf-41a0-89d7-f8e328b4334b.png"/></div>
+<p>In the next section, we will take a look at the policy setting options in the <kbd>Performance Alarms</kbd> subfolder.</p>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">Performance Alarms</h1>
+                </header>
+            
+            <article>
+                
+<p>In the <kbd>Performance Alarms</kbd> subfolder, you will find the policy settings, as shown in the following screenshot:</p>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/dc839d0d-83a9-48f3-b8bc-97ecc57eb3c4.png"/></div>
+<p>In the next section, we will take a look at the policy setting options in the <kbd>Security Configuration</kbd> subfolder.</p>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">Security Configuration</h1>
+                </header>
+            
+            <article>
+                
+<p>In the <kbd>Security Configuration</kbd> subfolder, you will find the policy settings, as shown in the following screenshot:</p>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/70a92146-9433-40a5-8e54-18cda1179807.png"/></div>
+<p>In the next section, we are going to return to the top-level policy folders and look at the final set of policy options for the <kbd>VMware View Server Configuration</kbd> policy setting configuration options.</p>
+<p class="mce-root"/>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">VMware View Server Configuration</h1>
+                </header>
+            
+            <article>
+                
+<p>In the <kbd>VMware Viiew Server Configuration</kbd> subfolder, you will find the policy settings, as shown in the following screenshot:</p>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/e5bf3ef8-be20-4f94-b9c3-8f53b3f7056c.png"/></div>
+<p>We have now shown you all of the policy configuration options that are available from the VMware View ADMX templates. In the next section, we are going to look at a specific tool for tuning the PCoIP protocol, should you choose to use that particular protocol to deliver virtual desktop machines.</p>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">PCoIP tuning tool</h1>
+                </header>
+            
+            <article>
+                
+<p>The final thing we are going to cover in this chapter is how you can dynamically tune virtual desktop machines using the PCoIP tuning tool. You can download this tool from the following link: <a href="http://tinyurl.com/ocqxykn">http://tinyurl.com/ocqxykn</a>.</p>
+<p>One of the things that this tuning tool enables is the ability to change settings on the fly rather than manually editing policies. This is convenient because, as you can see from the number of policies, there are a large number of different configurable options.</p>
+<p>Once you have downloaded the tool, launch it on the virtual desktop machine you want to tune. It's probably worthwhile doing this on your parent image and with an end user so that you can not only get their feedback but also get their buy-in to the solution.</p>
+<p>With the tool launched, you will see that there are a number of options to choose from:</p>
+<ul>
+<li><span class="packt_screen">Activate Profile</span></li>
+<li><span class="packt_screen">Manage Profiles</span></li>
+<li><span class="packt_screen">Clear Profile Settings</span></li>
+<li><span class="packt_screen">Show Session Stats</span></li>
+<li><span class="packt_screen">Show Session Health</span></li>
+</ul>
+<p>These options are shown in the following screenshot:</p>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/67a50930-ecfb-4f4d-a2d1-bd6fe3d28d08.png" style=""/></div>
+<p class="NormalPACKT"><span>In the following sections, we will briefly cover what each option is used to configure.</span></p>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">Activate Profile</h1>
+                </header>
+            
+            <article>
+                
+<p>The Activate Profile settings allow you to activate one of the preset profiles. Each profile is based on a different use case, and three have already been built that you can choose from. There's one for a default user, one for a WAN-based user, and another for a task worker.</p>
+<p>By selecting one of the preset profiles, the settings for things such as session bandwidth, image quality, or frame rate will be updated and changed to a setting that matches that particular use case.</p>
+<div class="packt_infobox">
+<p>To activate a profile, you will need to reboot the virtual desktop machine.</p>
+</div>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">Manage Profiles</h1>
+                </header>
+            
+            <article>
+                
+<p class="NormalPACKT"><span>The Manage Profiles option allows you to adjust the settings of a particular profile. You can dynamically change image quality, frames per second, bandwidth, and switch on build-to-lossless. You can choose from the pre-built profiles or create a new one and then save it.</span></p>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">Clear Profile Settings</h1>
+                </header>
+            
+            <article>
+                
+<p class="NormalPACKT"><span>Clear Profile Settings will clear the profile settings and restore them to their defaults.</span></p>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">Show Session Stats</h1>
+                </header>
+            
+            <article>
+                
+<p class="NormalPACKT"><span>The Show Session Stats option shows you real-time usage statistics for things such as bandwidth, frames per second, latency, and CPU utilization, allowing you to understand what a particular virtual desktop machine is consuming. By clicking this option, you effectively switch it on and it will appear on the desktop so that you can monitor it.</span></p>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">Show Session Health</h1>
+                </header>
+            
+            <article>
+                
+<p class="NormalPACKT"><span>As with the session stats option, by clicking this option, you effectively switch it on and it will appear on the desktop. It gives you a health score for the PCoIP session to give you an indication of where there might be a problem. For example, the latency score might be low, indicating a higher latency between the client and the virtual desktop.</span></p>
+<p class="NormalPACKT"><span>For a more in-depth overview of performance, capacity planning, and troubleshooting, it's worth installing vRealize Operations for Horizon, which comes as part of the VMware Horizon enterprise edition product, or considering a third-party user experience monitoring tool such as Liquidware Labs Stratusphere UX.</span></p>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">Teradici support tools for PCoIP</h1>
+                </header>
+            
+            <article>
+                
+<p>In addition to the VMware and other third-party solutions, Teradici (the inventor of the PCoIP protocol) also have a number of tools to assist with the tuning experience, including a network bandwidth calculator and PCoIP statistics viewer.</p>
+<p>To access the tools, go to the following link: <a href="http://tinyurl.com/qacpzr4">http://tinyurl.com/qacpzr4</a>.</p>
+<div class="packt_infobox">You will need to have a Teradici support account to access these tools, which you can create for free.</div>
+<p>In the next section, we are going to look at monitoring the end user experience to ensure that it is running at its optimum.</p>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">Monitoring the end user experience</h1>
+                </header>
+            
+            <article>
+                
+<p class="NormalPACKT"><span>Once you have tuned the desktop's performance, you should consider deploying an end user experience monitoring solution to ensure that the initial experience and performance is maintained, and that the solution is running at its best.</span></p>
+<p class="NormalPACKT"><span>We have already mentioned vRealize Operations for Horizon, but this tool is better for monitoring the infrastructure components rather than the end user experience.</span></p>
+<p class="mce-root"/>
+<p class="mce-root"/>
+<p class="NormalPACKT"><span>A more focused end user experience monitoring tool would be something such as Liquidware Stratusphere UX, which goes deeper into what the end user is doing, such as application launch times and applications crashes, and gives you a complete breakdown of the login process. An example of one of the many Stratusphere dashboards is shown in the following screenshot:</span></p>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/058efc07-a79f-4cb2-a21c-ccb111460598.png" style=""/></div>
+<p class="NormalPACKT"><span>The other advantage of the Liquidware solution is that Stratusphere UX is based on the same solution that was used during the assessment phase. It therefore gives you the ability to compare your initial baseline assessment data (your starting point) with the production environment and easily demonstrate the improvements that are made as you migrate to a new environment.<br/></span></p>
+<p>For more information, visit <a href="https://www.liquidware.com/products/stratusphere-ux">https://www.liquidware.com/products/stratusphere-ux</a>.</p>
+<p class="mce-root"/>
+<p class="mce-root"/>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">Summary</h1>
+                </header>
+            
+            <article>
+                
+<p class="NormalPACKT"><span>In this chapter, we have looked at how to start fine-tuning the performance of virtual desktop machines and the end user experience.</span></p>
+<p class="NormalPACKT"><span>To do this, we have covered how to prepare AD with Horizon View-specific policies and administrative templates to define how the virtual desktop machines behave, as well as the overall end user experience.</span></p>
+<p class="NormalPACKT"><span>We then went on to show each of the individual policy settings.</span></p>
+<p class="NormalPACKT"><span>Finally, we looked at some of the many tools that are available to help with the tuning process, and how to monitor the user experience. Tools such as the PCoIP tuning tool and Liquidware Stratusphere and its Spotcheck feature were covered.</span></p>
+<p class="NormalPACKT"><span>In the next chapter, we will look at how we can manage user profiles in a Horizon View environment using View Persona Management and VMware's <strong>User Environment Management</strong> (<strong>UEM</strong>).</span></p>
+
+
+            </article>
+
+            
+        </section>
+    </body></html>

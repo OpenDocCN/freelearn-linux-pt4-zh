@@ -1,0 +1,678 @@
+<html><head></head><body>
+        <section>
+
+                            <header>
+                    <h1 class="header-title">Introducing the Stream Editor</h1>
+                </header>
+            
+            <article>
+                
+<p>In the previous chapter, we saw that we could make use of <kbd>sed</kbd> to edit files from within our scripts. The <kbd>sed</kbd> command is the <strong>stream editor</strong> (<strong>sed</strong>) and opens the file line by line to search or edit the file content. Historically, this goes way back to Unix, where systems may not have had enough RAM to open very large files. Using <kbd>sed</kbd> was absolutely required to carry out edits. Even today, we will use <kbd>sed</kbd> to make changes and display data from files with hundreds and thousands of entries. It is simpler and easier and more reliable than a human trying to do the same thing. Most importantly, as we have seen, we can use <kbd>sed</kbd> in scripts to edit the files automatically; no human interaction is required.</p>
+<p>We will start by looking at <kbd>grep</kbd> and searching the files for text. The <kbd>re</kbd> in the <kbd>grep</kbd> command is short for <strong>regular expression</strong>. Even though we are not looking at scripting in this chapter, we will be covering some very important tools that we can use with scripts. In the next chapter, we will see the practical implementation of <kbd>sed</kbd> in scripts.</p>
+<p>For the moment though, we have enough to deal with and we will cover the following topics in this chapter:</p>
+<ul>
+<li>Using <kbd>grep</kbd> to display text</li>
+<li>Understanding the basics of <kbd>sed</kbd></li>
+<li>Other <kbd>sed</kbd> commands</li>
+<li>Multiple <kbd>sed</kbd> commands</li>
+</ul>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">Technical requirements</h1>
+                </header>
+            
+            <article>
+                
+<p>The source code for this chapter can be downloaded here:</p>
+<p><a href="https://github.com/PacktPublishing/Mastering-Linux-Shell-Scripting-Second-Edition/tree/master/Chapter08">https://github.com/PacktPublishing/Mastering-Linux-Shell-Scripting-Second-Edition/tree/master/Chapter08</a></p>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">Using grep to display text</h1>
+                </header>
+            
+            <article>
+                
+<p>We will be beginning this journey by looking at the <kbd>grep</kbd> command. This will enable us to grasp some simple concepts of searching through the text before moving onto more complex regular expressions and editing files with <kbd>sed</kbd>.</p>
+<p><strong>Global regular expression print</strong> (<strong>grep</strong>), or what we more commonly call the <kbd>grep</kbd> command, <span>is a command-line tool used to search globally (across all the lines</span> in a file) and print the result to <kbd>STDOUT</kbd>. The search string is a regular expression.</p>
+<p>The <kbd>grep</kbd> command is such a common tool that it has many simple examples and numerous occasions where we can use it each day. In the following sections, we have included some simple and useful examples with explanations.</p>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">Displaying received data on an interface</h1>
+                </header>
+            
+            <article>
+                
+<p>In this example, we will print just the received data from the <kbd>eth0</kbd> interface.</p>
+<div class="packt_infobox"><span>This is the interface that is my primary network connection. If you are uncertain of your interface name, you can use the </span><kbd>ifconfig -a</kbd><span> command to display all the interfaces and choose the correct interface name on your system. If </span><kbd>ifconfig</kbd><span> is not found, try typing the full path, </span><kbd>/sbin/ifconfig</kbd><span>.</span></div>
+<p>Using just the <kbd>ifconfig eth0</kbd> command, a heap of data can be printed to the screen. To show just the packets received, we can isolate the lines that contain <kbd>RX packets</kbd> (<kbd>RX</kbd> for received). This is where <kbd>grep</kbd> comes in:</p>
+<pre><strong>$ ifconfig eth0 | grep "RX packets"</strong>  </pre>
+<p>Using the pipe or vertical bars, we can take the output of the <kbd>ifconfig</kbd> command and send it to the input of the <kbd>grep</kbd> command. In this case, <kbd>grep</kbd> is searching for a very simple string, <kbd>RX packets</kbd>. The search string is case sensitive, so we need to get this right or use the <kbd>-i</kbd> option with <kbd>grep</kbd> to run the search as case insensitive, as shown in the following example:</p>
+<pre><strong>$ ifconfig eth0 | grep -i "rx packets"</strong>  </pre>
+<div class="packt_infobox"><span>A case-insensitive search is especially useful when searching for options in a configuration file, which often have mixed cases.</span></div>
+<p>We can see the result of the initial command in the following screenshot, confirming that we have been able to isolate just the single line of output, as shown:</p>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/8438d3b5-445f-4d50-8a68-889898da93e2.png" style="width:36.17em;height:4.00em;"/></div>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">Displaying user account data</h1>
+                </header>
+            
+            <article>
+                
+<p>The local user account database in Linux is the <kbd>/etc/passwd</kbd> file and this is readable by all user accounts. If we want to search for the line that contains our own data, we can use either our own login name in the search or use parameter expansion and the <kbd>$USER</kbd> variable. We can see this in the following command example:</p>
+<pre><strong>$ grep "$USER" /etc/passwd</strong> </pre>
+<p>In this example, the input to <kbd>grep</kbd> comes from the <kbd>/etc/passwd</kbd> file and we search for the value of the <kbd>$USER</kbd> variable. Again, in this case, it is a simple text, but it is still the regular expression, just without any operators.</p>
+<p>For completeness, we include the output in the following screenshot:</p>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/5ff2f0ae-977a-46df-a95f-c006907cbdb3.png" style="width:27.33em;height:5.08em;"/></div>
+<p>We can extend this a little using this type of query as a condition within a script. We can use this to check whether a user account exists before trying to create a new account. To keep the script as simple as possible and to ensure that administrative rights are not required, creating the account will display just the prompt and conditional test in the following command-line example:</p>
+<pre><strong>$ bash</strong>
+<strong>$ read -p "Enter a user name: "</strong>
+<strong>$ if (grep "$REPLY" /etc/passwd &gt; /dev/null) ; then</strong>
+<strong>&gt; echo "The user $REPLY exists"</strong>
+<strong>&gt; exit 1</strong>
+<strong>&gt; fi</strong></pre>
+<p>The <kbd>grep</kbd> search now makes use of the <kbd>$REPLY</kbd> variable populated by <kbd>read</kbd>. If I enter the name <kbd>pi</kbd>, a message will be displayed and we will exit because my user account is also called <kbd>pi</kbd>. There is no need to display the result from <kbd>grep</kbd>; we are just looking for a return code that is either <kbd>true</kbd> or <kbd>false</kbd>. To ensure that we do not see any unnecessary output if the user is in the file, we redirect the output from <kbd>grep</kbd> to the special device file <kbd>/dev/null</kbd>.</p>
+<p>If you want to run this from the command line, you should start a new bash shell first. You can do this by simply typing <kbd>bash</kbd>. In this way, when the <kbd>exit</kbd> command runs, it will not log you out but close the newly opened shell. We can see this happening and the results when specifying an existing user in the following screenshot:</p>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/3c29fad8-fd65-4e0c-a125-d5f9ba5a5666.png" style="width:34.58em;height:10.50em;"/></div>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">Listing the number of CPUs in a system</h1>
+                </header>
+            
+            <article>
+                
+<p>Another really useful feature is that <kbd>grep</kbd> can count the matching lines and not display them. We can use this to count the number of CPUs or CPU cores we have on a system. Each core or CPU is listed with a name in the <kbd>/proc/cpuinfo</kbd> file. We can then search for the text <kbd>name</kbd> and count the output; the <kbd>-c</kbd> option used is shown in the following example:</p>
+<pre><strong>$ grep -c name /proc/cpuinfo</strong> </pre>
+<p>My CPU has four cores, as shown in the following output:</p>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/f673d39b-5ba9-4ca7-b698-f8db3cc7cf4f.png" style="width:25.25em;height:3.08em;"/></div>
+<p>If we use the same code on another PC Model B that has a single core, we will see the following output:</p>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/a3f6e13c-3be6-4c29-98d8-451c4e4abada.png" style="width:29.50em;height:4.58em;"/></div>
+<p>We can again make use of this in a script to verify that enough cores are available before running a CPU-intensive task. To test this from the command line, we can use the following code, which we execute on a PC with just a single core:</p>
+<pre><strong>$ bash</strong>
+<strong>$ CPU_CORES=$(grep -c name /proc/cpuinfo)</strong>
+<strong>$ if (( CPU_CORES &lt; 4 )) ; then</strong>
+<strong>&gt; echo "A minimum of 4 cores are required"</strong>
+<strong>&gt; exit 1</strong>
+<strong>&gt; fi</strong>  </pre>
+<p>We only run <kbd>bash</kbd> at the start to ensure that we are not logged out of the system with the <kbd>exit</kbd> command. If this was in a script, this would not be required, as we would exit the script and not our shell session.</p>
+<p>By running this on the Model B that has a single core, we can see the results of the script and also the indication that we do not have the required number of cores:</p>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/66ea3316-be5c-4656-a61b-ac09d22bfb89.png" style="width:34.83em;height:11.00em;"/></div>
+<p>If you had a requirement to run this check in more than one script, then you could create a function in a shared script and source the script holding the shared functions within the script that needs to be checked:</p>
+<pre>function check_cores { 
+ [ -z $1 ] &amp;&amp; REQ_CORES=2 
+CPU_CORES=$(grep -c name /proc/cpuinfo) 
+if (( CPU_CORES &lt; REQ_CORES  )) ; then 
+echo "A minimum of $REQ_CORES cores are required" 
+exit 1 
+fi 
+} </pre>
+<p>If a parameter is passed to the function, then it is used as the required number of cores; otherwise, we set the value to <kbd>2</kbd> as the default. If we define this as a function in the shell on the Model B PC and display the details with the <kbd>type</kbd> <span>command</span>, we should see this as shown in the following screenshot:</p>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/72902c0e-93bd-4831-b49e-449be6dab03a.png" style="width:27.92em;height:12.42em;"/></div>
+<p>If we run this on a single-core system and specify the requirement of just a single core, we will see that there is no output when we meet the requirement. If we do not specify the requirement, then it will default to <kbd>2</kbd> cores and we will fail to meet the requirement and we will exit the shell.</p>
+<p>We can see the output of the function when run with the argument of <kbd>1</kbd>, and then without arguments, in the following screenshot:</p>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/2c5a8da0-78fa-48dc-95d7-0344f1d7d994.png" style="width:20.83em;height:7.08em;"/></div>
+<p>We can see how useful even the basics of <kbd>grep</kbd> can be within the scripts and how we can use what we have learned to start creating usable modules to add to our scripts.</p>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">Parsing CSV files</h1>
+                </header>
+            
+            <article>
+                
+<p>We will now look at creating a script to parse or format a CSV file. The formatting of the file will add new lines, tabs, and color to the output, so that it is more readable. We can then use <kbd>grep</kbd> to display single items from the CSV file. The practical application here is a catalog system based on the CSV files.</p>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">The CSV file</h1>
+                </header>
+            
+            <article>
+                
+<p>The CSV file, or list of comma-separated values, will come from the file named <kbd>tools</kbd> that we have in a current directory. This is a catalog of products that we sell. The file content is shown in the following output:</p>
+<pre><strong>drill,99,5 
+hammer,10,50 
+brush,5,100 
+lamp,25,30 
+screwdriver,5,23 
+table-saw,1099,3</strong> </pre>
+<p>This is just a simple demonstration, so we don't expect too much data, but each item in the catalog consists of the following:</p>
+<ul>
+<li>Name</li>
+<li>Price</li>
+<li>Units in stock</li>
+</ul>
+<p>We can see that we have a drill that costs $99 and we have five units in stock. If we list the file with <kbd>cat</kbd>, it is not very friendly; however, we can write a script to display the data in a more appealing way. We can create a new script called <kbd>$HOME/bin/parsecsv.sh</kbd>:</p>
+<pre>#!/bin/bash 
+OLDIFS="$IFS" 
+IFS="," 
+while read product price quantity 
+do 
+echo -e "\33[1;33m$product \
+        ========================\033[0m\n\ 
+Price : \t $price \n\ 
+Quantity : \t $quantity \n" 
+ 
+done &lt;"$1" 
+IFS=$OLDIFS </pre>
+<p>Let's work through this file and look at the pertinent elements:</p>
+<table class="table">
+<tbody>
+<tr>
+<td>
+<p><strong>Element</strong></p>
+</td>
+<td>
+<p><strong>Meaning</strong></p>
+</td>
+</tr>
+<tr>
+<td>
+<p><kbd>OLDIFS="$IFS"</kbd></p>
+</td>
+<td>
+<p>The <kbd>IFS</kbd> variable stores the file separator and this is normally a white space character. We can store the old <kbd>IFS</kbd> so that we can restore it later at the end of the script, ensuring that we return the same environment once the script is complete, no matter how the script is run.</p>
+</td>
+</tr>
+<tr>
+<td>
+<p><kbd>IFS=","</kbd></p>
+</td>
+<td>
+<p>We set the separator to a comma to match what we need with a CSV file.</p>
+</td>
+</tr>
+<tr>
+<td>
+<p><kbd>while read product price quantity</kbd></p>
+</td>
+<td>
+<p>We enter a <kbd>while</kbd> loop to populate three variables that we need: <kbd>product</kbd>, <kbd>price</kbd>, and <kbd>quantity</kbd>. The <kbd>while</kbd> loop will read the input file, line by line, and populate each of the variables.</p>
+</td>
+</tr>
+<tr>
+<td>
+<p><kbd>echo ...</kbd></p>
+</td>
+<td>
+<p>The <kbd>echo</kbd> command displays the product name in blue with double underscores underneath. The other variables are printed on new lines and tabbed in.</p>
+</td>
+</tr>
+<tr>
+<td>
+<p><kbd>done &lt;"$1"</kbd></p>
+</td>
+<td>
+<p>This is where we read the input file, which we pass as an argument to the script.</p>
+</td>
+</tr>
+</tbody>
+</table>
+<p> </p>
+<p>The script is shown in the following screenshot:</p>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/73d3bb8d-86ef-4d5e-a388-f6d53837cf3e.png" style="width:22.33em;height:12.67em;"/></div>
+<p>We can execute the script with the <kbd>tools</kbd> catalog file located in the current directory using the following command:</p>
+<pre><strong>$ parsecsv.sh tools</strong>  </pre>
+<p>To look at how this will display, we can view the partial output in the following screenshot:</p>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/6483bdcd-d888-4054-99ff-46c6329beaac.png" style="width:26.08em;height:13.33em;"/></div>
+<p>We are now starting to get the idea that we have a lot of power at the command line to format files in a more readable way and a plain text file does not need to be plain.</p>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">Isolating catalog entries</h1>
+                </header>
+            
+            <article>
+                
+<p>If we need to search for one entry, then we need more than just one line. The entry is in three lines. So, if we search for the hammer, we need to go to the hammer line and the two lines that follow. We do this by using the <kbd>-A</kbd> option to <kbd>grep</kbd>, which is short for after. We need to display the matching line and two lines after. This will be expressed by the following code:</p>
+<pre><strong>$ parsecsv.sh tool | grep -A2 hammer</strong>  </pre>
+<p>This is displayed in the following screenshot:</p>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/138263c8-066a-464d-8227-be5b83fab47a.png" style="width:33.92em;height:7.17em;"/></div>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">Understanding the basics of sed</h1>
+                </header>
+            
+            <article>
+                
+<p>Having built a little foundation, we can now start to look at some of the operations of <kbd>sed</kbd>. The commands will be supplied with most Linux systems and are core commands.</p>
+<p>We will dive directly into some simple examples:</p>
+<pre><strong>$ sed 'p' /etc/passwd</strong>  </pre>
+<p>The <kbd>p</kbd> operator will print the matched pattern. In this case, we have not specified a pattern so we will match everything. Printing the matched lines without suppressing <kbd>STDOUT</kbd> will duplicate lines. The result of this operation is to print all the lines in the <kbd>passwd</kbd> file twice. To print the modified lines only, we use the <kbd>-n</kbd> option:</p>
+<pre><strong>$ sed -n 'p' /etc/passwd</strong>  </pre>
+<p>Brilliant!! We have just reinvented the <kbd>cat</kbd> command. We can now specifically work with just a range of lines:</p>
+<pre><strong>$ sed -n '1,3 p ' /etc/passwd</strong>  </pre>
+<p>Now we have reinvented the <kbd>head</kbd> command, but we can also specify the range in a regex pattern to recreate the <kbd>grep</kbd> command:</p>
+<pre><strong>$ sed -n '/^root/ p' /etc/passwd</strong>  </pre>
+<p>We can see this demonstrated in the following screenshot:</p>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/080ac37c-aaf2-4c0c-8ea4-e43815d5219c.png" style="width:28.67em;height:4.50em;"/></div>
+<p>Note that the caret character (<kbd>^</kbd>) means the beginning of the line, which means the line must start with the word <kbd>root</kbd>. Don't worry; we will explain all these regex characters in a separate chapter.</p>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">The substitute command</h1>
+                </header>
+            
+            <article>
+                
+<p>We have seen the <kbd>p</kbd> command for printing the pattern space. The <kbd>p</kbd> is actually a flag for the <kbd>substitute</kbd> command <kbd>s</kbd>.</p>
+<p>The <kbd>substitute</kbd> command is written like this:</p>
+<pre><strong>$ sed s/pattern/replacement/flags</strong>  </pre>
+<p>There are three common flags used with the <kbd>substitute</kbd> command:</p>
+<ul>
+<li><kbd>p</kbd>: Print the original content</li>
+<li><kbd>g</kbd><span>: Global replacement for all occurrences</span></li>
+<li><kbd>w</kbd>: F<span>ilename: send results to a file</span></li>
+</ul>
+<p>We will now look at the <kbd>substitute</kbd> command or <kbd>s</kbd>. With this command, we can replace one string with another. Again, by default, we send the output to the <kbd>STDOUT</kbd> and do not edit the file.</p>
+<p>To replace the default shell of the user <kbd>pi</kbd>, we can use the following command:</p>
+<pre><strong>sed -n ' /^pi/ s/bash/sh/p ' /etc/passwd</strong>  </pre>
+<p>We continue the earlier instance using the <kbd>p</kbd> command to print the matched pattern and use the <kbd>-n</kbd> option to suppress <kbd>STDOUT</kbd>. We search for lines beginning with <kbd>pi</kbd>. This represents the username. We then issue the <kbd>s</kbd> command to substitute text in those matched lines. This takes two arguments: the first is the text to search for and the second represents the text used to replace the original. In this case, we look for <kbd>bash</kbd> and replace it with <kbd>sh</kbd>. This is simple and does work but it may not be reliable in the long term. We can see the output in the following screenshot:</p>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/5c01033a-453d-4ca3-af9f-ea35cf25eb02.png" style="width:37.75em;height:4.83em;"/></div>
+<p>We must emphasize that, currently, we are not editing the file and are just displaying it to the screen. The original <kbd>passwd</kbd> file remains untouched and we can run this as a standard user. I mentioned in the previous example that the search may be less than reliable as the string we are searching for is <kbd>bash</kbd>. This is very short and perhaps it can be included elsewhere on a matched line. Potentially, someone's last name may be <kbd>Tabash</kbd>, which includes the string <kbd>bash</kbd>. We can extend the search to look for <kbd>/bin/bash</kbd> and replace it with <kbd>/bin/sh</kbd>. However, this introduces another problem: the default delimiter is the forward slash, so we will have to escape each forward slash we use in the search and replace strings, which is as follows:</p>
+<pre><strong>sed -n ' /^pi/ s/\/bin\/bash/\/usr\/bin\/sh/p ' /etc/passwd</strong>  </pre>
+<p>This is an option but it is not a tidy option. A better solution is to know that the first delimiter we use defines the delimiters. In other words, you can use any character as a delimiter. Using the <kbd>@</kbd> symbol may be a good idea in this scenario, as it does not appear in either the search or the replace string:</p>
+<pre><strong>sed -n ' /^pi/ s@/bin/bash@/usr/bin/sh@p ' /etc/passwd</strong>  </pre>
+<p>We now have a more reliable search and a readable command line to work with, which is always a good thing. We replace just the first occurrence on each line of <kbd>/bin/bash</kbd> with <kbd>/bin/sh</kbd>. If we need to replace more than the first occurrence, we add the <kbd>g</kbd> command, for global, at the end:</p>
+<pre><strong>sed -n ' /^pi/ s@bash@sh@pg ' /etc/passwd</strong> </pre>
+<p>In our case, it is not required but it is good to know.</p>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">Global replacement</h1>
+                </header>
+            
+            <article>
+                
+<p>Let's assume that we have the following sample file:</p>
+<pre>Hello, sed is a powerful editing tool. I love working with sed<br/>If you master sed, you will be a professional one</pre>
+<p>Let's try to use <kbd>sed</kbd> against this file:</p>
+<pre><strong>$ sed 's/sed/Linux sed/' myfile</strong></pre>
+<p>Here, we use <kbd>sed</kbd> to replace the word <kbd>sed</kbd> with <kbd>Linux sed</kbd>:</p>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/4d8e338d-a79f-4c4c-a95f-9f82c9257a9e.png" style="width:43.33em;height:7.42em;"/></div>
+<p>If you check the result carefully, you will notice that <kbd>sed</kbd> modified the first word of each line only.</p>
+<p>This may not be what you want if you want to replace all occurrences.</p>
+<p>Here comes the <kbd>g</kbd> flag.</p>
+<p>Let's use it and see the results again:</p>
+<pre><strong>$ sed 's/sed/Linux sed/g' myfile</strong>  </pre>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/e0182d41-cc6b-406e-a384-cd2e63b5891c.png" style="width:43.17em;height:7.42em;"/></div>
+<p>Now all occurrences are modified.</p>
+<p>You can port these modifications to a file using the <kbd>w</kbd> flag:</p>
+<pre><strong>$ sed 's/sed/Linux sed/w outputfile' myfile</strong>  </pre>
+<p>Also, you can limit the number of occurrences from the same line, so we can modify the first two occurrences from each line only like this:</p>
+<pre><strong>$ sed 's/sed/Linux sed/2' myfile</strong> </pre>
+<p>So, if there is a third occurrence, it will be neglected.</p>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">Limiting substitution</h1>
+                </header>
+            
+            <article>
+                
+<p>We saw how the <kbd>g</kbd> flag modifies all occurrences in the same line and this goes for the entire file lines.</p>
+<p>What if we want to limit our edits to a specific line? Or a specific line range?</p>
+<p>We can specify the ending line or the line range like this:</p>
+<pre><strong>$ sed '2s/old text/new text/' myfile</strong> </pre>
+<p>The preceding command will <span>only</span><span> modify the second line of the file. </span><span>The following command will modify only the third to the fifth lines:</span></p>
+<pre><strong>$ sed '3,5s/old text/new text/' myfile</strong>  </pre>
+<p><span>The following command will modify from the second line to the end of the file:</span></p>
+<pre><strong>$ sed '2,$s/old text/new text/' myfile</strong>  </pre>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">Editing the file</h1>
+                </header>
+            
+            <article>
+                
+<p>Using the <kbd>w</kbd> flag, we can write our edits to a file, but what if we want to edit the file itself? We can use the <kbd>-i</kbd> option. We will need permissions to work with the file but we can make a copy of the file to work with, so we don't harm any system file or require additional access.</p>
+<p>We can copy the <kbd>passwd</kbd> file locally:</p>
+<pre><strong>$ cp /etc/passwd "$HOME"</strong>
+<strong>$ cd</strong> </pre>
+<p>We finish with the <kbd>cd</kbd> command to ensure that we are working in the <kbd>home</kbd> directory and the local <kbd>passwd</kbd> file.</p>
+<p>The <kbd>-i</kbd> option is used to run an in-place update. We will not need the <kbd>-n</kbd> option or the <kbd>p</kbd> command when editing the file. As such, the command is as simple as the following example:</p>
+<pre><strong>$ sed -i ' /^pi/ s@/bin/bash@/bin/sh/ ' $HOME/passwd</strong> </pre>
+<p>There will be no output to the command but the file will now reflect the change. The following screenshot shows the command usage:</p>
+<div class="mce-root CDPAlignCenter CDPAlign"><img src="assets/dc381b57-41d5-43fe-9dec-3df1719d5d99.png" style="width:36.17em;height:1.42em;"/></div>
+<p>We should make a backup before we make the change by appending a string directly after the <kbd>-i</kbd> option and without any spaces. This is shown in the following example:</p>
+<pre><strong>$ sed -i.bak ' /^pi/ s@/bin/bash@/bin/sh/ ' $HOME/passwd</strong>  </pre>
+<p>If we want to see this, we can reverse the search and replace strings:</p>
+<pre><strong>$ sed -i.bak ' /^pi/ s@/bin/sh@/bin/bash/ ' $HOME/passwd</strong>  </pre>
+<p>This will set the local <kbd>passwd</kbd> file to be the same as it was before and we will have a <kbd>passwd.bak</kbd> with the previous set of changes. This keeps us safe with a rollback option if we need it.</p>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">Other sed commands</h1>
+                </header>
+            
+            <article>
+                
+<p><kbd>sed</kbd> offers a lot of commands that can be used to insert, change, delete, and transform text with ease. Let's see some examples of how to use these commands with <kbd>sed</kbd>.</p>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">The delete command</h1>
+                </header>
+            
+            <article>
+                
+<p>You can use the <kbd>delete</kbd> command <kbd>d</kbd> to delete lines or a range of lines from your stream. <span>The following command will delete the third line from the stream: </span></p>
+<pre><strong>$ sed '3d' myfile</strong>  </pre>
+<p><span>The following command will delete the third to the fifth line from the stream:</span></p>
+<pre><strong>$ sed '3,5d' myfile</strong>  </pre>
+<p> <span>This command will delete from the fourth line to the end of the file:</span></p>
+<pre><strong>$ sed '4,$d' myfile</strong></pre>
+<p>Note that the deletion happens only to the stream, not the actual file. So if you want to delete from the actual file, you can use the <kbd>-i</kbd> option:</p>
+<pre><strong>$ sed -i '2d' myfile #Permenantly delete the second line from the file</strong>  </pre>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">The insert and append commands</h1>
+                </header>
+            
+            <article>
+                
+<p>The insert, <kbd>i</kbd>, and append, <kbd>a</kbd>, commands work the same way with just a slight difference.</p>
+<p>The <kbd>insert</kbd> command inserts the specified text before the specified line or pattern.</p>
+<p>The <kbd>append</kbd> command inserts the specified text after the specified line or pattern.</p>
+<p>Let's see some examples.</p>
+<p>Our sample 02 file will be like this:</p>
+<pre>First line
+Second line
+Third line
+Fourth line</pre>
+<p>To insert a line, you need to use the insert command <kbd>i</kbd> like this:</p>
+<pre><strong>$ sed '2i\inserted text' myfile</strong> </pre>
+<p>To append a line, you need to use the append command <kbd>a</kbd> like this:</p>
+<pre><strong>$ sed '2a\inserted text' myfile</strong> </pre>
+<p>Look at the result and check the inserted line position:</p>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/ea97ee51-6d18-42d4-b795-9dded617d565.png" style="width:40.50em;height:15.33em;"/></div>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">The change command</h1>
+                </header>
+            
+            <article>
+                
+<p>We saw how to substitute occurrences using the <kbd>substitute</kbd> command <kbd>s</kbd>. So what is the <kbd>change</kbd> command and how is it different?</p>
+<p>The <kbd>change</kbd> command, <kbd>c</kbd>, is used for changing the entire line.</p>
+<p>To change a line, you can use the <kbd>change</kbd> command like this:</p>
+<pre><strong>$ sed '2c\modified the second line' myfile</strong>  </pre>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/303cee92-4e7c-4a95-8036-978c2df042db.png" style="width:46.00em;height:9.42em;"/></div>
+<p>We replaced the second line with a new line.</p>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">The transform command</h1>
+                </header>
+            
+            <article>
+                
+<p>The <kbd>transform</kbd> command is used to replace any letter or a number with another, for example, capitalizing letters or transforming numbers into different numbers.</p>
+<p>It works like the <kbd>tr</kbd> command.</p>
+<p>You can use it like this:</p>
+<pre><strong>$ sed 'y/abc/ABC/' myfile</strong>  </pre>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/8ef01a7a-a694-4d1b-b3ff-f1cc6342f8a1.png" style="width:49.25em;height:6.75em;"/></div>
+<p>The transformation applies to the entire stream and can't be limited.</p>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">Multiple sed commands</h1>
+                </header>
+            
+            <article>
+                
+<p>In all the previous examples, we only applied one <kbd>sed</kbd> command to our stream. What about running multiple <kbd>sed</kbd> commands?</p>
+<p>You can do that by using the <kbd>-e</kbd> option and separating the commands with a semicolon like this:</p>
+<pre><strong>$ sed -e 's/First/XFirst/; s/Second/XSecond/' myfile</strong></pre>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/b52e69e1-6b89-44bb-a835-9783f777a7b7.png" style="width:51.67em;height:9.67em;"/></div>
+<p>Also, you can enter every command on a separate line and you will achieve the same result:</p>
+<pre><strong>$ sed -e '</strong>
+<strong>&gt; s/First/XFirst/</strong>
+<strong>&gt; s/Second/XSecond/' myfile</strong>  </pre>
+<p>The <kbd>sed</kbd> command offers great flexibility; if you use it well, you will gain a lot of power.</p>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">Summary</h1>
+                </header>
+            
+            <article>
+                
+<p>Another great chapter that you have firmly under your belt and I hope it was really useful to you. Although we wanted to concentrate on using <kbd>sed</kbd>, we started with how powerful <kbd>grep</kbd> can be, both inside and outside our scripts. Although we have only just touched on <kbd>sed</kbd>, we will start extending this in the next chapter, where we will expand upon what we have learned.</p>
+<p>Also, we learned how to substitute text and how to limit and globalize the substitution and how to save the editing stream using <kbd>-i</kbd>.</p>
+<p>We learned how to insert, append, delete, and transform text using <kbd>sed</kbd>.</p>
+<p>Finally, we learned how to run multiple <kbd>sed</kbd> commands using the <kbd>-e</kbd> option.</p>
+<p>In the next chapter, we will learn how to automate Apache Virtual Hosts, how to create new virtual hosts automatically, and other cool stuff. The workhorse of all these operations will be <kbd>sed</kbd> and <kbd>sed</kbd> scripts.</p>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">Questions</h1>
+                </header>
+            
+            <article>
+                
+<ol>
+<li>Suppose you have a file with the following content:</li>
+</ol>
+<pre style="padding-left: 60px">Hello, sed is a powerful editing tool. I love working with sed<br/>If you master sed, you will be a professional one</pre>
+<p style="padding-left: 60px">And suppose you use the following command:</p>
+<pre style="padding-left: 60px"><strong>$ sed 's/Sed/Linux sed/g' myfile</strong> </pre>
+<p style="padding-left: 60px">How many lines will be substituted?</p>
+<ol start="2">
+<li>Suppose you have the same file that was used in the previous question and you use the following command:</li>
+</ol>
+<pre style="padding-left: 60px"><strong>$ sed '2d' myfile</strong>  </pre>
+<p style="padding-left: 60px">How many lines will be deleted from the file?</p>
+<ol start="3">
+<li>What is the location of the inserted line in the following example?</li>
+</ol>
+<pre style="padding-left: 60px"><strong>$ sed '3a\Example text' myfile</strong>  </pre>
+<ol start="4">
+<li>Suppose you have the same previous sample file and you run the following command:</li>
+</ol>
+<pre style="padding-left: 60px"><strong>$ sed '2i\inserted text/w outputfile' myfile</strong>  </pre>
+<p style="padding-left: 60px">How many lines will be saved to the output file?</p>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">Further reading</h1>
+                </header>
+            
+            <article>
+                
+<p>Please see the following for further reading relating to this chapter:</p>
+<ul>
+<li><a href="https://www.gnu.org/software/sed/manual/sed.html"><span class="InternetLink">https://www.gnu.org/software/sed/manual/sed.html</span></a></li>
+<li><a href="https://linux.die.net/man/1/sed"><span class="InternetLink">https://linux.die.net/man/1/sed</span></a></li>
+</ul>
+
+
+            </article>
+
+            
+        </section>
+    </body></html>

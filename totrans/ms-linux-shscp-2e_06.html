@@ -1,0 +1,575 @@
+<html><head></head><body>
+        <section>
+
+                            <header>
+                    <h1 class="header-title">Iterating with Loops</h1>
+                </header>
+            
+            <article>
+                
+<p>Now we can perform arithmetic operations and tests and our scripts have more control. Sometimes, you will find that you need to perform some tasks repeatedly, such as going through log file entries and performing an action, or maybe running a piece of code continuously. We are busy people who have better things to do than repeat a task 100 times or more; loops are our friends.</p>
+<p>Looping structures are the lifeblood of scripts. These loops are workhorse engines that can iterate many times, repeating the same task reliably and consistently. Imagine having 100,000 lines of text within a CSV file that has to be checked for incorrect entries. A script can do this easily and accurately once developed but, in the case of a human, the reliability factor and accuracy will fail very quickly.</p>
+<p>So let's see how we can save our time and sanity by covering the following topics in this chapter:</p>
+<ul>
+<li><kbd>for</kbd> loops</li>
+<li>Advanced <kbd>for</kbd> loops</li>
+<li>The internal field separator (IFS)</li>
+<li>Counting directories and files</li>
+<li>C-style for loops </li>
+<li>Nested loops</li>
+<li>Redirecting loop output</li>
+<li><kbd>while</kbd> loops and <kbd>until</kbd> loops</li>
+<li>Reading input from files</li>
+<li>Creating operator menus</li>
+</ul>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">Technical requirement</h1>
+                </header>
+            
+            <article>
+                
+<p>The source code for this chapter can be can be downloaded from here:</p>
+<p><a href="https://github.com/PacktPublishing/Mastering-Linux-Shell-Scripting-Second-Edition/tree/master/Chapter06">https://github.com/PacktPublishing/Mastering-Linux-Shell-Scripting-Second-Edition/tree/master/Chapter06</a></p>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">for loops</h1>
+                </header>
+            
+            <article>
+                
+<p>All our looping controls are simple and we will begin by looking at <kbd>for</kbd> loops. The word <kbd>for</kbd> is a keyword in bash and in terms of its working, it is similar to <kbd>if</kbd>. We can use the command type to verify this, as shown in the following example:</p>
+<pre><strong>$ type for
+</strong><strong>for is a shell keyword<br/></strong></pre>
+<p>As a reserved shell keyword, we can use a <kbd>for</kbd> loop both in scripts and directly at the command line. In this way, we can utilize loops within and without the scripts, optimizing the use of the command line. A simple <kbd>for</kbd> loop is shown in the following example code:</p>
+<pre># for u in bob joe ; do 
+useradd $u 
+echo '$u:Password1' | chpasswd  #pipe the created user to chpasswd 
+passwd -e $u 
+done </pre>
+<p>The <kbd>useradd</kbd> command is used to create users and the <kbd>chpasswd</kbd> command is used to update passwords in batch mode.</p>
+<p>Within a <kbd>for</kbd> loop, we read from the list on the right to populate the variable parameter on the left; in this case, we will read from the list containing <kbd>bob</kbd> and <kbd>joe</kbd> into the parameter variable <kbd>u</kbd>. Each item from the list is inserted into the variable, one item at a time. In this way, as long as there are items to be processed in the list, the loop will execute until the list is exhausted.</p>
+<p>Practically, for us, the execution of this loop means that we will do the following:</p>
+<ol>
+<li>Create the user <kbd>bob</kbd></li>
+<li>Set the password for <kbd>bob</kbd></li>
+<li>Expire the password so it will need to be reset on the first login for the user <kbd>bob</kbd></li>
+</ol>
+<p>We then loop back and repeat the process for the user <kbd>joe</kbd>.</p>
+<p>We can view the preceding example in the following screenshot. After having gained root access through <kbd>sudo -i</kbd>, we proceeded to run the loop and create the users:</p>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/ee837095-5d9f-436e-85d1-0df82a9a547b.png" style="width:22.17em;height:10.25em;"/></div>
+<p>The list that is read in the <kbd>for</kbd> loop can be generated dynamically or statically, as shown in the previous example. To create dynamic lists, we could use various globbing techniques to populate the list. As an example, to work with all files in a directory, we could use <kbd>*</kbd>, as shown in the following example:</p>
+<pre><strong>for f in * ; do 
+stat "$f" 
+done</strong> </pre>
+<div class="packt_infobox"><span>When a list is generated, such as with file globbing, we should quote the expansion of the variable parameter. Without the quotes, it is possible that a space will be included that will cause the command to fail. This is what we have seen here in the </span><kbd>stat</kbd><span> command.</span></div>
+<p>In the following examples, we isolate the filenames that begin with <kbd>ba*</kbd>. We then use the <kbd>stat</kbd> command to print the inode metadata. The code and output are shown in the following screenshot:</p>
+<div class="CDPAlignCenter CDPAlign"><img class="alignnone size-full wp-image-95 image-border" src="assets/abe83602-8fa0-4d8f-a709-21f360982abf.jpg" style="width:34.50em;height:16.83em;"/></div>
+<p>This list can also be generated from the output of another command or a pipeline of commands. For example, if we need to print the current working directory of all logged-in users, we could try something similar to the following:</p>
+<pre><strong>$ for user in $(who | cut -f1 -d" ") ; do</strong>
+<strong>lsof -u "$user" -a -c bash | grep cwd</strong>
+<strong>done</strong> </pre>
+<p>In the previous example, we can see that the choice of name for the parameter is down to us; we are not limited to a single character and we can use the <kbd>$user</kbd> name in this example. By using lowercase, we will not overwrite the system variable <kbd>$USER</kbd>. The following screenshot demonstrates the loop and the subsequent output:</p>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/dc3f2493-936b-4b21-b28b-c51e60b06d45.png" style="width:35.67em;height:7.17em;"/></div>
+<p>The <kbd>lsof</kbd> command will list open files; we can search for the files opened by each user in turn and with the <kbd>bash</kbd> command as the current working directory.</p>
+<p>Working with the scripts that we have created so far, we can create a new script called <kbd>hello9.sh</kbd>. If we copy the <kbd>$HOME/bin/hello2.sh</kbd> script to the new script, we can edit it to make use of a <kbd>for</kbd> loop:</p>
+<pre>#!/bin/bash 
+echo "You are using $(basename $0)" 
+for n in $* 
+do 
+    echo "Hello $n" 
+done 
+exit 0 </pre>
+<p>The loop is used to iterate through each command-line argument supplied and greet each user individually. When we execute the script, we can see that we can now display the <kbd>Hello</kbd> message for each user. This is shown in the following screenshot:</p>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/d44e8d04-45ea-4fca-96d0-4e23e1390513.png" style="width:20.50em;height:7.33em;"/></div>
+<p>Although what we have seen here is still relatively trivial, we should now realize a little of what we can do with scripts and loops. The arguments of this script can be the usernames that we have already used or anything else. If we stick with the usernames, then it will be very easy to create user accounts and set passwords, as we saw earlier.</p>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">Advanced for loops</h1>
+                </header>
+            
+            <article>
+                
+<p>In the previous examples, we used the <kbd>for</kbd> loop to iterate over simple values where each value has no space.</p>
+<p>As you know, if your values contain a space, you should use double quotes:</p>
+<pre>#!/bin/bash 
+for var in one "This is two" "Now three" "We'll check four" 
+do 
+echo "Value: $var" 
+done </pre>
+<div class="CDPAlignCenter CDPAlign"><img class="alignnone size-full wp-image-497 image-border" src="assets/8001ef9d-760d-43c8-aa6a-e8796da1bcc2.png" style="width:32.92em;height:9.08em;"/></div>
+<p>As you can see, each value is printed as expected thanks to double quotes.</p>
+<p>This example contains values in one line and we quote the values because they have spaces and commas. What if the values were on multiple lines, as in a file?</p>
+<p>What if the separator between the values we want to iterate over is something other than a space such as a comma or a semicolon?</p>
+<p>Here comes the IFS.</p>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">The IFS</h1>
+                </header>
+            
+            <article>
+                
+<p>By default, the IFS variable has the value of one of (space, newline, or tab).</p>
+<p>Suppose that you have a file like the following and you want to iterate over its lines:</p>
+<pre>Hello, this is a test 
+This is the second line 
+And this is the last line </pre>
+<p>Let's write the <kbd>for</kbd> loop that will iterate over these lines:</p>
+<pre>#!/bin/bash 
+file="file1.txt" 
+for var in $(cat $file) 
+do 
+echo " $var" 
+done </pre>
+<p>If you check the result, it's something that we don't need:</p>
+<div class="CDPAlignCenter CDPAlign"><img class="alignnone size-full wp-image-498 image-border" src="assets/bcbd11c3-188d-4dc7-97da-4bfaf9629138.png" style="width:34.00em;height:21.08em;"/></div>
+<p>Since the first separator the shell found is the space, the shell treats every word as a field, but we need every line to be printed as a field.</p>
+<p>Here we need to change the IFS variable to be newline instead.</p>
+<p>Let's modify our script to iterate over lines correctly:</p>
+<pre>#!/bin/bash 
+file="file1.txt" 
+IFS=$'\n'   #Here we change the default IFS to be a newline 
+for var in $(cat $file) 
+do 
+echo " $var" 
+done </pre>
+<div class="CDPAlignCenter CDPAlign"><img class="alignnone size-full wp-image-500 image-border" src="assets/35a6ba72-aa82-42b5-9213-5fc8b6a2f302.png" style="width:34.83em;height:8.58em;"/></div>
+<p>We changed the IFS variable to newline and it works as expected.</p>
+<p>Look at the dollar sign in the IFS definition in the preceding section, <kbd>IFS=$"\n"</kbd>. By default, bash doesn't interpret escape characters such as <kbd>\r</kbd>, <kbd>\n</kbd>, and <kbd>\t</kbd>. So, in our example, it will be treated as an <kbd>n</kbd> character, so to interpret escape characters, you have to use a dollar sign (<kbd>$</kbd>) before it to make it work properly.</p>
+<p>But if your IFS is a normal character, you don't have to use the dollar sign (<kbd>$</kbd>) at all.</p>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">Counting directories and files</h1>
+                </header>
+            
+            <article>
+                
+<p>We can use a simple <kbd>for</kbd> loop to iterate over folder content and use an <kbd>if</kbd> statement to check whether the path is a directory or a file:</p>
+<pre>#!/bin/bash 
+for path in /home/likegeeks/* 
+do 
+   if [ -d "$path" ] 
+   then 
+         echo "$path is a directory" 
+   elif [ -f "$path" ] 
+   then 
+         echo "$path is a file" 
+   fi 
+done </pre>
+<div class="CDPAlignCenter CDPAlign"><img class="alignnone size-full wp-image-501 image-border" src="assets/812eacd0-590e-4c82-aea1-ff797f45ea55.png" style="width:34.75em;height:10.50em;"/></div>
+<p>This is pretty straightforward script. We iterate over directory content and then we use an <kbd>if</kbd> statement to check whether the path is a directory or a file. Finally, we print beside each path whether it's a file or a directory.</p>
+<div class="packt_infobox">We used quotes for the path variable because the file could contain a space.</div>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">C-style for loops </h1>
+                </header>
+            
+            <article>
+                
+<p>If you have a C language background, you will be happy to know that you can write your <kbd>for</kbd> loops in C-style. This feature was taken from KornShell. The shell <kbd>for</kbd> loop can be written like this:</p>
+<pre>for (v= 0; v &lt; 5; v++) 
+{ 
+ printf(Value is %d\n", v); 
+} </pre>
+<p>It is easy for C developers to use this syntax in <kbd>for</kbd> loops.</p>
+<p>Check out this example:</p>
+<pre>#!/bin/bash 
+for (( v=1; v &lt;= 10; v++ )) 
+do 
+   echo "value is $v" 
+done </pre>
+<p>The choice is yours; you have a lot of syntax styles for the <kbd>for</kbd> loop.</p>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">Nested loops</h1>
+                </header>
+            
+            <article>
+                
+<p>Nested loops means loops inside loops. Check out the following example:</p>
+<pre>#!/bin/bash 
+for (( v1 = 1; v1 &lt;= 3; v1++ )) 
+do 
+   echo "First loop $v1:" 
+   for (( v2 = 1; v2 &lt;= 3; v2++ )) 
+   do 
+         echo " Second loop: $v2" 
+   done 
+done </pre>
+<div class="CDPAlignCenter CDPAlign"><img class="alignnone size-full wp-image-502 image-border" src="assets/16709454-c84c-41f8-8c8a-99ed1cea62f3.png" style="width:35.42em;height:16.67em;"/></div>
+<p>The first loop hits first, then the second loop, and this happens three times.</p>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">Redirecting loop output</h1>
+                </header>
+            
+            <article>
+                
+<p>You can redirect the loop output to a file using the <kbd>done</kbd> command:</p>
+<pre>#!/bin/bash 
+for (( v1 = 1; v1 &lt;= 5; v1++ )) 
+do 
+   echo "$v1" 
+done &gt; file </pre>
+<p>If there is no file, it will be created and filled with the loop output.</p>
+<p>This redirection is helpful when you don't need to show the loop output on the screen and save it to a file instead.</p>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">Controlling the loop</h1>
+                </header>
+            
+            <article>
+                
+<p>Having entered our loop, we may need to either exit the loop prematurely or perhaps exclude certain items from processing. If we want to process only directories in a listing, rather than every file of any type, then to implement this, we have loop control keywords, such as <kbd>break</kbd> and <kbd>continue</kbd>.</p>
+<p>The <kbd>break</kbd> keyword is used to exit the loop, processing no more entries, whereas the <kbd>continue</kbd> keyword is used to stop the processing of the current entry in the loop and resume the processing with the next entry.</p>
+<p>Assuming we only want to process directories, we could implement a test within the loop and determine the file type:</p>
+<pre><strong>$ for f in * ; do</strong>
+<strong>[ -d "$f" ] || continue</strong>
+<strong>chmod 3777 "$f"</strong>
+<strong>done</strong></pre>
+<p>Within the loop, we want to set permissions, including the SGID and sticky bits, but for the directories only. The <kbd>*</kbd> search will return all files; the first statement within the loop will ensure that we only process directories. If the test is done for the current loop, the target fails the test and is not a directory; the <kbd>continue</kbd> keyword retrieves the next loop-list item. If the <kbd>test</kbd> returns <kbd>true</kbd> and we are working with a directory, then we will process the subsequent statements and execute the <kbd>chmod</kbd> command.</p>
+<p>If we need to run the loop until we find a directory and then exit the loop, we can adjust the code so that we can iterate though each file. If the file is a directory, then we exit the loop with the <kbd>break</kbd> keyword:</p>
+<pre><strong>$ for f in * ; do</strong>
+<strong>[ -d "$f" ] &amp;&amp; break</strong>
+<strong>done</strong>
+<strong>echo "We have found a directory $f"</strong>  </pre>
+<p>Within the following screenshot, we can see the code in action:</p>
+<div class="mce-root CDPAlignCenter CDPAlign"><img class="alignnone size-full wp-image-439 image-border" src="assets/ac021128-1378-420d-b66d-4ee42b77ad14.png" style="width:30.58em;height:7.25em;"/></div>
+<p>By working with the same theme, we can print each directory found in the listing using the following code:</p>
+<pre><strong>for f in * ; do
+[ -d "$f" ] || continue
+dir_name="$dir_name $f"
+done
+echo "$dir_name" </strong> </pre>
+<p>We can achieve a result by processing the loop item only if it is a directory and within the loop. We can work with regular files only using the <kbd>if</kbd> test. In this example, we append the directory name to the <kbd>dir_name</kbd> variable. Once we exit the loop, we print the complete list of directories. We can see this in the following screenshot:</p>
+<div class="CDPAlignCenter CDPAlign"><img class="alignnone size-full wp-image-440 image-border" src="assets/cd0b1ce9-b6da-4e7d-9773-cc2720df8887.png" style="width:31.75em;height:7.58em;"/></div>
+<p>Using these examples and your own ideas, you should now be able to see how you can control loops using the <kbd>continue</kbd> and <kbd>break</kbd> keywords.</p>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">while loops and until loops</h1>
+                </header>
+            
+            <article>
+                
+<p>When using the <kbd>for</kbd> loop, we iterate through a list; it's either the one that we create or the one that is dynamically generated. Using the <kbd>while</kbd> or <kbd>until</kbd> loops, we loop based on the fact that the condition becomes either <kbd>true</kbd> or <kbd>false</kbd>.</p>
+<p>A <kbd>while</kbd> loop loops while the condition is true and, conversely, an <kbd>until</kbd> loop will loop while the condition is false. The following command will count from 10 through to zero, each iteration of the loop printing the variable and then reducing the value by one:</p>
+<pre><strong>$ COUNT=10</strong>
+<strong>$ while (( COUNT &gt;= 0 )) ; do</strong>
+<strong>echo -e "$COUNT \c"</strong>
+<strong>(( COUNT-- ))</strong>
+<strong>done ; echo</strong>  </pre>
+<p>We can see the output of this command in the following screenshot, thus confirming the countdown to zero:</p>
+<div class="CDPAlignCenter CDPAlign"><img class="alignnone size-full wp-image-441 image-border" src="assets/5a3bdb9b-ca07-42d1-9b91-88bc9fa97de0.png" style="width:25.33em;height:8.00em;"/></div>
+<div class="packt_infobox"><span>The use of the</span> <kbd>\c</kbd><span> escape sequence used here allows the suppression of the line feed normally used with </span><kbd>echo</kbd><span>. In this way, we can keep the countdown on the single line of output. I think you will agree that it's a nice effect.</span></div>
+<p>The functionality of this loop can be gained using the <kbd>until</kbd> loop; just a quick rethink of the logic is required, as we will want to loop until the condition becomes true. Generally, it is a personal choice and the way the logic works best for you about which loop to use. The following example shows the loop written with the <kbd>until</kbd> loop:</p>
+<pre><strong>$ COUNT=10</strong>
+<strong>$ until (( COUNT &lt; 0 )) ; do</strong>
+<strong>echo -e "$COUNT \c"</strong>
+<strong>(( COUNT-- ))</strong>
+<strong>done ; echo</strong>  </pre>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">Reading input from files</h1>
+                </header>
+            
+            <article>
+                
+<p>Now, it may seem that these loops can do a little more than just count down numbers. We may want to read data in from a text file and process each line. The shell built-in <kbd>read</kbd> command that we saw earlier in this book can be used to read a file line by line. In this way, we can use a loop to process each line of a file.</p>
+<p>To demonstrate some of these functionalities, we will use a file that contains the server addresses. These could be hostnames or IP addresses. In the following example, we will make use of the IP addresses of Google DNS servers. The following command shows the contents of the <kbd>servers.txt</kbd> file:</p>
+<pre><strong>$ cat servers.txt</strong>
+<strong>8.8.8.8</strong>
+<strong>8.8.4.4</strong>  </pre>
+<p>Using the <kbd>read</kbd> command in the condition of the <kbd>while</kbd> loop, we can loop as long as we have more lines to read from the file. We specify the input file directly after the <kbd>done</kbd> keyword. For each line that we read from the file, we can test whether the server is up with the <kbd>ping</kbd> <span>command,</span><span> </span><span>and, if the server is responding, we append it to a list of available servers. This list is printed once the loop closes. In the following example, we can see that we begin to add in as many elements of scripting as we have covered in this book:</span></p>
+<pre><strong>$ while read server ; do</strong>
+<strong>ping -c1 $server &amp;&amp; servers_up="$servers_up $server"</strong>
+<strong>done &lt; servers.txt</strong>
+<strong>echo "The following servers are up: $servers_up"</strong></pre>
+<p>We can verify the operation in the following screenshot, which captures the output:</p>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/224a988c-ebdd-47c4-9855-3dff9e6b286c.png" style="width:33.08em;height:24.50em;"/></div>
+<p>Using this kind of loop, we can start to build extremely practical scripts to process information either fed from the command line or from scripts. It will be very easy to replace the filename that we read with <kbd>$1</kbd>, representing a positional parameter passed into the script. Let's return to the <kbd>ping_server.sh</kbd> script and adjust it to accept the input parameter. We can copy the script to the new <kbd>$HOME/bin/ping_server_from_file.sh</kbd> file. Within the script, we first test whether the input parameter is a file. We then create an output file with a tile that includes the date. As we enter the loop, we append available servers to this file and list the file at the end of the script:</p>
+<pre>#!/bin/bash 
+# Author: @theurbanpenguin 
+# Web: www.theurbapenguin.com 
+# Script to ping servers from file 
+# Last Edited: August 2015 
+if [ ! -f"$1 ] ; then 
+  echo "The input to $0 should be a filename" 
+  exit 1 
+fi 
+echo "The following servers are up on $(date +%x)"&gt; server.out 
+done 
+while read server 
+do 
+  ping -c1 "$server"&amp;&amp; echo "Server up: $server"&gt;&gt; server.out 
+done 
+cat server.out </pre>
+<p>We can execute the script now in the following manner:</p>
+<pre><strong>$ ping_server_from_file.sh servers.txt</strong>  </pre>
+<p>The output from the script execution should be similar to the following screenshot:</p>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/b989b3bb-08da-48f6-9eaf-4a64c07ca5d2.png" style="width:36.42em;height:22.33em;"/></div>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">Creating operator menus</h1>
+                </header>
+            
+            <article>
+                
+<p>We can provide a menu to the Linux operators who need limited functionality from the shell and do not want to learn the details of command-line use. We can use their login script to launch a menu for them. This menu will provide a list of command selections to choose from. The menu will loop until the user chooses to exit from the menu. We can create a new <kbd>$HOME/bin/menu.sh</kbd> script; the basis of the menu loop will be the following:</p>
+<pre>while true 
+do 
+...... 
+done </pre>
+<p>The loop we have created here is infinite. The <kbd>true</kbd> command will always return true and loop continuously; however, we can provide a loop control mechanism to allow the user to leave the menu. To start building the structure of the menu, we will need to echo some text within the loop asking the user for their choice of command. We will clear the screen before the menu is loaded each time and an additional read prompt will appear after the execution of the desired command.</p>
+<p>This allows the user to read the output from the command before the screen is cleared and the menu is reloaded. The script will look like the following code at this stage:</p>
+<pre>#!/bin/bash 
+# Author: @theurbanpenguin 
+# Web: www.theurbapenguin.com 
+# Sample menu 
+# Last Edited: August 2015 
+ 
+while true 
+do 
+  clear 
+  echo "Choose an item: a,b or c" 
+  echo "a: Backup" 
+  echo "b: Display Calendar" 
+  echo "c: Exit" 
+  read -sn1 
+  read -n1 -p "Press any key to continue" 
+done </pre>
+<p>If you execute the script at this stage, there will be no mechanism to leave the script. We have not added any code to the menu selections; however, you can test functionality and exit using the <em><span class="KeyPACKT">Ctrl</span></em> + <em>C </em>keys.</p>
+<p>At this stage, the menu should look similar to the output shown in the following screenshot:</p>
+<div class="CDPAlignCenter CDPAlign"><img src="assets/eb4a5ad4-33a0-4f23-8332-ba769cc4fda6.png" style="width:16.58em;height:5.92em;"/></div>
+<p>To build the code behind the menu selection, we will implement a <kbd>case</kbd> statement. This will be added in between the two <kbd>read</kbd> commands, as follows:</p>
+<pre><strong>read -sn1</strong>
+  <strong>case "$REPLY" in</strong>
+    <strong>a) tar -czvf $HOME/backup.tgz ${HOME}/bin;;</strong>
+    <strong>b) cal;;</strong>
+    <strong>c) exit 0;;</strong>
+  <strong>esac</strong>
+  <strong>read -n1 -p "Press any key to continue"</strong></pre>
+<p>We can see the three options that we have added to the <kbd>case</kbd> statement, <kbd>a</kbd>, <kbd>b</kbd>, and <kbd>c</kbd>:</p>
+<ul>
+<li>Option <kbd>a</kbd>: This runs the <kbd>tar</kbd> command to back up the scripts</li>
+<li>Option <kbd>b</kbd>: This runs the <kbd>cal</kbd> command to display the current month</li>
+<li>Option <kbd>c</kbd>: This exits the script</li>
+</ul>
+<p>To ensure that the user is logged out when exiting from their login script, we will run the following:</p>
+<pre><strong>exec menu.sh</strong></pre>
+<p>The <kbd>exec</kbd> command is used to ensure that the shell is left after the <kbd>menu.sh</kbd> file is complete. In this way, the user never needs to experience the Linux shell. The complete script is shown in the following screenshot:</p>
+<div class="CDPAlignCenter CDPAlign"><img class="alignnone size-full wp-image-442 image-border" src="assets/a7c72855-f753-4ef5-8d5b-c952af292bfe.png" style="width:25.50em;height:22.33em;"/></div>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">Summary</h1>
+                </header>
+            
+            <article>
+                
+<p>We have begun to make progress within this chapter. We have been able to join many of the elements that we have previously used into cohesive and functional scripts. Although the focus of this chapter has been on loops, we have used command-line lists, <kbd>if</kbd> statements, <kbd>case</kbd> statements, and arithmetic calculations.</p>
+<p>We opened this chapter by describing loops as the workhorse of our scripts and we have been able to demonstrate this with <kbd>for</kbd>, <kbd>while</kbd>, and <kbd>until</kbd> loops. The <kbd>for</kbd> loop is used to iterate through elements of a list. The list can be either static or dynamic; with an emphasis on dynamic lists, we showed how simply these are created through file globbing or command expansion.</p>
+<p>Also, we saw how to iterate over complex values and how to set the IFS to iterate over fields correctly.</p>
+<p>We learned how to write nested loops and how to redirect loop output to files.</p>
+<p>The <kbd>while</kbd> and <kbd>until</kbd> loops are controlled using conditions. The <kbd>while</kbd> loop will loop while the supplied condition is true. The <kbd>until</kbd> loop will loop until the supplied condition returns true or while it returns false. The <kbd>continue</kbd> and <kbd>break</kbd> keywords are specific to loops and, using them along with <kbd>exit</kbd>, we can control the loop flow.</p>
+<p>In the next chapter, we will look at modularizing scripts using functions.</p>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">Questions</h1>
+                </header>
+            
+            <article>
+                
+<ol>
+<li>How many lines will be printed on screen from the following script?</li>
+</ol>
+<pre style="padding-left: 60px"><strong>#!/bin/bash 
+for (( v1 = 12; v1 &lt;= 34; v1++ )) 
+do 
+echo "$v1" 
+done &gt; output</strong> </pre>
+<ol start="2">
+<li>How many lines will be printed on the screen from the following script?</li>
+</ol>
+<pre style="padding-left: 60px"><strong>#!/bin/bash 
+for (( v=8; v &lt;= 12; v++ )) 
+do 
+if [ $v -ge 12 ] 
+then 
+break 
+fi 
+echo "$v" 
+done</strong> </pre>
+<ol start="3">
+<li>What is wrong with the following script? And how can you fix it?</li>
+</ol>
+<pre style="padding-left: 60px"><strong>#!/bin/bash 
+for (( v=1, v &lt;= 10, v++ )) 
+do 
+echo "value is $v" 
+done</strong> </pre>
+<ol start="4">
+<li>How many lines will be printed on the screen from the following script?</li>
+</ol>
+<pre style="padding-left: 60px"><strong>#!/bin/bash 
+count=10 
+while (( count &gt;= 0 )) ; do 
+echo $count 
+done 
+$((count--)) 
+exit 0</strong> </pre>
+
+
+            </article>
+
+            
+        </section>
+    
+
+        <section>
+
+                            <header>
+                    <h1 class="header-title">Further reading</h1>
+                </header>
+            
+            <article>
+                
+<p>Please see the following for further reading relating to this chapter:</p>
+<ul>
+<li><a href="http://tldp.org/LDP/abs/html/internalvariables.html"><span class="InternetLink">http://tldp.org/LDP/abs/html/internalvariables.html</span></a></li>
+<li><a href="http://tldp.org/HOWTO/Bash-Prog-Intro-HOWTO-7.html"><span class="InternetLink">http://tldp.org/HOWTO/Bash-Prog-Intro-HOWTO-7.html</span></a></li>
+<li><a href="http://tldp.org/LDP/Bash-Beginners-Guide/html/sect_09_02.html"><span class="InternetLink">http://tldp.org/LDP/Bash-Beginners-Guide/html/sect_09_02.html</span></a></li>
+<li><a href="http://tldp.org/LDP/Bash-Beginners-Guide/html/sect_09_03.html"><span class="InternetLink">http://tldp.org/LDP/Bash-Beginners-Guide/html/sect_09_03.html</span></a></li>
+<li><a href="http://tldp.org/LDP/Bash-Beginners-Guide/html/sect_09_05.html"><span class="InternetLink">http://tldp.org/LDP/Bash-Beginners-Guide/html/sect_09_05.html</span></a></li>
+</ul>
+
+
+            </article>
+
+            
+        </section>
+    </body></html>

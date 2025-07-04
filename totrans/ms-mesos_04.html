@@ -1,0 +1,487 @@
+<html><head></head><body><div class="chapter" title="Chapter&#xA0;4.&#xA0;Service Scheduling and Management Frameworks"><div class="titlepage"><div><div><h1 class="title"><a id="ch04"/>Chapter 4. Service Scheduling and Management Frameworks</h1></div></div></div><p>This chapter introduces several Mesos-based scheduling and management frameworks or applications that are required for the easy deployment, discovery, load balancing, and failure handling of long-running services. These so-called metaframeworks take care of the <span class="emphasis"><em>housekeeping</em></span> activities of other<a class="indexterm" id="id349"/> frameworks and applications, such as <span class="strong"><strong>service discovery</strong></span> (that is, keeping track of the instances on which a particular service is running) and<a class="indexterm" id="id350"/> <span class="strong"><strong>load balancing</strong></span> (ensuring an equitable workload <a class="indexterm" id="id351"/>distribution among the instances), apart from <span class="strong"><strong>configuration management</strong></span>, <span class="strong"><strong>automated</strong></span><a class="indexterm" id="id352"/>
+<span class="strong"><strong> job scheduling</strong></span>, <span class="strong"><strong>application </strong></span><a class="indexterm" id="id353"/>
+<span class="strong"><strong>scaling</strong></span>, and <span class="strong"><strong>failure handling</strong></span>. The<a class="indexterm" id="id354"/> frameworks that we'll explore here include:</p><div class="itemizedlist"><ul class="itemizedlist"><li class="listitem" style="list-style-type: disc"><span class="strong"><strong>Marathon</strong></span>: This is used to launch and <a class="indexterm" id="id355"/>manage long-running applications on Mesos</li><li class="listitem" style="list-style-type: disc"><span class="strong"><strong>Chronos</strong></span>: This is a <a class="indexterm" id="id356"/>cluster scheduler</li><li class="listitem" style="list-style-type: disc"><span class="strong"><strong>Apache</strong></span> Aurora: This is <a class="indexterm" id="id357"/>a framework for long-running services and cron jobs</li><li class="listitem" style="list-style-type: disc"><span class="strong"><strong>Singularity</strong></span>: This is a<a class="indexterm" id="id358"/> platform-as-a-service (PaaS) for running services</li><li class="listitem" style="list-style-type: disc"><span class="strong"><strong>Marathoner</strong></span>: This<a class="indexterm" id="id359"/> conducts service discovery for Marathon</li><li class="listitem" style="list-style-type: disc"><span class="strong"><strong>Consul</strong></span>: This<a class="indexterm" id="id360"/> carries out service discovery and orchestration</li><li class="listitem" style="list-style-type: disc"><span class="strong"><strong>HAProxy</strong></span>: This is<a class="indexterm" id="id361"/> used for load balancing</li><li class="listitem" style="list-style-type: disc"><span class="strong"><strong>Bamboo</strong></span>: This is <a class="indexterm" id="id362"/>used to automatically configure HAProxy for Mesos and Marathon</li></ul></div><p>In addition, we'll briefly<a class="indexterm" id="id363"/> touch upon two very recent open source frameworks, namely <span class="strong"><strong>Netflix Fenzo</strong></span> (a task scheduler) and <span class="strong"><strong>Yelp's PaaSTA</strong></span> (a PaaS for running services).</p><div class="section" title="Using Marathon to launch and manage long-running applications on Mesos"><div class="titlepage"><div><div><h1 class="title"><a id="ch04lvl1sec33"/>Using Marathon to launch and manage long-running applications on Mesos</h1></div></div></div><p>Marathon is a <a class="indexterm" id="id364"/>commonly used Mesos framework<a class="indexterm" id="id365"/> for long-running applications. It can be considered a replacement for <code class="literal">init</code> or <code class="literal">upstart</code> in traditional systems or as the <code class="literal">init.d</code> of your system.</p><p>Marathon has many features, such as controlling a high availability environment, checking the applications' health, and so on. It<a class="indexterm" id="id366"/> also comes with <span class="strong"><strong>Representational State Transfer</strong></span> (<span class="strong"><strong>REST</strong></span>), such as endpoint, which you can use to start, stop, and scale your applications. It can be used to scale up and down the cluster based on the load, which means that it should be able to start a new instance just in case an available one goes down. Marathon is also designed to run other frameworks on it, such <a class="indexterm" id="id367"/>as <span class="strong"><strong>Hadoop</strong></span>, <span class="strong"><strong>Kafka</strong></span>, <span class="strong"><strong>Storm</strong></span>, <span class="strong"><strong>Chronos</strong></span>, and so on. Marathon makes sure that every<a class="indexterm" id="id368"/> application<a class="indexterm" id="id369"/> that is started through it keeps running even if a slave node <a class="indexterm" id="id370"/>goes down.</p><p>Marathon runs in a highly available fashion, which implies that there can be multiple schedulers running in the cluster, but at any given point of time, there is only one leader. Whenever an application requests a nonleader, the request will be proxied to the active leader. You can also use HAProxy (explained later in this chapter) for service discovery and load balancing.</p><p>Marathon also supports basic authentication mechanisms and uses SSL to encrypt connections.</p><div class="section" title="Installing Marathon"><div class="titlepage"><div><div><h2 class="title"><a id="ch04lvl2sec69"/>Installing Marathon</h2></div></div></div><p>Visit <a class="ulink" href="https://mesosphere.github.io/marathon/">https://mesosphere.github.io/marathon/</a> to<a class="indexterm" id="id371"/> download the latest Marathon release. At the time <a class="indexterm" id="id372"/>of writing this book, the latest version is 0.13.0.</p><p>Marathon can be<a class="indexterm" id="id373"/> downloaded as follows:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>$ wget http://downloads.mesosphere.com/marathon/v0.13.0/marathon-0.13.0.tgz</strong></span>
+</pre></div><p>After downloading, extract the files as follows:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>$ tar xf marathon-0.13.0.tgz</strong></span>
+</pre></div><p>You can see the following files once you extract Marathon:</p><div class="mediaobject"><img alt="Installing Marathon" src="graphics/B05186_04_01.jpg"/></div><p>There is a development<a class="indexterm" id="id374"/> mode for Marathon in which you don't need a distributed Mesos setup. This is called the Marathon local mode. The local mode is for <a class="indexterm" id="id375"/>experimental purposes only, and it is not recommended to run it in any production environment. ZooKeeper is required alongside Marathon to store the state.</p></div><div class="section" title="Installing ZooKeeper to store the state"><div class="titlepage"><div><div><h2 class="title"><a id="ch04lvl2sec70"/>Installing ZooKeeper to store the state</h2></div></div></div><p>Marathon requires you to<a class="indexterm" id="id376"/> have an Apache ZooKeeper instance up and running for it to be able to save a state. Perform the following steps to install and <a class="indexterm" id="id377"/>work with ZooKeeper:</p><div class="orderedlist"><ol class="orderedlist arabic"><li class="listitem">Visit <a class="ulink" href="https://zookeeper.apache.org">https://zookeeper.apache.org</a> to download the latest version of ZooKeeper. At the time of writing this book, the current version is 3.4.7.</li><li class="listitem">Download ZooKeeper as follows:<div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>$ wget https://archive.apache.org/dist/zookeeper/zookeeper-3.4.7/zookeeper-3.4.7.tar.gz</strong></span>
+</pre></div></li><li class="listitem">After downloading, extract the archive as given here:<div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>$ tar xf zookeeper-3.4.7.tar.gz</strong></span>
+</pre></div></li><li class="listitem">The next step is to configure ZooKeeper. This can be done as follows:<p>Edit the file <code class="literal">conf/zoo.cfg</code> with the following contents:</p><div class="informalexample"><pre class="programlisting">tickTime=2000
+dataDir=/var/zookeeper
+clientPort=2181</pre></div></li><li class="listitem">Then, run the following command to start ZooKeeper:<div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>$ bin/zkServer.sh start</strong></span>
+</pre></div></li></ol></div><p>You can see the following messages once you start it successfully:</p><div class="mediaobject"><img alt="Installing ZooKeeper to store the state" src="graphics/B05186_04_02.jpg"/></div></div><div class="section" title="Launching Marathon in local mode"><div class="titlepage"><div><div><h2 class="title"><a id="ch04lvl2sec71"/>Launching Marathon in local mode</h2></div></div></div><p>The following<a class="indexterm" id="id378"/> command launches Marathon in local mode:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>$ ./bin/start --master local --zk zk://localhost:2181/marathon</strong></span>
+</pre></div><div class="mediaobject"><img alt="Launching Marathon in local mode" src="graphics/B05186_04_03.jpg"/></div><p>Once it is up and running, the Marathon UI can be seen by pointing your browser to the <code class="literal">8080</code> port on the server.</p></div></div></div>
+<div class="section" title="Multi-node Marathon cluster setup"><div class="titlepage"><div><div><h1 class="title"><a id="ch04lvl1sec34"/>Multi-node Marathon cluster setup</h1></div></div></div><p>To set this up, a high availability Mesos cluster needs to be set up, which will be explained in detail in <a class="link" href="ch05.html" title="Chapter 5. Mesos Cluster Deployment">Chapter 5</a>, <span class="emphasis"><em>Mesos Cluster Deployment</em></span>. For the time being, we assume that you <a class="indexterm" id="id379"/>already have a high availability Mesos cluster up and running. We'll now take a look at how to install Marathon on all the master machines in the cluster.</p><p>Log in to all the Mesos master machines and type in the following commands to set up Marathon.</p><p>On <span class="emphasis"><em>Debain</em></span>/<span class="emphasis"><em>Ubuntu</em></span> machines, run the following command:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong># Update the repositories</strong></span>
+<span class="strong"><strong># Setup</strong></span>
+<span class="strong"><strong>$ sudo apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv E56151BF</strong></span>
+<span class="strong"><strong>$ DISTRO=$(lsb_release -is | tr '[:upper:]' '[:lower:]')</strong></span>
+<span class="strong"><strong>$ CODENAME=$(lsb_release -cs)</strong></span>
+
+<span class="strong"><strong># Add the repository</strong></span>
+<span class="strong"><strong>$ echo "deb http://repos.mesosphere.com/${DISTRO} ${CODENAME} main" | \</strong></span>
+<span class="strong"><strong>  sudo tee /etc/apt/sources.list.d/mesosphere.list</strong></span>
+<span class="strong"><strong>$ sudo apt-get </strong></span>
+<span class="strong"><strong>update</strong></span>
+<span class="strong"><strong># Install Marathon</strong></span>
+<span class="strong"><strong>$ sudo apt-get -y install marathon</strong></span>
+</pre></div><p>On <span class="emphasis"><em>RedHat</em></span>/<span class="emphasis"><em>CentOS</em></span> machines, execute the following command:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>$ sudo yum -y install marathon</strong></span>
+</pre></div><p>You can now head to any one<a class="indexterm" id="id380"/> of the master machine's <code class="literal">8080</code> port in the browser and take a look at the Marathon UI:</p><div class="mediaobject"><img alt="Multi-node Marathon cluster setup" src="graphics/B05186_04_04.jpg"/></div><div class="section" title="Launching a test application from the UI"><div class="titlepage"><div><div><h2 class="title"><a id="ch04lvl2sec72"/>Launching a test application from the UI</h2></div></div></div><p>An application in Mesos is<a class="indexterm" id="id381"/> normally a long-running service that can be scaled to run on multiple instances. Now, we will look at the steps to launch a test application from the user interface:</p><div class="mediaobject"><img alt="Launching a test application from the UI" src="graphics/B05186_04_05.jpg"/></div><div class="orderedlist"><ol class="orderedlist arabic"><li class="listitem">Click on the <span class="strong"><strong>+ Create</strong></span> button in the upper-left corner.</li><li class="listitem">The <span class="strong"><strong>ID</strong></span> <a class="indexterm" id="id382"/>can be used to identify the job. Let's name it <code class="literal">marathon-test</code>.</li><li class="listitem">Mention the number of CPUs that are required for the job—say, <code class="literal">1</code>.</li><li class="listitem">Memory is given in MBs, so we will give it <code class="literal">16</code> MB (which is also the default).</li><li class="listitem">The number of instances can be given as 1 for our test application.</li><li class="listitem">Write the following bash script in the text box under the command:</li></ol></div><div class="informalexample"><pre class="programlisting">
+<code class="literal">    while [ true ] ; do echo 'Hello Marathon' ; sleep 5 ; done</code>
+</pre></div><p>If everything is correct, you can see the <span class="strong"><strong>marathon-test</strong></span> test application first with the <span class="strong"><strong>Deployed</strong></span> status, which will finally change to <span class="strong"><strong>Running</strong></span>.</p><div class="mediaobject"><img alt="Launching a test application from the UI" src="graphics/B05186_04_06.jpg"/></div></div><div class="section" title="Scaling the application"><div class="titlepage"><div><div><h2 class="title"><a id="ch04lvl2sec73"/>Scaling the application</h2></div></div></div><p>At the time of<a class="indexterm" id="id383"/> creation, we gave <code class="literal">1</code> as the instance. We can modify the number of instances by clicking on the Scale Application button from the UI. The application will be scaled by launching it on the number of instances specified.</p><div class="mediaobject"><img alt="Scaling the application" src="graphics/B05186_04_07.jpg"/></div></div><div class="section" title="Terminating the application"><div class="titlepage"><div><div><h2 class="title"><a id="ch04lvl2sec74"/>Terminating the application</h2></div></div></div><p>We can now<a class="indexterm" id="id384"/> terminate our marathon-test application by clicking on the application name from the Applications list and then hitting the <span class="strong"><strong>Destroy</strong></span> button.</p><div class="mediaobject"><img alt="Terminating the application" src="graphics/B05186_04_08.jpg"/></div><p>Destroying the<a class="indexterm" id="id385"/> application is an irreversible process and cannot be undone.</p><div class="mediaobject"><img alt="Terminating the application" src="graphics/B05186_04_09.jpg"/></div></div></div>
+<div class="section" title="Chronos as a cluster scheduler"><div class="titlepage"><div><div><h1 class="title"><a id="ch04lvl1sec35"/>Chronos as a cluster scheduler</h1></div></div></div><p>One can consider Chronos as a time-based job scheduler, such as <span class="strong"><strong>cron</strong></span> in the typical Unix environment. Chronos is distributed and fully fault-tolerant, and it runs on top of Apache Mesos.</p><p>Just like cron, Chronos<a class="indexterm" id="id386"/> executes the shell scripts (combined with Linux commands) by default and also supports Mesos executors.</p><p>Chronos can interact with systems such as Hadoop or Kafka even if the Mesos worker machine, on which the real execution happens, does not have the system installed. You can use Chronos to start a service or run a script on a remote machine in the background. The wrapper script can have an asynchronous callback to alert Chronos to the job status, such as whether it is completed or failed and so on. For the most part, people use Chronos to run dockerized applications. A detailed explanation of <span class="emphasis"><em>dockerized applications</em></span> is provided in <a class="link" href="ch07.html" title="Chapter 7. Mesos Containerizers">Chapter 7</a>, <span class="emphasis"><em>Mesos Containerizers</em></span>.</p><p>Chronos comes with a <a class="indexterm" id="id387"/>Web UI in which you can see the job status, statistics of the job's history, job configurations, and retries.</p><div class="section" title="Installing Chronos"><div class="titlepage"><div><div><h2 class="title"><a id="ch04lvl2sec75"/>Installing Chronos</h2></div></div></div><p>Log in to any of the <a class="indexterm" id="id388"/>machines (let's say, one of the Mesos master machines) and type in the following commands to set up Chronos.</p><p>On <span class="emphasis"><em>Debain</em></span>/<span class="emphasis"><em>Ubuntu</em></span> machines, run the following:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong># Install chronos</strong></span>
+<span class="strong"><strong>$ sudo apt-get -y install chronos</strong></span>
+<span class="strong"><strong># Start the chronos server</strong></span>
+<span class="strong"><strong>$ sudo service chronos start</strong></span>
+</pre></div><p>On <span class="emphasis"><em>RedHat</em></span>/<span class="emphasis"><em>CentOS</em></span> machines, execute the following code:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong># Install chronos</strong></span>
+<span class="strong"><strong>$ sudo yum -y install chronos</strong></span>
+<span class="strong"><strong># Start the chronos server</strong></span>
+<span class="strong"><strong>$ sudo service chronos start</strong></span>
+</pre></div><p>Once the installation is complete, you can point the browser to the machine's <code class="literal">4400</code> port to see the Chronos UI, as follows:</p><div class="mediaobject"><img alt="Installing Chronos" src="graphics/B05186_04_10.jpg"/></div></div><div class="section" title="Scheduling a new job"><div class="titlepage"><div><div><h2 class="title"><a id="ch04lvl2sec76"/>Scheduling a new job</h2></div></div></div><p>Let's follow the steps<a class="indexterm" id="id389"/> mentioned here to schedule a new job:</p><div class="orderedlist"><ol class="orderedlist arabic"><li class="listitem">Click on the <span class="strong"><strong>+ New Job</strong></span> button, as seen in the previous screenshot.<div class="mediaobject"><img alt="Scheduling a new job" src="graphics/B05186_04_11.jpg"/></div></li><li class="listitem">Now, fill in<a class="indexterm" id="id390"/> the <span class="strong"><strong>NAME</strong></span> and <span class="strong"><strong>DESCRIPTION</strong></span> fields.</li><li class="listitem"><span class="strong"><strong>COMMAND</strong></span> is the actual job that will be scheduled to run on the executors. For the sake of simplicity, we will simply run the <code class="literal">sleep</code> command.</li><li class="listitem">In the <span class="strong"><strong>OWNER(S)</strong></span> field, we can fill in the name and e-mail address to which Chronos will send an alert mail in the case of any job failure.</li><li class="listitem">Under <span class="strong"><strong>SCHEDULE</strong></span>, we can put in the scheduling frequency at which the job should run. By default, it is empty and infinity. We can set it to any numeric value. For instance, the number of repetitions when the value is set to 0 is only one.</li></ol></div><p>Once the job is created, we can see the summary of the job through the UI, as shown in the following screenshot:</p><div class="mediaobject"><img alt="Scheduling a new job" src="graphics/B05186_04_12.jpg"/></div><p>The state of the job <a class="indexterm" id="id391"/>can also be seen as in the following screenshot. In this case, we can note that the <span class="strong"><strong>chronos-test</strong></span> job is in the <span class="strong"><strong>running</strong></span> state:</p><div class="mediaobject"><img alt="Scheduling a new job" src="graphics/B05186_04_13.jpg"/></div><p>We can head to the Mesos UI (running on the port <code class="literal">5050</code>) and actually see the task being spawned by Chronos.</p><div class="mediaobject"><img alt="Scheduling a new job" src="graphics/B05186_04_14.jpg"/></div></div></div>
+<div class="section" title="Chronos plus Marathon"><div class="titlepage"><div><div><h1 class="title"><a id="ch04lvl1sec36"/>Chronos plus Marathon</h1></div></div></div><p>The combination<a class="indexterm" id="id392"/> of Chronos and Marathon can be utilized as building blocks to create production-ready distributed applications. You already know that Chronos can be used to fire up tasks at scheduled intervals; cron and Marathon let your jobs run continuously, such as <code class="literal">init</code> or <code class="literal">upstart</code>, in typical Linux environments. As mentioned before, both the schedulers come with a REST endpoint that allows the user to manage the jobs. You can use this endpoint to start, manage, and terminate the running jobs. We will now take a look at how this is achieved.</p><div class="section" title="The Chronos REST API endpoint"><div class="titlepage"><div><div><h2 class="title"><a id="ch04lvl2sec77"/>The Chronos REST API endpoint</h2></div></div></div><p>As mentioned before, you<a class="indexterm" id="id393"/> can communicate with Chronos using the REST JSON API over HTTP. By default, those nodes that have<a class="indexterm" id="id394"/> Chronos up and running listen at the <code class="literal">8080</code> port for API requests. This section covers how to perform the following tasks using the REST endpoint:</p><div class="orderedlist"><ol class="orderedlist arabic"><li class="listitem">Listing the running jobs</li><li class="listitem">Manually starting a job</li><li class="listitem">Adding a scheduled job</li><li class="listitem">Deleting a job</li></ol></div><p>For more<a class="indexterm" id="id395"/> information, visit <a class="ulink" href="http://mesos.github.io/chronos/docs/api.html">http://mesos.github.io/chronos/docs/api.html</a>.</p><div class="section" title="Listing the running jobs"><div class="titlepage"><div><div><h3 class="title"><a id="ch04lvl3sec34"/>Listing the running jobs</h3></div></div></div><p>Using the <code class="literal">HTTP GET</code> method on <code class="literal">/scheduler/jobs</code> will return a list of currently running jobs in the JSON<a class="indexterm" id="id396"/> format.</p><p>Here's an example:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>$ curl -L -X GET localhost:8080/scheduler/jobs</strong></span>
+</pre></div><p>The following data is present in the response:</p><div class="itemizedlist"><ul class="itemizedlist"><li class="listitem" style="list-style-type: disc"><code class="literal">successCount</code></li><li class="listitem" style="list-style-type: disc"><code class="literal">errorCount</code></li><li class="listitem" style="list-style-type: disc"><code class="literal">lastSuccess</code></li><li class="listitem" style="list-style-type: disc"><code class="literal">lastError</code></li><li class="listitem" style="list-style-type: disc"><code class="literal">executor</code></li><li class="listitem" style="list-style-type: disc"><code class="literal">parents</code></li></ul></div></div><div class="section" title="Manually starting a job"><div class="titlepage"><div><div><h3 class="title"><a id="ch04lvl3sec35"/>Manually starting a job</h3></div></div></div><p>To start a job manually, send an <code class="literal">HTTP PUT</code> request to <code class="literal">/scheduler/job</code> with optional parameters that can be added at the end of the command.</p><p>Take a look at the<a class="indexterm" id="id397"/> following example:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>$ curl -L -X PUT localhost:8080/scheduler/job/job_a?arguments=-debug</strong></span>
+</pre></div></div><div class="section" title="Adding a scheduled job"><div class="titlepage"><div><div><h3 class="title"><a id="ch04lvl3sec36"/>Adding a scheduled job</h3></div></div></div><p>You can send<a class="indexterm" id="id398"/> an <code class="literal">HTTP POST</code> request to <code class="literal">/scheduler/iso8601</code> with the JSON data to schedule a job. The JSON data that you post to Chronos must contain the following fields:</p><div class="itemizedlist"><ul class="itemizedlist"><li class="listitem" style="list-style-type: disc">name</li><li class="listitem" style="list-style-type: disc">command</li><li class="listitem" style="list-style-type: disc">schedule</li><li class="listitem" style="list-style-type: disc">The number of times to repeat the job;</li><li class="listitem" style="list-style-type: disc">Start time of the job in ISO 8601 format;</li><li class="listitem" style="list-style-type: disc">Standard ISO 8601 date time format</li><li class="listitem" style="list-style-type: disc">scheduleTimeZone</li><li class="listitem" style="list-style-type: disc">epsilon</li><li class="listitem" style="list-style-type: disc">owner</li><li class="listitem" style="list-style-type: disc">async</li></ul></div><p>Take a look at the following example:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>$ curl -L -H 'Content-Type: application/json' -X POST -d '{ "schedule": "&lt;some_value&gt;", "name": "jab_a", "epsilon": "….", "command": "echo 'FOO' &gt;&gt; /tmp/job_a_OUT", "owner": "akhil@sigmoid.com", "async": false }' localhost:8080/scheduler/iso8601</strong></span>
+</pre></div></div><div class="section" title="Deleting a job"><div class="titlepage"><div><div><h3 class="title"><a id="ch04lvl3sec37"/>Deleting a job</h3></div></div></div><p>To delete jobs, you<a class="indexterm" id="id399"/> can use <code class="literal">HTTP DELETE</code> on <code class="literal">/scheduler/job/&lt;jobName&gt;</code>, where <code class="literal">jobName</code> can be obtained from the list of running jobs.</p><p>Here's an example:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>$ curl -L -X DELETE localhost:8080/scheduler/job/job_a</strong></span>
+</pre></div></div><div class="section" title="Deleting all the tasks of a job"><div class="titlepage"><div><div><h3 class="title"><a id="ch04lvl3sec38"/>Deleting all the tasks of a job</h3></div></div></div><p>To delete all the tasks<a class="indexterm" id="id400"/> of a given job, you can use the <code class="literal">HTTP DELETE</code> request on <code class="literal">/scheduler/task/kill/&lt;jobName&gt;</code>.</p><p>Take a look at the following example:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>$ curl -L -X DELETE localhost:8080/scheduler/task/kill/job_a</strong></span>
+</pre></div></div></div><div class="section" title="The Marathon REST API endpoint"><div class="titlepage"><div><div><h2 class="title"><a id="ch04lvl2sec78"/>The Marathon REST API endpoint</h2></div></div></div><p>This section will <a class="indexterm" id="id401"/>cover the REST endpoint of Marathon. The following tasks can be performed:</p><div class="orderedlist"><ol class="orderedlist arabic"><li class="listitem">Listing the running applications.</li><li class="listitem">Adding an application.</li><li class="listitem">Changing the configuration.</li><li class="listitem">Deleting an application.</li></ol></div><div class="section" title="Listing the running applications"><div class="titlepage"><div><div><h3 class="title"><a id="ch04lvl4sec06"/>Listing the running applications</h3></div></div></div><p>You can hit the <code class="literal">/v2/apps</code> endpoint <a class="indexterm" id="id402"/>with the <code class="literal">HTTP GET</code> request to list the running applications that are deployed on Marathon. It also supports a filter that helps you limit the listing to a particular application.</p><p>The following are the parameters that the endpoint takes:</p><div class="itemizedlist"><ul class="itemizedlist"><li class="listitem" style="list-style-type: disc"><code class="literal">cmd</code>: This filters the apps that contain the given command</li><li class="listitem" style="list-style-type: disc"><code class="literal">embed</code>: This can be used to specify multiple values multiple times, and it embeds the nested resources that match the supplied path</li></ul></div><p>Here's an example:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>$ curl -L -X GET "localhost:8080/v2/apps?cmd=sleep 60"</strong></span>
+</pre></div><p>You can take a look at the response in a JSON format similar to the following:</p><div class="informalexample"><pre class="programlisting">{
+  "apps": [
+    {
+      "id": "/product/us-east/service/myapp", 
+      "cmd": "env &amp;&amp; sleep 60", 
+      "constraints": [
+        [
+          "hostname", 
+          "UNIQUE", 
+      ""
+        ]
+      ], 
+      "container": null, 
+      "cpus": 0.1, 
+      "env": {
+        "LD_LIBRARY_PATH": "/usr/local/lib/myLib"
+      }, 
+      "executor": "", 
+      "instances": 3, 
+      "mem": 5.0, 
+      "ports": [
+        15092, 
+        14566
+      ], 
+      "tasksRunning": 1, 
+      "tasksStaged": 0, 
+      "uris": [
+        "https://raw.github.com/Mesosphere/Marathon/master/README.md"
+      ], 
+      "version": "2014-03-01T23:42:20.938Z"
+    }
+  ]
+}</pre></div></div><div class="section" title="Adding an application"><div class="titlepage"><div><div><h3 class="title"><a id="ch04lvl4sec07"/>Adding an application</h3></div></div></div><p>To create and start an<a class="indexterm" id="id403"/> application from the REST endpoint, you can use the <code class="literal">/v2/apps</code> endpoint with an <code class="literal">HTTP POST</code> request. It takes JSON data as the input, which contains information about the application. The following are the parameters that are required for this call:</p><div class="itemizedlist"><ul class="itemizedlist"><li class="listitem" style="list-style-type: disc"><code class="literal">id</code>: This is the name of the application</li><li class="listitem" style="list-style-type: disc"><code class="literal">cmd</code>: This is the command to be executed</li><li class="listitem" style="list-style-type: disc"><code class="literal">args</code>: These are optional arguments of the application</li><li class="listitem" style="list-style-type: disc"><code class="literal">cpus</code>: This is the number of CPU cores to be allocated for this application</li><li class="listitem" style="list-style-type: disc"><code class="literal">mem</code>: This is the amount of memory to be allocated for the application</li><li class="listitem" style="list-style-type: disc"><code class="literal">ports</code>: This is to be reserved for the application</li><li class="listitem" style="list-style-type: disc"><code class="literal">instances</code>: This is the number of instances to deploy the application</li></ul></div><p>The following example shows how to launch a simple Python HTTP server as an application in Marathon:</p><div class="informalexample"><pre class="programlisting">$ curl -L -H 'Content-Type: application/json' -X POST –d
+ '{
+  "args": null,
+  "backoffFactor": 1.15,
+  "backoffSeconds": 1,
+  "maxLaunchDelaySeconds": 3600,
+  "cmd": "env &amp;&amp; python3 -m http.server $PORT0",
+  "constraints": [
+    [
+      "hostname",
+      "UNIQUE"
+    ]
+  ],
+  "container": {
+    "Docker": {
+      "image": "python:3"
+    },
+    "type": "DOCKER",
+    "volumes": []
+  },
+  "cpus": 0.25,
+  "dependencies": [],
+  "deployments": [
+    {
+      "id": "f44fd4fc-4330-4600-a68b-99c7bd33014a"
+    }
+  ],
+  "disk": 0.0,
+  "env": {},
+  "executor": "",
+  "healthChecks": [
+    {
+      "command": null,
+      "gracePeriodSeconds": 3,
+      "intervalSeconds": 10,
+      "maxConsecutiveFailures": 3,
+      "path": "/",
+      "portIndex": 0,
+      "protocol": "HTTP",
+      "timeoutSeconds": 5
+    }
+  ],
+  "id": "/my-app",
+  "instances": 2,
+  "mem": 50.0,
+  "ports": [
+    0
+  ],
+  "requirePorts": false,
+  "storeUrls": [],
+  "upgradeStrategy": {
+    "minimumHealthCapacity": 0.5,
+    "maximumOverCapacity": 0.5
+  },
+  "uris": [],
+  "user": null,
+  "version": "2014-08-18T22:36:41.451Z"
+}
+' localhost:8080/v2/apps</pre></div><p>Also, note that if the<a class="indexterm" id="id404"/> given ID of the application already exists in Marathon, it will throw a duplication error and won't launch the application at all.</p></div><div class="section" title="Changing the configuration of an application"><div class="titlepage"><div><div><h3 class="title"><a id="ch04lvl4sec08"/>Changing the configuration of an application</h3></div></div></div><p>You can send an <code class="literal">HTTP PUT</code> request to the <code class="literal">/v2/apps/&lt;appId&gt;</code> endpoint to change the configuration of the given application. The <code class="literal">appId</code> value can be obtained using the previous method to<a class="indexterm" id="id405"/> list the running applications. Once the request is fired, the currently running tasks will be restarted with this new configuration.</p><p>It takes the <code class="literal">force</code> parameter, a Boolean value which is false by default. Making it true will override the current deployment if the application's state is affected.</p><p>Consider the following example:</p><div class="informalexample"><pre class="programlisting">$ curl -L -X PUT localhost:8080/v2/apps/my_app -d '{
+  "cmd": "sleep 55",
+  "constraints": [
+    [
+      "hostname",
+      "UNIQUE",
+      ""
+    ]
+  ],
+  "cpus": "0.3",
+  "instances": "2",
+  "mem": "9",
+  "ports": [
+    9000
+  ]
+   }
+   ' </pre></div><p>Once the<a class="indexterm" id="id406"/> update succeeds, it will give us a JSON response containing the following:</p><div class="informalexample"><pre class="programlisting">{
+  "deploymentId": "6b2135a6-3326-4e44-9333-554eda6c3838",
+  "version": "2015-12-16T12:37:50.462Z"
+}</pre></div></div><div class="section" title="Deleting the application"><div class="titlepage"><div><div><h3 class="title"><a id="ch04lvl4sec09"/>Deleting the application</h3></div></div></div><p>You can use the<a class="indexterm" id="id407"/> <code class="literal">HTTP DELETE</code> request in <code class="literal">/v2/apps/&lt;appId&gt;</code> to destroy the application and the data associated with it.</p><p>Take a look at the following example:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>$ curl -X DELETE localhost:8080/v2/apps/my_app</strong></span>
+</pre></div></div></div></div>
+<div class="section" title="Introduction to Apache Aurora"><div class="titlepage"><div><div><h1 class="title"><a id="ch04lvl1sec37"/>Introduction to Apache Aurora</h1></div></div></div><p>Apache Aurora is a <a class="indexterm" id="id408"/>powerful Mesos framework for long-running services, cron jobs, and ad hoc jobs. It was originally designed at Twitter and was later open sourced under the Apache license. You can turn your Mesos cluster to a private cloud using Aurora. Unlike Marathon, Aurora is responsible for keeping jobs running across a shared pool of resources over a long duration. If any of the machines in the pool fails, then Aurora can intelligently reschedule those jobs on other healthy machines in the pool.</p><p>Aurora is not useful if you try to build an application with specific requirements for scheduling or if the job itself is a scheduler.</p><p>Managing long-running applications is one of the key features of Aurora. Apart from this, Aurora can be used to provide coarse-grained (that is, fixed) resources for your job so that at any point of time, the job always has a specified amount of resources. It also supports multiple users, and the<a class="indexterm" id="id409"/> configuration is templated with <span class="strong"><strong>DSL</strong></span> (<span class="strong"><strong>Domain Specific Language</strong></span>) to avoid redundancy in the configurations.</p><div class="section" title="Installing Aurora"><div class="titlepage"><div><div><h2 class="title"><a id="ch04lvl2sec79"/>Installing Aurora</h2></div></div></div><p>Aurora jobs can be<a class="indexterm" id="id410"/> interacted with through the Aurora Web UI and the Aurora command-line utility. To install Aurora, we require the installation of <code class="literal">vagrant</code>. You can install <code class="literal">vagrant</code> with the following command:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>$ sudo apt-get install vagrant</strong></span>
+</pre></div><p>Log in to any of the machines on the cluster and clone the Aurora repository with the following command:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>$ git clone git://git.apache.org/aurora.git</strong></span>
+</pre></div><p>Change the working directory to Aurora, as follows:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>$ cd aurora</strong></span>
+</pre></div><p>Then, type in the following command to install Aurora on this machine:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>$ vagrant up</strong></span>
+</pre></div><p>The <code class="literal">vagrant</code> command will use the configurations shipped with the Aurora distribution to install and start the Aurora services on the virtual machines. It will:</p><div class="itemizedlist"><ul class="itemizedlist"><li class="listitem" style="list-style-type: disc">Download the corresponding Linux virtual machine image</li><li class="listitem" style="list-style-type: disc">Configure and start the VM</li><li class="listitem" style="list-style-type: disc">Install Mesos and ZooKeeper on the VM along with the build tools</li><li class="listitem" style="list-style-type: disc">Compile the Aurora source and build it on the VM</li><li class="listitem" style="list-style-type: disc">Start the Aurora services on the VM</li></ul></div><p>This process may take a couple of minutes to complete. If the command fails and complains about VirtualBox not being present on the machine, you can install it with the following command:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>$ sudo apt-get install virtualbox</strong></span>
+</pre></div><p>If everything goes well, you will see the following output on the Terminal:</p><div class="mediaobject"><img alt="Installing Aurora" src="graphics/B05186_04_15.jpg"/></div></div></div>
+<div class="section" title="Introduction to Singularity"><div class="titlepage"><div><div><h1 class="title"><a id="ch04lvl1sec38"/>Introduction to Singularity</h1></div></div></div><p>Singularity was<a class="indexterm" id="id411"/> originally designed at HubSpot and later open sourced under the Apache license. Singularity acts as an API and web application that can be used to launch and schedule long-running Mesos processes, scheduled jobs, and tasks. One can consider Singularity and the <a class="indexterm" id="id412"/>components that come with it as a <span class="strong"><strong>PaaS</strong></span> (<span class="strong"><strong>Platform as a Service</strong></span>) to the end users. A novice user can use Singularity to deploy tasks on Mesos without having to understand Mesos in detail.</p><p>Singularity takes advantages of Apache Mesos features such as fault tolerance, scalability, and resource allocation, and runs as a task scheduler for Mesos frameworks.</p><div class="section" title="Installing Singularity"><div class="titlepage"><div><div><h2 class="title"><a id="ch04lvl2sec80"/>Installing Singularity</h2></div></div></div><p>Before installing Singularity, make <a class="indexterm" id="id413"/>sure you have Docker installed on your machine. If <a class="indexterm" id="id414"/>you haven't installed it yet, you can do so by following the steps mentioned in the official website at <a class="ulink" href="https://docs.docker.com">https://docs.docker.com</a>.</p><p>The first step is to clone the Singularity repository, which can be done as follows:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>$ git clone https://github.com/HubSpot/Singularity</strong></span>
+</pre></div><p>Now, change the working directory to Singularity, as follows:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>$ cd Singularity</strong></span>
+</pre></div><p>Once you have Docker and Docker Compose installed successfully, you can use the Docker Compose<a class="indexterm" id="id415"/> <code class="literal">pull</code> and <code class="literal">up</code> commands to try Singularity. The commands will set up the following in the container for you:</p><div class="itemizedlist"><ul class="itemizedlist"><li class="listitem" style="list-style-type: disc">The Mesos master and slave</li><li class="listitem" style="list-style-type: disc">ZooKeeper</li><li class="listitem" style="list-style-type: disc">Singularity</li><li class="listitem" style="list-style-type: disc">The Baragon service and Agent</li></ul></div><p>If you wish to install singularity without Docker, the following steps can help you do so:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong># Compile the source code</strong></span>
+<span class="strong"><strong>$ mvn clean package</strong></span>
+</pre></div><p>Once this is done, you can see the Singularity jars being created under the <code class="literal">SingularityService/target</code> directory.</p><div class="mediaobject"><img alt="Installing Singularity" src="graphics/B05186_04_16.jpg"/></div><p>We will use <span class="strong"><strong>SingularityService-0.4.6-SNAPSHOT-shaded.jar</strong></span> to run Singularity.</p></div><div class="section" title="Creating a Singularity configuration file"><div class="titlepage"><div><div><h2 class="title"><a id="ch04lvl2sec81"/>Creating a Singularity configuration file</h2></div></div></div><p>Singularity configurations<a class="indexterm" id="id416"/> are kept in a YAML file. A sample YAML configuration file is explained here.</p><p>The port <code class="literal">7099</code> is used to run <code class="literal">SingulartiyService</code>, and the logs will be kept in <code class="literal">/var/log/singularity-access.log</code>. Take a look at the following code:</p><div class="informalexample"><pre class="programlisting">server:
+  type: simple
+  applicationContextPath: /singularity
+  connector:
+    type: http
+    port: 7099
+  requestLog:
+    appenders:
+      type: file
+      currentLogFilename: /var/log/singularity-access.log
+      archivedLogFilenamePattern: /var/log/singularity-access-%d.log.gz
+
+#Mesos configuration, put the content from /etc/Mesos/zk as Mesos master
+mesos:
+master: zk://100.76.90.36:2181,100.76.126.34:2181,100.72.150.2:2181/Mesos
+defaultCpus: 1 # number of core that will be used by the job
+defaultMemory: 128 # default memory of the job, being 128MB
+frameworkName: Singularity
+frameworkId: Singularity
+frameworkFailoverTimeout: 1000000
+
+Zookeeper: # quorum should be a host:port separated by comma
+  quorum: 100.76.90.36:2181,100.76.126.34:2181,100.72.150.2:2181
+  zkNamespace: singularity
+  sessionTimeoutMillis: 60000
+  connectTimeoutMillis: 5000
+  retryBaseSleepTimeMilliseconds: 1000
+  retryMaxTries: 3
+
+logging:
+  loggers:
+    "com.hubspot.singularity" : TRACE
+
+enableCorsFilter: true
+sandboxDefaultsToTaskId: false  # enable if using SingularityExecutor
+
+ui:
+  title: Singularity (local)
+  baseUrl: http://localhost:7099/singularity</pre></div><p>Save the preceding<a class="indexterm" id="id417"/> configuration as <code class="literal">singularity_config.yaml</code> and use the following command to start Singularity:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>java -jar SingularityService/target/SingularityService-*-shaded.jar server singularity_config.yaml</strong></span>
+</pre></div><p>If everything goes well, you will see the Singularity framework appearing in the Mesos UI under the frameworks tab, as in the following screenshot:</p><div class="mediaobject"><img alt="Creating a Singularity configuration file" src="graphics/B05186_04_17.jpg"/></div><p>You can point the browser to<a class="indexterm" id="id418"/> the following URL to access the Singularity UI to <code class="literal">http://ServerIPAddress:7099/singularity/</code>.</p><div class="mediaobject"><img alt="Creating a Singularity configuration file" src="graphics/B05186_04_18.jpg"/></div></div></div>
+<div class="section" title="Service discovery using Marathoner"><div class="titlepage"><div><div><h1 class="title"><a id="ch04lvl1sec39"/>Service discovery using Marathoner</h1></div></div></div><p>Modern distributed <a class="indexterm" id="id419"/>applications require a way to communicate with each other, which means that one application should know the presence of the other <a class="indexterm" id="id420"/>application when they are on the same network. This is called service discovery. In this section, we will take a look at the service discovery of web services that run on Marathon. One can adopt this approach for most of the stateless applications running on top of Marathon.</p><p>We will use the combination of the popular HAProxy TCP/HTTP load balancer along with Marathon's REST API script, which was covered in the previous topics, to regenerate the configuration file of HAProxy for the service discovery of Marathon applications. When a task is spawned on one of the Mesos slaves, they are configured to bind the port to an arbitrary one within the default range of 31,000-32,000.</p><p>Service discovery lets the applications running on Marathon communicate with others running alongside Marathon through their configured Marathon application port. For example, you can consider a Python web application that runs on port 80, which can communicate with its Java backend running on port <code class="literal">8080</code> by connecting to <code class="literal">localhost:8080</code>.</p><p>HAProxy can route the request that it gets to the actual port and host where the instance of the service is running. If, for some reason, it fails to connect to the given host and port, it will try to connect to the next instance where it is configured to run the service.</p><p>We will use the<a class="indexterm" id="id421"/> HAProxy-Marathon-bridge shell script, which is provided with Marathon, to connect to Marathon and retrieve the hostnames, the ports that the running applications are bound to, and the configured application ports. This script is scheduled to run every 60 seconds through a cron. The script basically checks <a class="indexterm" id="id422"/>whether the configuration it generated in the previous run differs from the current configuration and reloads the new configuration in HAProxy if it detects a change. Note that we don't have to restart HAProxy.</p><p>The following is a graphical representation of two services, SVC1 and SVC2, running in a cluster, in which they are configured with the applications to run on ports 1111 and 2222, respectively. The Mesos-allocated tasks ports are <code class="literal">31100</code> and <code class="literal">31200</code>, respectively. Note that it is the responsibility of HAProxy to route the requests between the user-configured application port and the Mesos-allocated task ports.</p><div class="mediaobject"><img alt="Service discovery using Marathoner" src="graphics/B05186_04_19.jpg"/></div><p>If, for example, SVC2<a class="indexterm" id="id423"/> on Slave 2 tries to connect to SVC1<a class="indexterm" id="id424"/> through <code class="literal">localhost:2222</code>, HAProxy will route the request to the configured SVC1 instance—that is, the one running on Slave1.</p><div class="mediaobject"><img alt="Service discovery using Marathoner" src="graphics/B05186_04_20.jpg"/></div><p>In case Slave 1 <a class="indexterm" id="id425"/>goes down, then requests to <code class="literal">localhost:2222</code> will be<a class="indexterm" id="id426"/> routed to Slave 2.</p><div class="mediaobject"><img alt="Service discovery using Marathoner" src="graphics/B05186_04_21.jpg"/></div></div>
+<div class="section" title="Service discovery using Consul"><div class="titlepage"><div><div><h1 class="title"><a id="ch04lvl1sec40"/>Service discovery using Consul</h1></div></div></div><p>Mesos-consul is used to register and deregister services that run as Mesos tasks.</p><p>For example, if you have a Mesos task called <code class="literal">myapp</code>, then this program will register the application in Consul, which<a class="indexterm" id="id427"/> will expose DNS as <code class="literal">myapp.service.consul</code>. Consul also does the Mesos leader discovery through the <code class="literal">leader.Mesos.service.consul</code> DNS, which points to the active leader.</p><p>How is this different from <a class="indexterm" id="id428"/>other service discovery software?</p><p>Mesos-dns is a project similar to Consul. In Mesos-dns, it polls Mesos to get information about the tasks, whereas with Consul, instead of exposing this information via a built-in DNS server, it populates the Consul Service discovery with this information. The services are then exposed by Consul through DNS and its REST endpoint.</p><div class="section" title="Running Consul"><div class="titlepage"><div><div><h2 class="title"><a id="ch04lvl2sec82"/>Running Consul</h2></div></div></div><p>You will have to change<a class="indexterm" id="id429"/> the values of the environment if your ZooKeeper and Marathon services are not registered in Consul. You can dockerize Consul, and it can be run via Marathon as well.</p><p>Consul can be run in the following manner:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>curl -X POST -d@Mesos-consul.json -H "Content-Type: application/json" http://Marathon.service.consul:8080/v2/apps'</strong></span>
+</pre></div><p>The preceding code is an <code class="literal">HTTP POST</code> request hitting the Consul API endpoint with the following JSON data in the <code class="literal">Mesos-consul.json</code> file:</p><div class="informalexample"><pre class="programlisting">{
+  "args": [
+    "--zk=zk://Zookeeper.service.consul:2181/Mesos"
+  ],  
+  "container": {
+    "type": "DOCKER",
+    "Docker": {
+      "network": "BRIDGE",
+      "image": "{{ Mesos_consul_image }}:{{ Mesos_consul_image_tag }}"
+    }   
+  },  
+  "id": "Mesos-consul",
+  "instances": 1,
+  "cpus": 0.1,
+  "mem": 256
+}</pre></div><p>Given in the following table are the options supported with the command-line Mesos-consul utility:</p><div class="informaltable"><table border="1"><colgroup><col style="text-align: left"/><col style="text-align: left"/></colgroup><thead><tr><th style="text-align: left" valign="bottom">
+<p>Option</p>
+</th><th style="text-align: left" valign="bottom">
+<p>Description</p>
+</th></tr></thead><tbody><tr><td style="text-align: left" valign="top">
+<p>
+<code class="literal">version</code>
+</p>
+</td><td style="text-align: left" valign="top">
+<p>This prints the Mesos-consul version.</p>
+</td></tr><tr><td style="text-align: left" valign="top">
+<p>
+<code class="literal">refresh</code>
+</p>
+</td><td style="text-align: left" valign="top">
+<p>This refers to the time between the refreshes of Mesos tasks.</p>
+</td></tr><tr><td style="text-align: left" valign="top">
+<p>
+<code class="literal">Mesos-ip-order</code>
+</p>
+</td><td style="text-align: left" valign="top">
+<p>This is a comma-separated list that controls the order in which <a class="ulink" href="http://github.com/CiscoCloud/Mesos-consul">github.com/CiscoCloud/Mesos-consul</a> searches for a task's IP address. The valid options <a class="indexterm" id="id430"/>are <code class="literal">netinfo</code>, <code class="literal">Mesos</code>, <code class="literal">Docker</code>, and <code class="literal">host</code> (the default is <code class="literal">netinfo,Mesos,host</code>).</p>
+</td></tr><tr><td style="text-align: left" valign="top">
+<p>
+<code class="literal">healthcheck</code>
+</p>
+</td><td style="text-align: left" valign="top">
+<p>This is used to enable health checks for an HTTP endpoint. When this flag is enabled, it serves the health status on <code class="literal">127.0.0.1:24476</code>.</p>
+</td></tr><tr><td style="text-align: left" valign="top">
+<p>
+<code class="literal">healthcheck-ip</code>
+</p>
+</td><td style="text-align: left" valign="top">
+<p>This is the IP for the Health check service interface (the default is <code class="literal">127.0.0.1</code>).</p>
+</td></tr><tr><td style="text-align: left" valign="top">
+<p>
+<code class="literal">healthcheck-port</code>
+</p>
+</td><td style="text-align: left" valign="top">
+<p>This is a port for the Health check service (the default is <code class="literal">24476</code>).</p>
+</td></tr><tr><td style="text-align: left" valign="top">
+<p>
+<code class="literal">consul-auth</code>
+</p>
+</td><td style="text-align: left" valign="top">
+<p>This is the authentication username and password (optional) separated by a colon.</p>
+</td></tr><tr><td style="text-align: left" valign="top">
+<p>
+<code class="literal">consul-ssl</code>
+</p>
+</td><td style="text-align: left" valign="top">
+<p>This uses HTTPS while communicating with the registry.</p>
+</td></tr><tr><td style="text-align: left" valign="top">
+<p>
+<code class="literal">consul-ssl-verify</code>
+</p>
+</td><td style="text-align: left" valign="top">
+<p>This verifies<a class="indexterm" id="id431"/> certificates when connecting through SSL.</p>
+</td></tr><tr><td style="text-align: left" valign="top">
+<p>
+<code class="literal">consul-ssl-cert</code>
+</p>
+</td><td style="text-align: left" valign="top">
+<p>Provides the path to an SSL certificate, which it can use to authenticate the registry server.</p>
+</td></tr><tr><td style="text-align: left" valign="top">
+<p>
+<code class="literal">consul-ssl-cacert</code>
+</p>
+</td><td style="text-align: left" valign="top">
+<p>This provides the path to a CA certificate file that contains one or more CA certificates, which it can use to validate the registry server certificate.</p>
+</td></tr><tr><td style="text-align: left" valign="top">
+<p>
+<code class="literal">consul-token</code>
+</p>
+</td><td style="text-align: left" valign="top">
+<p>This is a token for registry ACL.</p>
+</td></tr><tr><td style="text-align: left" valign="top">
+<p>
+<code class="literal">heartbeats-before-remove</code>
+</p>
+</td><td style="text-align: left" valign="top">
+<p>This is the number of times that registration needs to fail before the task is removed from Consul (the default is <code class="literal">1</code>).</p>
+</td></tr><tr><td style="text-align: left" valign="top">
+<p>
+<code class="literal">zk*</code>
+</p>
+</td><td style="text-align: left" valign="top">
+<p>This refers to the Mesos path location in ZooKeeper, the default being <code class="literal">zk://127.0.0.1:2181/Mesos</code>.</p>
+</td></tr></tbody></table></div></div></div>
+<div class="section" title="Load balancing with HAProxy"><div class="titlepage"><div><div><h1 class="title"><a id="ch04lvl1sec41"/>Load balancing with HAProxy</h1></div></div></div><p>The HAProxy-Marathon-bridge<a class="indexterm" id="id432"/> script is shipped with the Marathon installation. You can also use Marathon-lb for the same. Both of these create a configuration file for HAProxy and a lightweight TCP/HTTP proxy by looking up the running tasks from Marathon's REST API.</p><p>HAProxy-Marathon-bridge is a simple script providing a minimum set of functionalities and is easier to understand<a class="indexterm" id="id433"/> for novice users. The latter one, Marathon-lb, supports advanced features such as SSL offloading, load balancing based on the VHost, and sticky connections.</p><div class="section" title="Creating the bridge between HAProxy and Marathon"><div class="titlepage"><div><div><h2 class="title"><a id="ch04lvl2sec83"/>Creating the bridge between HAProxy and Marathon</h2></div></div></div><p>First, you need to create an<a class="indexterm" id="id434"/> HAProxy configuration from the running Marathon instance, which, by default, runs on port <code class="literal">8080</code> of the machine. You can use the HAProxy-Marathon-bridge script for this through the following syntax:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>$ ./bin/haproxy-Marathon-bridge localhost:8080 &gt; /etc/haproxy/haproxy.cfg</strong></span>
+</pre></div><p>Note that here we specified <code class="literal">localhost:8080</code> because we ran the Marathon instance and HAProxy on the same machine.</p><p>Once you generate the HAProxy configuration, you can simply reload HAProxy without interrupting the existing connections by running the following command:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>$ haproxy -f haproxy.cfg -p haproxy.pid -sf $(cat haproxy.pid)</strong></span>
+</pre></div><p>You can automate the configuration generation and reloading process using a typical cron job. If, for any reason, one of the nodes goes down during the reload process, HAProxy's health check will detect it and stop sending further traffic to this particular node.</p><p>You don't have to create the trigger to reload the HAProxy configuration. The HAProxy-Marathon-bridge script already does this for you. It has HAProxy and a cron job that is triggered every minute to pull the configuration from Marathon servers and refresh HAProxy if it detects any changes from the previous version.</p><p>You can use the following command to do so:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong>$ ./bin/haproxy-Marathon-bridge install_haproxy_system localhost:8080</strong></span>
+</pre></div><p>It will add the pings to Marathon per line in the <code class="literal">/etc/haproxy-Marathon-bridge/Marathons</code> file and the script will be installed at <code class="literal">/usr/local/bin/haproxy-Marathon-bridge</code>. You can find the cron job being installed under <code class="literal">/etc/cron.d/haproxy-Marathon-bridge</code> which will be triggered as root.</p></div></div>
+<div class="section" title="Bamboo - Automatically configuring HAProxy for Mesos plus Marathon"><div class="titlepage"><div><div><h1 class="title"><a id="ch04lvl1sec42"/>Bamboo - Automatically configuring HAProxy for Mesos plus Marathon</h1></div></div></div><p>Bamboo runs as a web <a class="indexterm" id="id435"/>daemon and automatically configures HAProxy for the web<a class="indexterm" id="id436"/> services deployed on Mesos and Marathon.</p><p>Bamboo comes with the following:</p><div class="itemizedlist"><ul class="itemizedlist"><li class="listitem" style="list-style-type: disc">A Web UI to configure HAProxy <a class="indexterm" id="id437"/><span class="strong"><strong>Access Control Limit</strong></span> (<span class="strong"><strong>ACL</strong></span>) rules for each of the Marathon applications</li><li class="listitem" style="list-style-type: disc">A REST endpoint to do the same</li><li class="listitem" style="list-style-type: disc">A preconfigured HAProxy configuration file based on your template, with which you can customize your own template to enable SSL and interface for HAProxy stats or configure strategies for load balancing</li><li class="listitem" style="list-style-type: disc">A Healthcheck endpoint if the Marathon application is configured with Healthchecks</li><li class="listitem" style="list-style-type: disc">A stateless daemon, which enables scalability and horizontal replication</li><li class="listitem" style="list-style-type: disc">No additional dependencies (as it is developed in Golang)</li><li class="listitem" style="list-style-type: disc">Integration with StatsD to monitor configuration reload events</li></ul></div><p>Bamboo can be deployed on each of the Mesos slaves with HAProxy. As Bamboo is primarily used for web services deployed on Mesos, the service discovery is as simple as connecting to the localhost or domain you assigned with the ACL rules. However, you can also deploy HAProxy and Bamboo on different machines, which means that you will have to load balance the HAProxy cluster.</p><p>The following screenshot shows Bamboo and HAProxy interacting with the Mesos cluster through Marathon:</p><div class="mediaobject"><img alt="Bamboo - Automatically configuring HAProxy for Mesos plus Marathon" src="graphics/B05186_04_22.jpg"/></div><p>You can install<a class="indexterm" id="id438"/> Bamboo with the following commands:</p><div class="informalexample"><pre class="programlisting">
+<span class="strong"><strong># Clone the github repository</strong></span>
+<span class="strong"><strong>$ git clone https://github.com/QubitProducts/bamboo</strong></span>
+<span class="strong"><strong># Change the working directory</strong></span>
+<span class="strong"><strong>$ cd bamboo</strong></span>
+<span class="strong"><strong># Install, (make sure you have installed go first)</strong></span>
+<span class="strong"><strong>$ go build bamboo.go; ./builder/build.sh</strong></span>
+</pre></div><p>Once you are done with the installation, point your browser to any of the machines where you installed Bamboo on the port <code class="literal">8000</code>, and you will be able see the Web UI as shown in the following screenshot:</p><div class="mediaobject"><img alt="Bamboo - Automatically configuring HAProxy for Mesos plus Marathon" src="graphics/B05186_04_23.jpg"/></div><p>You can configure the ACLs by clicking on the edit icon at the right-hand side end of your Marathon <a class="indexterm" id="id439"/>application.</p><div class="mediaobject"><img alt="Bamboo - Automatically configuring HAProxy for Mesos plus Marathon" src="graphics/B05186_04_24.jpg"/></div><p>The Bamboo command line accepts a <code class="literal">--config</code> switch to specify the JSON application configuration file's location. You can find example configuration file templates under the config directory; <code class="literal">config/production.example.json</code> and <code class="literal">config/haproxy_template.cfg</code> are two of these. Now, take a look at the following code:</p><div class="informalexample"><pre class="programlisting">{
+  // This is where you configure the Marathon instance
+  "Marathon": {
+    // Since we are running web applications, give the host:port to the applications
+    "Endpoint":"http://Marathon1:8080,http://Marathon2:8080,http://Marathon3:8080",
+    // Use the Marathon HTTP event streaming feature
+    "UseEventStream": true
+  },
+
+  "Bamboo": {
+    // Bamboo's HTTP address can be accessed by Marathon
+    // Used for Marathon HTTP callback and each Bamboo instance
+    // must provide a unique Endpoint that is directly addressable by Marathon
+    // (e.g., every server's IP address)
+    "Endpoint": "http://localhost:8000",
+
+    // Proxy setting information is stored in Zookeeper// This path is created by Bamboo, if it does not already exist
+
+    "Zookeeper": {
+      // Make sure that the same setting is used while running on the same ZK cluster
+      "Host": "zk01.example.com:2812,zk02.example.com:2812",
+      "Path": "/Marathon-haproxy/state",
+      "ReportingDelay": 5
+    }
+  }
+
+  // Make sure you are using absolute path on production
+  "HAProxy": {
+    "TemplatePath": "/var/bamboo/haproxy_template.cfg",
+    "OutputPath": "/etc/haproxy/haproxy.cfg",
+    "ReloadCommand": "haproxy -f /etc/haproxy/haproxy.cfg-p /var/run/haproxy.pid -D -sf $(cat /var/run/haproxy.pid)",
+    // A command that will validate the config before you run reload command.// '{{.}}' will be expanded to a temporary path that contains the config contents
+    "ReloadValidationCommand": "haproxy -c -f {{.}}",
+    // A command that will always be run after ReloadCommand, even if reload fails
+    "ReloadCleanupCommand": "exit 0"
+  },
+
+  // Enable or disable StatsD event tracking
+  "StatsD": {
+    "Enabled": false,
+    // StatsD or Graphite server host
+    "Host": "localhost:8125",
+    // StatsD namespace prefix -
+    // Label each node if you have multiple Bamboo instances
+    // by bamboo-server.production.n1.
+    "Prefix": "bamboo-server.production."
+  }
+}</pre></div><p>Bamboo maps the<a class="indexterm" id="id440"/> following environment variables to the corresponding Bamboo configurations. You can use these in the <code class="literal">production.json</code> file:</p><div class="informaltable"><table border="1"><colgroup><col style="text-align: left"/><col style="text-align: left"/></colgroup><tbody><tr><td style="text-align: left" valign="top">
+<p>Environment Variable</p>
+</td><td style="text-align: left" valign="top">
+<p>Corresponds To</p>
+</td></tr><tr><td style="text-align: left" valign="top">
+<p>
+<code class="literal">MARATHON_ENDPOINT</code>
+</p>
+</td><td style="text-align: left" valign="top">
+<p>Marathon.Endpoint</p>
+</td></tr><tr><td style="text-align: left" valign="top">
+<p>
+<code class="literal">MARATHON_USER</code>
+</p>
+</td><td style="text-align: left" valign="top">
+<p>Marathon.User</p>
+</td></tr><tr><td style="text-align: left" valign="top">
+<p>
+<code class="literal">MARATHON_PASSWORD</code>
+</p>
+</td><td style="text-align: left" valign="top">
+<p>Marathon.Password</p>
+</td></tr><tr><td style="text-align: left" valign="top">
+<p>
+<code class="literal">BAMBOO_ENDPOINT</code>
+</p>
+</td><td style="text-align: left" valign="top">
+<p>Bamboo.Endpoint</p>
+</td></tr><tr><td style="text-align: left" valign="top">
+<p>
+<code class="literal">BAMBOO_ZK_HOST</code>
+</p>
+</td><td style="text-align: left" valign="top">
+<p>Bamboo.Zookeeper.Host</p>
+</td></tr><tr><td style="text-align: left" valign="top">
+<p>
+<code class="literal">BAMBOO_ZK_PATH</code>
+</p>
+</td><td style="text-align: left" valign="top">
+<p>Bamboo.Zookeeper.Path</p>
+</td></tr><tr><td style="text-align: left" valign="top">
+<p>
+<code class="literal">HAPROXY_TEMPLATE_PATH</code>
+</p>
+</td><td style="text-align: left" valign="top">
+<p>HAProxy.TemplatePath</p>
+</td></tr><tr><td style="text-align: left" valign="top">
+<p>
+<code class="literal">HAPROXY_OUTPUT_PATH</code>
+</p>
+</td><td style="text-align: left" valign="top">
+<p>HAProxy.OutputPath</p>
+</td></tr><tr><td style="text-align: left" valign="top">
+<p>
+<code class="literal">HAPROXY_RELOAD_CMD</code>
+</p>
+</td><td style="text-align: left" valign="top">
+<p>HAProxy.ReloadCommand</p>
+</td></tr><tr><td style="text-align: left" valign="top">
+<p>
+<code class="literal">BAMBOO_DOCKER_AUTO_HOST</code>
+</p>
+</td><td style="text-align: left" valign="top">
+<p>This sets the <code class="literal">BAMBOO_ENDPOINT</code> to <code class="literal">$HOST</code> when Bamboo container starts and can be any value</p>
+</td></tr><tr><td style="text-align: left" valign="top">
+<p>
+<code class="literal">STATSD_ENABLED</code>
+</p>
+</td><td style="text-align: left" valign="top">
+<p>StatsD.Enabled</p>
+</td></tr><tr><td style="text-align: left" valign="top">
+<p>
+<code class="literal">STATSD_PREFIX</code>
+</p>
+</td><td style="text-align: left" valign="top">
+<p>StatsD.Prefix</p>
+</td></tr><tr><td style="text-align: left" valign="top">
+<p>
+<code class="literal">STATSD_HOST</code>
+</p>
+</td><td style="text-align: left" valign="top">
+<p>StatsD.Host</p>
+</td></tr></tbody></table></div></div>
+<div class="section" title="Introduction to Netflix Fenzo"><div class="titlepage"><div><div><h1 class="title"><a id="ch04lvl1sec43"/>Introduction to Netflix Fenzo</h1></div></div></div><p>Netflix recently open<a class="indexterm" id="id441"/> sourced their scheduler library written in Java for Apache Mesos frameworks<a class="indexterm" id="id442"/> that supports scheduling optimizations and cluster autoscaling. At the time of writing the book, Fenzo is open sourced and is available in the official Netflix OSS suite repository, which can be found at the following URL: <a class="ulink" href="https://github.com/Netflix/Fenzo">https://github.com/Netflix/Fenzo</a>
+</p><p>There are basically two motivations for developing a framework such as Fenzo. Unlike other schedulers and frameworks discussed earlier, the reasons for building Fenzo are scheduling optimizations and autoscaling the cluster based on the usage.</p><p>When there is a huge variation in the amount of data that your cluster handles from time to time, provisioning the cluster for peak usage seems wasteful as most of the time, the resources will be idle. This is the main reason behind autoscaling the application depending on the load—that is, providing more machines to increase the cluster resources when there is peak usage and shutting down these machines when they are idle.</p><p>Scaling the cluster up is an easier task. You can have monitoring tools to watch the resource utilization, and when it crosses a threshold, you can go ahead and add more resources to the cluster. On the other hand, while scaling down the cluster, you need to identify whether there are long-running tasks on the machines that you are about to terminate and also whether it will have any impact on the running tasks if you terminate the machine.</p><p>Currently, autoscaling in Fenzo is based on the following two strategies:</p><div class="itemizedlist"><ul class="itemizedlist"><li class="listitem" style="list-style-type: disc">The threshold</li><li class="listitem" style="list-style-type: disc">Resource shortfall analysis</li></ul></div><p>In threshold-based autoscaling, users can specify rules as per the host group, such as EC2 Auto Scaling, GCE Auto Scaling, and so on. These can be considered as creating host groups to compute intensive, network-intensive, and other workloads. These rules let the new jobs be launched quickly on the preconfigured number of idle hosts.</p><p>In the case of resource shortfall analysis, it first calculates the number of hosts that are required to complete the pending workloads. One can also consider this as a predictive autoscaling system that can analyze the workload and spawn up new hosts to satisfy pending workloads. An example of such a system is the Netflix website's Scryer.</p><p>The following is a <a class="indexterm" id="id443"/>diagram showing how Fenzo can be used by an Apache Mesos framework. Fenzo itself contains a task scheduler that provides the scheduling core without really interacting with Mesos. The framework interfaces with Mesos to get new resource offers and pull task status updates.</p><div class="mediaobject"><img alt="Introduction to Netflix Fenzo" src="graphics/B05186_04_25.jpg"/></div></div>
+<div class="section" title="Introduction to PaaSTA"><div class="titlepage"><div><div><h1 class="title"><a id="ch04lvl1sec44"/>Introduction to PaaSTA</h1></div></div></div><p>The Yelp's Platform-as-a-service distributed system PaaSTA is highly available and used to build, deploy, and run services using containers such as Docker and Apache Mesos. PaaSTA is designed and developed by Yelp and has been recently open sourced. You can take a look at the open sourced<a class="indexterm" id="id444"/> repository at the following URL: <a class="ulink" href="https://github.com/yelp/paasta">https://github.com/yelp/paasta</a>
+</p><p>This is a suite for developers to specify how they want their code from their Git repository to be built, deployed, routed, and monitored. Yelp has used PaaSTA for more than a year to power its production-level services. PaaSTA is best suited if you have a strict production environment, such as Yelp, which requires many tiny microservices and where rolling out a new piece of code should be seamless and not disturb production systems. PaaSTA helps automate this entire process.</p><p>It comprises the following<a class="indexterm" id="id445"/> existing open source components:</p><div class="itemizedlist"><ul class="itemizedlist"><li class="listitem" style="list-style-type: disc"><span class="strong"><strong>Docker</strong></span>: This is used to<a class="indexterm" id="id446"/> containerize the code</li><li class="listitem" style="list-style-type: disc"><span class="strong"><strong>Apache Mesos</strong></span>: This is <a class="indexterm" id="id447"/>used for execution and scheduling</li><li class="listitem" style="list-style-type: disc"><span class="strong"><strong>Marathon</strong></span>: This is<a class="indexterm" id="id448"/> used to manage long-running applications</li><li class="listitem" style="list-style-type: disc"><span class="strong"><strong>Chronos</strong></span>: This is <a class="indexterm" id="id449"/>used for scheduling purposes</li><li class="listitem" style="list-style-type: disc"><span class="strong"><strong>SmartStack</strong></span>: This is used<a class="indexterm" id="id450"/> for service discovery and registration</li><li class="listitem" style="list-style-type: disc"><span class="strong"><strong>Sensu</strong></span>: This is used to<a class="indexterm" id="id451"/> monitor and alert</li><li class="listitem" style="list-style-type: disc"><span class="strong"><strong>Jenkins</strong></span>: This is used<a class="indexterm" id="id452"/> for continuous build and deployment (this is optional)</li></ul></div><p>One of the many reasons to have all these components in one place is reusability. You can reuse any of these components to solve different problems in your distributed environment.</p></div>
+<div class="section" title="A comparative analysis of different Scheduling/Management frameworks"><div class="titlepage"><div><div><h1 class="title"><a id="ch04lvl1sec45"/>A comparative analysis of different Scheduling/Management frameworks</h1></div></div></div><p>This section will give<a class="indexterm" id="id453"/> you a brief comparison and use cases for the different scheduling frameworks that we discussed in this chapter.</p><p>Marathon is a PaaS built on Mesos to make sure the job will run forever even if few machines in the cluster go down. It can seamlessly handle the hardware and software failures and ensure the application is always running. These types of frameworks are useful in production environments where your application should always be running and available all the time—for example, a web server hosting a website. In such cases, you can deploy it as a Marathon application that will take care of all these aspects.</p><p>Chronos can be considered as a distributed fault-tolerant replacement of the typical Linux cron jobs that are used to fire up scheduled jobs, take periodic backups, check the health of the system, and so on. Both Chronos and Marathon come with a Web UI and a REST endpoint for the management of jobs. We can write wrapper scripts around this and automate the <a class="indexterm" id="id454"/>application deployment and job scheduling rather than just using the Web UI.</p><p>Aurora and Marathon are very similar in nature in the sense that both are service schedulers. All you have to do is tell Aurora or Marathon how to deploy the application, and they will keep them up and running without failures. Aurora, on the other hand, is a bit difficult to install and work with for a beginner. Unlike Marathon, it doesn't officially support a REST endpoint, which will be available soon. At this time, Aurora exposes a thrift API to make the communication, which means that there is an additional overhead of having to install thrift libraries on the server.</p><p>Apache Aurora is designed to handle large-scale infrastructure, such as a datacenter. A typical example is the clusters running on Twitter that consist of thousands of machines and hundreds of engineers accessing and using them for development and production purposes.</p></div>
+<div class="section" title="Summary"><div class="titlepage"><div><div><h1 class="title"><a id="ch04lvl1sec46"/>Summary</h1></div></div></div><p>In this chapter, we dived deep into some of the most important frameworks for Mesos that make job scheduling and load balancing much easier and efficient. Frameworks such as Marathon and Chronos and their REST endpoints along with some other tools, such as HAProxy, Consul, Marathoner, Bamboo, Fenzo, and PaaSTA, were explained.</p><p>In the next chapter, we'll discuss how system administrators and DevOps professionals can deploy a Mesos cluster using standard tools such as Ansible, Chef, Puppet, Salt, Terraform, and Cloud formation along with monitoring it using Nagios and Satellite.</p></div></body></html>
