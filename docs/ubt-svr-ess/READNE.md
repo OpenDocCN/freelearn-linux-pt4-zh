@@ -1,6 +1,6 @@
-# Github DevOps 加速指南
+# Ubuntu 服务器精要
 
-> 原文：[`annas-archive.org/md5/677f27c30764b3701bc2b6cf6de3a30e`](https://annas-archive.org/md5/677f27c30764b3701bc2b6cf6de3a30e)
+> 原文：[`annas-archive.org/md5/88eb89d49a79193b3f0a43206f5b4e48`](https://annas-archive.org/md5/88eb89d49a79193b3f0a43206f5b4e48)
 > 
 > 译者：[飞龙](https://github.com/wizardforcel)
 > 
