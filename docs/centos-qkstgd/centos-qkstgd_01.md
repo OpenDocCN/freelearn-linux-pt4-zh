@@ -1,4 +1,4 @@
-# CentOS 7 入门
+# 第一章：CentOS 7 入门
 
 **社区企业操作系统**，通常称为**CentOS**，是一个快速、稳定、开源的企业级 Linux 发行版，广泛应用于笔记本、台式机和服务器。它源自**Red Hat Enterprise Linux**（**RHEL**）的源代码，后者由 CentOS 社区开发和维护。所有与 Red Hat Inc. 相关的专有内容都被从 CentOS 软件包中移除，之后这些软件包会重新编译，加入 CentOS 社区的资源，如标志等。CentOS 7 是 RHEL 7 的完全复制版，但它免费提供并由社区支持和更新。CentOS 项目现在由 Red Hat Inc. 官方赞助，最适用于那些不强求操作系统商业支持的环境。
 

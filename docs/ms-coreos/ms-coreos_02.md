@@ -1,3 +1,5 @@
+# 第三章
+
 第二章：设置 CoreOS 实验室
 
 CoreOS 可以部署在裸机、虚拟机或云服务提供商如 Amazon AWS 或 Google GCE 上。在本章中，我们将介绍如何在 Vagrant、Amazon AWS、Google GCE 和裸机上设置 CoreOS 开发环境。这个开发环境将在接下来的所有章节中使用。

@@ -1,4 +1,4 @@
-# 使用 SSL 证书保护 Horizon View
+# 第六章：使用 SSL 证书保护 Horizon View
 
 在本章中，我们将讨论 VMware Horizon View 7 的安全性方面，特别是如何实现与最终用户客户端以及数据中心中不同 View 基础架构组件之间的安全通信。我们将研究两种实现这种安全通信的方法。
 
