@@ -1,6 +1,6 @@
-# Github DevOps 加速指南
+# BeagleBone 家庭自动化蓝图
 
-> 原文：[`annas-archive.org/md5/677f27c30764b3701bc2b6cf6de3a30e`](https://annas-archive.org/md5/677f27c30764b3701bc2b6cf6de3a30e)
+> 原文：[`annas-archive.org/md5/6158a53ac3a986ec2f5eb20219880185`](https://annas-archive.org/md5/6158a53ac3a986ec2f5eb20219880185)
 > 
 > 译者：[飞龙](https://github.com/wizardforcel)
 > 

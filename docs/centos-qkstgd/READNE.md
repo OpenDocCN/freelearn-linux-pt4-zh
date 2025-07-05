@@ -1,6 +1,6 @@
-# Github DevOps 加速指南
+# CentOS 快速启动指南
 
-> 原文：[`annas-archive.org/md5/677f27c30764b3701bc2b6cf6de3a30e`](https://annas-archive.org/md5/677f27c30764b3701bc2b6cf6de3a30e)
+> 原文：[`annas-archive.org/md5/7e67f10f1902b17236cfa846256a5249`](https://annas-archive.org/md5/7e67f10f1902b17236cfa846256a5249)
 > 
 > 译者：[飞龙](https://github.com/wizardforcel)
 > 
