@@ -1,6 +1,6 @@
-# Github DevOps 加速指南
+# CentOS7 服务器部署秘籍
 
-> 原文：[`annas-archive.org/md5/677f27c30764b3701bc2b6cf6de3a30e`](https://annas-archive.org/md5/677f27c30764b3701bc2b6cf6de3a30e)
+> 原文：[`annas-archive.org/md5/96c584d287a854ac38a448aada4a6b4c`](https://annas-archive.org/md5/96c584d287a854ac38a448aada4a6b4c)
 > 
 > 译者：[飞龙](https://github.com/wizardforcel)
 > 
