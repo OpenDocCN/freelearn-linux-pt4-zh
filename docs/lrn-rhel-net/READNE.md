@@ -1,6 +1,6 @@
-# Github DevOps 加速指南
+# RHEL 网络学习指南
 
-> 原文：[`annas-archive.org/md5/677f27c30764b3701bc2b6cf6de3a30e`](https://annas-archive.org/md5/677f27c30764b3701bc2b6cf6de3a30e)
+> 原文：[`annas-archive.org/md5/c57fcd6597d60f278d896cd91be8a8f9`](https://annas-archive.org/md5/c57fcd6597d60f278d896cd91be8a8f9)
 > 
 > 译者：[飞龙](https://github.com/wizardforcel)
 > 

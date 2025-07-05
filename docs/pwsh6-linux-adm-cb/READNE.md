@@ -1,6 +1,6 @@
-# Github DevOps 加速指南
+# Powershell6 Linux 管理秘籍
 
-> 原文：[`annas-archive.org/md5/677f27c30764b3701bc2b6cf6de3a30e`](https://annas-archive.org/md5/677f27c30764b3701bc2b6cf6de3a30e)
+> 原文：[`annas-archive.org/md5/a5cb80b4aff4cb55f7129a083399fafe`](https://annas-archive.org/md5/a5cb80b4aff4cb55f7129a083399fafe)
 > 
 > 译者：[飞龙](https://github.com/wizardforcel)
 > 
