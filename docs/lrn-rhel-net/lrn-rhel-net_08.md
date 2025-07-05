@@ -1,4 +1,4 @@
-# 第八章 将 RHEL 7 集成到 Microsoft Active Directory 域中
+# 第八章：将 RHEL 7 集成到 Microsoft Active Directory 域中
 
 在上一章中，我们讨论了如何将资源共享给微软的客户端。现在，在真正的共生精神下，我们将看到 RHEL 如何利用 Active Directory 用户和组，将域作为身份存储。如果用户可以访问 RHEL 服务器的控制台，那么仅凭他们的 Active Directory 凭据，他们就可以访问 RHEL。这不仅简化了控制台的访问，还简化了访问 RHEL 7 Samba 服务器上任何共享文件夹的过程。
 

@@ -1,4 +1,4 @@
-+   [Ubuntu 服务器精要](READNE.md)
++   [Ubuntu 服务器精要](README.md)
 +   [序言](ubt-svr-ess_0.md)
 +   [第一章. Ubuntu Server 安装](ubt-svr-ess_1.md)
 +   [第二章。配置和管理 Ubuntu Server](ubt-svr-ess_2.md)

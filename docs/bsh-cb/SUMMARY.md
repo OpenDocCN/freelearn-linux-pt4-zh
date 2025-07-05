@@ -1,3 +1,4 @@
++   [Bash 秘籍](README.md)
 +   [前言](bsh-cb_0.md)
 +   [第一章：Bash 快速入门](bsh-cb_1.md)
 +   [第二章：像打字机和文件资源管理器一样操作](bsh-cb_2.md)
@@ -7,4 +8,3 @@
 +   [第六章：高级用户的脚本](bsh-cb_6.md)
 +   [第七章：编写 Bash 赢得和利润](bsh-cb_7.md)
 +   [第八章：高级脚本编写技巧](bsh-cb_8.md)
-+   [Bash 秘籍](READNE.md)

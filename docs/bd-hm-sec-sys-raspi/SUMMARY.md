@@ -1,3 +1,4 @@
++   [树莓派家庭安全系统构建指南](README.md)
 +   [序言](bd-hm-sec-sys-raspi_00.md)
 +   [第一章：设置你的树莓派](bd-hm-sec-sys-raspi_01.md)
 +   [第二章：使用 GPIO 将设备连接到树莓派](bd-hm-sec-sys-raspi_02.md)
@@ -6,6 +7,5 @@
 +   [第五章：添加被动红外运动传感器](bd-hm-sec-sys-raspi_05.md)
 +   [第六章：向我们的安全系统添加摄像头](bd-hm-sec-sys-raspi_06.md)
 +   [第七章：构建基于 Web 的控制面板](bd-hm-sec-sys-raspi_07.md)
-+   [第八章 一些杂项](bd-hm-sec-sys-raspi_08.md)
++   [第八章：一些杂项](bd-hm-sec-sys-raspi_08.md)
 +   [第九章. 将所有内容整合](bd-hm-sec-sys-raspi_09.md)
-+   [树莓派家庭安全系统构建指南](READNE.md)

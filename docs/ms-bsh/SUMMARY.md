@@ -1,3 +1,4 @@
++   [精通 Bash](README.md)
 +   [前言](ms-bsh_00.md)
 +   [第一章：开始编程吧](ms-bsh_01.md)
 +   [第二章：操作符](ms-bsh_02.md)
@@ -13,4 +14,3 @@
 +   [第十二章：通过 SSH 进行远程连接](ms-bsh_12.md)
 +   [第十三章：定时器的时间](ms-bsh_13.md)
 +   [第十四章：安全性时刻](ms-bsh_14.md)
-+   [精通 Bash](READNE.md)

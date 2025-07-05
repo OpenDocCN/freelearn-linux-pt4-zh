@@ -1,3 +1,4 @@
++   [精通 VMware Horizon 7.8](README.md)
 +   [序言](ms-vmw-hrz7_00.md)
 +   [第一部分：安装与配置](ms-vmw-hrz7_01.md)
 +   [第一章：介绍 VDI 和 VMware Horizon 7](ms-vmw-hrz7_02.md)
@@ -18,4 +19,3 @@
 +   [第十五章：JMP 和 VMware Horizon 7 部署考虑事项](ms-vmw-hrz7_17.md)
 +   [第十六章：故障排除](ms-vmw-hrz7_18.md)
 +   [第十七章：Horizon 7 的新功能介绍](ms-vmw-hrz7_19.md)
-+   [精通 VMware Horizon 7.8](READNE.md)

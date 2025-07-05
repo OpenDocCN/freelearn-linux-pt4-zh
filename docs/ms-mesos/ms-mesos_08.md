@@ -1,4 +1,4 @@
-# 第八章 Mesos 大数据框架
+# 第八章：Mesos 大数据框架
 
 本章是关于如何在 Mesos 上部署重要的大数据处理框架（如 Hadoop、Spark、Storm 和 Samza）的指南。
 

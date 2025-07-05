@@ -1,3 +1,4 @@
++   [Powershell6 Linux 管理秘籍](README.md)
 +   [序言](pwsh6-linux-adm-cb_00.md)
 +   [第一章：安装、参考和帮助](pwsh6-linux-adm-cb_01.md)
 +   [第二章：介绍 Core 及其功能](pwsh6-linux-adm-cb_02.md)
@@ -19,4 +20,3 @@
 +   [第十八章：最佳实践汇总](pwsh6-linux-adm-cb_18.md)
 +   [第十九章：PowerShell 和云操作](pwsh6-linux-adm-cb_19.md)
 +   [第二十章：使用 PowerShell 进行 SQL 数据库管理](pwsh6-linux-adm-cb_20.md)
-+   [Powershell6 Linux 管理秘籍](READNE.md)

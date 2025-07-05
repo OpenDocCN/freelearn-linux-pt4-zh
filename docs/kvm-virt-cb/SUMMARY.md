@@ -1,3 +1,4 @@
++   [KVM 虚拟化秘籍](README.md)
 +   [前言](kvm-virt-cb_0.md)
 +   [第一章：开始使用 QEMU 和 KVM](kvm-virt-cb_1.md)
 +   [第二章：使用 libvirt 管理 KVM](kvm-virt-cb_2.md)
@@ -7,4 +8,3 @@
 +   [第六章：使用 OpenStack 部署 KVM 实例](kvm-virt-cb_6.md)
 +   [第七章：使用 Python 构建和管理 KVM 实例](kvm-virt-cb_7.md)
 +   [第八章：针对 KVM 性能的内核调优](kvm-virt-cb_8.md)
-+   [KVM 虚拟化秘籍](READNE.md)

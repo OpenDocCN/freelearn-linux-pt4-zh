@@ -1,3 +1,4 @@
++   [精通 Linux 脚本编程第二版](README.md)
 +   [序言](ms-linux-shscp-2e_00.md)
 +   [第一章：使用 Bash 脚本的目的与原因](ms-linux-shscp-2e_01.md)
 +   [第二章：创建交互式脚本](ms-linux-shscp-2e_02.md)
@@ -14,4 +15,3 @@
 +   [第十三章：使用 AWK 改进 lastlog](ms-linux-shscp-2e_13.md)
 +   [第十四章：使用 Python 作为 Bash 脚本的替代方案](ms-linux-shscp-2e_14.md)
 +   [第十五章：评估](ms-linux-shscp-2e_15.md)
-+   [精通 Linux 脚本编程第二版](READNE.md)

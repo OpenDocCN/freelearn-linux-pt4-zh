@@ -1,3 +1,4 @@
++   [精通 CoreOS](README.md)
 +   [第一章](ms-coreos_00.md)
 +   [第二章](ms-coreos_01.md)
 +   [第三章](ms-coreos_02.md)
@@ -10,4 +11,3 @@
 +   [第十章](ms-coreos_09.md)
 +   [第十一章](ms-coreos_10.md)
 +   [第十二章](ms-coreos_11.md)
-+   [精通 CoreOS](READNE.md)

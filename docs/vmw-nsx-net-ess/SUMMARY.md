@@ -1,6 +1,6 @@
-+   [VMware NSX 网络精要](READNE.md)
++   [VMware NSX 网络精要](README.md)
 +   [序言](vmw-nsx-net-ess_0.md)
-+   [第一章 网络虚拟化简介](vmw-nsx-net-ess_1.md)
++   [第一章：网络虚拟化简介](vmw-nsx-net-ess_1.md)
 +   [第二章. NSX 架构](vmw-nsx-net-ess_2.md)
 +   [第三章：NSX Manager 安装与配置](vmw-nsx-net-ess_3.md)
 +   [第四章. NSX 虚拟网络与逻辑路由器](vmw-nsx-net-ess_4.md)

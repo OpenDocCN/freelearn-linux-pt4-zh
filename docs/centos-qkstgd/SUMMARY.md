@@ -1,3 +1,4 @@
++   [CentOS 快速启动指南](README.md)
 +   [前言](centos-qkstgd_00.md)
 +   [第一章：CentOS 7 入门](centos-qkstgd_01.md)
 +   [第二章：命令行和文件系统导航](centos-qkstgd_02.md)
@@ -8,4 +9,3 @@
 +   [第七章：在 CentOS 中管理网络](centos-qkstgd_07.md)
 +   [第八章：软件包管理](centos-qkstgd_08.md)
 +   [第九章：必备高级工具概览](centos-qkstgd_09.md)
-+   [CentOS 快速启动指南](READNE.md)

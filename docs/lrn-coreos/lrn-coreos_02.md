@@ -1,4 +1,4 @@
-# 第二章 设置 CoreOS 环境
+# 第二章：设置 CoreOS 环境
 
 CoreOS 可以安装在多种平台上，如裸金属服务器、云提供商的虚拟机、物理服务器等。本章详细描述了如何在虚拟机上部署 CoreOS，帮助你启动第一个 CoreOS 环境。当在虚拟化环境中进行部署时，像 Vagrant 这样的工具在管理 CoreOS 虚拟机时非常有用。**Vagrant** 使得即使在单个笔记本电脑或工作站上，也能轻松设置多个节点的 CoreOS 环境，且配置最小化。Vagrant 支持 VirtualBox，这是一个常用的虚拟化应用程序。Vagrant 和 VirtualBox 都支持多种架构，如 Intel 或 AMD，以及多种操作系统，如 Windows、Linux、Solaris 和 Mac。
 

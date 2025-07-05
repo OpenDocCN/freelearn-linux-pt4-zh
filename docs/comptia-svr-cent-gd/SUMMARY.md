@@ -1,3 +1,4 @@
++   [Comptia 服务器认证指南](README.md)
 +   [前言](comptia-svr-cent-gd_00.md)
 +   [第一部分：系统架构](comptia-svr-cent-gd_01.md)
 +   [第一章：服务器硬件](comptia-svr-cent-gd_02.md)
@@ -25,4 +26,3 @@
 +   [第二十章：CompTIA Server+ 考试](comptia-svr-cent-gd_24.md)
 +   [第二十一章：词汇表](comptia-svr-cent-gd_25.md)
 +   [第二十二章：评估](comptia-svr-cent-gd_26.md)
-+   [Comptia 服务器认证指南](READNE.md)
